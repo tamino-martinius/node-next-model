@@ -1,0 +1,59 @@
+{
+  "name": "next-model",
+  "version": "0.0.1",
+  "description": "Rails like models using ES6.",
+  "author": "Tamino Martinius <dev@zaku.eu>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tamino-martinius/node-next-model.git"
+  },
+  "main": "./lib",
+  "watch": {
+    "srclint": {
+      "patterns": [
+        "src"
+      ],
+      "extensions": [
+        "js"
+      ],
+      "inherit": true
+    },
+    "testlint": {
+      "patterns": [
+        "test"
+      ],
+      "extensions": [
+        "js"
+      ],
+      "inherit": true
+    },
+    "test": {
+      "patterns": [
+        "test",
+        "lib"
+      ],
+      "extensions": [
+        "js"
+      ],
+      "inherit": true
+    }
+  },
+  "scripts": {
+    "srclint": "node node_modules/eslint/bin/eslint.js ./src || true",
+    "testlint": "node node_modules/eslint/bin/eslint.js ./test || true",
+    "test": "node node_modules/mocha/bin/mocha test -u bdd-lazy-var/rspec --reporter progress",
+    "watch": "npm-watch"
+  },
+  "devDependencies": {
+    "bdd-lazy-var": "^1.2.0",
+    "eslint": "^2.13.1",
+    "expect.js": "^0.3.1",
+    "mocha": "^3.0.2",
+    "npm-watch": "^0.1.6"
+  },
+  "dependencies": {
+    "inflection": "^1.10.0",
+    "lodash": "^4.12.0"
+  }
+}
