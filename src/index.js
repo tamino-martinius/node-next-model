@@ -178,7 +178,8 @@ module.exports = class NextModel {
 
   static setCache(queryType, value) {
     this.cache = this.cache || {};
-    return this.cache[queryType] = value;
+    this.cache[queryType] = value;
+    return value;
   }
 
   static build(attrs) {
