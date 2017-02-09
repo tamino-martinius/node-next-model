@@ -77,10 +77,6 @@ module.exports = class NextModel {
     return {};
   }
 
-  static get useCache() {
-    return true;
-  }
-
   static get cacheData() {
     return true;
   }
@@ -102,55 +98,62 @@ module.exports = class NextModel {
     return without(keys(this.fetchSchema()), this.identifier);
   }
 
-  static get hasCache() {
-    return this.useCache && isArray(this.cache);
-  }
-
   static get all() {
     let promise;
-    if (this.hasCache) {
-      promise = this._fromCache;
+    if (this.hasCache('all')) {
+      promise = Promise.resolve(this.getCache('all'));
     } else {
-      promise = this.connector.all(this);
+      promise = this.connector.all(this)
+      if (this.cacheData)
+        promise = promise.then(data => this.setCache('all', data));
     }
     return promise.then(result => map(result, (attr) => new this(attr)));
   }
 
   static get first() {
     let promise;
-    if (this.hasCache) {
-      promise = this._fromCache.then(result => first(result));
+    if (this.hasCache('first')) {
+      promise = Promise.resolve(this.getCache('first'));
     } else {
-      promise = this.connector.first(this);
+      promise = this.connector.first(this)
+      if (this.cacheData)
+        promise = promise.then(data => this.setCache('first', data));
     }
     return promise.then(attributes => (attributes && new this(attributes)));
   }
 
   static get last() {
     let promise;
-    if (this.hasCache) {
-      promise = this._fromCache.then(result => last(result));
+    if (this.hasCache('last')) {
+      promise = Promise.resolve(this.getCache('last'));
     } else {
-      promise = this.connector.last(this);
+      promise = this.connector.last(this)
+      if (this.cacheData)
+        promise = promise.then(data => this.setCache('last', data));
     }
     return promise.then(attributes => (attributes && new this(attributes)));
   }
 
   static get count() {
-    const unscoped = this.unskip().unlimit();
-    if (unscoped.hasCache) {
-      return unscoped._fromCache.then(result => result.length);
+    let scope = this
+    if (this._skip) scope = this.unskip()
+    if (this._limit) scope = this.unlimit();
+    if (this.hasCache('count')) {
+      return Promise.resolve(this.getCache('count'));
     } else {
-      return this.connector.count(unscoped);
+      let promise = this.connector.count(this)
+      if (this.cacheData)
+        promise = promise.then(data => this.setCache('count', data));
+      return promise;
     }
   }
 
   static get model() {
-    return this.withScope(undefined).order(undefined).reload;
+    return this.withScope(undefined).order(undefined);
   }
 
   static get withoutScope() {
-    return this.withScope(undefined).reload;
+    return this.withScope(undefined);
   }
 
   static get unorder() {
@@ -158,12 +161,26 @@ module.exports = class NextModel {
   }
 
   static get reload() {
-    const klass = this.withScope(this.defaultScope);
+    const klass = class extends this {};
     klass.cache = undefined;
     return klass;
   }
 
   // Static functions
+
+  static hasCache(queryType) {
+    return !!(this.cacheData && this.cache && !isNil(this.cache[queryType]));
+  }
+
+  static getCache(queryType) {
+    return this.cache && this.cache[queryType];
+  }
+
+  static setCache(queryType, value) {
+    this.cache = this.cache || {};
+    return this.cache[queryType] = value;
+  }
+
   static build(attrs) {
     if (attrs && !isNil(attrs[this.identifier])) {
       throw new Error(`can't set identifier column`);
@@ -178,13 +195,13 @@ module.exports = class NextModel {
   static limit(amount) {
     if (!isNumber(amount)) throw new Error(`'limit' needs to be a number`);
     if (amount < 0) throw new Error(`'limit' needs to be at least 0`);
-    const klass = class extends this {};
+    const klass = this.reload;
     klass._limit = amount;
     return klass;
   }
 
   static unlimit() {
-    const klass = class extends this {};
+    const klass = this.reload;
     klass._limit = undefined;
     return klass;
   }
@@ -192,13 +209,13 @@ module.exports = class NextModel {
   static skip(amount) {
     if (!isNumber(amount)) throw new Error(`'skip' needs to be a number`);
     if (amount < 0) throw new Error(`'skip' needs to be at least 0`);
-    const klass = class extends this {};
+    const klass = this.reload;
     klass._skip = amount;
     return klass;
   }
 
   static unskip() {
-    const klass = class extends this {};
+    const klass = this.reload;
     klass._skip = undefined;
     return klass;
   }
@@ -209,7 +226,7 @@ module.exports = class NextModel {
       throw new Error(`can't filter by '${wrongKeys.join(`', '`)}', keys are missing in schema`);
     }
 
-    const klass = class extends this {
+    const klass = class extends this.reload {
       static get defaultScope() {
         return scope;
       }
@@ -230,7 +247,7 @@ module.exports = class NextModel {
       );
     }
 
-    const klass = class extends this {
+    const klass = class extends this.reload {
       static get defaultOrder() {
         return order;
       }
@@ -279,18 +296,6 @@ module.exports = class NextModel {
   }
 
   // Static private properties
-  static get _fromCache() {
-    return new Promise((resolve, reject)  => {
-      if (this.hasCache) {
-        let result = filter(this.cache, this.defaultScope);
-        const order = this.order(this.defaultOrder).defaultOrder;
-        if (order) result = orderBy(result, keys(order), values(order));
-        resolve(result.splice(this._skip, this._limit || Number.MAX_VALUE));
-      } else {
-        reject(Error('Cache is not present'));
-      }
-    });
-  }
 
   static get _defaultAttributes() {
     const schemaDefaults = mapValues(this.fetchSchema(), (value) => value.defaultValue);
