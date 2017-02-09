@@ -48,6 +48,7 @@
   "devDependencies": {
     "bdd-lazy-var": "^1.2.0",
     "eslint": "^2.13.1",
+    "expect-change": "0.0.1",
     "expect.js": "^0.3.1",
     "mocha": "^3.0.2",
     "npm-watch": "^0.1.6"

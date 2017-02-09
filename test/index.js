@@ -1,15 +1,37 @@
 'use strict';
 
-const NextModel = require('../lib');
+const NextModel = require('..');
 const expect = require('expect.js');
+const expectChange = require('expect-change');
 
 const {
+  filter,
+  first,
+  keys,
+  last,
   map,
+  orderBy,
 } = require('lodash');
+
+const mockConnector = function(data) {
+  const all = (model) => {
+    let result = filter(data, model.defaultScope);
+    const order = model.defaultOrder;
+    if (order) result = orderBy(result, keys(order), values(order));
+    result = result.splice(model._skip, model._limit || Number.MAX_VALUE);
+    return Promise.resolve(result);
+  };
+  const first = (model) => all(model).then(result => result[0]);
+  const last = (model) => all(model).then(result => result[result.length - 1]);
+  const count = (model) => all(model).then(result => result.length);
+  return { all, first, last, count };
+};
 
 describe('NextModel', function() {
   // Static properties
+
   // - must be inherited
+
   describe('.modelName', function() {
     subject(() => $Klass.modelName);
 
@@ -83,6 +105,7 @@ describe('NextModel', function() {
   });
 
   // - optional
+
   describe('.identifier', function() {
     subject(() => $Klass.identifier);
 
@@ -204,18 +227,6 @@ describe('NextModel', function() {
     });
   });
 
-  describe('.useCache', function() {
-    subject(() => $Klass.useCache);
-
-    context('when value is not overwritten', function() {
-      def('Klass', () => class Klass extends NextModel {});
-
-      it('returns default value', function() {
-        expect($subject).to.eql(true);
-      });
-    });
-  });
-
   describe('.cacheData', function() {
     subject(() => $Klass.cacheData);
 
@@ -253,6 +264,7 @@ describe('NextModel', function() {
   });
 
   // - computed
+
   describe('.keys', function() {
     subject(() => $Klass.keys);
 
@@ -394,49 +406,6 @@ describe('NextModel', function() {
     });
   });
 
-  describe('.hasCache', function() {
-    subject(() => $Klass.hasCache);
-    def('Klass', () => class Klass extends NextModel {});
-
-    beforeEach(function() {
-      $Klass.cache = $cache;
-    });
-
-    context('when cache is not present', function() {
-      it('returns false', function() {
-        expect($subject).to.eql(false);
-      });
-    });
-
-    context('when cache is empty', function() {
-      def('cache', () => []);
-
-      it('returns true', function() {
-        expect($subject).to.eql(true);
-      });
-
-      context('when caching is disabled', function() {
-        def('Klass', () => class Klass extends $Klass {
-          static get useCache() {
-            return false;
-          }
-        });
-
-        it('returns false', function () {
-          expect($subject).to.eql(false);
-        });
-      });
-    });
-
-    context('when cache is present', function() {
-      def('cache', () => [{ foo: 'bar' }]);
-
-      it('returns true', function() {
-        expect($subject).to.eql(true);
-      });
-    });
-  });
-
   describe('.all', function() {
     subject(() => $Klass.all);
 
@@ -461,42 +430,34 @@ describe('NextModel', function() {
       }
     });
 
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
+
+    def('cache', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+    ]);
+
     it('throws error without connector', function () {
       expect(() => $subject).to.throwError();
     });
 
     context('when cache is present', function() {
       beforeEach(function() {
-        $Klass.cache = [
-          { id: 1, foo: 'foo' },
-          { id: 2, foo: 'foo' },
-          { id: 3, foo: 'bar' },
-        ];
+        $Klass.setCache('all', $cache);
       });
 
       it('returns cached data', function () {
-        return $subject.then(data => expect(map(data, 'id')).to.eql([1, 2, 3]));
-      });
-
-      context('when defaultScope present', function() {
-        def('defaultScope', () => ({ foo: 'foo' }));
-
-        it('returns matching cached data', function () {
-          return $subject.then(data => expect(map(data, 'id')).to.eql([1, 2]));
-        });
-      });
-
-      context('when defaultOrder present', function() {
-        def('defaultOrder', () => ({ id: 'desc' }));
-
-        it('returns matching cached data', function () {
-          return $subject.then(data => expect(map(data, 'id')).to.eql([3, 2, 1]));
-        });
+        return $subject.then(data => expect(data).to.eql($cache));
       });
 
       context('when caching is disabled', function() {
         def('Klass', () => class Klass extends $Klass {
-          static get useCache() {
+          static get cacheData() {
             return false;
           }
         });
@@ -510,38 +471,32 @@ describe('NextModel', function() {
     context('when connector is present', function() {
       def('Klass', () => class Klass extends $Klass {
         static get connector() {
-          return { all: function() {
-            return Promise.resolve([{id: 1, foo: 'bar'}]);
-          }};
+          return mockConnector($items);
         }
       });
 
       it('returns queried data', function () {
-        return $subject.then(data => expect(map(data, 'id')).to.eql([1]));
+        return $subject.then(data => expect(data).to.eql($items));
       });
 
       context('when cache is present', function() {
         beforeEach(function() {
-          $Klass.cache = [
-            { id: 1, foo: 'foo' },
-            { id: 2, foo: 'foo' },
-            { id: 3, foo: 'bar' },
-          ];
+          $Klass.setCache('all', $cache);
         });
 
         it('returns cached data', function () {
-          return $subject.then(data => expect(map(data, 'id')).to.eql([1, 2, 3]));
+          return $subject.then(data => expect(data).to.eql($cache));
         });
 
         context('when caching is disabled', function() {
           def('Klass', () => class Klass extends $Klass {
-            static get useCache() {
+            static get cacheData() {
               return false;
             }
           });
 
           it('returns queried data', function () {
-            return $subject.then(data => expect(map(data, 'id')).to.eql([1]));
+            return $subject.then(data => expect(data).to.eql($items));
           });
         });
       });
@@ -558,8 +513,8 @@ describe('NextModel', function() {
 
       static get schema() {
         return {
-          id: {type: 'integer'},
-          foo: {type: 'string'},
+          id: { type: 'integer' },
+          foo: { type: 'string' },
         };
       }
 
@@ -572,42 +527,31 @@ describe('NextModel', function() {
       }
     });
 
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
+
+    def('cache', () => ({ id: 2, foo: 'foo' }));
+
     it('throws error without connector', function () {
       expect(() => $subject).to.throwError();
     });
 
     context('when cache is present', function() {
       beforeEach(function() {
-        $Klass.cache = [
-          { id: 1, foo: 'foo' },
-          { id: 2, foo: 'foo' },
-          { id: 3, foo: 'bar' },
-        ];
+        $Klass.setCache('first', $cache);
       });
 
       it('returns cached data', function () {
-        return $subject.then(data => expect(data).to.eql({ id: 1, foo: 'foo' }));
-      });
-
-      context('when defaultScope present', function() {
-        def('defaultScope', () => ({ foo: 'foo' }));
-
-        it('returns matching cached data', function () {
-          return $subject.then(data => expect(data).to.eql({ id: 1, foo: 'foo' }));
-        });
-      });
-
-      context('when defaultOrder present', function() {
-        def('defaultOrder', () => ({ id: 'desc' }));
-
-        it('returns matching cached data', function () {
-          return $subject.then(data => expect(data).to.eql({ id: 3, foo: 'bar' }));
-        });
+        return $subject.then(data => expect(data).to.eql($cache));
       });
 
       context('when caching is disabled', function() {
         def('Klass', () => class Klass extends $Klass {
-          static get useCache() {
+          static get cacheData() {
             return false;
           }
         });
@@ -621,34 +565,32 @@ describe('NextModel', function() {
     context('when connector is present', function() {
       def('Klass', () => class Klass extends $Klass {
         static get connector() {
-          return { first: function() {
-            return Promise.resolve({ id: 2, foo: 'bar' });
-          }};
+          return mockConnector($items);
         }
       });
 
       it('returns queried data', function () {
-        return $subject.then(data => expect(data).to.eql({ id: 2, foo: 'bar' }));
+        return $subject.then(data => expect(data).to.eql(first($items)));
       });
 
       context('when cache is present', function() {
         beforeEach(function() {
-          $Klass.cache = [{ id: 1, foo: 'foo' }];
+          $Klass.setCache('first', $cache);
         });
 
         it('returns cached data', function () {
-          return $subject.then(data => expect(data).to.eql({ id: 1, foo: 'foo' }));
+          return $subject.then(data => expect(data).to.eql($cache));
         });
 
         context('when caching is disabled', function() {
           def('Klass', () => class Klass extends $Klass {
-            static get useCache() {
+            static get cacheData() {
               return false;
             }
           });
 
           it('returns queried data', function () {
-            return $subject.then(data => expect(data).to.eql({ id: 2, foo: 'bar' }));
+            return $subject.then(data => expect(data).to.eql(first($items)));
           });
         });
       });
@@ -679,42 +621,31 @@ describe('NextModel', function() {
       }
     });
 
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
+
+    def('cache', () => ({ id: 2, foo: 'foo' }));
+
     it('throws error without connector', function () {
       expect(() => $subject).to.throwError();
     });
 
     context('when cache is present', function() {
       beforeEach(function() {
-        $Klass.cache = [
-          { id: 1, foo: 'foo' },
-          { id: 2, foo: 'foo' },
-          { id: 3, foo: 'bar' },
-        ];
+        $Klass.setCache('last', $cache);
       });
 
       it('returns cached data', function () {
-        return $subject.then(data => expect(data).to.eql({ id: 3, foo: 'bar' }));
-      });
-
-      context('when defaultScope present', function() {
-        def('defaultScope', () => ({ foo: 'foo' }));
-
-        it('returns matching cached data', function () {
-          return $subject.then(data => expect(data).to.eql({ id: 2, foo: 'foo' }));
-        });
-      });
-
-      context('when defaultOrder present', function() {
-        def('defaultOrder', () => ({ id: 'desc' }));
-
-        it('returns matching cached data', function () {
-          return $subject.then(data => expect(data).to.eql({ id: 1, foo: 'foo' }));
-        });
+        return $subject.then(data => expect(data).to.eql($cache));
       });
 
       context('when caching is disabled', function() {
         def('Klass', () => class Klass extends $Klass {
-          static get useCache() {
+          static get cacheData() {
             return false;
           }
         });
@@ -728,34 +659,32 @@ describe('NextModel', function() {
     context('when connector is present', function() {
       def('Klass', () => class Klass extends $Klass {
         static get connector() {
-          return { last: function() {
-            return Promise.resolve({ id: 2, foo: 'bar' });
-          }};
+          return mockConnector($items);
         }
       });
 
       it('returns queried data', function () {
-        return $subject.then(data => expect(data).to.eql({ id: 2, foo: 'bar' }));
+        return $subject.then(data => expect(data).to.eql(last($items)));
       });
 
       context('when cache is present', function() {
         beforeEach(function() {
-          $Klass.cache = [{ id: 1, foo: 'foo' }];
+          $Klass.setCache('last', $cache);
         });
 
         it('returns cached data', function () {
-          return $subject.then(data => expect(data).to.eql({ id: 1, foo: 'foo' }));
+          return $subject.then(data => expect(data).to.eql($cache));
         });
 
         context('when caching is disabled', function() {
           def('Klass', () => class Klass extends $Klass {
-            static get useCache() {
+            static get cacheData() {
               return false;
             }
           });
 
           it('returns queried data', function () {
-            return $subject.then(data => expect(data).to.eql({ id: 2, foo: 'bar' }));
+            return $subject.then(data => expect(data).to.eql(last($items)));
           });
         });
       });
@@ -786,36 +715,37 @@ describe('NextModel', function() {
       }
     });
 
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
+
+    def('cache', () => 2);
+
     it('throws error without connector', function () {
       expect(() => $subject).to.throwError();
     });
 
     context('when cache is present', function() {
       beforeEach(function() {
-        $Klass.cache = [
-          { id: 1, foo: 'foo' },
-          { id: 2, foo: 'foo' },
-          { id: 3, foo: 'bar' },
-        ];
+        $Klass.setCache('count', $cache);
       });
 
-      it('returns cache length', function () {
-        return $subject.then(data => expect(data).to.eql(3));
+      it('returns cached data', function () {
+        return $subject.then(data => expect(data).to.eql($cache));
       });
 
-      context('when defaultOrder present', function() {
-        def('defaultOrder', () => ({ id: 'desc' }));
-
-        it('does not change count', function () {
-          return $subject.then(data => expect(data).to.eql(3));
+      context('when caching is disabled', function() {
+        def('Klass', () => class Klass extends $Klass {
+          static get cacheData() {
+            return false;
+          }
         });
-      });
 
-      context('when defaultScope present', function() {
-        def('defaultScope', () => ({ foo: 'foo' }));
-
-        it('returns length of matching cached data', function () {
-          return $subject.then(data => expect(data).to.eql(2));
+        it('throws error without connector', function () {
+          expect(() => $subject).to.throwError();
         });
       });
     });
@@ -823,34 +753,32 @@ describe('NextModel', function() {
     context('when connector is present', function() {
       def('Klass', () => class Klass extends $Klass {
         static get connector() {
-          return { count: function() {
-            return Promise.resolve(2);
-          }};
+          return mockConnector($items);
         }
       });
 
       it('returns queried data', function () {
-        return $subject.then(data => expect(data).to.eql(2));
+        return $subject.then(data => expect(data).to.eql($items.length));
       });
 
       context('when cache is present', function() {
         beforeEach(function() {
-          $Klass.cache = [{ id: 1, foo: 'foo' }];
+          $Klass.setCache('count', $cache);
         });
 
         it('returns cached data', function () {
-          return $subject.then(data => expect(data).to.eql(1));
+          return $subject.then(data => expect(data).to.eql($cache));
         });
 
         context('when caching is disabled', function() {
           def('Klass', () => class Klass extends $Klass {
-            static get useCache() {
+            static get cacheData() {
               return false;
             }
           });
 
           it('returns queried data', function () {
-            return $subject.then(data => expect(data).to.eql(2));
+            return $subject.then(data => expect(data).to.eql($items.length));
           });
         });
       });
@@ -993,6 +921,7 @@ describe('NextModel', function() {
       }
     });
 
+
     it('ruturns a NextModel', function() {
       expect($subject).to.be.a('function');
       expect($subject.modelName).to.eql('Klass');
@@ -1003,8 +932,8 @@ describe('NextModel', function() {
         $Klass.cache = [{ foo: 1 }];
       });
 
-      it('keeps cache', function() {
-        expect($subject.cache).to.eql([{ foo: 1 }]);
+      it('clears cache', function() {
+        expect($subject.cache).to.eql(undefined);
       });
     });
 
@@ -1055,12 +984,16 @@ describe('NextModel', function() {
     });
 
     context('cache is present', function() {
+      def('queryType', () => 'all');
+      def('items', () => [{ foo: 1 }]);
+
       beforeEach(function() {
-        $Klass.cache = [{ foo: 1 }];
+        $Klass.setCache($queryType, $items);
       });
 
       it('clears cache', function() {
-        expect($subject.cache).to.eql(undefined);
+        expect($Klass.getCache($queryType)).eql($items);
+        expect($subject.getCache($queryType)).to.eql(undefined);
       });
     });
 
@@ -1082,6 +1015,107 @@ describe('NextModel', function() {
   });
 
   // Static functions
+
+  describe('.hasCache()', function() {
+    subject(() => $Klass.hasCache($queryType));
+    def('Klass', () => class Klass extends NextModel {});
+
+    def('queryType', () => 'all');
+
+    it('returns false', function() {
+      expect($subject).to.eql(false);
+    });
+
+    context('when other querytype is set', function() {
+      beforeEach(function() {
+        $Klass.setCache('first', { foo: 'bar' });
+      });
+
+      it('returns false', function() {
+        expect($subject).to.eql(false);
+      });
+    });
+
+    context('when other cache is set', function() {
+      beforeEach(function() {
+        $Klass.setCache('all', [{ foo: 'bar' }]);
+      });
+
+      it('returns true', function() {
+        expect($subject).to.eql(true);
+      });
+
+      context('when cacheData is disabled', function() {
+        def('Klass', () => class Klass extends $Klass {
+          static get cacheData() {
+            return false;
+          }
+        });
+
+        it('returns false', function () {
+          expect($subject).to.eql(false);
+        });
+      });
+    });
+  });
+
+  describe('.getCache()', function() {
+    subject(() => $Klass.getCache($queryType));
+    def('Klass', () => class Klass extends NextModel {});
+
+    context('when queryType is all', function() {
+      def('queryType', () => 'all');
+
+      it('returns undefined', function() {
+        expect($subject).to.eql(undefined);
+      });
+
+      context('when cache is set', function() {
+        beforeEach(function() {
+          $Klass.setCache('all', [{ foo: 'bar' }]);
+        });
+
+        it('returns cached items', function() {
+          expect($subject).to.eql([{ foo: 'bar' }]);
+        });
+      });
+    });
+
+    context('when queryType is first', function() {
+      def('queryType', () => 'first');
+
+      it('returns undefined', function() {
+        expect($subject).to.eql(undefined);
+      });
+
+      context('when cache is set', function() {
+        beforeEach(function() {
+          $Klass.setCache('first', { foo: 'bar' });
+        });
+
+        it('returns cached item', function() {
+          expect($subject).to.eql({ foo: 'bar' });
+        });
+      });
+    });
+  });
+
+  describe('.setCache()', function() {
+    subject(() => $Klass.setCache($queryType, $value));
+    def('Klass', () => class Klass extends NextModel {});
+    def('queryType', () => 'all');
+    def('value', () => ({ foo: 'bar' }));
+
+    it('sets and unsets cache', function() {
+      const cache = () => $Klass.getCache($queryType);
+      expect(() => $subject).to
+        .change(cache).from(undefined).to($value);
+      expect(() => $Klass.setCache($queryType, undefined)).to
+        .change(cache).from($value).to(undefined);
+      expect($subject).to.eql($value);
+    });
+  });
+
   describe('.build()', function() {
     subject(() => $Klass.build($attrs));
 
@@ -1295,7 +1329,18 @@ describe('NextModel', function() {
       static get defaultScope() {
         return $defaultScope;
       }
+
+      static get connector() {
+        return mockConnector($items);
+      }
     });
+
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
 
     context('when limit is a number', function () {
       def('amount', () => 1);
@@ -1322,49 +1367,39 @@ describe('NextModel', function() {
       });
     });
 
-    context('when cache is present', function() {
-      def('cache', () => [
-        { id: 1, foo: 'foo' },
-        { id: 2, foo: 'foo' },
-        { id: 3, foo: 'bar' },
-        { id: 4, foo: 'bar' },
-      ]);
-      beforeEach(function() {
-        $Klass.cache = $cache;
+    context('when fetching items', function() {
+      subject(() => $Klass.limit($amount).all);
+
+      context('when limit is heigher than item count' , function() {
+        def('amount', () => 10);
+
+        it('returns all items', function () {
+          return $subject.then(data => expect(data).to.eql($items));
+        });
       });
 
-      context('when fetching records', function() {
-        subject(() => $Klass.limit($amount).all);
+      context('when limit is lower than item count' , function() {
+        def('amount', () => 2);
 
-        context('when limit is heigher than record count' , function() {
-          def('amount', () => 10);
-
-          it('returns all records', function () {
-            return $subject.then(data => expect(data).to.eql($cache));
-          });
+        it('takes the items from start', function () {
+          return $subject.then(data => expect(data).to.eql([$items[0], $items[1]]));
         });
+      });
 
-        context('when limit is lower than record count' , function() {
-          def('amount', () => 2);
+      context('when defaultScope present', function() {
+        def('amount', () => 1);
+        def('defaultScope', () => ({ foo: 'bar' }));
 
-          it('takes the records from start', function () {
-            return $subject.then(data => expect(data).to.eql([$cache[0], $cache[1]]));
-          });
-        });
-
-        context('when defaultScope present', function() {
-          def('amount', () => 1);
-          def('defaultScope', () => ({ foo: 'bar' }));
-
-          it('limits matching cached data', function () {
-            return $subject.then(data => expect(data).to.eql([$cache[2]]));
-          });
+        it('limits matching items', function () {
+          return $subject.then(data => expect(data).to.eql([$items[2]]));
         });
       });
     });
   });
 
   describe('.unlimit()', function() {
+    subject(() => $Klass.unlimit().all);
+
     def('Klass', () => class Klass extends NextModel {
       static get modelName() {
         return 'Klass';
@@ -1380,33 +1415,28 @@ describe('NextModel', function() {
       static get defaultScope() {
         return $defaultScope;
       }
+
+      static get connector() {
+        return mockConnector($items);
+      }
     });
 
-    context('when cache is present', function() {
-      def('cache', () => [
-        { id: 1, foo: 'foo' },
-        { id: 2, foo: 'foo' },
-        { id: 3, foo: 'bar' },
-        { id: 4, foo: 'bar' },
-      ]);
-      beforeEach(function() {
-        $Klass.cache = $cache;
-      });
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
 
-      context('when fetching records', function() {
-        subject(() => $Klass.unlimit().all);
+    it('returns all items', function () {
+      return $subject.then(data => expect(data).to.eql($items));
+    });
 
-        it('returns all records', function () {
-          return $subject.then(data => expect(data).to.eql($cache));
-        });
+    context('when limit is present' , function() {
+      def('Klass', () => $Klass.limit(1));
 
-        context('when limit is present' , function() {
-          def('Klass', () => $Klass.limit(1));
-
-          it('returns all records', function () {
-            return $subject.then(data => expect(data).to.eql($cache));
-          });
-        });
+      it('returns all items', function () {
+        return $subject.then(data => expect(data).to.eql($items));
       });
     });
   });
@@ -1429,7 +1459,18 @@ describe('NextModel', function() {
       static get defaultScope() {
         return $defaultScope;
       }
+
+      static get connector() {
+        return mockConnector($items);
+      }
     });
+
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
 
     context('when skip is a number', function () {
       def('amount', () => 1);
@@ -1456,49 +1497,39 @@ describe('NextModel', function() {
       });
     });
 
-    context('when cache is present', function() {
-      def('cache', () => [
-        { id: 1, foo: 'foo' },
-        { id: 2, foo: 'foo' },
-        { id: 3, foo: 'bar' },
-        { id: 4, foo: 'bar' },
-      ]);
-      beforeEach(function() {
-        $Klass.cache = $cache;
+    context('when fetching items', function() {
+      subject(() => $Klass.skip($amount).all);
+
+      context('when skip is heigher than item count', function() {
+        def('amount', () => 10);
+
+        it('returns no items', function () {
+          return $subject.then(data => expect(data).to.eql([]));
+        });
       });
 
-      context('when fetching records', function() {
-        subject(() => $Klass.skip($amount).all);
+      context('when skip is lower than item count' , function() {
+        def('amount', () => 2);
 
-        context('when skip is heigher than record count' , function() {
-          def('amount', () => 10);
-
-          it('returns no records', function () {
-            return $subject.then(data => expect(data).to.eql([]));
-          });
+        it('skips the items from start', function () {
+          return $subject.then(data => expect(data).to.eql([$items[2], $items[3]]));
         });
+      });
 
-        context('when skip is lower than record count' , function() {
-          def('amount', () => 2);
+      context('when defaultScope present', function() {
+        def('amount', () => 1);
+        def('defaultScope', () => ({ foo: 'bar' }));
 
-          it('skips the records from start', function () {
-            return $subject.then(data => expect(data).to.eql([$cache[2], $cache[3]]));
-          });
-        });
-
-        context('when defaultScope present', function() {
-          def('amount', () => 1);
-          def('defaultScope', () => ({ foo: 'bar' }));
-
-          it('skips matching cached data', function () {
-            return $subject.then(data => expect(data).to.eql([$cache[3]]));
-          });
+        it('skips matching items', function () {
+          return $subject.then(data => expect(data).to.eql([$items[3]]));
         });
       });
     });
   });
 
   describe('.unskip()', function() {
+    subject(() => $Klass.unskip().all);
+
     def('Klass', () => class Klass extends NextModel {
       static get modelName() {
         return 'Klass';
@@ -1514,33 +1545,28 @@ describe('NextModel', function() {
       static get defaultScope() {
         return $defaultScope;
       }
+
+      static get connector() {
+        return mockConnector($items);
+      }
     });
 
-    context('when cache is present', function() {
-      def('cache', () => [
-        { id: 1, foo: 'foo' },
-        { id: 2, foo: 'foo' },
-        { id: 3, foo: 'bar' },
-        { id: 4, foo: 'bar' },
-      ]);
-      beforeEach(function() {
-        $Klass.cache = $cache;
-      });
+    def('items', () => [
+      { id: 1, foo: 'foo' },
+      { id: 2, foo: 'foo' },
+      { id: 3, foo: 'bar' },
+      { id: 4, foo: 'bar' },
+    ]);
 
-      context('when fetching records', function() {
-        subject(() => $Klass.unskip().all);
+    it('returns all items', function () {
+      return $subject.then(data => expect(data).to.eql($items));
+    });
 
-        it('returns all records', function () {
-          return $subject.then(data => expect(data).to.eql($cache));
-        });
+    context('when skip is present' , function() {
+      def('Klass', () => $Klass.skip(1));
 
-        context('when skip is present' , function() {
-          def('Klass', () => $Klass.skip(1));
-
-          it('returns all records', function () {
-            return $subject.then(data => expect(data).to.eql($cache));
-          });
-        });
+      it('returns all items', function () {
+        return $subject.then(data => expect(data).to.eql($items));
       });
     });
   });
@@ -2134,13 +2160,12 @@ describe('NextModel', function() {
           klassId: { type: 'integer' },
         };
       }
-    });
 
-    beforeEach(function() {
-      $Foo.cache = [{
-        id: 1,
-        klassId: 1,
-      }];
+      static get connector() {
+        return mockConnector([
+          { id: 1, klassId: 1 },
+        ]);
+      }
     });
 
     it('returns model instance', function() {
@@ -2459,6 +2484,7 @@ describe('NextModel', function() {
   });
 
   // Functions
+
   describe('#assignAttribute()', function() {
     subject(() => $klass.assignAttribute($key, $value));
     def('klass', () => new $Klass($args));
@@ -2579,7 +2605,7 @@ describe('NextModel', function() {
         return Promise.resolve(true);
       }}));
 
-      it('saves the record', function() {
+      it('saves the item', function() {
         expect($klass.id).to.eql(null);
         expect($klass.isNew).to.eql(true);
         return $subject.then(data => {
@@ -2622,7 +2648,7 @@ describe('NextModel', function() {
         return Promise.resolve(true);
       }}));
 
-      it('deletes the record', function() {
+      it('deletes the item', function() {
         expect($klass.isNew).to.eql(false);
         return $subject.then(data => {
           expect(data).to.be.a($Klass);
@@ -2630,12 +2656,12 @@ describe('NextModel', function() {
         });
       });
 
-      context('when record is new', function() {
+      context('when item is new', function() {
         beforeEach(function() {
           delete $klass.id;
         });
 
-        it('does not change the record', function() {
+        it('does not change the item', function() {
           expect($klass.isNew).to.eql(true);
           return $subject.then(data => {
             expect(data).to.be.a($Klass);
@@ -2669,13 +2695,13 @@ describe('NextModel', function() {
     });
     def('id', () => undefined);
 
-    it('returns unchanged record as long as record is new', function() {
+    it('returns unchanged item as long as item is new', function() {
       return $subject.then(data => {
         expect(data).to.eql($klass);
       })
     });
 
-    context('when record is persisted', function() {
+    context('when item is persisted', function() {
       def('id', () => 1);
 
       it('throws error if connector is not overwritten', function() {
@@ -2683,14 +2709,12 @@ describe('NextModel', function() {
       });
 
       context('when connector is present', function() {
-        def('connector', () => ({ first: function(Klass) {
-          return Promise.resolve($record);
-        }}));
+        def('connector', () => mockConnector([$item]));
 
-        context('when record is deleted', function() {
-          def('record', () => undefined);
+        context('when item is deleted', function() {
+          def('item', () => undefined);
 
-          it('flags record as new', function() {
+          it('flags item as new', function() {
             expect($klass.isNew).to.eql(false);
 
             return $subject.then(data => {
@@ -2701,10 +2725,10 @@ describe('NextModel', function() {
           });
         });
 
-        context('when record is same', function() {
-          def('record', () => $klass);
+        context('when item is same', function() {
+          def('item', () => $klass);
 
-          it('does not change record', function() {
+          it('does not change item', function() {
             return $subject.then(data => {
               expect(data).to.be.a($Klass);
               expect(data.id).to.eql($id);
@@ -2713,8 +2737,8 @@ describe('NextModel', function() {
           });
         });
 
-        context('when record has different values', function() {
-          def('record', () => {
+        context('when item has different values', function() {
+          def('item', () => {
             const klass = $Klass.build({ foo: 'bar' });
             klass.id = $id;
             return klass;
