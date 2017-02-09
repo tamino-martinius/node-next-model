@@ -10,18 +10,9 @@
   },
   "main": ".",
   "watch": {
-    "srclint": {
+    "lint": {
       "patterns": [
-        "src"
-      ],
-      "extensions": [
-        "js"
-      ],
-      "inherit": true
-    },
-    "testlint": {
-      "patterns": [
-        "test"
+        "."
       ],
       "extensions": [
         "js"
@@ -40,8 +31,7 @@
     }
   },
   "scripts": {
-    "srclint": "node node_modules/eslint/bin/eslint.js ./src || true",
-    "testlint": "node node_modules/eslint/bin/eslint.js ./test || true",
+    "lint": "node node_modules/eslint/bin/eslint.js . || true",
     "test": "node node_modules/mocha/bin/mocha test -u bdd-lazy-var/rspec --reporter progress",
     "watch": "npm-watch"
   },
