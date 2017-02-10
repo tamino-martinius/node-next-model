@@ -9,7 +9,6 @@ const {
   first,
   keys,
   last,
-  map,
   orderBy,
 } = require('lodash');
 
@@ -1601,14 +1600,6 @@ describe('NextModel', function() {
       expect($subject.defaultScope).to.eql($scope);
     });
 
-    context('when key is not in schema', function() {
-      def('scope', () => ({ baz: 'foo' }));
-
-      it('throws error', function() {
-        expect(() => $subject).to.throwError();
-      });
-    });
-
     context('defaultScope is already present', function() {
       def('defaultScope', () => ({ bar: 'baz' }));
 
@@ -1719,27 +1710,13 @@ describe('NextModel', function() {
       expect($subject.defaultScope).to.eql({ foo: 'bar' });
     });
 
-    context('when key is not in schema', function() {
-      def('scope', () => ({ baz: 'bar' }));
-
-      it('throws error', function() {
-        expect(() => $subject).to.throwError();
-      });
-    });
-
     context('defaultScope is already present', function() {
       def('defaultScope', () => ({ bar: 'baz' }));
 
       it('merges current scope', function() {
-        expect($subject.defaultScope).to.eql({ foo: 'bar', bar: 'baz' });
-      });
-
-      context('defaultScope is already present with same key', function() {
-        def('defaultScope', () => ({ foo: 'baz' }));
-
-        it('throws error', function() {
-          expect(() => $subject).to.throwError();
-        });
+        expect($subject.defaultScope).to.eql(
+          { $and: [{ bar: 'baz' }, { foo: 'bar' }] }
+        );
       });
     });
   });
@@ -1831,27 +1808,54 @@ describe('NextModel', function() {
       expect($subject.defaultScope).to.eql({ foo: 'bar' });
     });
 
-    context('when key is not in schema', function() {
-      def('scope', () => ({ baz: 'bar' }));
+    context('defaultScope is already present', function() {
+      def('defaultScope', () => ({ bar: 'baz' }));
 
-      it('throws error', function() {
-        expect(() => $subject).to.throwError();
+      it('merges current scope', function() {
+        expect($subject.defaultScope).to.eql(
+          { $and: [{ bar: 'baz' }, { foo: 'bar' }] }
+        );
       });
+    });
+  });
+
+  describe('.orWhere()', function() {
+    subject(() => $Klass.orWhere($scope));
+    def('scope', () => ({ foo: 'bar' }));
+
+    def('Klass', () => class Klass extends NextModel {
+      static get modelName() {
+        return 'Klass';
+      }
+
+      static get schema() {
+        return {
+          foo: { type: 'integer' },
+          bar: { type: 'integer' },
+        };
+      }
+
+      static get defaultScope() {
+        return $defaultScope;
+      }
+    });
+
+    it('ruturns a NextModel', function() {
+      expect($subject).to.be.a('function');
+      expect($subject.modelName).to.eql('Klass');
+    });
+
+    it('passes scope to defaultScope', function() {
+      expect($subject.defaultScope).to.eql({ foo: 'bar' });
     });
 
     context('defaultScope is already present', function() {
       def('defaultScope', () => ({ bar: 'baz' }));
 
       it('merges current scope', function() {
-        expect($subject.defaultScope).to.eql({ foo: 'bar', bar: 'baz' });
-      });
-
-      context('defaultScope is already present with same key', function() {
-        def('defaultScope', () => ({ foo: 'baz' }));
-
-        it('throws error', function() {
-          expect(() => $subject).to.throwError();
-        });
+        expect($subject.defaultScope).to.eql(
+          { $or: [{ bar: 'baz' }, { foo: 'bar' }] }
+        );
       });
     });
   });

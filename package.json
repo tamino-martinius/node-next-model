@@ -21,8 +21,7 @@
     },
     "test": {
       "patterns": [
-        "test",
-        "lib"
+        "."
       ],
       "extensions": [
         "js"

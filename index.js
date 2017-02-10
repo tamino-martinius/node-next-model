@@ -8,7 +8,6 @@ const {
 const {
   assign,
   difference,
-  drop,
   filter,
   first,
   includes,
@@ -21,14 +20,10 @@ const {
   map,
   mapValues,
   omit,
-  orderBy,
   pick,
-  take,
   union,
-  uniq,
   values,
   without,
-  xor,
 } = require('lodash');
 
 
@@ -222,11 +217,6 @@ module.exports = class NextModel {
   }
 
   static withScope(scope) {
-    const wrongKeys = difference(keys(scope), keys(this.fetchSchema()));
-    if (wrongKeys.length > 0) {
-      throw new Error(`can't filter by '${wrongKeys.join(`', '`)}', keys are missing in schema`);
-    }
-
     const klass = class extends this.reload {
       static get defaultScope() {
         return scope;
@@ -258,8 +248,8 @@ module.exports = class NextModel {
   }
 
   static scope({where}) {
-    const defScope = this._mergeAttributes(this.defaultScope, where);
-    return this.withScope(defScope);
+    const scope = this._mergeScopes(this.defaultScope, where);
+    return this.withScope(scope);
   }
 
   static unscope(args) {
@@ -267,9 +257,13 @@ module.exports = class NextModel {
     return this.withScope(defScope);
   }
 
-  static where(filter) {
-    const defScope = this._mergeAttributes(this.defaultScope, filter);
-    return this.withScope(defScope);
+  static where(where) {
+    return this.scope({ where });
+  }
+
+  static orWhere(where) {
+    const scope = this._mergeScopes(this.defaultScope, where, false);
+    return this.withScope(scope);
   }
 
   static createTable() {
@@ -303,17 +297,13 @@ module.exports = class NextModel {
     return pick(assign({}, schemaDefaults, this.defaultScope), this.keys);
   }
 
-  // Static private functions
-  static _mergeAttributes(attrs1 = {}, attrs2 = {}) {
-    const attrKeys1 = keys(attrs1);
-    const attrKeys2 = keys(attrs2);
-    const uniqKeys = xor(attrKeys1, attrKeys2);
-    const multiKeys = without(uniq(union(attrKeys1, attrKeys2)), ...uniqKeys);
-    if (multiKeys.length > 0) {
-      throw new Error(`'${multiKeys.join(`', '`)}' were filtered multiple times`);
+  static _mergeScopes(attrs1, attrs2, asAnd = true) {
+    const query = asAnd ? '$and' : '$or';
+    if (!isNil(attrs1) && !isNil(attrs2)) {
+      return { [query]: [attrs1, attrs2] };
+    } else {
+      return attrs1 || attrs2;
     }
-    const attrs = assign({}, pick(attrs1, uniqKeys), pick(attrs2, uniqKeys));
-    return attrs;
   }
 
   static _addDefaultsToBelongsTo() {
