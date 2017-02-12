@@ -4,13 +4,12 @@ const NextModel = require('..');
 const expect = require('expect.js');
 const expectChange = require('expect-change');
 
-const {
-  filter,
-  first,
-  keys,
-  last,
-  orderBy,
-} = require('lodash');
+const lodash = require('lodash');
+const filter = lodash.filter;
+const first = lodash.first;
+const keys = lodash.keys;
+const last = lodash.last;
+const orderBy = lodash.orderBy;
 
 const mockConnector = function(data) {
   const all = (model) => {
