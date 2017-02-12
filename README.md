@@ -18,7 +18,6 @@ NextModel gives you the ability to:
 * Add **callbacks** for eg. `beforeSave` to modify record before saving
 * Improve **schema** with eg. default values, limits
 * Improve **associations** eg. cascading deletions
-* Backwards **compatibility** to node 4, 5 and io.js
 * Add more packages for eg. **versioning** and **soft deleting**
 * There are already some **tests**, but not every test case is covered.
 * Add more connectors for eg. **graphQL** and **dynamoDB**

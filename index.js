@@ -1,31 +1,28 @@
 'use strict';
 
-const {
-  camelize,
-  pluralize,
-} = require('inflection');
+const inflection = require('inflection');
+const camelize = inflection.camelize;
+const pluralize = inflection.pluralize;
 
-const {
-  assign,
-  difference,
-  filter,
-  first,
-  includes,
-  isArray,
-  isNil,
-  isNumber,
-  isObject,
-  keys,
-  last,
-  map,
-  mapValues,
-  omit,
-  pick,
-  union,
-  values,
-  without,
-} = require('lodash');
-
+const lodash = require('lodash');
+const assign = lodash.assign;
+const difference = lodash.difference;
+const filter = lodash.filter;
+const first = lodash.first;
+const includes = lodash.includes;
+const isArray = lodash.isArray;
+const isNil = lodash.isNil;
+const isNumber = lodash.isNumber;
+const isObject = lodash.isObject;
+const keys = lodash.keys;
+const last = lodash.last;
+const map = lodash.map;
+const mapValues = lodash.mapValues;
+const omit = lodash.omit;
+const pick = lodash.pick;
+const union = lodash.union;
+const values = lodash.values;
+const without = lodash.without;
 
 module.exports = class NextModel {
   // Static properties
@@ -247,7 +244,8 @@ module.exports = class NextModel {
     return klass;
   }
 
-  static scope({where}) {
+  static scope(options) {
+    const where = options && options.where;
     const scope = this._mergeScopes(this.defaultScope, where);
     return this.withScope(scope);
   }
@@ -297,7 +295,8 @@ module.exports = class NextModel {
     return pick(assign({}, schemaDefaults, this.defaultScope), this.keys);
   }
 
-  static _mergeScopes(attrs1, attrs2, asAnd = true) {
+  static _mergeScopes(attrs1, attrs2, asAndParam) {
+    const asAnd = isNil(asAndParam) ? true : asAndParam;
     const query = asAnd ? '$and' : '$or';
     if (!isNil(attrs1) && !isNil(attrs2)) {
       return { [query]: [attrs1, attrs2] };
@@ -360,7 +359,8 @@ module.exports = class NextModel {
   }
 
   // Constructor
-  constructor(attrs = {}) {
+  constructor(attrsParam) {
+    const attrs = attrsParam || {};
     this.assign(this.constructor._defaultAttributes);
     this.assign(attrs);
     this._initBelongsToRelations(attrs);
