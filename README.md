@@ -1,6 +1,6 @@
 # NextModel
 
-Rails like models using **ES6**.
+Rails like models using **ES6**. [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model)
 
 NextModel gives you the ability to:
 
