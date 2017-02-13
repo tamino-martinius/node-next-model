@@ -1,19 +1,21 @@
 'use strict';
 
 const inflection = require('inflection');
-const camelize = inflection.camelize;
 const pluralize = inflection.pluralize;
 
 const lodash = require('lodash');
 const assign = lodash.assign;
+const camelCase = lodash.camelCase;
 const difference = lodash.difference;
 const filter = lodash.filter;
 const first = lodash.first;
 const includes = lodash.includes;
 const isArray = lodash.isArray;
+const isFunction = lodash.isFunction;
 const isNil = lodash.isNil;
 const isNumber = lodash.isNumber;
 const isObject = lodash.isObject;
+const isString = lodash.isString;
 const keys = lodash.keys;
 const last = lodash.last;
 const map = lodash.map;
@@ -21,6 +23,7 @@ const mapValues = lodash.mapValues;
 const omit = lodash.omit;
 const pick = lodash.pick;
 const union = lodash.union;
+const upperFirst = lodash.upperFirst;
 const values = lodash.values;
 const without = lodash.without;
 
@@ -45,7 +48,7 @@ module.exports = class NextModel {
   }
 
   static get tableName() {
-    let tableName = camelize(pluralize(this.modelName), true)
+    let tableName = camelCase(pluralize(this.modelName))
     try {
       tableName = this.connector.tableName(this.modelName);
     } finally {
@@ -312,7 +315,7 @@ module.exports = class NextModel {
       if (!relation.model) throw new Error(
         `model property is missing for relation of 'belongsTo' relation`
       );
-      relation.foreignKey = relation.foreignKey || camelize(relation.model.modelName + 'Id', true);
+      relation.foreignKey = relation.foreignKey || camelCase(relation.model.modelName + 'Id');
     }
     return relations;
   }
@@ -324,7 +327,7 @@ module.exports = class NextModel {
       if (!relation.model) throw new Error(
         `model property is missing for '${name}' from 'hasMany' relation`
       );
-      relation.foreignKey = relation.foreignKey || camelize(this.modelName + 'Id', true);
+      relation.foreignKey = relation.foreignKey || camelCase(this.modelName + 'Id');
     }
     return relations;
   }
@@ -336,7 +339,7 @@ module.exports = class NextModel {
       if (!relation.model) throw new Error(
         `model property is missing for '${name}' from 'hasOne' relation`
       );
-      relation.foreignKey = relation.foreignKey || camelize(this.modelName + 'Id', true);
+      relation.foreignKey = relation.foreignKey || camelCase(this.modelName + 'Id');
     }
     return relations;
   }
@@ -447,7 +450,7 @@ module.exports = class NextModel {
   _hasManyScope() {
     return {
       where: {
-        [camelize(this.constructor.modelName, true) + 'Id']: this.id,
+        [camelCase(this.constructor.modelName) + 'Id']: this.id,
       },
     };
   }
