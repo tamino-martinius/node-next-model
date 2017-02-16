@@ -63,6 +63,11 @@ NextModel gives you the ability to:
   * [IsPersistent](#ispersistent)
   * [Attributes](#attributes)
   * [Custom Attributes](#custom-attributes)
+* [Instance Callbacks](#instance-callbacks)
+  * [Build Callbacks](#build-callbacks)
+  * [Create Callbacks](#create-callbacks)
+  * [Save Callbacks](#save-callbacks)
+  * [Delete Callbacks](#delete-callbacks)
 * [Instance Actions](#instance-actions)
   * [Assign](#assign)
   * [save](#save)
@@ -751,6 +756,158 @@ user = User.build({
   lastname: 'Bar'
 });
 user.name === 'Foo Bar';
+~~~
+
+## Instance Callbacks
+
+With callbacks you can run code before or after an action. Actions which currently supports callbacks are `save`. Callbacks are always named `before{Action}` and `after{Action}`. Callbacks can be defined in different ways. Callbacks can be functions, redirects or arrays.
+
+_Note: Actions which are Promises also support Promises as callbacks._
+
+Callback can be a function:
+
+~~~js
+class User extends NextModel {
+  beforeSave() { ... }
+}
+~~~
+
+Callback can return a function:
+
+~~~js
+class User extends NextModel {
+  get beforeSave() {
+    return function() { ... }
+  }
+}
+~~~
+
+Callback can redirect to a function with a string:
+
+~~~js
+class User extends NextModel {
+  get beforeSave() {
+    return 'prefillDefaults';
+  }
+
+  prefillDefaults() { ... }
+}
+~~~
+
+Callback be an array of Strings:
+
+~~~js
+class User extends NextModel {
+  get beforeSave() {
+    return ['prefillDefaults', 'setTimestamps'];
+  }
+
+  prefillDefaults() { ... }
+
+  setTimestamps() { ... }
+}
+~~~
+
+Callback be an array of mix between functions and redirects:
+
+~~~js
+class User extends NextModel {
+  get beforeSave() {
+    return ['prefillDefaults', function() { ... }];
+  }
+
+  prefillDefaults() { ... }
+}
+~~~
+
+Callback follow also multiple redirects and mixed arrays:
+
+~~~js
+class User extends NextModel {
+  get beforeSave() {
+    return ['prefillActions', function() { ... }];
+  }
+
+  get prefillActions() {
+    return ['prefillDefaults', 'setTimestamps']
+  }
+
+  prefillDefaults() { ... }
+
+  setTimestamps() { ... }
+}
+~~~
+
+Before Actions are **always all** executed. If any callback before the action runs on an Error the Action will **not** be executed. If the Action runs on an Error the after callbacks will not be executed.
+
+_Note: The execution order of callbacks can not be guaranteed, they run in parallel if possible._
+
+### Build Callbacks
+
+When [promiseBuild](#promisebuild) is triggered the callback order is:
+`beforeBuild` -> `promiseBuild` -> `afterBuild`
+
+~~~js
+class User extends NextModel {
+  static beforeBuild() {
+    ...
+  }
+
+  static afterBuild() {
+    ...
+  }
+}
+~~~
+
+### Create Callbacks
+
+When [create](#create) is triggered the callback order is:
+`beforeCreate` -> `beforeBuild` -> `promiseBuild` -> `afterBuild` -> `beforeSave` -> `save` -> `afterSave` -> `afterCreate`
+
+~~~js
+class User extends NextModel {
+  static beforeCreate() {
+    ...
+  }
+
+  static afterCreate() {
+    ...
+  }
+}
+~~~
+
+### Save Callbacks
+
+When [save](#save) is triggered the callback order is:
+`beforeSave` -> `save` -> `afterSave`
+
+~~~js
+class User extends NextModel {
+  beforeSave() {
+    ...
+  }
+
+  afterSave() {
+    ...
+  }
+}
+~~~
+
+### Delete Callbacks
+
+When [delete](#delete) is triggered the callback order is:
+`beforeDelete` -> `delete` -> `afterDelete`
+
+~~~js
+class User extends NextModel {
+  beforeDelete() {
+    ...
+  }
+
+  afterDelete() {
+    ...
+  }
+}
 ~~~
 
 ## Instance Actions
