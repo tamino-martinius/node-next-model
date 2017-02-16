@@ -2,6 +2,30 @@
 
 ## vNext
 
+## v0.0.4
+
+Callbacks:
+* Supported actions: `build`, `create`, `save` and `delete`
+* have `before` and `after` hooks
+* can be an `Function`, `Promise`, `Redirect` or `Array`
+
+Added `promiseBuild` which returns Promise and supports callbacks for building new Instances.
+
+## v0.0.3
+
+Addec CI with Travis CI
+
+## v0.0.2
+
+Published knex connector
+
+Functions removed:
+* `.useCache`
+
+Functions added:
+* `.getCache`
+* `.setCache`
+
 ## v0.0.1
 
 First release includes following functions
