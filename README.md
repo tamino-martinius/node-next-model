@@ -15,7 +15,6 @@ NextModel gives you the ability to:
 * Improve **documentation**
 * `createdAt` and `updatedAt` **timestamps**
 * Predefined and custom **validations**
-* Add **callbacks** for eg. `beforeSave` to modify record before saving
 * Improve **schema** with eg. default values, limits
 * Improve **associations** eg. cascading deletions
 * Add more packages for eg. **versioning** and **soft deleting**
