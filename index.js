@@ -9,6 +9,7 @@ const camelCase = lodash.camelCase;
 const difference = lodash.difference;
 const filter = lodash.filter;
 const first = lodash.first;
+const flatten = lodash.flatten;
 const includes = lodash.includes;
 const isArray = lodash.isArray;
 const isFunction = lodash.isFunction;
@@ -184,8 +185,20 @@ module.exports = class NextModel {
     return new this(attrs);
   }
 
+  static promiseBuild(attrs) {
+    let result;
+    const promise = () => {
+      return Promise.resolve(this.build(attrs)).then(klass => (result = klass));
+    }
+    return this._runWithPromises(this, 'build', promise).then(() => result);
+  }
+
   static create(attrs) {
-    return this.build(attrs).save();
+    let result;
+    const promise = () => {
+      return this.promiseBuild(attrs).then(klass => (result = klass).save());
+    }
+    return this._runWithPromises(this, 'create', promise).then(() => result);
   }
 
   static limit(amount) {
@@ -296,6 +309,68 @@ module.exports = class NextModel {
   static get _defaultAttributes() {
     const schemaDefaults = mapValues(this.fetchSchema(), (value) => value.defaultValue);
     return pick(assign({}, schemaDefaults, this.defaultScope), this.keys);
+  }
+
+  static _runWithCallbacks(object, name, fn) {
+    const upperName = upperFirst(name);
+    try {
+      this._fetchCallbacks(object, 'before' + upperName).map(cb => cb());
+      fn();
+      this._fetchCallbacks(object, 'after' + upperName).map(cb => cb());
+    } catch (e) {
+      // write error back
+    } finally {
+      return object;
+    }
+  }
+
+  static _runWithPromises(object, name, promise) {
+    const upperName = upperFirst(name);
+    return Promise.all(this._fetchPromises(object, 'before' + upperName))
+    .then(() => {
+
+      return promise()
+      .then(() => {
+        return Promise.all(this._fetchPromises(object, 'after' + upperName))
+        .then(() => object)
+        .catch(() => object);
+      })
+      .catch(() => object);
+    })
+    .catch(() => object);
+  }
+
+  static _fetchCallbacks(object, value) {
+    if (isString(value)) {
+      return this._fetchCallbacks(object, object[value]);
+    } else if (isFunction(value)) {
+      return [value];
+    } else if (isArray(value)) {
+      return flatten(value.map(val => this._fetchCallbacks(object, val)));
+    } else if (isObject(value) && isFunction(value.then)) {
+      return [value];
+    } else {
+      return [];
+    }
+  }
+
+  static _fetchPromises(object, name) {
+    const callbacks = this._fetchCallbacks(object, name);
+    return callbacks.map(cb => this._returnAsPromise(cb));
+  }
+
+  static _returnAsPromise(value) {
+    if (isObject(value) && isFunction(value.then)) {
+      return value;
+    } else {
+      return new Promise((resolve, reject) => {
+        try {
+          resolve(value());
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
   }
 
   static _mergeScopes(attrs1, attrs2, asAndParam) {
@@ -410,18 +485,21 @@ module.exports = class NextModel {
   }
 
   save(options) {
-    return this.constructor.connector.save(this).then(result => this);
+    const promise = () => this.constructor.connector.save(this);
+    return this.constructor._runWithPromises(this, 'save', promise);
   }
 
   delete(options) {
+    let promise;
     if (this.isNew) {
-      return Promise.resolve(this);
+      promise = () => Promise.resolve(this);
     } else {
-      return this.constructor.connector.delete(this).then(result => {
+      promise = () => this.constructor.connector.delete(this).then(result => {
         delete this[this.constructor.identifier];
         return this;
       });
     }
+    return this.constructor._runWithPromises(this, 'delete', promise);
   }
 
   reload() {

@@ -1,8 +1,12 @@
 'use strict';
 
 const NextModel = require('..');
+
 const expect = require('expect.js');
 const expectChange = require('expect-change');
+const sinon = require('sinon');
+
+const shared = require('./shared');
 
 const lodash = require('lodash');
 const filter = lodash.filter;
@@ -1204,17 +1208,124 @@ describe('NextModel', function() {
     });
   });
 
+  describe('.promiseBuild()', function() {
+    subject(() => $Klass.promiseBuild($attrs));
+
+    def('schema', () => ({}));
+
+    def('Klass', () => class Klass extends NextModel {
+      static get modelName() {
+        return 'Klass';
+      }
+
+      static get schema() {
+        return $schema;
+      }
+
+      static get attrAccessors() {
+        return $attrAccessors;
+      }
+    });
+
+    def('klass', () => new $Klass());
+
+    it('returns model instance', function() {
+      return $subject.then(data => {
+        expect(data).to.be.a($Klass);
+      });
+    });
+
+    shared.behavesLikeActionWhichSupportsCallbacks({
+      action: 'build',
+      actionIsStatic: true,
+      actionIsPromise: true,
+      innerActionBase: 'Klass',
+    });
+
+    context('when schema is present', function() {
+      def('schema', () => ({
+        id: { type: 'integer' },
+        bar: { type: 'string', defaultValue: 'bar' },
+      }));
+
+      it('returns model instance and sets default values', function() {
+        return $subject.then(data => {
+          expect(data).to.be.a($Klass);
+          expect(data.id).to.eql(null);
+          expect(data.bar).to.eql('bar');
+        });
+      });
+
+      context('when passing attributes to constructor', function() {
+        def('attrs', () => ({
+          bar: 'foo',
+        }));
+
+        it('returns model instance and sets attributes', function() {
+          return $subject.then(data => {
+            expect(data).to.be.a($Klass);
+            expect(data.id).to.eql(null);
+            expect(data.bar).to.eql('foo');
+          });
+        });
+
+        context('when passing id', function() {
+          def('attrs', () => ({
+            id: 1,
+            bar: 'foo',
+          }));
+
+          it('catches promise reject', shared.promiseError);
+        });
+      });
+
+      context('when passing invalid attributes to constructor', function() {
+        def('attrs', () => ({
+          baz: 'foo',
+        }));
+
+        it('catches promise reject', shared.promiseError);
+      });
+
+      context('when attrAccessors are present', function() {
+        def('attrAccessors', () => ['baz']);
+
+        it('does not set accessor', function() {
+          return $subject.then(data => {
+            expect(data).to.be.a($Klass);
+            expect(data.baz).to.eql(undefined);
+          });
+        });
+
+        context('when passing attributes to constructor', function() {
+          def('attrs', () => ({
+            baz: 'foo',
+          }));
+
+          it('returns model instance and sets attributes', function() {
+            return $subject.then(data => {
+              expect(data).to.be.a($Klass);
+              expect(data.baz).to.eql('foo');
+            });
+          });
+        });
+      });
+    });
+  });
+
   describe('.create()', function() {
     subject(() => $Klass.create($attrs));
 
     def('schema', () => ({}));
 
+    def('connector', () => ({ save: function(klass) {
+      klass.id = 1;
+      return Promise.resolve(true);
+    }}));
+
     def('Klass', () => class Klass extends NextModel {
       static get connector() {
-        return { save: function(klass) {
-          klass.id = 1;
-          return Promise.resolve(true);
-        }};
+        return $connector;
       }
 
       static get modelName() {
@@ -1228,6 +1339,34 @@ describe('NextModel', function() {
       static get attrAccessors() {
         return $attrAccessors;
       }
+    });
+
+    def('klass', () => new $Klass());
+
+    shared.behavesLikeActionWhichSupportsCallbacks({
+      action: 'build',
+      actionIsStatic: true,
+      actionIsPromise: true,
+      innerActionBase: 'Klass',
+    });
+
+    shared.behavesLikeActionWhichSupportsCallbacks({
+      action: 'create',
+      actionIsStatic: true,
+      actionIsPromise: true,
+      innerActionBase: 'Klass',
+      innerActionName: 'promiseBuild',
+    });
+
+    context('when promiseBuild returns $klass', function() {
+      beforeEach(function() {
+        sinon.stub($Klass, 'promiseBuild').returns(Promise.resolve($klass));
+      });
+
+      shared.behavesLikeActionWhichSupportsCallbacks({
+        action: 'save',
+        actionIsPromise: true,
+      });
     });
 
     it('returns model instance', function() {
@@ -1267,9 +1406,7 @@ describe('NextModel', function() {
             bar: 'foo',
           }));
 
-          it('throws error while creating', function() {
-            expect(() => $subject).to.throwError();
-          });
+          it('catches promise reject', shared.promiseError);
         });
       });
 
@@ -1278,9 +1415,7 @@ describe('NextModel', function() {
           baz: 'foo',
         }));
 
-        it('throws error while creating', function() {
-          expect(() => $subject).to.throwError();
-        });
+        it('catches promise reject', shared.promiseError);
       });
 
       context('when attrAccessors are present', function() {
@@ -2439,7 +2574,7 @@ describe('NextModel', function() {
 
     context('when model is created', function() {
       beforeEach(function() {
-        $klass.save()
+        return $klass.save();
       });
 
       it('returns false', function() {
@@ -2477,7 +2612,7 @@ describe('NextModel', function() {
 
     context('when model is created', function() {
       beforeEach(function() {
-        $klass.save()
+        return $klass.save();
       });
 
       it('returns true', function() {
@@ -2598,9 +2733,7 @@ describe('NextModel', function() {
 
     def('klass', () => $Klass.build());
 
-    it('throws error if connector is not overwritten', function() {
-      expect(() => $subject).to.throwError();
-    });
+    it('catches promise reject if connector is not overwritten', shared.promiseError);
 
     context('when connector is present', function() {
       def('connector', () => ({ save: function(klass) {
@@ -2616,6 +2749,11 @@ describe('NextModel', function() {
           expect(data.id).to.eql(1);
           expect(data.isNew).to.eql(false);
         });
+      });
+
+      shared.behavesLikeActionWhichSupportsCallbacks({
+        action: 'save',
+        actionIsPromise: true,
       });
     });
   });
@@ -2641,9 +2779,7 @@ describe('NextModel', function() {
       $klass.id = 1;
     });
 
-    it('throws error if connector is not overwritten', function() {
-      expect(() => $subject).to.throwError();
-    });
+    it('catches promise reject if connector is not overwritten', shared.promiseError);
 
     context('when connector is present', function() {
       def('connector', () => ({ delete: function(klass) {
@@ -2671,6 +2807,11 @@ describe('NextModel', function() {
             expect(data.isNew).to.eql(true);
           });
         });
+      });
+
+      shared.behavesLikeActionWhichSupportsCallbacks({
+        action: 'delete',
+        actionIsPromise: true,
       });
     });
   });
