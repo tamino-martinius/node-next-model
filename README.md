@@ -971,7 +971,7 @@ address.reload().then((address) => {
 
 See [history](HISTORY.md) for more details.
 
-* `0.0.1` `2017-01-23` Initial commit with query and scoping functions
-* `0.0.2` `2017-02-05` Published [knex connector](https://github.com/tamino-martinius/node-next-model-knex-connector.git)
-* `0.0.3` `2017-02-12` Added CI
-* `0.0.4` `2017-02-16` Added callbacks for `build`, `create`, `save` and `delete`
+* `0.0.1` **2017-01-23** Initial commit with query and scoping functions
+* `0.0.2` **2017-02-05** Published [knex connector](https://github.com/tamino-martinius/node-next-model-knex-connector.git)
+* `0.0.3` **2017-02-12** Added CI
+* `0.0.4` **2017-02-16** Added callbacks for `build`, `create`, `save` and `delete`
