@@ -11,6 +11,9 @@ NextModel gives you the ability to:
 * Uses **Promises** for database queries.
 
 ### Roadmap / Where can i contribute
+
+See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) project for current progress/tasks
+
 * Fix **typos**
 * Improve **documentation**
 * `createdAt` and `updatedAt` **timestamps**
