@@ -4,6 +4,10 @@
 
 * Validations
 
+## v0.1.0
+
+Added Browser compatibility
+
 ## v0.0.4
 
 Callbacks:
