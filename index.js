@@ -2,12 +2,12 @@
 
 const context = (typeof window === 'object' && window) || {};
 
-context.lodash = context.lodash
-  || context._
-  || (typeof require === 'function' && require('lodash'));
+if (typeof require === 'function') {
+  context.lodash = require('lodash');
+  context.pluralize = require('pluralize');
+}
 
-context.pluralize = context.pluralize
-  || (typeof require === 'function'  && require('pluralize'));
+context.lodash = context.lodash || context._;
 
 (function(pluralize, lodash) {
   const assign = lodash.assign;
@@ -600,4 +600,4 @@ context.pluralize = context.pluralize
   } else {
     context.NextModel = NextModel;
   }
-})(context.pluralize, context.lodash);
+}(context.pluralize, context.lodash));
