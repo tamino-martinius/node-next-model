@@ -1,6 +1,6 @@
 {
   "name": "next-model",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Rails like models using ES6.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
