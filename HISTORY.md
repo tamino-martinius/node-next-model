@@ -4,6 +4,10 @@
 
 * Validations
 
+## v0.2.0
+
+Improved browser compatibility
+
 ## v0.1.0
 
 Added Browser compatibility

@@ -980,3 +980,4 @@ See [history](HISTORY.md) for more details.
 * `0.0.3` **2017-02-12** Added CI
 * `0.0.4` **2017-02-16** Added callbacks for `build`, `create`, `save` and `delete`
 * `0.1.0` **2017-02-23** Added Browser compatibility
+* `0.2.0` **2017-02-25** Improved browser compatibility

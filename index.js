@@ -1,15 +1,16 @@
 'use strict';
 
-const context = (typeof window === 'object' && window) || {};
+(function() {
+  const context = (typeof window === 'object' && window) || {};
 
-if (typeof require === 'function') {
-  context.lodash = require('lodash');
-  context.pluralize = require('pluralize');
-}
+  if (typeof require === 'function') {
+    context.lodash = require('lodash');
+    context.pluralize = require('pluralize');
+  }
 
-context.lodash = context.lodash || context._;
+  const pluralize = context.pluralize;
 
-(function(pluralize, lodash) {
+  const lodash = context.lodash || context._;
   const assign = lodash.assign;
   const camelCase = lodash.camelCase;
   const difference = lodash.difference;
@@ -593,11 +594,11 @@ context.lodash = context.lodash || context._;
         }
       }
     }
-  }
+  };
 
   if (typeof module === 'object') {
     module.exports = NextModel;
   } else {
     context.NextModel = NextModel;
   }
-}(context.pluralize, context.lodash));
+}());
