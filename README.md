@@ -442,6 +442,7 @@ A connector is the bridge between models and the database.
 
 Available connectors:
 * [knex](https://github.com/tamino-martinius/node-next-model-knex-connector.git) (mySQL, postgres, sqlite3, ...)
+* [local-storage](https://github.com/tamino-martinius/node-next-model-local-storage-connector.git) (Client side for Browser usage)
 
 The connector needs to be returned as static getter.
 
