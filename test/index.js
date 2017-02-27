@@ -2565,7 +2565,7 @@ describe('NextModel', function() {
       }
     });
 
-    def('klass', () => $Klass.build({foo: 'bar'}));
+    def('klass', () => $Klass.build({ foo: 'bar' }));
 
     context('when model is build', function() {
       it('returns true', function() {
@@ -2603,7 +2603,7 @@ describe('NextModel', function() {
       }
     });
 
-    def('klass', () => $Klass.build({foo: 'bar'}));
+    def('klass', () => $Klass.build({ foo: 'bar' }));
 
     context('when model is build', function() {
       it('returns false', function() {
