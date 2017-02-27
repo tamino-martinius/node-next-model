@@ -546,6 +546,43 @@
     }
 
     // Private functions
+
+    _initProperties() {
+      for (const key of this.constructor.keys) {
+        (function(name) {
+          let value;
+          Object.defineProperty(this, name, {
+            get: () => {
+              return value;
+            },
+            set: (newValue) => {
+              if (this._changes && value !== newValue) {
+                const changes = { from: value, to: newValue };
+                if (this._changes[name]) {
+                  if (this._changes[name][0].from === newValue) {
+                    delete this._changes[name];
+                  } else {
+                    this._changes[name].push(changes);
+                  }
+                } else {
+                  this._changes[name] = [changes];
+                }
+                value = newValue;
+                const callbackName = 'after' + upperFirst(name) + 'Change';
+                this.constructor._fetchCallbacks(this, callbackName).map(cb => cb());
+                this.constructor._fetchCallbacks(this, 'afterChange').map(cb => cb());
+              } else {
+                value = newValue;
+              }
+            },
+            enumerable: true,
+            configurable: true,
+            writeable: true,
+          });
+        }).call(this, key);
+      }
+    }
+
     _resetChanges() {
       if (this.constructor.trackChanges) {
         Object.defineProperty(this, '_changes', {
