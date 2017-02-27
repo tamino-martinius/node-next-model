@@ -476,6 +476,10 @@
       return !this.isNew;
     }
 
+    get changes() {
+      return this._changes;
+    }
+
     get isChanged() {
       return keys(this._changes).length > 0;
     }
