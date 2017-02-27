@@ -456,6 +456,7 @@
       this._initBelongsToRelations(attrs);
       this._initHasManyRelations(attrs);
       this._initHasOneRelations(attrs);
+      this._resetChanges();
     }
 
     // Properties
