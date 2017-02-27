@@ -84,6 +84,10 @@
       return true;
     }
 
+    static get trackChanges() {
+      return true;
+    }
+
     static get defaultScope() {
       return undefined;
     }
@@ -372,7 +376,7 @@
       } else {
         return new Promise((resolve, reject) => {
           try {
-            resolve(value());
+            resolve(value.call(this));
           } catch (e) {
             reject(e);
           }
@@ -445,12 +449,14 @@
 
     // Constructor
     constructor(attrsParam) {
-      const attrs = attrsParam || {};
+      const attrs = attrsParam && attrsParam.attributes || attrsParam || {};
+      this._initProperties();
       this.assign(this.constructor._defaultAttributes);
       this.assign(attrs);
       this._initBelongsToRelations(attrs);
       this._initHasManyRelations(attrs);
       this._initHasOneRelations(attrs);
+      this._resetChanges();
     }
 
     // Properties
@@ -468,6 +474,14 @@
 
     get isPersisted() {
       return !this.isNew;
+    }
+
+    get changes() {
+      return this._changes;
+    }
+
+    get isChanged() {
+      return keys(this._changes).length > 0;
     }
 
     // Functions
@@ -493,7 +507,11 @@
 
     save(options) {
       const promise = () => this.constructor.connector.save(this);
-      return this.constructor._runWithPromises(this, 'save', promise);
+      return this.constructor._runWithPromises(this, 'save', promise)
+        .then((klass) => {
+          this._resetChanges();
+          return klass;
+        });
     }
 
     delete(options) {
@@ -520,7 +538,7 @@
           if (!isNil(klass)) {
             return this.assign(klass.databaseAttributes);
           } else {
-            this.id = undefined;
+            this[identifier] = undefined;
             return this;
           }
         });
@@ -528,14 +546,62 @@
     }
 
     // Private functions
+
+    _initProperties() {
+      for (const key of this.constructor.keys) {
+        (function(name) {
+          let value;
+          Object.defineProperty(this, name, {
+            get: () => {
+              return value;
+            },
+            set: (newValue) => {
+              if (this._changes && value !== newValue) {
+                const changes = { from: value, to: newValue };
+                if (this._changes[name]) {
+                  if (this._changes[name][0].from === newValue) {
+                    delete this._changes[name];
+                  } else {
+                    this._changes[name].push(changes);
+                  }
+                } else {
+                  this._changes[name] = [changes];
+                }
+                value = newValue;
+                const callbackName = 'after' + upperFirst(name) + 'Change';
+                this.constructor._fetchCallbacks(this, callbackName).map(cb => cb.call(this));
+                this.constructor._fetchCallbacks(this, 'afterChange').map(cb => cb.call(this));
+              } else {
+                value = newValue;
+              }
+            },
+            enumerable: true,
+            configurable: true,
+            writeable: true,
+          });
+        }).call(this, key);
+      }
+    }
+
+    _resetChanges() {
+      if (this.constructor.trackChanges) {
+        Object.defineProperty(this, '_changes', {
+          value: {},
+          enumerable: false,
+          configurable: true,
+        });
+      }
+    }
+
     _belongsToScope(id) {
-      return {where: {id}};
+      return { where: { [this.constructor.identifier]: id }};
     }
 
     _hasManyScope() {
+      const id = this[this.constructor.identifier];
       return {
         where: {
-          [camelCase(this.constructor.modelName) + 'Id']: this.id,
+          [camelCase(this.constructor.modelName) + 'Id']: id,
         },
       };
     }
@@ -549,13 +615,13 @@
             const id = this[relation.foreignKey];
             if (!isNil(id)) {
               if (!isNil(attrs[name])) return attrs[name];
-              return relation.model.scope(this._belongsToScope(id)).first;
+              return relation.model.scope(relation.model._belongsToScope(id)).first;
             } else {
               return null;
             }
           },
           set: (obj) => {
-            this[foreignKey] = obj.id;
+            this[relation.foreignKey] = obj[obj.constructor.identifier];
           },
           configurable: true,
         });

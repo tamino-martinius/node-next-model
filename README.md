@@ -64,8 +64,12 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
   * [IsNew](#isnew)
   * [IsPersistent](#ispersistent)
   * [Attributes](#attributes)
+  * [DatabaseAttributes](#databaseattributes)
+  * [isChanged](#ischanged)
+  * [Changes](#changes)
   * [Custom Attributes](#custom-attributes)
 * [Instance Callbacks](#instance-callbacks)
+  * [Change Callbacks](#change-callbacks)
   * [Build Callbacks](#build-callbacks)
   * [Create Callbacks](#create-callbacks)
   * [Save Callbacks](#save-callbacks)
@@ -738,6 +742,69 @@ address.databaseAttributes() === {
 };
 ~~~
 
+### isChanged
+
+When you change a fresh build or created Class instance this property changes to true.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.isChanged === false;
+address.street = '2nd street';
+address.isChanged === true;
+~~~
+
+This property does not change when the value is same after assignment.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.isChanged === false;
+address.street = '1st street';
+address.isChanged === false;
+~~~
+
+### changes
+
+The `changes` property contains an `Array` of changes per property which has changed. Each entry contains an `from` and `to` property.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.changes === {};
+address.street = '2nd street';
+address.changes === {
+  street: [
+    { from: '1st street', to: '2nd street' },
+  ],
+};
+address.street = '3rd street';
+address.changes === {
+  street: [
+    { from: '1st street', to: '2nd street' },
+    { from: '2nd street', to: '3rd street' },
+  ],
+};
+~~~
+
+This property does not change when the value is same after assignment.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.changes === {};
+address.street = '1st street';
+address.changes === {};
+~~~
+
 ### Custom Attributes
 
 ~~~js
@@ -844,6 +911,23 @@ class User extends NextModel {
 Before Actions are **always all** executed. If any callback before the action runs on an Error the Action will **not** be executed. If the Action runs on an Error the after callbacks will not be executed.
 
 _Note: The execution order of callbacks can not be guaranteed, they run in parallel if possible._
+
+### Change Callbacks
+
+There is an global `afterChange` callback and one additional per property named `after${propertyName}Change`.
+Even on multiple assignments with one call, `afterChange` is called for every single property changed.
+
+~~~js
+class User extends NextModel {
+  static afterChange() {
+    ...
+  }
+
+  static afterNameChange() {
+    ...
+  }
+}
+~~~
 
 ### Build Callbacks
 
@@ -981,3 +1065,4 @@ See [history](HISTORY.md) for more details.
 * `0.0.4` **2017-02-16** Added callbacks for `build`, `create`, `save` and `delete`
 * `0.1.0` **2017-02-23** Added Browser compatibility
 * `0.2.0` **2017-02-25** Improved browser compatibility
+* `0.3.0` **2017-02-27** Tracked property changes

@@ -37,7 +37,7 @@
   },
   "scripts": {
     "lint": "node node_modules/eslint/bin/eslint.js . || true",
-    "test": "node node_modules/mocha/bin/mocha test -u bdd-lazy-var/rspec --reporter progress",
+    "test": "node node_modules/mocha/bin/mocha test -u bdd-lazy-var/rspec",
     "watch": "npm-watch"
   },
   "devDependencies": {
