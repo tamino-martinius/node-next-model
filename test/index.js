@@ -242,6 +242,18 @@ describe('NextModel', function() {
     });
   });
 
+  describe('.trackChanges', function() {
+    subject(() => $Klass.trackChanges);
+
+    context('when value is not overwritten', function() {
+      def('Klass', () => class Klass extends NextModel {});
+
+      it('returns default value', function() {
+        expect($subject).to.eql(true);
+      });
+    });
+  });
+
   describe('.defaultScope', function() {
     subject(() => $Klass.defaultScope);
 
@@ -2633,10 +2645,16 @@ describe('NextModel', function() {
         };
       }
 
+      static get trackChanges() {
+        return $trackChanges;
+      }
+
       static get connector() {
         return mockConnector([]);
       }
     });
+
+    def('trackChanges', () => true);
 
     def('klass', () => $Klass.build({ name: 'foo' }));
 
@@ -2670,9 +2688,28 @@ describe('NextModel', function() {
       expect($subject()).to.eql(true);
     });
 
-    it('calls change after assignAttribute', function() {
+    it('is changed after assignAttribute', function() {
       $klass.assignAttribute('name', 'bar');
       expect($subject()).to.eql(true);
+    });
+
+    context('when track changes is disabled', function() {
+      def('trackChanges', () => false);
+
+      it('is not changed after value set', function() {
+        $klass.name = 'bar';
+        expect($subject()).to.eql(false);
+      });
+
+      it('is not changed after assign', function() {
+        $klass.assign({ name: 'bar' });
+        expect($subject()).to.eql(false);
+      });
+
+      it('is not changed after assignAttribute', function() {
+        $klass.assignAttribute('name', 'bar');
+        expect($subject()).to.eql(false);
+      });
     });
   });
 
@@ -2688,11 +2725,16 @@ describe('NextModel', function() {
         };
       }
 
+      static get trackChanges() {
+        return $trackChanges;
+      }
+
       static get connector() {
         return mockConnector([]);
       }
-
     });
+
+    def('trackChanges', () => true);
 
     def('klass', () => $Klass.build({ name: 'foo' }));
 
@@ -2769,6 +2811,34 @@ describe('NextModel', function() {
       expect($subject()).to.eql({
         name: [{ from: 'foo', to: 'bar' }],
         foo: [{ from: null, to: 'bar' }],
+      });
+    });
+
+    context('when track changes is disabled', function() {
+      def('trackChanges', () => false);
+
+      it('is undefined', function() {
+        expect($subject()).to.eql(undefined);
+      });
+
+      it('tracks no changes after value set', function() {
+        $klass.name = 'bar';
+        expect($subject()).to.eql(undefined);
+      });
+
+      it('tracks no changes after assign', function() {
+        $klass.assign({ name: 'bar' });
+        expect($subject()).to.eql(undefined);
+      });
+
+      it('tracks no changes after assignAttribute', function() {
+        $klass.assignAttribute('name', 'bar');
+        expect($subject()).to.eql(undefined);
+      });
+
+      it('tracks no changes after assign with multiple values', function() {
+        $klass.assign({ name: 'bar', foo: 'bar' });
+        expect($subject()).to.eql(undefined);
       });
     });
   });
@@ -3061,10 +3131,6 @@ describe('NextModel', function() {
         };
       }
 
-      static get connector() {
-        return mockConnector([]);
-      }
-
       get afterChange() {
         return $afterChange;
       }
@@ -3076,7 +3142,17 @@ describe('NextModel', function() {
       get afterNameChange() {
         return $afterNameChange;
       }
+
+      static get trackChanges() {
+        return $trackChanges;
+      }
+
+      static get connector() {
+        return mockConnector([]);
+      }
     });
+
+    def('trackChanges', () => true);
 
     def('klass', () => $Klass.build({ name: 'foo' }));
 
@@ -3124,6 +3200,39 @@ describe('NextModel', function() {
       expect($afterChange.calledOnce).to.eql(true);
       expect($afterIdChange.called).to.eql(false);
       expect($afterNameChange.calledOnce).to.eql(true);
+    });
+
+    context('when track changes is disabled', function() {
+      def('trackChanges', () => false);
+
+      it('does not call change for id after save', function() {
+        return $klass.save().then(data => {
+          expect($afterChange.called).to.eql(false);
+          expect($afterIdChange.called).to.eql(false);
+          expect($afterNameChange.called).to.eql(false);
+        });
+      });
+
+      it('does not call change after value set', function() {
+        $klass.name = 'bar';
+        expect($afterChange.called).to.eql(false);
+        expect($afterIdChange.called).to.eql(false);
+        expect($afterNameChange.called).to.eql(false);
+      });
+
+      it('does not call change after assign', function() {
+        $klass.assign({ name: 'bar' });
+        expect($afterChange.called).to.eql(false);
+        expect($afterIdChange.called).to.eql(false);
+        expect($afterNameChange.called).to.eql(false);
+      });
+
+      it('does not call change after assignAttribute', function() {
+        $klass.assignAttribute('name', 'bar');
+        expect($afterChange.called).to.eql(false);
+        expect($afterIdChange.called).to.eql(false);
+        expect($afterNameChange.called).to.eql(false);
+      });
     });
   });
 });
