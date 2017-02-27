@@ -2676,6 +2676,103 @@ describe('NextModel', function() {
     });
   });
 
+  describe('#changes', function() {
+    subject(() => () => $klass.changes);
+
+    def('Klass', () => class Klass extends NextModel {
+      static get schema() {
+        return {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+          foo: { type: 'string' },
+        };
+      }
+
+      static get connector() {
+        return mockConnector([]);
+      }
+
+    });
+
+    def('klass', () => $Klass.build({ name: 'foo' }));
+
+    it('is empty', function() {
+      expect($subject()).to.eql({});
+    });
+
+    it('is empty after save', function() {
+      return $klass.save().then(data => {
+        expect($subject()).to.eql({});
+        $klass.name = 'bar';
+        expect($subject()).to.eql({ name: [
+          { from: 'foo', to: 'bar' },
+        ] });
+        return $klass.save();
+      }).then(data => {
+        expect($subject()).to.eql({});
+      });
+    });
+
+    it('tracks changes after value set', function() {
+      $klass.name = 'bar';
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+      ] });
+    });
+
+    it('tracks multiple changes after multiple edit', function() {
+      $klass.name = 'bar';
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+      ] });
+      $klass.name = 'bar';
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+      ] });
+      $klass.name = 'baz';
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+        { from: 'bar', to: 'baz' },
+      ] });
+    });
+
+    it('clears changes after edit to start value after multiple edit', function() {
+      $klass.name = 'bar';
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+      ] });
+      $klass.name = 'foo';
+      expect($subject()).to.eql({});
+    });
+
+    it('is empty when value is same', function() {
+      $klass.name = 'foo';
+      expect($subject()).to.eql({});
+    });
+
+    it('tracks changes after assign', function() {
+      $klass.assign({ name: 'bar' });
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+      ] });
+    });
+
+    it('tracks changes after assignAttribute', function() {
+      $klass.assignAttribute('name', 'bar');
+      expect($subject()).to.eql({ name: [
+        { from: 'foo', to: 'bar' },
+      ] });
+    });
+
+    it('tracks multiple changes after assign with multiple values', function() {
+      $klass.assign({ name: 'bar', foo: 'bar' });
+      expect($subject()).to.eql({
+        name: [{ from: 'foo', to: 'bar' }],
+        foo: [{ from: null, to: 'bar' }],
+      });
+    });
+  });
+
   // Functions
 
   describe('#assignAttribute()', function() {
