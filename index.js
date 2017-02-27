@@ -449,7 +449,8 @@
 
     // Constructor
     constructor(attrsParam) {
-      const attrs = attrsParam || {};
+      const attrs = attrsParam && attrsParam.attributes || attrsParam || {};
+      this._initProperties();
       this.assign(this.constructor._defaultAttributes);
       this.assign(attrs);
       this._initBelongsToRelations(attrs);
