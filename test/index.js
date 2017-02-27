@@ -3051,4 +3051,79 @@ describe('NextModel', function() {
       });
     });
   });
+
+  describe('#afterChange()', function() {
+    def('Klass', () => class Klass extends NextModel {
+      static get schema() {
+        return {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+        };
+      }
+
+      static get connector() {
+        return mockConnector([]);
+      }
+
+      get afterChange() {
+        return $afterChange;
+      }
+
+      get afterIdChange() {
+        return $afterIdChange;
+      }
+
+      get afterNameChange() {
+        return $afterNameChange;
+      }
+    });
+
+    def('klass', () => $Klass.build({ name: 'foo' }));
+
+    def('afterChange', () => sinon.spy());
+    def('afterIdChange', () => sinon.spy());
+    def('afterNameChange', () => sinon.spy());
+
+    it('does not call on build', function() {
+      expect($afterChange.called).to.eql(false);
+      expect($afterIdChange.called).to.eql(false);
+      expect($afterNameChange.called).to.eql(false);
+    });
+
+    it('calls change for id after save', function() {
+      return $klass.save().then(data => {
+        expect($afterChange.calledOnce).to.eql(true);
+        expect($afterIdChange.calledOnce).to.eql(true);
+        expect($afterNameChange.called).to.eql(false);
+      });
+    });
+
+    it('calls change after value set', function() {
+      $klass.name = 'bar';
+      expect($afterChange.calledOnce).to.eql(true);
+      expect($afterIdChange.called).to.eql(false);
+      expect($afterNameChange.calledOnce).to.eql(true);
+    });
+
+    it('does not call change after value set to same value', function() {
+      $klass.name = 'foo';
+      expect($afterChange.called).to.eql(false);
+      expect($afterIdChange.called).to.eql(false);
+      expect($afterNameChange.called).to.eql(false);
+    });
+
+    it('calls change after assign', function() {
+      $klass.assign({ name: 'bar' });
+      expect($afterChange.calledOnce).to.eql(true);
+      expect($afterIdChange.called).to.eql(false);
+      expect($afterNameChange.calledOnce).to.eql(true);
+    });
+
+    it('calls change after assignAttribute', function() {
+      $klass.assignAttribute('name', 'bar');
+      expect($afterChange.calledOnce).to.eql(true);
+      expect($afterIdChange.called).to.eql(false);
+      expect($afterNameChange.calledOnce).to.eql(true);
+    });
+  });
 });
