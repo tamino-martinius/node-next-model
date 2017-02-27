@@ -84,6 +84,10 @@
       return true;
     }
 
+    static get trackChanges() {
+      return true;
+    }
+
     static get defaultScope() {
       return undefined;
     }
