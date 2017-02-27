@@ -532,6 +532,16 @@
     }
 
     // Private functions
+    _resetChanges() {
+      if (this.constructor.trackChanges) {
+        Object.defineProperty(this, '_changes', {
+          value: {},
+          enumerable: false,
+          configurable: true,
+        });
+      }
+    }
+
     _belongsToScope(id) {
       return { where: { [this.constructor.identifier]: id }};
     }
