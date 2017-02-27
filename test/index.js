@@ -2622,6 +2622,60 @@ describe('NextModel', function() {
     });
   });
 
+  describe('#isChanged', function() {
+    subject(() => () => $klass.isChanged);
+
+    def('Klass', () => class Klass extends NextModel {
+      static get schema() {
+        return {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+        };
+      }
+
+      static get connector() {
+        return mockConnector([]);
+      }
+    });
+
+    def('klass', () => $Klass.build({ name: 'foo' }));
+
+    it('is not changed', function() {
+      expect($subject()).to.eql(false);
+    });
+
+    it('is not changed after save', function() {
+      return $klass.save().then(data => {
+        expect($subject()).to.eql(false);
+        $klass.name = 'bar';
+        expect($subject()).to.eql(true);
+        return $klass.save();
+      }).then(data => {
+        expect($subject()).to.eql(false);
+      });
+    });
+
+    it('is changed after value set', function() {
+      $klass.name = 'bar';
+      expect($subject()).to.eql(true);
+    });
+
+    it('is not changed when value is same', function() {
+      $klass.name = 'foo';
+      expect($subject()).to.eql(false);
+    });
+
+    it('is changed after assign', function() {
+      $klass.assign({ name: 'bar' });
+      expect($subject()).to.eql(true);
+    });
+
+    it('calls change after assignAttribute', function() {
+      $klass.assignAttribute('name', 'bar');
+      expect($subject()).to.eql(true);
+    });
+  });
+
   // Functions
 
   describe('#assignAttribute()', function() {
