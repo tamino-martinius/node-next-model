@@ -499,7 +499,11 @@
 
     save(options) {
       const promise = () => this.constructor.connector.save(this);
-      return this.constructor._runWithPromises(this, 'save', promise);
+      return this.constructor._runWithPromises(this, 'save', promise)
+        .then((klass) => {
+          this._resetChanges();
+          return klass;
+        });
     }
 
     delete(options) {
