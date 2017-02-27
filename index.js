@@ -476,6 +476,10 @@
       return !this.isNew;
     }
 
+    get isChanged() {
+      return keys(this._changes).length > 0;
+    }
+
     // Functions
     assignAttribute(key, value) {
       const keys = this.constructor.keys;
