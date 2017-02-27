@@ -1065,3 +1065,4 @@ See [history](HISTORY.md) for more details.
 * `0.0.4` **2017-02-16** Added callbacks for `build`, `create`, `save` and `delete`
 * `0.1.0` **2017-02-23** Added Browser compatibility
 * `0.2.0` **2017-02-25** Improved browser compatibility
+* `0.3.0` **2017-02-27** Tracked property changes

@@ -4,6 +4,17 @@
 
 * Validations
 
+## v0.3.0
+
+Tracked property changes.
+
+New functions:
+* `.trackChanges`
+* `#isChanged`
+* `#changes`
+* `.afterChange()`
+* `.after${name}Change()`
+
 ## v0.2.0
 
 Improved browser compatibility
