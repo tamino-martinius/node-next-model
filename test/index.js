@@ -26,7 +26,8 @@ const mockConnector = function(data) {
   const first = (model) => all(model).then(result => result[0]);
   const last = (model) => all(model).then(result => result[result.length - 1]);
   const count = (model) => all(model).then(result => result.length);
-  return { all, first, last, count };
+  const save = (model) => Promise.resolve(model.id = 1);
+  return { all, first, last, count, save };
 };
 
 describe('NextModel', function() {
