@@ -376,7 +376,7 @@
       } else {
         return new Promise((resolve, reject) => {
           try {
-            resolve(value());
+            resolve(value.call(this));
           } catch (e) {
             reject(e);
           }
@@ -569,8 +569,8 @@
                 }
                 value = newValue;
                 const callbackName = 'after' + upperFirst(name) + 'Change';
-                this.constructor._fetchCallbacks(this, callbackName).map(cb => cb());
-                this.constructor._fetchCallbacks(this, 'afterChange').map(cb => cb());
+                this.constructor._fetchCallbacks(this, callbackName).map(cb => cb.call(this));
+                this.constructor._fetchCallbacks(this, 'afterChange').map(cb => cb.call(this));
               } else {
                 value = newValue;
               }
