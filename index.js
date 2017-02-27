@@ -520,7 +520,7 @@
           if (!isNil(klass)) {
             return this.assign(klass.databaseAttributes);
           } else {
-            this.id = undefined;
+            this[identifier] = undefined;
             return this;
           }
         });
@@ -529,13 +529,14 @@
 
     // Private functions
     _belongsToScope(id) {
-      return {where: {id}};
+      return { where: { [this.constructor.identifier]: id }};
     }
 
     _hasManyScope() {
+      const id = this[this.constructor.identifier];
       return {
         where: {
-          [camelCase(this.constructor.modelName) + 'Id']: this.id,
+          [camelCase(this.constructor.modelName) + 'Id']: id,
         },
       };
     }
@@ -549,13 +550,13 @@
             const id = this[relation.foreignKey];
             if (!isNil(id)) {
               if (!isNil(attrs[name])) return attrs[name];
-              return relation.model.scope(this._belongsToScope(id)).first;
+              return relation.model.scope(relation.model._belongsToScope(id)).first;
             } else {
               return null;
             }
           },
           set: (obj) => {
-            this[foreignKey] = obj.id;
+            this[relation.foreignKey] = obj[obj.constructor.identifier];
           },
           configurable: true,
         });
