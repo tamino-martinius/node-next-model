@@ -1,9 +1,12 @@
 'use strict';
 
 (function() {
-  const context = (typeof window === 'object' && window) || {};
+  const isClient = typeof window === 'object';
+  const isServer = !isClient;
 
-  if (typeof require === 'function') {
+  const context = isClient ? window : {};
+
+  if (isServer) {
     context.lodash = require('lodash');
     context.pluralize = require('pluralize');
   }
@@ -13,6 +16,7 @@
   const lodash = context.lodash || context._;
   const assign = lodash.assign;
   const camelCase = lodash.camelCase;
+  const concat = lodash.concat;
   const difference = lodash.difference;
   const filter = lodash.filter;
   const first = lodash.first;
@@ -352,12 +356,19 @@
     }
 
     static _fetchCallbacks(object, value) {
+      return concat(
+        this._recFetchCallbacks(object, value),
+        this._recFetchCallbacks(object, value + (isClient ? 'Client' : 'Server'))
+      );
+    }
+
+    static _recFetchCallbacks(object, value) {
       if (isString(value)) {
-        return this._fetchCallbacks(object, object[value]);
+        return this._recFetchCallbacks(object, object[value]);
       } else if (isFunction(value)) {
         return [value];
       } else if (isArray(value)) {
-        return flatten(value.map(val => this._fetchCallbacks(object, val)));
+        return flatten(value.map(val => this._recFetchCallbacks(object, val)));
       } else if (isObject(value) && isFunction(value.then)) {
         return [value];
       } else {
@@ -662,7 +673,7 @@
     }
   };
 
-  if (typeof module === 'object') {
+  if (isServer) {
     module.exports = NextModel;
   } else {
     context.NextModel = NextModel;
