@@ -3202,6 +3202,55 @@ describe('NextModel', function() {
       expect($afterNameChange.calledOnce).to.eql(true);
     });
 
+    context('callbacks on server side', function() {
+      def('Klass', () => class Klass extends $Klass {
+        get afterChangeServer() {
+          return $afterChangeServer;
+        }
+
+        get afterIdChangeServer() {
+          return $afterIdChangeServer;
+        }
+
+        get afterNameChangeServer() {
+          return $afterNameChangeServer;
+        }
+
+        get afterChangeClient() {
+          return $afterChangeClient;
+        }
+
+        get afterIdChangeClient() {
+          return $afterIdChangeClient;
+        }
+
+        get afterNameChangeClient() {
+          return $afterNameChangeClient;
+        }
+      });
+
+      def('afterChangeServer', () => sinon.spy());
+      def('afterIdChangeServer', () => sinon.spy());
+      def('afterNameChangeServer', () => sinon.spy());
+      def('afterChangeClient', () => sinon.spy());
+      def('afterIdChangeClient', () => sinon.spy());
+      def('afterNameChangeClient', () => sinon.spy());
+
+      it('calls server change after value set', function() {
+        $klass.name = 'bar';
+        expect($afterChangeServer.calledOnce).to.eql(true);
+        expect($afterIdChangeServer.called).to.eql(false);
+        expect($afterNameChangeServer.calledOnce).to.eql(true);
+      });
+
+      it('does not call client change after value set', function() {
+        $klass.name = 'bar';
+        expect($afterChangeClient.called).to.eql(false);
+        expect($afterIdChangeClient.called).to.eql(false);
+        expect($afterNameChangeClient.called).to.eql(false);
+      });
+    });
+
     context('when track changes is disabled', function() {
       def('trackChanges', () => false);
 
