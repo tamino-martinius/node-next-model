@@ -69,6 +69,7 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
   * [Changes](#changes)
   * [Custom Attributes](#custom-attributes)
 * [Instance Callbacks](#instance-callbacks)
+  * [Platform Specific Callbacks](#platform-specific-callbacks)
   * [Change Callbacks](#change-callbacks)
   * [Build Callbacks](#build-callbacks)
   * [Create Callbacks](#create-callbacks)
@@ -911,6 +912,40 @@ class User extends NextModel {
 Before Actions are **always all** executed. If any callback before the action runs on an Error the Action will **not** be executed. If the Action runs on an Error the after callbacks will not be executed.
 
 _Note: The execution order of callbacks can not be guaranteed, they run in parallel if possible._
+
+### Platform Specific Callbacks
+
+NextModel can be used with Browser and Node.js. When this package is used on Server and Client side it might be useful to have different callbacks on Server and Client. Each callback can be postfixed with `Client` or `Server` to use this callback just on Server or Client.
+
+Use generic callback to run it on both Platforms.
+
+~~~js
+class User extends NextModel {
+  get beforeSave() {
+    ...
+  }
+}
+~~~
+
+Postfix callback with `Server` to just use this callback when running with Node.js.
+
+~~~js
+class User extends NextModel {
+  get beforeSaveServer() {
+    ...
+  }
+}
+~~~
+
+Postfix callback with `Client` to just use this callback when running within Browser.
+
+~~~js
+class User extends NextModel {
+  get beforeSaveClient() {
+    ...
+  }
+}
+~~~
 
 ### Change Callbacks
 
