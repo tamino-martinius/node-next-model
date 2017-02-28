@@ -1101,3 +1101,4 @@ See [history](HISTORY.md) for more details.
 * `0.1.0` **2017-02-23** Added Browser compatibility
 * `0.2.0` **2017-02-25** Improved browser compatibility
 * `0.3.0` **2017-02-27** Tracked property changes
+* `0.4.0` **2017-02-28** Added platform specific callbacks

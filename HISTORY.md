@@ -4,6 +4,11 @@
 
 * Validations
 
+## v0.4.0
+
+Added Platform specific callbacks.
+Callbacks can be postfixed with `Client` or `Server`.
+
 ## v0.3.0
 
 Tracked property changes.
