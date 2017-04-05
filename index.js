@@ -34,6 +34,7 @@
   const mapValues = lodash.mapValues;
   const omit = lodash.omit;
   const pick = lodash.pick;
+  const snakeCase = lodash.snakeCase;
   const union = lodash.union;
   const upperFirst = lodash.upperFirst;
   const values = lodash.values;
@@ -60,7 +61,7 @@
     }
 
     static get tableName() {
-      let tableName = camelCase(pluralize(this.modelName))
+      let tableName = snakeCase(pluralize(this.modelName))
       try {
         tableName = this.connector.tableName(this.modelName);
       } finally {
@@ -203,7 +204,14 @@
     static promiseBuild(attrs) {
       let result;
       const promise = () => {
-        return Promise.resolve(this.build(attrs)).then(klass => (result = klass));
+        return new Promise((resolve, reject) => {
+          try {
+            result = this.build(attrs);
+            resolve(result);
+          } catch (e) {
+            reject(e);
+          }
+        });
       }
       return this._runWithPromises(this, 'build', promise).then(() => result);
     }
@@ -211,7 +219,10 @@
     static create(attrs) {
       let result;
       const promise = () => {
-        return this.promiseBuild(attrs).then(klass => (result = klass).save());
+        return this.promiseBuild(attrs).then(klass => {
+          result = klass;
+          return result.save();
+        });
       }
       return this._runWithPromises(this, 'create', promise).then(() => result);
     }
@@ -341,18 +352,23 @@
 
     static _runWithPromises(object, name, promise) {
       const upperName = upperFirst(name);
+      let error;
       return Promise.all(this._fetchPromises(object, 'before' + upperName))
       .then(() => {
-
         return promise()
         .then(() => {
           return Promise.all(this._fetchPromises(object, 'after' + upperName))
           .then(() => object)
-          .catch(() => object);
         })
-        .catch(() => object);
+        .catch(e => (error = e));
       })
-      .catch(() => object);
+      .catch(e => (error = e))
+      .then(() => {
+        if (error instanceof Error) {
+          return Promise.reject(error);
+        }
+        return object;
+      });
     }
 
     static _fetchCallbacks(object, value) {

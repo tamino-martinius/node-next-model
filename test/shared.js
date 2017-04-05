@@ -9,9 +9,12 @@ const lodash = require('lodash');
 const upperFirst = lodash.upperFirst;
 
 const promiseError = function() {
-  return $subject
-    .then(() => expect().fail('Promise is not expected to reach'))
-    .catch(() => {});
+  const message = 'Promise is not expected to reach';
+  return $subject.then(() => {
+    expect().fail(message);
+  }).catch((e) => {
+    if (e.message === message) expect().fail(message);
+  });
 };
 
 const behavesLikeActionWhichSupportsCallbacks = function(options) {
@@ -154,7 +157,7 @@ const behavesLikeActionWhichSupportsCallbacks = function(options) {
 
       it('stops the record action', function() {
         expect($actionSpy.called).to.be(false);
-        return $subject.then(data => {
+        return $subject.catch(data => {
           expect($beforeActionSpy.calledOnce).to.be(true);
           expect($actionSpy.called).to.be(false);
           expect($afterActionSpy.called).to.be(false);
@@ -172,7 +175,7 @@ const behavesLikeActionWhichSupportsCallbacks = function(options) {
 
         it('stops the record action', function() {
           expect($actionSpy.called).to.be(false);
-          return $subject.then(data => {
+          return $subject.catch(data => {
             expect($beforeActionSpy.calledOnce).to.be(true);
             expect($actionSpy.called).to.be(false);
             expect($afterActionSpy.called).to.be(false);
@@ -184,7 +187,7 @@ const behavesLikeActionWhichSupportsCallbacks = function(options) {
     context('when action failes', function() {
       beforeEach(function() {
         if (actionIsPromise) {
-          $action.returns(Promise.reject('Should be catched'));
+          $action.returns(Promise.reject(new Error('Should be catched')));
         } else {
           $action.throws(new Error('Should be catched'));
         }
@@ -194,7 +197,7 @@ const behavesLikeActionWhichSupportsCallbacks = function(options) {
 
       it('tries action and stops callbacks', function() {
         expect($actionSpy.called).to.be(false);
-        return $subject.then(data => {
+        return $subject.catch(data => {
           expect($actionSpy.called).to.be(true);
           expect($beforeActionSpy.calledOnce).to.be(true);
           expect($actionSpy.calledOnce).to.be(true);
