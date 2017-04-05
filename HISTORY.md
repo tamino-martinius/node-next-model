@@ -4,6 +4,12 @@
 
 * Validations
 
+## v0.4.1
+
+Bugfix:
+before and after callback.
+They were broken cause of wrong test.
+
 ## v0.4.0
 
 Added Platform specific callbacks.
