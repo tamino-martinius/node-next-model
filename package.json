@@ -1,8 +1,12 @@
 {
   "name": "next-model",
-  "version": "0.4.1",
-  "description": "Rails like models using ES6.",
+  "version": "0.6.1",
+  "description": "Rails like models using TypeScript/ES6.",
   "author": "Tamino Martinius <dev@zaku.eu>",
+  "main": "./lib/next-model.umd.js",
+  "module": "./lib/index.js",
+  "jsnext:main": "./lib/index.js",
+  "typings": "./lib/index.d.ts",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,47 +15,38 @@
   "engines": {
     "node": ">=4.3.2"
   },
-  "main": "index.js",
-  "files": [
-    "index.js"
-  ],
-  "watch": {
-    "lint": {
-      "patterns": [
-        "."
-      ],
-      "extensions": [
-        "js"
-      ],
-      "inherit": true
-    },
-    "test": {
-      "patterns": [
-        "."
-      ],
-      "extensions": [
-        "js"
-      ],
-      "inherit": true
-    }
-  },
   "scripts": {
-    "lint": "node node_modules/eslint/bin/eslint.js . || true",
-    "test": "node node_modules/mocha/bin/mocha test -u bdd-lazy-var/rspec",
-    "watch": "npm-watch"
+    "test": "printf \"\\033c\" && jest",
+    "build": "tsc",
+    "watch": "tsc -w"
   },
   "devDependencies": {
-    "bdd-lazy-var": "^1.2.0",
-    "chai": "^3.5.0",
-    "eslint": "^2.13.1",
+    "@types/jest": "^20.0.8",
+    "@types/lodash": "^4.14.74",
+    "@types/node": "^8.0.28",
+    "@types/pluralize": "0.0.27",
     "expect-change": "0.0.1",
     "expect.js": "^0.3.1",
-    "mocha": "^3.0.2",
+    "jest": "^21.1.0",
+    "jest-set": "^2.0.0",
     "npm-watch": "^0.1.6",
-    "sinon": "^1.17.7"
+    "ts-jest": "^21.0.1",
+    "typescript": "^2.5.2"
   },
-  "dependencies": {
+  "peerDependencies": {
     "lodash": "^4.12.0",
     "pluralize": "^3.1.0"
+  },
+  "jest": {
+    "transform": {
+      ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
+    },
+    "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "json"
+    ]
   }
 }
