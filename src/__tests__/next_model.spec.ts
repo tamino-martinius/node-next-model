@@ -1,21 +1,36 @@
-import NextModel from '../NextModel';
-
 import {
-  BaseModel,
   Model,
-  Instance,
-  DefaultConnector,
-} from '../NextModel';
+  NextModel,
+  Schema,
+  BelongsTo,
+  HasMany,
+  HasOne,
+  Validator,
+  Validators,
+  PromiseCallback,
+  SyncCallback,
+  PromiseCallbackKeys,
+  SyncCallbackKeys,
+  Query,
+  Order,
+  Callbacks,
+  Scopes,
+  PropertyNotDefinedError,
+  LowerBoundsError,
+  MinLengthError,
+  TypeError,
+} from '../next_model';
 
 import {
-  mockConnector,
-} from '../__mocks__/connector.spec';
+  Connector,
+  DefaultConnector,
+} from '../connector';
 
 import {
   Address,
   User,
   UserAddress
-} from '../__mocks__/NextModel.spec';
+} from '../__mocks__/next_model';
 
 interface Context {
   definitions: () => void;
@@ -29,404 +44,2605 @@ const context = (description: string, {definitions, tests}: Context) => {
   })
 };
 
+
 describe('NextModel', () => {
   // Static properties
 
   // - must be inherited
   describe('.modelName', () => {
-    let Klass: Model;
+    let Klass: typeof NextModel;
     const subject = () => Klass.modelName;
 
-    context('when modelName is present', {
+    context('when decorator is not present', {
       definitions() {
-        @NextModel
-        class NewKlass extends BaseModel {
-          static get modelName() {
-            return 'foo';
-          }
-        };
+        class NewKlass extends NextModel {};
         Klass = NewKlass;
       },
       tests() {
-        it('returns the name of the model', () => {
-          expect(subject()).toEqual('foo');
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get modelName(): string {
+                return 'foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual('foo');
+            });
+          },
         });
       },
     });
 
-    context('when modelName is not present', {
+    context('when decorator is present', {
       definitions() {
-        @NextModel
-        class NewKlass extends BaseModel {};
+        @Model
+        class NewKlass extends NextModel {};
         Klass = NewKlass;
       },
       tests() {
-        it('returns the name reflected by class name', () => {
+        it('reflects name from class', () => {
           expect(subject()).toEqual('NewKlass');
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get modelName(): string {
+                return 'foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual('foo');
+            });
+
+            context('when modelName is empty string', {
+              definitions() {},
+              tests() {
+                it('throws MinLengthError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get modelName(): string {
+                        return '';
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(MinLengthError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.identifier', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.identifier;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when identifier is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get identifier(): string {
+                return 'foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the identifier of the model', () => {
+              expect(subject()).toEqual('foo');
+            });
+          },
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default identifier', () => {
+          expect(subject()).toEqual('id');
+        });
+        it('adds identifier to schema', () => {
+          expect(Klass.schema).toEqual({ id: { type: 'integer' }});
+        });
+
+        context('when identifier is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get identifier(): string {
+                return 'foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the identifier of the model', () => {
+              expect(subject()).toEqual('foo');
+            });
+            it('adds identifier to schema', () => {
+              expect(Klass.schema).toEqual({ foo: { type: 'integer' }});
+            });
+
+            context('when identifier is empty string', {
+              definitions() {},
+              tests() {
+                it('throws MinLengthError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get identifier(): string {
+                        return '';
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(MinLengthError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.dbConnector', () => {
+    let Klass: typeof NextModel;
+    const dbConnector: Connector = new (class Connector extends DefaultConnector {})();
+    const subject = () => Klass.dbConnector;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when dbConnector is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get dbConnector(): Connector {
+                return dbConnector;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the dbConnector of the model', () => {
+              expect(subject()).toEqual(dbConnector);
+            });
+          },
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default dbConnector', () => {
+          expect(subject()).toEqual(new DefaultConnector());
+        });
+
+        context('when dbConnector is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get dbConnector(): Connector {
+                return dbConnector;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the dbConnector of the model', () => {
+              expect(subject()).toEqual(dbConnector);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.attrAccessors', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.attrAccessors;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when attrAccessors is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get attrAccessors(): string[] {
+                return ['foo'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the attrAccessors of the model', () => {
+              expect(subject()).toEqual(['foo']);
+            });
+          },
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual([]);
+        });
+
+        context('when attrAccessors is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get attrAccessors(): string[] {
+                return ['foo'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the attrAccessors of the model', () => {
+              expect(subject()).toEqual(['foo']);
+            });
+
+            context('when attrAccessors is empty string', {
+              definitions() {},
+              tests() {
+                it('throws MinLengthError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get attrAccessors(): string[] {
+                        return [''];
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(MinLengthError);
+                });
+              },
+            });
+          },
         });
       },
     });
   });
 
   describe('.schema', () => {
-    let Klass: Model;
+    let Klass: typeof NextModel;
     const subject = () => Klass.schema;
 
-    context('when schema is present', {
+    context('when decorator is not present', {
       definitions() {
-        @NextModel
-        class NewKlass extends BaseModel {
-          static get schema() {
-            return {};
-          }
-        };
+        class NewKlass extends NextModel {};
         Klass = NewKlass;
       },
       tests() {
-        it('returns the schema of the model', () => {
-          expect(subject()).toEqual({});
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: {type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the schema of the model', () => {
+              expect(subject()).toEqual({ foo: { type: 'bar' }});
+            });
+          },
         });
       },
     });
 
-    context('when schema is not present', {
+    context('when decorator is present', {
       definitions() {
-        @NextModel
-        class NewKlass extends BaseModel {};
+        @Model
+        class NewKlass extends NextModel {};
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty schema', () => {
-          expect(subject()).toEqual({});
+        it('returns empty default', () => {
+          expect(subject()).toEqual({ id: { type: 'integer' }});
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the schema of the model', () => {
+              expect(subject()).toEqual({
+                id: { type: 'integer' },
+                foo: { type: 'bar' },
+              });
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the schema of the model', () => {
+                  expect(subject()).toEqual({
+                    id: { type: 'integer' },
+                    foo: { type: 'bar' },
+                    userId: { type: 'integer' },
+                  });
+                });
+              },
+            });
+          },
         });
       },
     });
   });
 
-  describe('.connector', () => {
-    let Klass: Model;
-    let connector = mockConnector([]);
-    const subject = () => Klass.connector;
+  describe('.belongsTo', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.belongsTo;
 
-    context('when connector is present', {
+    context('when decorator is not present', {
       definitions() {
-        @NextModel
-        class NewKlass extends BaseModel {
-          static get connector() {
-            return connector;
-          }
-        };
+        class NewKlass extends NextModel {};
         Klass = NewKlass;
       },
       tests() {
-        it('returns the connector', () => {
-          expect(subject()).toEqual(connector);
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when belongsTo is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get belongsTo(): BelongsTo {
+                return { user: { model: User }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the belongsTo of the model', () => {
+              expect(subject()).toEqual({ user: { model: User }});
+            });
+
+            context('when foreignKey is present', {
+              definitions() {
+                class NewKlass extends NextModel {
+                  static get belongsTo(): BelongsTo {
+                    return { user: { model: User, foreignKey: 'foo' }};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the belongsTo of the model', () => {
+                  expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
+                });
+              },
+            });
+          },
         });
       },
     });
 
-    context('when connector is not present', {
+    context('when decorator is present', {
       definitions() {
-        @NextModel
-        class NewKlass extends BaseModel {};
+        @Model
+        class NewKlass extends NextModel {};
         Klass = NewKlass;
       },
       tests() {
-        it('returns the default connector', () => {
-          expect(subject()).toEqual(DefaultConnector);
+        it('returns empty default', () => {
+          expect(subject()).toEqual({});
+        });
+
+        context('when belongsTo is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get belongsTo(): BelongsTo {
+                return { user: { model: User }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the belongsTo of the model and adds defaults', () => {
+              expect(subject()).toEqual({ user: { model: User, foreignKey: 'userId' }});
+            });
+
+            context('when foreignKey is present', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get belongsTo(): BelongsTo {
+                    return { user: { model: User, foreignKey: 'foo' }};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the belongsTo of the model', () => {
+                  expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
+                });
+              },
+            });
+          },
         });
       },
     });
   });
 
-  // // // - optional
+  describe('.hasMany', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.hasMany;
 
-  // describe('.identifier', () => {
-  //   let Klass: Model;
-  //   const subject = () => Klass.identifier;
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //   context('when value is not overwritten', {
-  //     definitions() {
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns default value', () => {
-  //         expect(subject()).toEqual('id');
-  //       });
-  //     },
-  //   });
-  // });
+        context('when hasMany is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get hasMany(): HasMany {
+                return { user: { model: User }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the hasMany of the model and adds defaults', () => {
+              expect(subject()).toEqual({ user: { model: User }});
+            });
 
-  // describe('.attrAccessors', () => {
-  //   let Klass: Model;
-  //   const subject = () => Klass.attrAccessors;
+            context('when foreignKey is present', {
+              definitions() {
+                class NewKlass extends NextModel {
+                  static get hasMany(): HasMany {
+                    return { user: { model: User, foreignKey: 'foo' }};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the hasMany of the model', () => {
+                  expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
+                });
+              },
+            });
+          },
+        });
+      },
+    });
 
-  //   context('when value is not overwritten', {
-  //     definitions() {
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns default value', () => {
-  //         expect(subject()).toEqual([]);
-  //       });
-  //     },
-  //   });
-  // });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual({});
+        });
 
-  // describe('.belongsTo', () => {
-  //   let Klass: Model;
-  //   const subject = () => Klass.belongsTo;
+        context('when hasMany is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get hasMany(): HasMany {
+                return { user: { model: User }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the hasMany of the model and adds defaults', () => {
+              expect(subject()).toEqual({ user: { model: User, foreignKey: 'newKlassId' }});
+            });
 
-  //   context('when value is not overwritten', {
-  //     definitions() {
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns default value', () => {
-  //         expect(subject()).toEqual({});
-  //       });
-  //     },
-  //   });
+            context('when foreignKey is present', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get hasMany(): HasMany {
+                    return { user: { model: User, foreignKey: 'foo' }};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the hasMany of the model', () => {
+                  expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //   context('when value is overwritten', {
-  //     definitions() {
-  //       class NewKlass extends NextModel {
-  //         @NextModel.relation
-  //         static get belongsTo(): BelongsTo {
-  //           return {
-  //             user: { model: User },
-  //           };
-  //         }
-  //       };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns default value', () => {
-  //         expect(subject()).toEqual({
-  //           user: { model: User },
-  //         });
-  //       });
-  //     },
-  //   });
-  // });
+  describe('.hasOne', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.hasOne;
 
-  // describe('.hasMany', () => {
-  //   subject(() => $Klass.hasMany);
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //   context('when value is not overwritten', () => {
-  //     def('Klass', () => class Klass extends NextModel {});
+        context('when hasOne is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get hasOne(): HasOne {
+                return { user: { model: User }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the hasOne of the model and adds defaults', () => {
+              expect(subject()).toEqual({ user: { model: User }});
+            });
 
-  //     it('returns default value', () => {
-  //       expect($subject).toEqual({});
-  //     });
-  //   });
-  // });
+            context('when foreignKey is present', {
+              definitions() {
+                class NewKlass extends NextModel {
+                  static get hasOne(): HasOne {
+                    return { user: { model: User, foreignKey: 'foo' }};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the hasOne of the model', () => {
+                  expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
+                });
+              },
+            });
+          },
+        });
+      },
+    });
 
-  // describe('.hasOne', () => {
-  //   subject(() => $Klass.hasOne);
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual({});
+        });
 
-  //   context('when value is not overwritten', () => {
-  //     def('Klass', () => class Klass extends NextModel {});
+        context('when hasOne is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get hasOne(): HasOne {
+                return { user: { model: User }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the hasOne of the model and adds defaults', () => {
+              expect(subject()).toEqual({ user: { model: User, foreignKey: 'newKlassId' }});
+            });
 
-  //     it('returns default value', () => {
-  //       expect($subject).toEqual({});
-  //     });
-  //   });
-  // });
+            context('when foreignKey is present', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get hasOne(): HasOne {
+                    return { user: { model: User, foreignKey: 'foo' }};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the hasOne of the model', () => {
+                  expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
 
-  // describe('.cacheData', () => {
-  //   subject(() => $Klass.cacheData);
+  describe('.validators', () => {
+    let Klass: typeof NextModel;
+    let promiseValidator: Validator = jest.fn().mockReturnValue(Promise.resolve(true));
+    const subject = () => Klass.validators;
 
-  //   context('when value is not overwritten', () => {
-  //     def('Klass', () => class Klass extends NextModel {});
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //     it('returns default value', () => {
-  //       expect($subject).toEqual(true);
-  //     });
-  //   });
-  // });
+        context('when validators are present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return { foo: [promiseValidator]};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the validators of the model', () => {
+              expect(subject()).toEqual({ foo: [promiseValidator]});
+            });
+          },
+        });
+      },
+    });
 
-  // describe('.trackChanges', () => {
-  //   subject(() => $Klass.trackChanges);
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual({});
+        });
 
-  //   context('when value is not overwritten', () => {
-  //     def('Klass', () => class Klass extends NextModel {});
+        context('when validators are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return { foo: [promiseValidator]};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the validators of the model', () => {
+              expect(subject()).toEqual({ foo: [promiseValidator]});
+            });
 
-  //     it('returns default value', () => {
-  //       expect($subject).toEqual(true);
-  //     });
-  //   });
-  // });
+            context('when validators are no array', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get validators(): Validators {
+                    return { foo: promiseValidator};
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the validators of the model', () => {
+                  expect(subject()).toEqual({ foo: [promiseValidator]});
+                });
+              },
+            });
 
-  // describe('.defaultScope', () => {
-  //   subject(() => $Klass.defaultScope);
+            context('when validators are mixed', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get validators(): Validators {
+                    return {
+                      foo: [promiseValidator],
+                      bar: promiseValidator,
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the validators of the model', () => {
+                  expect(subject()).toEqual({
+                    foo: [promiseValidator],
+                    bar: [promiseValidator],
+                  });
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //   context('when value is not overwritten', () => {
-  //     def('Klass', () => class Klass extends NextModel {});
+  describe('.callbacks', () => {
+    let Klass: typeof NextModel;
+    let promiseCallback: PromiseCallback = jest.fn().mockReturnValue(Promise.resolve(true));
+    let syncCallback: SyncCallback = jest.fn().mockReturnValue(true);
+    const callbacks: Callbacks = {
+      beforeSave: [promiseCallback],
+      afterSave: [promiseCallback],
+      beforeUpdate: [promiseCallback],
+      afterUpdate: [promiseCallback],
+      beforeDelete: [promiseCallback],
+      afterDelete: [promiseCallback],
+      beforeReload: [promiseCallback],
+      afterReload: [promiseCallback],
+      beforeAssign: [syncCallback],
+      afterAssign: [syncCallback],
+    };
+    const subject = () => Klass.callbacks;
 
-  //     it('returns default value', () => {
-  //       expect($subject).toEqual(undefined);
-  //     });
-  //   });
-  // });
 
-  // describe('.defaultOrder', () => {
-  //   subject(() => $Klass.defaultOrder);
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //   context('when value is not overwritten', () => {
-  //     def('Klass', () => class Klass extends NextModel {});
+        context('when callbacks are present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return callbacks;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the callbacks of the model', () => {
+              expect(subject()).toEqual(callbacks);
+            });
+          },
+        });
+      },
+    });
 
-  //     it('returns default value', () => {
-  //       expect($subject).toEqual(undefined);
-  //     });
-  //   });
-  // });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual({
+            beforeSave: [],
+            afterSave: [],
+            beforeUpdate: [],
+            afterUpdate: [],
+            beforeDelete: [],
+            afterDelete: [],
+            beforeReload: [],
+            afterReload: [],
+            beforeAssign: [],
+            afterAssign: [],
+          });
+        });
 
-  // // - computed
+        context('when callbacks are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return callbacks;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the callbacks of the model', () => {
+              expect(subject()).toEqual(callbacks);
+            });
 
-  // describe('.keys', () => {
-  //   subject(() => $Klass.keys);
+            context('when callbacks are no array', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeSave: promiseCallback,
+                      afterSave: promiseCallback,
+                      beforeUpdate: promiseCallback,
+                      afterUpdate: promiseCallback,
+                      beforeDelete: promiseCallback,
+                      afterDelete: promiseCallback,
+                      beforeReload: promiseCallback,
+                      afterReload: promiseCallback,
+                      beforeAssign: syncCallback,
+                      afterAssign: syncCallback,
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the callbacks of the model', () => {
+                  expect(subject()).toEqual(callbacks);
+                });
+              },
+            });
 
-  //   def('Klass', () => class Klass extends NextModel {
-  //     static get schema() {
-  //       return $schema;
-  //     }
+            context('when callbacks are mixed', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeSave: [promiseCallback],
+                      afterSave: promiseCallback,
+                      beforeUpdate: [promiseCallback],
+                      afterUpdate: promiseCallback,
+                      beforeDelete: [promiseCallback],
+                      afterDelete: promiseCallback,
+                      beforeReload: [promiseCallback],
+                      afterReload: promiseCallback,
+                      beforeAssign: [syncCallback],
+                      afterAssign: syncCallback,
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the callbacks of the model', () => {
+                  expect(subject()).toEqual(callbacks);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //     static get attrAccessors() {
-  //       return $attrAccessors;
-  //     }
-  //   });
+  describe('.skip', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.skip;
 
-  //   context('when schema is empty', () => {
-  //     def('schema', () => ({}));
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //     it('returns empty array', () => {
-  //       expect($subject).toEqual([]);
-  //     });
-  //   });
+        context('when skip is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get skip(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the skip of the model', () => {
+              expect(subject()).toEqual(4711);
+            });
+          },
+        });
+      },
+    });
 
-  //   context('when schema present', () => {
-  //     def('schema', () => ({
-  //       foo: { type: 'integer' },
-  //     }));
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default skip', () => {
+          expect(subject()).toEqual(0);
+        });
 
-  //     it('returns keys of schema', () => {
-  //       expect($subject).toEqual(['foo']);
-  //     });
-  //   });
+        context('when skip is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get skip(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the skip of the model', () => {
+              expect(subject()).toEqual(4711);
+            });
 
-  //   context('when attrAccessors is present', () => {
-  //     def('attrAccessors', () => ['foo']);
+            context('when skip is below 0', {
+              definitions() { },
+              tests() {
+                it('throws LowerBoundsError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get skip(): number {
+                        return -4711;
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(LowerBoundsError);
+                });
+              },
+            });
 
-  //     it('returns keys from attrAccessors', () => {
-  //       expect($subject).toEqual(['foo']);
-  //     });
-  //   });
+            context('when skip is floating point', {
+              definitions() {},
+              tests() {
+                it('throws TypeError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get skip(): number {
+                        return 47.11;
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(TypeError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //   context('when schema and attrAccessors are present', () => {
-  //     def('schema', () => ({
-  //       foo: { type: 'integer' },
-  //     }));
-  //     def('attrAccessors', () => ['bar']);
+  describe('.limit', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.limit;
 
-  //     it('returns keys from attrAccessors', () => {
-  //       expect($subject).to.have.length(2);
-  //       expect($subject).to.contain('foo');
-  //       expect($subject).to.contain('bar');
-  //     });
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //     context('when both have same keys', () => {
-  //       def('attrAccessors', () => ['foo']);
+        context('when limit is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get limit(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the limit of the model', () => {
+              expect(subject()).toEqual(4711);
+            });
+          },
+        });
+      },
+    });
 
-  //       it('returns overlapping keys once', () => {
-  //         expect($subject).toEqual(['foo']);
-  //       });
-  //     });
-  //   });
-  // });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default limit', () => {
+          expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
+        });
 
-  // describe('.databaseKeys', () => {
-  //   subject(() => $Klass.databaseKeys);
+        context('when limit is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get limit(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the limit of the model', () => {
+              expect(subject()).toEqual(4711);
+            });
 
-  //   def('Klass', () => class Klass extends NextModel {
-  //     static get identifier() {
-  //       return $identifier;
-  //     }
+            context('when limit is below 0', {
+              definitions() { },
+              tests() {
+                it('throws LowerBoundsError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get limit(): number {
+                        return -4711;
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(LowerBoundsError);
+                });
+              },
+            });
 
-  //     static get schema() {
-  //       return $schema;
-  //     }
+            context('when limit is floating point', {
+              definitions() { },
+              tests() {
+                it('throws TypeError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get limit(): number {
+                        return 47.11;
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(TypeError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //     static get attrAccessors() {
-  //       return $attrAccessors;
-  //     }
-  //   });
+  describe('.query', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.query;
 
-  //   context('when schema is empty', () => {
-  //     def('schema', () => ({}));
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //     it('returns empty array', () => {
-  //       expect($subject).toEqual([]);
-  //     });
-  //   });
+        context('when query is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'bar' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the query of the model', () => {
+              expect(subject()).toEqual({ foo: 'bar' });
+            });
+          },
+        });
+      },
+    });
 
-  //   context('when schema present', () => {
-  //     def('schema', () => ({
-  //       foo: { type: 'integer' },
-  //     }));
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default query', () => {
+          expect(subject()).toEqual({});
+        });
 
-  //     it('returns keys of schema', () => {
-  //       expect($subject).toEqual(['foo']);
-  //     });
+        context('when query is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'bar' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the query of the model', () => {
+              expect(subject()).toEqual({ foo: 'bar' });
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //     context('when identifier is present', () => {
-  //       def('identifier', () => 'id');
+  describe('.order', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.order;
 
-  //       it('returns keys of schema', () => {
-  //         expect($subject).toEqual(['foo']);
-  //       });
-  //     });
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-  //     context('when identifier is in schema', () => {
-  //       def('identifier', () => 'foo');
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get order(): Order {
+                return { foo: 'asc' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the order of the model', () => {
+              expect(subject()).toEqual({ foo: 'asc' });
+            });
+          },
+        });
+      },
+    });
 
-  //       it('returns keys without identifier', () => {
-  //         expect($subject).toEqual([]);
-  //       });
-  //     });
-  //   });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default order', () => {
+          expect(subject()).toEqual({});
+        });
 
-  //   context('when attrAccessors is present', () => {
-  //     def('attrAccessors', () => ['foo']);
+        context('when order is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get order(): Order {
+                return { foo: 'asc' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the order of the model', () => {
+              expect(subject()).toEqual({ foo: 'asc' });
+            });
+          },
+        });
+      },
+    });
+  });
 
-  //     it('returns no keys from attrAccessors', () => {
-  //       expect($subject).toEqual([]);
-  //     });
-  //   });
+  describe('.skippedValidators', () => {
+    describe('.skippedValidators', () => {
+      let Klass: typeof NextModel;
+      const subject = () => Klass.skippedValidators;
+  
+      context('when decorator is not present', {
+        definitions() {
+          class NewKlass extends NextModel {};
+          Klass = NewKlass;
+        },
+        tests() {
+          it('throws PropertyNotDefinedError', () => {
+            expect(subject).toThrow(PropertyNotDefinedError);
+          });
 
-  //   context('when schema and attrAccessors are present', () => {
-  //     def('schema', () => ({
-  //       foo: { type: 'integer' },
-  //     }));
-  //     def('attrAccessors', () => ['bar']);
+          context('when skippedValidators is present', {
+            definitions() {
+              class NewKlass extends NextModel {
+                static get skippedValidators(): string | string[] {
+                  return ['foo'];
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('returns the skippedValidators of the model', () => {
+                expect(subject()).toEqual(['foo']);
+              });
+            },
+          });
+        },
+      });
+  
+      context('when decorator is present', {
+        definitions() {
+          @Model
+          class NewKlass extends NextModel {};
+          Klass = NewKlass;
+        },
+        tests() {
+          it('returns default skippedValidators', () => {
+            expect(subject()).toEqual([]);
+          });
 
-  //     it('returns only keys from schema', () => {
-  //       expect($subject).to.have.length(1);
-  //       expect($subject).to.contain('foo');
-  //     });
+          context('when skippedValidators is array', {
+            definitions() {
+              @Model
+              class NewKlass extends NextModel {
+                static get skippedValidators(): string | string[] {
+                  return ['foo'];
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('returns the skippedValidators of the model', () => {
+                expect(subject()).toEqual(['foo']);
+              });
+            },
+          });
 
-  //     context('when both have same keys', () => {
-  //       def('attrAccessors', () => ['foo']);
+          context('when skippedValidators is string', {
+            definitions() {
+              @Model
+              class NewKlass extends NextModel {
+                static get skippedValidators(): string | string[] {
+                  return 'foo';
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('returns the skippedValidators of the model as array', () => {
+                expect(subject()).toEqual(['foo']);
+              });
+            },
+          });
 
-  //         it('returns only keys from schema', () => {
-  //         expect($subject).toEqual(['foo']);
-  //       });
-  //     });
-  //   });
-  // });
+          context('when skippedValidators is empty string', {
+            definitions() { },
+            tests() {
+              it('throws MinLengthError', () => {
+                expect(() => {
+                  @Model
+                  class NewKlass extends NextModel {
+                    static get skippedValidators(): string | string[] {
+                      return '';
+                    }
+                  };
+                  Klass = NewKlass;
+                }).toThrow(MinLengthError);
+              });
+            },
+          });
+        },
+      });
+    });
+  });
+
+  describe('.skippedCallbacks', () => {
+    describe('.skippedCallbacks', () => {
+      let Klass: typeof NextModel;
+      const subject = () => Klass.skippedCallbacks;
+  
+      context('when decorator is not present', {
+        definitions() {
+          class NewKlass extends NextModel {};
+          Klass = NewKlass;
+        },
+        tests() {
+          it('throws PropertyNotDefinedError', () => {
+            expect(subject).toThrow(PropertyNotDefinedError);
+          });
+
+          context('when skippedCallbacks is present', {
+            definitions() {
+              class NewKlass extends NextModel {
+                static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                  return ['beforeSave'];
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('returns the skippedCallbacks of the model', () => {
+                expect(subject()).toEqual(['beforeSave']);
+              });
+            },
+          });
+        },
+      });
+  
+      context('when decorator is present', {
+        definitions() {
+          @Model
+          class NewKlass extends NextModel {};
+          Klass = NewKlass;
+        },
+        tests() {
+          it('returns default skippedCallbacks', () => {
+            expect(subject()).toEqual([]);
+          });
+
+          context('when skippedCallbacks is array', {
+            definitions() {
+              @Model
+              class NewKlass extends NextModel {
+                static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                  return ['beforeSave'];
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('returns the skippedCallbacks of the model', () => {
+                expect(subject()).toEqual(['beforeSave']);
+              });
+            },
+          });
+
+          context('when skippedCallbacks is string', {
+            definitions() {
+              @Model
+              class NewKlass extends NextModel {
+                static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                  return 'beforeSave';
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('returns the skippedCallbacks of the model as array', () => {
+                expect(subject()).toEqual(['beforeSave']);
+              });
+            },
+          });
+        },
+      });
+    });
+  });
+
+  describe('.scopes', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.scopes;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when scopes is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get scopes(): Scopes {
+                return { foo: { query: {} }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the scopes of the model', () => {
+              expect(subject()).toEqual({ foo: { query: {} }});
+            });
+          },
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default scopes', () => {
+          expect(subject()).toEqual({});
+        });
+
+        context('when scopes is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get scopes(): Scopes {
+                return { foo: { query: {} }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the scopes of the model', () => {
+              expect(subject()).toEqual({ foo: { query: {} }});
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.keys', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.keys;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: {type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('throws PropertyNotDefinedError', () => {
+              expect(subject).toThrow(PropertyNotDefinedError);
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('throws PropertyNotDefinedError', () => {
+                  expect(subject).toThrow(PropertyNotDefinedError);
+                });
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('throws PropertyNotDefinedError', () => {
+                      expect(subject).toThrow(PropertyNotDefinedError);
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject().sort()).toEqual(['id'].sort());
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the keys of the schema', () => {
+              expect(subject().sort()).toEqual(['id', 'foo'].sort());
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the keys of the belongsTo relation', () => {
+                  expect(subject().sort()).toEqual(['id', 'foo', 'userId'].sort());
+                });
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('returns the keys of the attrAccessors', () => {
+                      expect(subject().sort()).toEqual(['id', 'foo', 'userId', 'bar'].sort());
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.dbKeys', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.dbKeys;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: {type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('throws PropertyNotDefinedError', () => {
+              expect(subject).toThrow(PropertyNotDefinedError);
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('throws PropertyNotDefinedError', () => {
+                  expect(subject).toThrow(PropertyNotDefinedError);
+                });
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('throws PropertyNotDefinedError', () => {
+                      expect(subject).toThrow(PropertyNotDefinedError);
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject().sort()).toEqual(['id'].sort());
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the dbKeys of the schema', () => {
+              expect(subject().sort()).toEqual(['id', 'foo'].sort());
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the dbKeys of the belongsTo relation', () => {
+                  expect(subject().sort()).toEqual(['id', 'foo', 'userId'].sort());
+                });
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('does not change attrAccessors', () => {
+                      expect(subject().sort()).toEqual(['id', 'foo', 'userId'].sort());
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.queryBy(query)', () => {
+    let Klass: typeof NextModel;
+    const query: Query = {
+      foo: 'bar',
+    };
+    let subject = () => Klass.queryBy(query).query;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('sets default query', () => {
+          expect(subject()).toEqual({
+            $and: [
+              {foo: 'bar'},
+            ],
+          });
+        });
+
+        context('when query is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'baz' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  { foo: 'baz' },
+                  { foo: 'bar' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.queryBy(query).queryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with and query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.queryBy(query).andQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with or query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.queryBy(query).orQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $or: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with not query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.queryBy(query).notQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $not: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.andQueryBy(query)', () => {
+    let Klass: typeof NextModel;
+    const query: Query = {
+      foo: 'bar',
+    };
+    let subject = () => Klass.andQueryBy(query).query;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('sets default query', () => {
+          expect(subject()).toEqual({
+            $and: [
+              {foo: 'bar'},
+            ],
+          });
+        });
+
+        context('when query is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'baz' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  { foo: 'baz' },
+                  { foo: 'bar' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.andQueryBy(query).andQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with default query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.andQueryBy(query).queryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with or query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.andQueryBy(query).orQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $or: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with not query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.andQueryBy(query).notQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $not: [
+                  {
+                    $and: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.orQueryBy(query)', () => {
+    let Klass: typeof NextModel;
+    const query: Query = {
+      foo: 'bar',
+    };
+    let subject = () => Klass.orQueryBy(query).query;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('sets default query', () => {
+          expect(subject()).toEqual({
+            $or: [
+              {foo: 'bar'},
+            ],
+          });
+        });
+
+        context('when query is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'baz' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $or: [
+                  { foo: 'baz' },
+                  { foo: 'bar' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.orQueryBy(query).orQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $or: [
+                  {
+                    $or: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with default query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.orQueryBy(query).queryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $or: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with and query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.orQueryBy(query).andQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $or: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with not query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.orQueryBy(query).notQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $not: [
+                  {
+                    $or: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.notQueryBy(query)', () => {
+    let Klass: typeof NextModel;
+    const query: Query = {
+      foo: 'bar',
+    };
+    let subject = () => Klass.notQueryBy(query).query;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('sets default query', () => {
+          expect(subject()).toEqual({
+            $not: [
+              {foo: 'bar'},
+            ],
+          });
+        });
+
+        context('when query is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'baz' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $not: [
+                  { foo: 'baz' },
+                  { foo: 'bar' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.notQueryBy(query).notQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $not: [
+                  {
+                    $not: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with default query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.notQueryBy(query).queryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $not: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with and query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.notQueryBy(query).andQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $and: [
+                  {
+                    $not: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+
+        context('when query is chained with or query type', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {};
+            Klass = NewKlass;
+            subject = () => Klass.notQueryBy(query).orQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            it('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                $or: [
+                  {
+                    $not: [
+                      { foo: 'bar' },
+                    ],
+                  },
+                  { bar: 'baz' },
+                ],
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.orderBy(order)', () => {
+    let Klass: typeof NextModel;
+    let orderBy: Order = {
+      foo: 'asc',
+    };
+    const subject = () => Klass.orderBy(orderBy).order;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default order', () => {
+          expect(subject()).toEqual({
+            foo: 'asc',
+          });
+        });
+
+        context('when order is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get order(): Order {
+                return { bar: 'asc' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('overrides the order of the model', () => {
+              expect(subject()).toEqual({
+                foo: 'asc',
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.unqueried', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.unqueried.query;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default query', () => {
+          expect(subject()).toEqual({});
+        });
+
+        context('when query is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'bar' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('resets the query of the model', () => {
+              expect(subject()).toEqual({});
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.unordered', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.unordered.order;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default order', () => {
+          expect(subject()).toEqual({});
+        });
+
+        context('when order is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get order(): Order {
+                return { foo: 'asc' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('resets the order of the model', () => {
+              expect(subject()).toEqual({});
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.model', () => {
+    let Klass: typeof NextModel;
+    const subject = () => ({
+      query: Klass.model.query,
+      order: Klass.model.order,
+    });
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns default query and order', () => {
+          expect(subject()).toEqual({
+            query: {},
+            order: {},
+          });
+        });
+
+        context('when order is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get order(): Order {
+                return { foo: 'asc' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('resets order of the model', () => {
+              expect(subject()).toEqual({
+                query: {},
+                order: {},
+              });
+            });
+          },
+        });
+
+        context('when query is already present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get query(): Query {
+                return { foo: 'bar' };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('resets the query of the model', () => {
+              expect(subject()).toEqual({
+                query: {},
+                order: {},
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
 
   // describe('.all', () => {
   //   subject(() => $Klass.all);
@@ -803,175 +3019,6 @@ describe('NextModel', () => {
   //           return $subject.then(data => expect(data).toEqual($items.length));
   //         });
   //       });
-  //     });
-  //   });
-  // });
-
-  // describe('.model', () => {
-  //   subject(() => $Klass.model);
-
-  //   def('Klass', () => class Klass extends NextModel {
-  //     static get modelName() {
-  //       return 'Klass';
-  //     }
-
-  //     static get schema() {
-  //       return {
-  //         id: { type: 'integer' },
-  //         foo: { type: 'string' },
-  //       };
-  //     }
-
-  //     static get defaultScope() {
-  //       return $defaultScope;
-  //     }
-
-  //     static get defaultOrder() {
-  //       return $defaultOrder;
-  //     }
-  //   });
-
-  //   it('ruturns a NextModel', () => {
-  //     expect($subject).to.be.a('function');
-  //     expect($subject.modelName).toEqual('Klass');
-  //   });
-
-  //   context('cache is present', () => {
-  //     beforeEach(() => {
-  //       $Klass.cache = [{ foo: 1 }];
-  //     });
-
-  //     it('clears cache', () => {
-  //       expect($subject.cache).toEqual(undefined);
-  //     });
-  //   });
-
-  //   context('defaultScope is present', () => {
-  //     def('defaultScope', () => ({ foo: 1 }));
-
-  //     it('sets scope to undefined', () => {
-  //       expect($subject.defaultScope).toEqual(undefined);
-  //     });
-  //   });
-
-  //   context('defaultOrder is present', () => {
-  //     def('defaultOrder', () => ({ foo: 'asc' }));
-
-  //     it('sets order to undefined', () => {
-  //       expect($subject.defaultOrder).toEqual(undefined);
-  //     });
-  //   });
-  // });
-
-  // describe('.withoutScope', () => {
-  //   subject(() => $Klass.withoutScope);
-
-  //   def('Klass', () => class Klass extends NextModel {
-  //     static get modelName() {
-  //       return 'Klass';
-  //     }
-
-  //     static get schema() {
-  //       return {
-  //         id: { type: 'integer' },
-  //         foo: { type: 'string' },
-  //       };
-  //     }
-
-  //     static get defaultScope() {
-  //       return $defaultScope;
-  //     }
-
-  //     static get defaultOrder() {
-  //       return $defaultOrder;
-  //     }
-  //   });
-
-  //   it('ruturns a NextModel', () => {
-  //     expect($subject).to.be.a('function');
-  //     expect($subject.modelName).toEqual('Klass');
-  //   });
-
-  //   context('cache is present', () => {
-  //     beforeEach(() => {
-  //       $Klass.cache = [{ foo: 1 }];
-  //     });
-
-  //     it('clears cache', () => {
-  //       expect($subject.cache).toEqual(undefined);
-  //     });
-  //   });
-
-  //   context('defaultScope is present', () => {
-  //     def('defaultScope', () => ({ foo: 1 }));
-
-  //     it('sets scope to undefined', () => {
-  //       expect($subject.defaultScope).toEqual(undefined);
-  //     });
-  //   });
-
-  //   context('defaultOrder is present', () => {
-  //     def('defaultOrder', () => ({ foo: 'asc' }));
-
-  //     it('keeps order', () => {
-  //       expect($subject.defaultOrder).toEqual({ foo: 'asc' });
-  //     });
-  //   });
-  // });
-
-  // describe('.unorder', () => {
-  //   subject(() => $Klass.unorder);
-
-  //   def('Klass', () => class Klass extends NextModel {
-  //     static get modelName() {
-  //       return 'Klass';
-  //     }
-
-  //     static get schema() {
-  //       return {
-  //         id: { type: 'integer' },
-  //         foo: { type: 'string' },
-  //       };
-  //     }
-
-  //     static get defaultScope() {
-  //       return $defaultScope;
-  //     }
-
-  //     static get defaultOrder() {
-  //       return $defaultOrder;
-  //     }
-  //   });
-
-
-  //   it('ruturns a NextModel', () => {
-  //     expect($subject).to.be.a('function');
-  //     expect($subject.modelName).toEqual('Klass');
-  //   });
-
-  //   context('cache is present', () => {
-  //     beforeEach(() => {
-  //       $Klass.cache = [{ foo: 1 }];
-  //     });
-
-  //     it('clears cache', () => {
-  //       expect($subject.cache).toEqual(undefined);
-  //     });
-  //   });
-
-  //   context('defaultScope is present', () => {
-  //     def('defaultScope', () => ({ foo: 1 }));
-
-  //     it('keeps default scope', () => {
-  //       expect($subject.defaultScope).toEqual({ foo: 1 });
-  //     });
-  //   });
-
-  //   context('defaultOrder is present', () => {
-  //     def('defaultOrder', () => ({ foo: 'asc' }));
-
-  //     it('sets order to undefined', () => {
-  //       expect($subject.defaultOrder).toEqual(undefined);
   //     });
   //   });
   // });
@@ -1904,7 +3951,7 @@ describe('NextModel', () => {
 
   //   it('removes scope from defaultScope', () => {
   //     expect($Klass.defaultScope).toEqual($defaultScope);
-  //     expect($subject.defaultScope).toEqual({ });
+  //     expect($subject.defaultScope).toEqual({});
   //   });
 
   //   context('when key is not in schema', () => {
@@ -1926,7 +3973,7 @@ describe('NextModel', () => {
   //       def('args', () => ['foo', 'bar']);
 
   //       it('removed all properties by key', () => {
-  //         expect($subject.defaultScope).toEqual({ });
+  //         expect($subject.defaultScope).toEqual({});
   //       });
   //     });
   //   });
