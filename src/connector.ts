@@ -158,9 +158,9 @@ export class DefaultConnector implements Connector {
     const id: any = instance[model.identifier];
     if (id !== undefined) {
       const items: Attributes[] = this.storage[model.modelName];
-      return new model(items[id]);
+      return Promise.resolve(new model(items[id]));
     } else {
-      return new model();
+      return Promise.resolve(new model());
     }
   }
 
@@ -172,7 +172,7 @@ export class DefaultConnector implements Connector {
       delete items[id];
       instance[model.identifier] = undefined;
     }
-    return instance;
+    return Promise.resolve(instance);
   }
 };
 
