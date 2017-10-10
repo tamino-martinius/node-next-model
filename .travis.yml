@@ -6,6 +6,7 @@ node_js:
   - "6"
   - "6.10.3" # AWS Lambda
   - "7"
+  - "8"
   - "node"
   - "iojs"
 
