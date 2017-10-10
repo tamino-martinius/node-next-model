@@ -634,6 +634,7 @@ describe('NextModel', () => {
                 });
               },
             });
+
           },
         });
       },
@@ -922,6 +923,45 @@ describe('NextModel', () => {
           tests() {
             it('returns the callbacks of the model', () => {
               expect(subject()).toEqual(callbacks);
+            });
+
+            context('when callbacks are undefined', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeSave: undefined,
+                      afterSave: undefined,
+                      beforeUpdate: undefined,
+                      afterUpdate: undefined,
+                      beforeDelete: undefined,
+                      afterDelete: undefined,
+                      beforeReload: undefined,
+                      afterReload: undefined,
+                      beforeAssign: undefined,
+                      afterAssign: undefined,
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the callbacks of the model', () => {
+                  expect(subject()).toEqual({
+                    beforeSave: [],
+                    afterSave: [],
+                    beforeUpdate: [],
+                    afterUpdate: [],
+                    beforeDelete: [],
+                    afterDelete: [],
+                    beforeReload: [],
+                    afterReload: [],
+                    beforeAssign: [],
+                    afterAssign: [],
+                  });
+                });
+              },
             });
 
             context('when callbacks are no array', {
