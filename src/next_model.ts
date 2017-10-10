@@ -221,7 +221,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     dbConnector = model.dbConnector;
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   let attrAccessors: string[] = [];
@@ -243,16 +243,13 @@ export function Model(model: typeof NextModel): typeof NextModel {
       const foreignKey = relation.foreignKey || camelCase(
         relation.model.modelName + 'Id'
       );
-      if (foreignKey.length === 0) {
-        throw new MinLengthError(`#belongsTo[${name}].foreignKey`, 1);
-      }
       belongsTo[name] = {
         foreignKey,
         model: relation.model,
       };
     }
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   const hasMany: StrictHasMany = {};
@@ -268,7 +265,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       };
     }
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   const hasOne: StrictHasOne = {};
@@ -284,14 +281,14 @@ export function Model(model: typeof NextModel): typeof NextModel {
       };
     }
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   let schema: Schema = {};
   try {
     schema = model.schema;
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
   for (const name in belongsTo) {
     const relation = belongsTo[name];
@@ -325,7 +322,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       }
     }
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   function promisifyCallbacks(cbs: PromiseCallback | PromiseCallback[] | undefined): PromiseCallback[] {
@@ -374,7 +371,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       afterAssign: syncifyCallbacks(model.callbacks.afterAssign),
     };
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   let skip: number = 0;
@@ -407,14 +404,14 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     query = model.query;
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   let order: Order = {};
   try {
     order = model.order;
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   let skippedValidators: string[] = [];
@@ -445,14 +442,14 @@ export function Model(model: typeof NextModel): typeof NextModel {
       skippedCallbacks = model.skippedCallbacks;
     }
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   let scopes: Scopes = {};
   try {
     scopes = model.scopes;
   } catch (e) {
-    if (!(e instanceof PropertyNotDefinedError)) throw e;
+    // just PropertyNotDefinedError expected
   }
 
   const keys = Object.keys(schema);
@@ -557,7 +554,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
         };
       }
 
-      return class Klass extends this {
+      return class extends this {
         static get query(): Query {
           return query;
         }
@@ -577,7 +574,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     static orderBy(orderBy: Order): typeof StrictNextModel {
-      return class Klass extends this {
+      return class extends this {
         static get order(): Order {
           return orderBy;
         }
@@ -589,7 +586,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     };
 
     static get unqueried(): typeof StrictNextModel {
-      return class Klass extends this {
+      return class extends this {
         static get query(): Query {
           return {};
         }
@@ -597,7 +594,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     static get unordered(): typeof StrictNextModel {
-      return class Klass extends this {
+      return class extends this {
         static get order(): Order {
           return {};
         }
@@ -605,7 +602,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     static get model(): typeof StrictNextModel {
-      return class Klass extends this {
+      return class extends this {
         static get query(): Query {
           return {};
         }
