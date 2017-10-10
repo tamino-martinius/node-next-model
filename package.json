@@ -16,7 +16,8 @@
     "node": ">=4.3.2"
   },
   "scripts": {
-    "test": "printf \"\\033c\" && jest",
+    "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
+    "test": "jest",
     "build": "tsc",
     "watch": "tsc -w"
   },
@@ -27,6 +28,7 @@
     "@types/pluralize": "0.0.27",
     "jest": "^21.2.1",
     "npm-watch": "^0.3.0",
+    "remap-istanbul": "^0.9.5",
     "ts-jest": "^21.1.2",
     "typescript": "^2.5.3"
   },
@@ -44,6 +46,7 @@
       "tsx",
       "js",
       "json"
-    ]
+    ],
+    "coverageDirectory": "coverage_jest_raw"
   }
 }
