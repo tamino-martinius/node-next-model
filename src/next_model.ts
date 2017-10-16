@@ -563,6 +563,13 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return skippedValidators;
     }
 
+    static isValidatorSkipped(key: string): boolean {
+      for (const validatorKey of this.skippedValidators) {
+        if (validatorKey === key) return true;
+      }
+      return false;
+    }
+
     static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
       return skippedCallbacks;
     }
