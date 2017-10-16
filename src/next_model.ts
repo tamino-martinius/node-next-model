@@ -474,6 +474,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   class StrictNextModel extends model {
     [key: string]: any;
     changes: Changes = {};
+    errors: Errors = {};
 
     static get modelName(): string {
       return modelName;
@@ -755,6 +756,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
 export class NextModel {
   [key: string]: any;
+  changes: Changes;
+  errors: Errors;
 
   static get modelName(): string {
     throw new PropertyNotDefinedError('.modelName');
