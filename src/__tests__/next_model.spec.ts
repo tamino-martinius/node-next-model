@@ -1606,69 +1606,6 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.scopes', () => {
-    let Klass: typeof NextModel;
-    const subject = () => Klass.scopes;
-
-    context('when decorator is not present', {
-      definitions() {
-        class NewKlass extends NextModel {};
-        Klass = NewKlass;
-      },
-      tests() {
-        it('throws PropertyNotDefinedError', () => {
-          expect(subject).toThrow(PropertyNotDefinedError);
-        });
-
-        context('when scopes is present', {
-          definitions() {
-            class NewKlass extends NextModel {
-              static get scopes(): Scopes {
-                return { foo: { query: {} }};
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            it('returns the scopes of the model', () => {
-              expect(subject()).toEqual({ foo: { query: {} }});
-            });
-          },
-        });
-      },
-    });
-
-    context('when decorator is present', {
-      definitions() {
-        @Model
-        class NewKlass extends NextModel {};
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns default scopes', () => {
-          expect(subject()).toEqual({});
-        });
-
-        context('when scopes is present', {
-          definitions() {
-            @Model
-            class NewKlass extends NextModel {
-              static get scopes(): Scopes {
-                return { foo: { query: {} }};
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            it('returns the scopes of the model', () => {
-              expect(subject()).toEqual({ foo: { query: {} }});
-            });
-          },
-        });
-      },
-    });
-  });
-
   describe('.keys', () => {
     let Klass: typeof NextModel;
     const subject = () => Klass.keys;
