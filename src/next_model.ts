@@ -513,6 +513,16 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return validators;
     }
 
+    static get activeValidators(): Validator[] {
+      const validators: Validator[] = [];
+      for (const key in this.model.validators) {
+        if (!this.model.isValidatorSkipped(key)) {
+          validators.push(...this.model.validators[key]);
+        }
+      }
+      return validators;
+    }
+
     static get callbacks(): CallbackArrays {
       return callbacks;
     }
