@@ -488,7 +488,6 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return dbConnector;
     }
 
-
     static get attrAccessors(): string[] {
       return attrAccessors;
     }
@@ -574,8 +573,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return skippedCallbacks;
     }
 
-    static get scopes(): Scopes {
-      return scopes;
+    static isCallbackSkipped(key: string): boolean {
+      for (const callbackKey of this.skippedCallbacks) {
+        if (callbackKey === key) return true;
+      }
+      return false;
     }
 
     static get keys(): string[] {
