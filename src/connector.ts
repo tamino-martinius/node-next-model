@@ -142,35 +142,32 @@ export class DefaultConnector implements Connector {
   }
 
   save(instance: NextModel) {
-    const model = <typeof NextModel>instance.constructor;
-    const items: Attributes[] = this.storage[model.modelName];
+    const items: Attributes[] = this.storage[instance.model.modelName];
     if (instance.isNew) {
-      instance[model.identifier] = items.length;
+      instance[instance.model.identifier] = items.length;
       items.push(instance.dbAttributes);
     } else {
-      items[instance[model.identifier]] = instance.attributes;
+      items[instance[instance.model.identifier]] = instance.attributes;
     }
     return Promise.resolve(instance);
   }
 
   reload(instance: NextModel) {
-    const model = <typeof NextModel>instance.constructor;
-    const id: any = instance[model.identifier];
+    const id: any = instance[instance.model.identifier];
     if (id !== undefined) {
-      const items: Attributes[] = this.storage[model.modelName];
-      return Promise.resolve(new model(items[id]));
+      const items: Attributes[] = this.storage[instance.model.modelName];
+      return Promise.resolve(new instance.model(items[id]));
     } else {
-      return Promise.resolve(new model());
+      return Promise.resolve(new instance.model());
     }
   }
 
   delete(instance: NextModel) {
-    const model = <typeof NextModel>instance.constructor;
-    const id: any = instance[model.identifier];
+    const id: any = instance[instance.model.identifier];
     if (id !== undefined) {
-      const items: Attributes[] = this.storage[model.modelName];
+      const items: Attributes[] = this.storage[instance.model.modelName];
       delete items[id];
-      instance[model.identifier] = undefined;
+      instance[instance.model.identifier] = undefined;
     }
     return Promise.resolve(instance);
   }
