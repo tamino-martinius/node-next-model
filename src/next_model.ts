@@ -674,7 +674,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       this.resetChanges();
     }
 
-    resetChanges(): NextModel {
+    private resetChanges(): NextModel {
       this.changes = {};
       return this;
     }
