@@ -527,6 +527,21 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return callbacks;
     }
 
+    static get activeCallbacks(): CallbackArrays {
+      const isSkipped: (key: string) => boolean = this.model.isCallbackSkipped;
+      return {
+        beforeSave: isSkipped('beforeSave') ? [] : callbacks.beforeSave,
+        afterSave: isSkipped('afterSave') ? [] : callbacks.afterSave,
+        beforeUpdate: isSkipped('beforeUpdate') ? [] : callbacks.beforeUpdate,
+        afterUpdate: isSkipped('afterUpdate') ? [] : callbacks.afterUpdate,
+        beforeDelete: isSkipped('beforeDelete') ? [] : callbacks.beforeDelete,
+        afterDelete: isSkipped('afterDelete') ? [] : callbacks.afterDelete,
+        beforeReload: isSkipped('beforeReload') ? [] : callbacks.beforeReload,
+        afterReload: isSkipped('afterReload') ? [] : callbacks.afterReload,
+        beforeAssign: isSkipped('beforeAssign') ? [] : callbacks.beforeAssign,
+        afterAssign: isSkipped('afterAssign') ? [] : callbacks.afterAssign,
+      };
+    }
 
     static get skip(): number {
       return skip;
