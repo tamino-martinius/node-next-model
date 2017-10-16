@@ -883,10 +883,17 @@ export class NextModel {
     throw new PropertyNotDefinedError('.validators');
   }
 
+  static get activeValidators(): Validator[] {
+    throw new PropertyNotDefinedError('.activeValidators');
+  }
+
   static get callbacks(): Callbacks {
     throw new PropertyNotDefinedError('.callbacks');
   }
 
+  static get activeCallbacks(): CallbackArrays {
+    throw new PropertyNotDefinedError('.activeCallbacks');
+  }
 
   static get skip(): number {
     throw new PropertyNotDefinedError('.skip');
@@ -908,40 +915,51 @@ export class NextModel {
     throw new PropertyNotDefinedError('.skippedValidators');
   }
 
+  static isValidatorSkipped(_key: string): boolean {
+    throw new PropertyNotDefinedError('.isValidatorSkipped');
+  }
+
   static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
     throw new PropertyNotDefinedError('.skippedCallbacks');
   }
 
-  static get scopes(): Scopes {
-    throw new PropertyNotDefinedError('.scopes');
+  static isCallbackSkipped(_key: string): boolean {
+    throw new PropertyNotDefinedError('.isCallbackSkipped');
   }
-
 
   static get keys(): string[] {
     throw new PropertyNotDefinedError('.keys');
+  }
+
+  static hasKey(_key: string): boolean {
+    throw new PropertyNotDefinedError('.hasKey');
   }
 
   static get dbKeys(): string[] {
     throw new PropertyNotDefinedError('.dbKeys');
   }
 
-  static queryBy(queryBy: Query): typeof NextModel {
+  static hasDbKey(_key: string): boolean {
+    throw new PropertyNotDefinedError('.hasDbKey');
+  }
+
+  static queryBy(_queryBy: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.queryBy()');
   }
 
-  static andQueryBy(queryBy: Query): typeof NextModel {
+  static andQueryBy(_queryBy: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.andQueryBy()');
   }
 
-  static orQueryBy(queryBy: Query): typeof NextModel {
+  static orQueryBy(_queryBy: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.orQueryBy()');
   }
 
-  static notQueryBy(queryBy: Query): typeof NextModel {
+  static notQueryBy(_queryBy: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.notQueryBy()');
   }
 
-  static orderBy(orderBy: Order): typeof NextModel {
+  static orderBy(_orderBy: Order): typeof NextModel {
     throw new PropertyNotDefinedError('.orderBy()');
   }
 
@@ -969,7 +987,7 @@ export class NextModel {
     throw new PropertyNotDefinedError('.count');
   }
 
-  constructor(attrs?: Attributes) {
+  constructor(_attrs?: Attributes) {
 
   }
 
@@ -989,7 +1007,7 @@ export class NextModel {
     throw new PropertyNotDefinedError('#delete');
   }
 
-  update(attrs: Attributes): Promise<NextModel> {
+  update(_attrs: Attributes): Promise<NextModel> {
     throw new PropertyNotDefinedError('#update');
   }
 
@@ -997,7 +1015,7 @@ export class NextModel {
     throw new PropertyNotDefinedError('#reload');
   }
 
-  assign(attrs: Attributes): NextModel {
+  assign(_attrs: Attributes): NextModel {
     throw new PropertyNotDefinedError('#assign');
   }
 
@@ -1007,6 +1025,10 @@ export class NextModel {
 
   get isPersisted(): boolean {
     throw new PropertyNotDefinedError('#isPersisted');
+  }
+
+  get isChanged(): boolean {
+    throw new PropertyNotDefinedError('#isChanged');
   }
 
   get model(): typeof NextModel {
