@@ -584,8 +584,16 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return keys;
     }
 
+    static hasKey(key: string) {
+      return !!lookupKeys[key];
+    }
+
     static get dbKeys(): string[] {
       return dbKeys;
+    }
+
+    static hasDbKey(key: string) {
+      return !!lookupDbKeys[key];
     }
 
     static queryBy(queryBy: Query, combinator: string = '$and'): typeof StrictNextModel {
