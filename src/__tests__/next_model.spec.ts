@@ -26,9 +26,7 @@ import {
 } from '../connector';
 
 import {
-  Address,
   User,
-  UserAddress
 } from '../__mocks__/next_model';
 
 interface Context {
