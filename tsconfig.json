@@ -22,7 +22,7 @@
   "files": [
     "node_modules/typescript/lib/lib.es2015.d.ts",
     "node_modules/typescript/lib/lib.dom.d.ts",
-    "src/NextModel.ts"
+    "src/next_model.ts"
   ],
   "include": [
     "*.ts",
