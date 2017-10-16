@@ -731,6 +731,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return !this.isNew;
     }
 
+    get isChanged(): boolean {
+      return Object.keys(this.changes).length === 0;
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
