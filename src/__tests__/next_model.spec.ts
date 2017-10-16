@@ -839,6 +839,89 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.activeValidators', () => {
+    let Klass: typeof NextModel;
+    let promiseValidator: Validator = jest.fn().mockReturnValue(Promise.resolve(true));
+    const subject = () => Klass.activeValidators;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual([]);
+        });
+
+        context('when validators are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  foo: [promiseValidator],
+                  bar: promiseValidator,
+                };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the validators of the model', () => {
+              expect(subject()).toEqual([promiseValidator, promiseValidator]);
+            });
+
+            context('when validators are partially skipped', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get skippedValidators(): string[] {
+                    return ['foo'];
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the active  validators of the model', () => {
+                  expect(subject()).toEqual([promiseValidator]);
+                });
+              },
+            });
+
+            context('when validators are all skipped', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get skippedValidators(): string[] {
+                    return ['foo', 'bar'];
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the active validators of the model', () => {
+                  expect(subject()).toEqual([]);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.callbacks', () => {
     let Klass: typeof NextModel;
     let promiseCallback: PromiseCallback = jest.fn().mockReturnValue(Promise.resolve(true));
