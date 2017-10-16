@@ -161,6 +161,10 @@ export interface Changes {
   [key: string]: Change;
 };
 
+export interface Errors {
+  [key: string]: Error[];
+};
+
 export type SyncCallback = (klass: NextModel) => boolean;
 export type SyncCallbackKeys = 'beforeAssign' | 'afterAssign'
 export type PromiseCallback = (klass: NextModel) => Promise<boolean>;
