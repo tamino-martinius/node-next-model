@@ -705,6 +705,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.model.dbConnector.save(this);
     }
 
+    update(attrs: Attributes): Promise<NextModel> {
+      this.assign(attrs);
+      return this.save();
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
