@@ -456,13 +456,6 @@ export function Model(model: typeof NextModel): typeof NextModel {
     // just PropertyNotDefinedError expected
   }
 
-  let scopes: Scopes = {};
-  try {
-    scopes = model.scopes;
-  } catch (e) {
-    // just PropertyNotDefinedError expected
-  }
-
   const keys = Object.keys(schema);
   keys.push.apply(keys, attrAccessors);
 
