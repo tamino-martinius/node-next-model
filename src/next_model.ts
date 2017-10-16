@@ -714,6 +714,15 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.model.dbConnector.reload(this);
     }
 
+    assign(attrs: Attributes): NextModel {
+      for (const key in attrs) {
+        if (this.model.hasKey(key)) {
+          this[key] = attrs[key];
+        }
+      }
+      return this;
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
