@@ -710,6 +710,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.save();
     }
 
+    reload(): Promise<NextModel> {
+      return this.model.dbConnector.reload(this);
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
