@@ -25,5 +25,5 @@ fs.writeFileSync(updatedCoverageFile, JSON.stringify(updateCoverageJson));
 
 const collector = remap(loadCoverage(updatedCoverageFile));
 writeReport(collector, 'json', {}, './coverage/coverage.json');
-writeReport(collector, 'lcovonly', {}, './coverage/coverage.lcov');
+writeReport(collector, 'lcovonly', {}, './coverage/lcov.info');
 writeReport(collector, 'html', {}, './coverage/html');
