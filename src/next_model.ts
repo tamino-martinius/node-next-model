@@ -637,6 +637,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       dbKeys.map(key => attrs[key] = this[key]);
       return attrs;
     }
+
+    get model(): typeof NextModel {
+      return <typeof NextModel>this.constructor;
+    }
   };
 
   let Class: typeof StrictNextModel = StrictNextModel;
@@ -899,6 +903,10 @@ export class NextModel {
 
   get isPersisted(): boolean {
     throw new PropertyNotDefinedError('#isPersisted');
+  }
+
+  get model(): typeof NextModel {
+    throw new PropertyNotDefinedError('#model');
   }
 
   isValid(): Promise<boolean> {
