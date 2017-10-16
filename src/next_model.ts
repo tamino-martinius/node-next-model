@@ -723,6 +723,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this;
     }
 
+    get isNew(): boolean {
+      return this[this.model.identifier] !== undefined;
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
