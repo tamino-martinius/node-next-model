@@ -638,10 +638,6 @@ export function Model(model: typeof NextModel): typeof NextModel {
       };
     }
 
-    static scope({query, order}: {query: Query, order: Order}): typeof StrictNextModel {
-      return this.queryBy(query).orderBy(order);
-    };
-
     static get unqueried(): typeof StrictNextModel {
       return class extends this {
         static get query(): Query {
