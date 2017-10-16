@@ -735,6 +735,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return Object.keys(this.changes).length === 0;
     }
 
+    isValid(): Promise<boolean> {
+      this.model.activeValidators.map(validator => validator(this))
+      throw new PropertyNotDefinedError('#isValid');
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
