@@ -459,7 +459,17 @@ export function Model(model: typeof NextModel): typeof NextModel {
   const keys = Object.keys(schema);
   keys.push.apply(keys, attrAccessors);
 
+  const lookupKeys: BooleanLookupDict = {};
+  for (const key of keys) {
+    lookupKeys[key] = true;
+  }
+
   const dbKeys = Object.keys(schema);
+
+  const lookupDbKeys: BooleanLookupDict = {};
+  for (const key of dbKeys) {
+    lookupDbKeys[key] = true;
+  }
 
   class StrictNextModel extends model {
     [key: string]: any;
