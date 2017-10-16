@@ -14,7 +14,6 @@ import {
   Query,
   Order,
   Callbacks,
-  Scopes,
   PropertyNotDefinedError,
   LowerBoundsError,
   MinLengthError,
