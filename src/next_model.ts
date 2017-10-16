@@ -78,6 +78,10 @@ export class TypeError {
   }
 };
 
+export interface BooleanLookupDict {
+  [key: string]: boolean;
+};
+
 export interface BelongsTo {
   [key: string]: Relation;
 };
