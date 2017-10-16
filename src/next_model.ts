@@ -701,6 +701,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       });
     }
 
+    delete(): Promise<NextModel> {
+      return this.model.dbConnector.save(this);
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
