@@ -727,6 +727,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this[this.model.identifier] !== undefined;
     }
 
+    get isPersisted(): boolean {
+      return !this.isNew;
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
