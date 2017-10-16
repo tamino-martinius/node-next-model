@@ -300,14 +300,17 @@ export function Model(model: typeof NextModel): typeof NextModel {
   }
   for (const name in belongsTo) {
     const relation = belongsTo[name];
-    schema[relation.foreignKey] = {};
-    if (
-      relation.model.identifier !== undefined &&
-      relation.model.schema !== undefined
-    ) {
-      const schemaAttr = relation.model.schema[relation.model.identifier];
-      if (schemaAttr !== undefined) {
-        schema[relation.foreignKey].type = schemaAttr.type;
+    if (schema[relation.foreignKey] === undefined) {
+      schema[relation.foreignKey] = {};
+      const model = relation.model;
+      if (
+        model.identifier !== undefined &&
+        model.schema !== undefined
+      ) {
+        const schemaAttr = model.schema[model.identifier];
+        if (schemaAttr !== undefined) {
+          schema[relation.foreignKey].type = schemaAttr.type;
+        }
       }
     }
   }
