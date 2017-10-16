@@ -691,6 +691,16 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return attrs;
     }
 
+    save(): Promise<NextModel> {
+      return this.isValid().then(isValid => {
+        if (isValid) {
+          return this.model.dbConnector.save(this);
+        } else {
+          return Promise.resolve(this);
+        }
+      });
+    }
+
     get model(): typeof NextModel {
       return <typeof NextModel>this.constructor;
     }
