@@ -2290,6 +2290,124 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.hasDbKey(key)', () => {
+    let Klass: typeof NextModel;
+    let key: string = 'foo';
+    const subject = () => Klass.hasDbKey(key);
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns false for any key', () => {
+          expect(subject()).toBeFalsy();
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns true when key is in schema', () => {
+              expect(subject()).toBeTruthy();
+            });
+
+            context('when query for identifier key', {
+              definitions() {
+                key = Klass.identifier;
+              },
+              tests() {
+                it('returns true', () => {
+                  expect(subject()).toBeTruthy();
+                });
+              },
+            });
+
+            context('when query for relation key', {
+              definitions() {
+                key = 'userId';
+              },
+              tests() {
+                it('returns false', () => {
+                  expect(subject()).toBeFalsy();
+                });
+
+                context('when belongsTo relation is present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get belongsTo(): BelongsTo {
+                        return {
+                          user: { model: User },
+                        };
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('returns true', () => {
+                      expect(subject()).toBeTruthy();
+                    });
+                  },
+                });
+              },
+            });
+
+            context('when query for accessor key', {
+              definitions() {
+                key = 'bar';
+              },
+              tests() {
+                it('returns false', () => {
+                  expect(subject()).toBeFalsy();
+                });
+
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('returns true', () => {
+                      expect(subject()).toBeFalsy();
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.queryBy(query)', () => {
     let Klass: typeof NextModel;
     const query: Query = {
