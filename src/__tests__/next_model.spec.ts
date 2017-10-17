@@ -4321,6 +4321,10 @@ describe('NextModel', () => {
     pending('not yet implemented');
   });
 
+  describe('#model', () => {
+    pending('not yet implemented');
+  });
+
   describe('#isValid()', () => {
     pending('not yet implemented');
   });
