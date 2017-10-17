@@ -735,7 +735,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     get isNew(): boolean {
-      return this[this.model.identifier] !== undefined;
+      return this[this.model.identifier] === undefined;
     }
 
     get isPersisted(): boolean {
