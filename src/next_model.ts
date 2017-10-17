@@ -746,6 +746,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return Object.keys(this.changes).length > 0;
     }
 
+    get hasErrors(): boolean {
+      return Object.keys(this.errors).length > 0;
     }
 
     get model(): typeof NextModel {
@@ -1042,6 +1044,10 @@ export class NextModel {
 
   get isChanged(): boolean {
     throw new PropertyNotDefinedError('#isChanged');
+  }
+
+  get hasErrors(): boolean {
+    throw new PropertyNotDefinedError('#hasErrors');
   }
 
   get model(): typeof NextModel {
