@@ -4317,6 +4317,9 @@ describe('NextModel', () => {
     });
   });
 
+  describe('#hasErrors', () => {
+    pending('not yet implemented');
+  });
 
   describe('#isValid()', () => {
     pending('not yet implemented');
