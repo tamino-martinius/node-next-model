@@ -33,12 +33,16 @@ import {
 interface Context {
   definitions: () => void;
   tests: () => void;
+  reset?: () => void,
 };
 
-const context = (description: string, {definitions, tests}: Context) => {
+const context = (description: string, {definitions, tests, reset}: Context) => {
   describe(description, () => {
     beforeAll(definitions);
     tests();
+    if (reset !== undefined) {
+      afterAll(reset);
+    }
   })
 };
 

@@ -473,6 +473,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
   class StrictNextModel extends model {
     [key: string]: any;
+    data: Attributes = {};
     changes: Changes = {};
     errors: Errors = {};
 
@@ -527,18 +528,17 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     static get activeCallbacks(): CallbackArrays {
-      const isSkipped: (key: string) => boolean = this.model.isCallbackSkipped;
       return {
-        beforeSave: isSkipped('beforeSave') ? [] : callbacks.beforeSave,
-        afterSave: isSkipped('afterSave') ? [] : callbacks.afterSave,
-        beforeUpdate: isSkipped('beforeUpdate') ? [] : callbacks.beforeUpdate,
-        afterUpdate: isSkipped('afterUpdate') ? [] : callbacks.afterUpdate,
-        beforeDelete: isSkipped('beforeDelete') ? [] : callbacks.beforeDelete,
-        afterDelete: isSkipped('afterDelete') ? [] : callbacks.afterDelete,
-        beforeReload: isSkipped('beforeReload') ? [] : callbacks.beforeReload,
-        afterReload: isSkipped('afterReload') ? [] : callbacks.afterReload,
-        beforeAssign: isSkipped('beforeAssign') ? [] : callbacks.beforeAssign,
-        afterAssign: isSkipped('afterAssign') ? [] : callbacks.afterAssign,
+        beforeSave: (this.model.isCallbackSkipped('beforeSave') ? [] : callbacks.beforeSave),
+        afterSave: (this.model.isCallbackSkipped('afterSave') ? [] : callbacks.afterSave),
+        beforeUpdate: (this.model.isCallbackSkipped('beforeUpdate') ? [] : callbacks.beforeUpdate),
+        afterUpdate: (this.model.isCallbackSkipped('afterUpdate') ? [] : callbacks.afterUpdate),
+        beforeDelete: (this.model.isCallbackSkipped('beforeDelete') ? [] : callbacks.beforeDelete),
+        afterDelete: (this.model.isCallbackSkipped('afterDelete') ? [] : callbacks.afterDelete),
+        beforeReload: (this.model.isCallbackSkipped('beforeReload') ? [] : callbacks.beforeReload),
+        afterReload: (this.model.isCallbackSkipped('afterReload') ? [] : callbacks.afterReload),
+        beforeAssign: (this.model.isCallbackSkipped('beforeAssign') ? [] : callbacks.beforeAssign),
+        afterAssign: (this.model.isCallbackSkipped('afterAssign') ? [] : callbacks.afterAssign),
       };
     }
 
@@ -573,7 +573,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return skippedCallbacks;
     }
 
-    static isCallbackSkipped(key: string): boolean {
+    static isCallbackSkipped(key: PromiseCallbackKeys | SyncCallbackKeys): boolean {
       for (const callbackKey of this.skippedCallbacks) {
         if (callbackKey === key) return true;
       }
@@ -666,8 +666,21 @@ export function Model(model: typeof NextModel): typeof NextModel {
       };
     }
 
+    static get all(): Promise<NextModel[]> {
+      return this.dbConnector.all(this);
+    }
+
+    static get first(): Promise<NextModel | undefined> {
+      return this.dbConnector.first(this);
+    }
+
+    static get count(): Promise<number> {
+      return this.dbConnector.count(this);
+    }
+
     constructor(attrs?: Attributes) {
       super();
+      keys.map(key => this.data[key] = undefined);
       if (attrs !== undefined) {
         this.assign(attrs);
       }
@@ -680,9 +693,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     get attributes(): Attributes {
-      const attrs: Attributes = {};
-      keys.map(key => attrs[key] = this[key]);
-      return attrs;
+      return this.data;
     }
 
     get dbAttributes(): Attributes {
@@ -717,7 +728,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     assign(attrs: Attributes): NextModel {
       for (const key in attrs) {
         if (this.model.hasKey(key)) {
-          this[key] = attrs[key];
+          this.data[key] = attrs[key];
         }
       }
       return this;
@@ -732,7 +743,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     get isChanged(): boolean {
-      return Object.keys(this.changes).length === 0;
+      return Object.keys(this.changes).length > 0;
     }
 
     isValid(): Promise<boolean> {
@@ -750,11 +761,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
   for (const key of keys) {
     Class = class NewClass extends Class {
       get [key]() {
-        return this[key];
+        return this.data[key];
       }
 
       set [key](value: any) {
-        if (this[key] !== value) {
+        if (this.data[key] !== value) {
           const change: Change | undefined = this.changes[key];
           if (change !== undefined) {
             if (change.from === value) {
@@ -764,11 +775,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
             }
           } else {
             this.changes[key] = <Change>{
-              from: this[key],
+              from: this.data[key],
               to: value,
             };
           }
-          this[key] = value;
+          this.data[key] = value;
         }
       }
     };
@@ -843,6 +854,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
 export class NextModel {
   [key: string]: any;
+  data: Attributes;
   changes: Changes;
   errors: Errors;
 
@@ -857,7 +869,6 @@ export class NextModel {
   static get dbConnector(): Connector {
     throw new PropertyNotDefinedError('.dbConnector');
   }
-
 
   static get attrAccessors(): string[] {
     throw new PropertyNotDefinedError('.attrAccessors');
