@@ -742,7 +742,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return !this.isNew;
     }
 
-    get isChanged(): boolean {
+    get hasChanges(): boolean {
       return Object.keys(this.changes).length > 0;
     }
 
@@ -1042,8 +1042,8 @@ export class NextModel {
     throw new PropertyNotDefinedError('#isPersisted');
   }
 
-  get isChanged(): boolean {
-    throw new PropertyNotDefinedError('#isChanged');
+  get hasChanges(): boolean {
+    throw new PropertyNotDefinedError('#hasChanges');
   }
 
   get hasErrors(): boolean {

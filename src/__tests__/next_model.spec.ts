@@ -4121,11 +4121,11 @@ describe('NextModel', () => {
     });
   });
 
-  describe('#isChanged', () => {
+  describe('#hasChanges', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
     let attrs: Attributes | undefined = undefined;
-    const subject = () => (klass = new Klass(attrs)).isChanged;
+    const subject = () => (klass = new Klass(attrs)).hasChanges;
 
     context('when decorator is not present', {
       definitions() {
@@ -4149,15 +4149,15 @@ describe('NextModel', () => {
         it('returns initial false but true after changes', () => {
           expect(subject()).toBeFalsy();
           klass.id = undefined;
-          expect(klass.isChanged).toBeFalsy();
+          expect(klass.hasChanges).toBeFalsy();
           klass.id = 1;
-          expect(klass.isChanged).toBeTruthy();
+          expect(klass.hasChanges).toBeTruthy();
         });
 
         it('does not change when updating unknown attributes', () => {
           expect(subject()).toBeFalsy();
           klass.foo = '💩';
-          expect(klass.isChanged).toBeFalsy();
+          expect(klass.hasChanges).toBeFalsy();
         });
 
         context('when attributes are passed', {
@@ -4171,9 +4171,9 @@ describe('NextModel', () => {
             it('returns initial false but true after changes', () => {
               expect(subject()).toBeFalsy();
               klass.id = 1;
-              expect(klass.isChanged).toBeFalsy();
+              expect(klass.hasChanges).toBeFalsy();
               klass.id = 2;
-              expect(klass.isChanged).toBeTruthy();
+              expect(klass.hasChanges).toBeTruthy();
             });
           },
           reset() {
@@ -4195,9 +4195,9 @@ describe('NextModel', () => {
             it('returns initial false but true after changes', () => {
               expect(subject()).toBeFalsy();
               klass.foo = undefined;
-              expect(klass.isChanged).toBeFalsy();
+              expect(klass.hasChanges).toBeFalsy();
               klass.foo = 'bar';
-              expect(klass.isChanged).toBeTruthy();
+              expect(klass.hasChanges).toBeTruthy();
             });
 
             context('when attributes are passed', {
@@ -4212,9 +4212,9 @@ describe('NextModel', () => {
                 it('returns initial false but true after changes', () => {
                   expect(subject()).toBeFalsy();
                   klass.foo = 'bar';
-                  expect(klass.isChanged).toBeFalsy();
+                  expect(klass.hasChanges).toBeFalsy();
                   klass.foo = 'baz';
-                  expect(klass.isChanged).toBeTruthy();
+                  expect(klass.hasChanges).toBeTruthy();
                 });
               },
               reset() {
@@ -4238,9 +4238,9 @@ describe('NextModel', () => {
                 it('returns initial false but true after changes', () => {
                   expect(subject()).toBeFalsy();
                   klass.userId = undefined;
-                  expect(klass.isChanged).toBeFalsy();
+                  expect(klass.hasChanges).toBeFalsy();
                   klass.userId = 1;
-                  expect(klass.isChanged).toBeTruthy();
+                  expect(klass.hasChanges).toBeTruthy();
                 });
 
                 context('when attributes are passed', {
@@ -4256,9 +4256,9 @@ describe('NextModel', () => {
                     it('returns initial false but true after changes', () => {
                       expect(subject()).toBeFalsy();
                       klass.userId = 2;
-                      expect(klass.isChanged).toBeFalsy();
+                      expect(klass.hasChanges).toBeFalsy();
                       klass.userId = 3;
-                      expect(klass.isChanged).toBeTruthy();
+                      expect(klass.hasChanges).toBeTruthy();
                     });
                   },
                   reset() {
@@ -4280,9 +4280,9 @@ describe('NextModel', () => {
                     it('returns initial false but true after changes', () => {
                       expect(subject()).toBeFalsy();
                       klass.bar = undefined;
-                      expect(klass.isChanged).toBeFalsy();
+                      expect(klass.hasChanges).toBeFalsy();
                       klass.bar = 'foo';
-                      expect(klass.isChanged).toBeTruthy();
+                      expect(klass.hasChanges).toBeTruthy();
                     });
 
                     context('when attributes are passed', {
@@ -4298,9 +4298,9 @@ describe('NextModel', () => {
                         it('returns initial false but true after changes', () => {
                           expect(subject()).toBeFalsy();
                           klass.bar = 'foo';
-                          expect(klass.isChanged).toBeFalsy();
+                          expect(klass.hasChanges).toBeFalsy();
                           klass.bar = 'baz';
-                          expect(klass.isChanged).toBeTruthy();
+                          expect(klass.hasChanges).toBeTruthy();
                         });
                       },
                       reset() {
