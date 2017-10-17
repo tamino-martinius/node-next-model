@@ -4031,6 +4031,292 @@ describe('NextModel', () => {
     });
   });
 
+  describe('#isNew', () => {
+    let Klass: typeof NextModel;
+    let attrs: Attributes | undefined = undefined;
+    const subject = () => new Klass(attrs).isNew;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns true', () => {
+          expect(subject()).toBeTruthy();
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              id: 1,
+              baz: '💩',
+            }
+          },
+          tests() {
+            it('returns false', () => {
+              expect(subject()).toBeFalsy();
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('#isPersisted', () => {
+    let Klass: typeof NextModel;
+    let attrs: Attributes | undefined = undefined;
+    const subject = () => new Klass(attrs).isPersisted;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns false', () => {
+          expect(subject()).toBeFalsy();
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              id: 1,
+              baz: '💩',
+            }
+          },
+          tests() {
+            it('returns true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('#isChanged', () => {
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    let attrs: Attributes | undefined = undefined;
+    const subject = () => (klass = new Klass(attrs)).isChanged;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns initial false but true after changes', () => {
+          expect(subject()).toBeFalsy();
+          klass.id = undefined;
+          expect(klass.isChanged).toBeFalsy();
+          klass.id = 1;
+          expect(klass.isChanged).toBeTruthy();
+        });
+
+        it('does not change when updating unknown attributes', () => {
+          expect(subject()).toBeFalsy();
+          klass.foo = '💩';
+          expect(klass.isChanged).toBeFalsy();
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              id: 1,
+              baz: '💩',
+            }
+          },
+          tests() {
+            it('returns initial false but true after changes', () => {
+              expect(subject()).toBeFalsy();
+              klass.id = 1;
+              expect(klass.isChanged).toBeFalsy();
+              klass.id = 2;
+              expect(klass.isChanged).toBeTruthy();
+            });
+          },
+          reset() {
+            attrs = undefined;
+          },
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns initial false but true after changes', () => {
+              expect(subject()).toBeFalsy();
+              klass.foo = undefined;
+              expect(klass.isChanged).toBeFalsy();
+              klass.foo = 'bar';
+              expect(klass.isChanged).toBeTruthy();
+            });
+
+            context('when attributes are passed', {
+              definitions() {
+                attrs = {
+                  id: 1,
+                  foo: 'bar',
+                  baz: '💩',
+                }
+              },
+              tests() {
+                it('returns initial false but true after changes', () => {
+                  expect(subject()).toBeFalsy();
+                  klass.foo = 'bar';
+                  expect(klass.isChanged).toBeFalsy();
+                  klass.foo = 'baz';
+                  expect(klass.isChanged).toBeTruthy();
+                });
+              },
+              reset() {
+                attrs = undefined;
+              },
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns initial false but true after changes', () => {
+                  expect(subject()).toBeFalsy();
+                  klass.userId = undefined;
+                  expect(klass.isChanged).toBeFalsy();
+                  klass.userId = 1;
+                  expect(klass.isChanged).toBeTruthy();
+                });
+
+                context('when attributes are passed', {
+                  definitions() {
+                    attrs = {
+                      id: 1,
+                      foo: 'bar',
+                      userId: 2,
+                      baz: '💩',
+                    }
+                  },
+                  tests() {
+                    it('returns initial false but true after changes', () => {
+                      expect(subject()).toBeFalsy();
+                      klass.userId = 2;
+                      expect(klass.isChanged).toBeFalsy();
+                      klass.userId = 3;
+                      expect(klass.isChanged).toBeTruthy();
+                    });
+                  },
+                  reset() {
+                    attrs = undefined;
+                  },
+                });
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('returns initial false but true after changes', () => {
+                      expect(subject()).toBeFalsy();
+                      klass.bar = undefined;
+                      expect(klass.isChanged).toBeFalsy();
+                      klass.bar = 'foo';
+                      expect(klass.isChanged).toBeTruthy();
+                    });
+
+                    context('when attributes are passed', {
+                      definitions() {
+                        attrs = {
+                          id: 1,
+                          foo: 'bar',
+                          bar: 'foo',
+                          baz: '💩',
+                        }
+                      },
+                      tests() {
+                        it('returns initial false but true after changes', () => {
+                          expect(subject()).toBeFalsy();
+                          klass.bar = 'foo';
+                          expect(klass.isChanged).toBeFalsy();
+                          klass.bar = 'baz';
+                          expect(klass.isChanged).toBeTruthy();
+                        });
+                      },
+                      reset() {
+                        attrs = undefined;
+                      },
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
 
   describe('#isValid()', () => {
     pending('not yet implemented');
