@@ -3663,6 +3663,178 @@ describe('NextModel', () => {
     pending('not yet implemented');
   });
 
+  describe('#assign(attrs)', () => {
+    let Klass: typeof NextModel;
+    let attrs: Attributes = {};
+    const subject = () => new Klass().assign(attrs).attributes;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual({
+            id: undefined,
+          });
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              id: 1,
+              baz: '💩',
+            }
+          },
+          tests() {
+            it('returns object with applied attributes', () => {
+              expect(subject()).toEqual({
+                id: 1,
+              });
+            });
+          },
+          reset() {
+            attrs = {};
+          },
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns object with keys of the schema', () => {
+              expect(subject()).toEqual({
+                id: undefined,
+                foo: undefined,
+              });
+            });
+
+            context('when attributes are passed', {
+              definitions() {
+                attrs = {
+                  id: 1,
+                  foo: 'bar',
+                  baz: '💩',
+                }
+              },
+              tests() {
+                it('returns object with applied attributes', () => {
+                  expect(subject()).toEqual({
+                    id: 1,
+                    foo: 'bar',
+                  });
+                });
+              },
+              reset() {
+                attrs = {};
+              },
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns object with keys of the belongsTo relation', () => {
+                  expect(subject()).toEqual({
+                    id: undefined,
+                    foo: undefined,
+                    userId: undefined,
+                  });
+                });
+
+                context('when attributes are passed', {
+                  definitions() {
+                    attrs = {
+                      id: 1,
+                      foo: 'bar',
+                      userId: 2,
+                      baz: '💩',
+                    }
+                  },
+                  tests() {
+                    it('returns object with applied attributes', () => {
+                      expect(subject()).toEqual({
+                        id: 1,
+                        userId: 2,
+                        foo: 'bar',
+                      });
+                    });
+                  },
+                  reset() {
+                    attrs = {};
+                  },
+                });
+    
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                          foo: 'bar',
+                          bar: 'foo',
+                          baz: '💩',
+                        }
+                      },
+                      tests() {
+                        it('returns object with applied attributes', () => {
+                          expect(subject()).toEqual({
+                            id: 1,
+                            foo: 'bar',
+                            bar: 'foo',
+                          });
+                        });
+                      },
+                      reset() {
+                        attrs = {};
+                      },
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
 
   describe('#isValid()', () => {
     pending('not yet implemented');
