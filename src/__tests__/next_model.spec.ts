@@ -1109,6 +1109,151 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.activeCallbacks', () => {
+    let Klass: typeof NextModel;
+    let promiseCallback: PromiseCallback = jest.fn().mockReturnValue(Promise.resolve(true));
+    let syncCallback: SyncCallback = jest.fn().mockReturnValue(true);
+    const callbacks: Callbacks = {
+      beforeSave: [promiseCallback],
+      afterSave: [promiseCallback],
+      beforeUpdate: [promiseCallback],
+      afterUpdate: [promiseCallback],
+      beforeDelete: [promiseCallback],
+      afterDelete: [promiseCallback],
+      beforeReload: [promiseCallback],
+      afterReload: [promiseCallback],
+      beforeAssign: [syncCallback],
+      afterAssign: [syncCallback],
+    };
+    const subject = () => Klass.activeCallbacks;
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty default', () => {
+          expect(subject()).toEqual({
+            beforeSave: [],
+            afterSave: [],
+            beforeUpdate: [],
+            afterUpdate: [],
+            beforeDelete: [],
+            afterDelete: [],
+            beforeReload: [],
+            afterReload: [],
+            beforeAssign: [],
+            afterAssign: [],
+          });
+        });
+
+        context('when callbacks are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return callbacks;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the callbacks of the model', () => {
+              expect(subject()).toEqual(callbacks);
+            });
+
+            context('when callbacks are disabled', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                    return [
+                      'beforeSave',
+                      'afterSave',
+                      'beforeUpdate',
+                      'afterUpdate',
+                      'beforeDelete',
+                      'afterDelete',
+                      'beforeReload',
+                      'afterReload',
+                      'beforeAssign',
+                      'afterAssign',
+                    ];
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the active callbacks of the model', () => {
+                  expect(subject()).toEqual({
+                    beforeSave: [],
+                    afterSave: [],
+                    beforeUpdate: [],
+                    afterUpdate: [],
+                    beforeDelete: [],
+                    afterDelete: [],
+                    beforeReload: [],
+                    afterReload: [],
+                    beforeAssign: [],
+                    afterAssign: [],
+                  });
+                });
+              },
+            });
+
+            context('when callbacks partially disabled', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                    return [
+                      'beforeSave',
+                      'afterSave',
+                      'beforeDelete',
+                      'afterDelete',
+                      'beforeReload',
+                      'afterAssign',
+                    ];
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns the active callbacks of the model', () => {
+                  expect(subject()).toEqual({
+                    beforeSave: [],
+                    afterSave: [],
+                    beforeUpdate: [promiseCallback],
+                    afterUpdate: [promiseCallback],
+                    beforeDelete: [],
+                    afterDelete: [],
+                    beforeReload: [],
+                    afterReload: [promiseCallback],
+                    beforeAssign: [syncCallback],
+                    afterAssign: [],
+                  });
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.skip', () => {
     let Klass: typeof NextModel;
     const subject = () => Klass.skip;
