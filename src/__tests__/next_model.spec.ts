@@ -3249,6 +3249,219 @@ describe('NextModel', () => {
     pending('not yet implemented');
   });
 
+  describe('.constructor', () => {
+    let Klass: typeof NextModel;
+    let attrs: Attributes | undefined = undefined;
+    const subject = () => new Klass(attrs);
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns new NextModel instance', () => {
+          expect(subject()).toEqual(expect.any(NextModel));
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns new NextModel instance', () => {
+          expect(subject()).toEqual(expect.any(NextModel));
+        });
+
+        it('returns new Model without any changes', () => {
+          expect(subject().changes).toEqual({});
+        });
+
+        it('returns new Model without any errors', () => {
+          expect(subject().errors).toEqual({});
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              foo: 'bar',
+            };
+          },
+          tests() {
+            it('returns new Model without any changes', () => {
+              expect(subject().changes).toEqual({});
+            });
+
+            it('returns new Model without any errors', () => {
+              expect(subject().errors).toEqual({});
+            });
+
+            it('has no accessable attribute', () => {
+              expect(subject().foo).toBeUndefined();
+            });
+
+            context('when schema is present with matching key', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get schema(): Attributes {
+                    return {
+                      foo: { type: 'string' },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                it('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                it('has accessable attribute', () => {
+                  expect(subject().foo).toEqual('bar');
+                });
+              },
+            });
+
+            context('when schema is present without matching key', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get schema(): Attributes {
+                    return {
+                      baz: { type: 'string' },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                it('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                it('has no accessable attribute', () => {
+                  expect(subject().foo).toBeUndefined();
+                });
+              },
+            });
+
+            context('when attrAccessor is present with matching key', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get attrAccessors(): string[] {
+                    return ['foo'];
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                it('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                it('has accessable attribute', () => {
+                  expect(subject().foo).toEqual('bar');
+                });
+              },
+            });
+
+
+            context('when attrAccessor is present without matching key', {
+              definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get attrAccessors(): string[] {
+                    return ['baz'];
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                it('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                it('has no accessable attribute', () => {
+                  expect(subject().foo).toBeUndefined();
+                });
+              },
+            });
+
+            context('when belongsTo relation is present with matching key', {
+              definitions() {
+              },
+              tests() {
+                pending('not yet implemented');
+              },
+            });
+
+            context('when belongsTo relation is present without matching key', {
+              definitions() {
+              },
+              tests() {
+                pending('not yet implemented');
+              },
+            });
+
+            context('when hasMany relation is present with matching key', {
+              definitions() {
+              },
+              tests() {
+                pending('not yet implemented');
+              },
+            });
+
+            context('when hasMany relation is present without matching key', {
+              definitions() {
+              },
+              tests() {
+                pending('not yet implemented');
+              },
+            });
+
+            context('when hasOne relation is present with matching key', {
+              definitions() {
+              },
+              tests() {
+                pending('not yet implemented');
+              },
+            });
+
+            context('when hasOne relation is present without matching key', {
+              definitions() {
+              },
+              tests() {
+                pending('not yet implemented');
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('#save()', () => {
     pending('not yet implemented');
   });
