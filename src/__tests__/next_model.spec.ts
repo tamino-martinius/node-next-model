@@ -1672,6 +1672,82 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.isValidatorSkipped(key)', () => {
+    let Klass: typeof NextModel;
+    let key: string = 'foo';
+    const subject = () => Klass.isValidatorSkipped(key);
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns false', () => {
+          expect(subject()).toBeFalsy();
+        });
+
+        context('when skipped validator is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return 'foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+
+        context('when multiple skipped validators are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return ['foo', 'bar'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+
+        context('when skipped validators are present but not matching', {
+          definitions() {
+            key = 'baz';
+          },
+          tests() {
+            it('returns false', () => {
+              expect(subject()).toBeFalsy();
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.skippedCallbacks', () => {
     describe('.skippedCallbacks', () => {
       let Klass: typeof NextModel;
