@@ -38,14 +38,13 @@ interface Context {
 
 const context = (description: string, {definitions, tests, reset}: Context) => {
   describe(description, () => {
-    beforeAll(definitions);
+    beforeEach(definitions);
     tests();
     if (reset !== undefined) {
-      afterAll(reset);
+      afterEach(reset);
     }
   })
 };
-
 
 describe('NextModel', () => {
   // Static properties
