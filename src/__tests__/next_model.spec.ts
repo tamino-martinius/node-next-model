@@ -3237,6 +3237,34 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.all', () => {
+    pending('not yet implemented');
+  });
+
+  describe('.first', () => {
+    pending('not yet implemented');
+  });
+
+  describe('.count', () => {
+    pending('not yet implemented');
+  });
+
+  describe('#save()', () => {
+    pending('not yet implemented');
+  });
+
+  describe('#delete()', () => {
+    pending('not yet implemented');
+  });
+
+  describe('#update(attrs)', () => {
+    pending('not yet implemented');
+  });
+
+  describe('#reload()', () => {
+    pending('not yet implemented');
+  });
+
 
   // describe('.all', () => {
   //   subject(() => $Klass.all);
