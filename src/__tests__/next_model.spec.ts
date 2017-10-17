@@ -3990,6 +3990,19 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
+                    it('returns object with keys of the attrAccessors', () => {
+                      expect(subject()).toEqual({
+                        id: undefined,
+                        foo: undefined,
+                        userId: undefined,
+                        bar: undefined,
+                      });
+                    });
+
+                    context('when attributes are passed', {
+                      definitions() {
+                        attrs = {
+                          id: 1,
                           foo: 'bar',
                           bar: 'foo',
                           baz: '💩',
