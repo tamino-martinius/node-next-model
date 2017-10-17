@@ -1830,6 +1830,82 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.isCallbackSkipped(key)', () => {
+    let Klass: typeof NextModel;
+    let key: PromiseCallbackKeys | SyncCallbackKeys = 'beforeSave';
+    const subject = () => Klass.isCallbackSkipped(key);
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns false', () => {
+          expect(subject()).toBeFalsy();
+        });
+
+        context('when skipped callback is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                return 'beforeSave';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+
+        context('when multiple skipped callbacks are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                return ['beforeSave', 'afterSave'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+
+        context('when skipped callbacks are present but not matching', {
+          definitions() {
+            key = 'beforeUpdate';
+          },
+          tests() {
+            it('returns false', () => {
+              expect(subject()).toBeFalsy();
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.keys', () => {
     let Klass: typeof NextModel;
     const subject = () => Klass.keys;
