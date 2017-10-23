@@ -4319,7 +4319,57 @@ describe('NextModel', () => {
   });
 
   describe('#hasErrors', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+
+    const subject = () => (klass = new Klass()).hasErrors;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns false', () => {
+          expect(subject()).toBeFalsy();
+        });
+        context('when errors are present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              get errors(): Errors {
+                return {
+                  foo: [new Error('bar')],
+                };
+              }
+
+              set errors(_errors: Errors) {
+
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns initial true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('#model', () => {
