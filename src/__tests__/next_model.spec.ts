@@ -19,6 +19,7 @@ import {
   LowerBoundsError,
   MinLengthError,
   TypeError,
+  Errors,
 } from '../next_model';
 
 import {
@@ -60,7 +61,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -74,7 +75,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the name of the model', () => {
+            test('returns the name of the model', () => {
               expect(subject()).toEqual('foo');
             });
           },
@@ -89,7 +90,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('reflects name from class', () => {
+        test('reflects name from class', () => {
           expect(subject()).toEqual('NewKlass');
         });
 
@@ -104,14 +105,14 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the name of the model', () => {
+            test('returns the name of the model', () => {
               expect(subject()).toEqual('foo');
             });
 
             context('when modelName is empty string', {
               definitions() {},
               tests() {
-                it('throws MinLengthError', () => {
+                test('throws MinLengthError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -140,7 +141,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -154,7 +155,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the identifier of the model', () => {
+            test('returns the identifier of the model', () => {
               expect(subject()).toEqual('foo');
             });
           },
@@ -169,10 +170,10 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default identifier', () => {
+        test('returns default identifier', () => {
           expect(subject()).toEqual('id');
         });
-        it('adds identifier to schema', () => {
+        test('adds identifier to schema', () => {
           expect(Klass.schema).toEqual({ id: { type: 'integer' }});
         });
 
@@ -187,17 +188,17 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the identifier of the model', () => {
+            test('returns the identifier of the model', () => {
               expect(subject()).toEqual('foo');
             });
-            it('adds identifier to schema', () => {
+            test('adds identifier to schema', () => {
               expect(Klass.schema).toEqual({ foo: { type: 'integer' }});
             });
 
             context('when identifier is empty string', {
               definitions() {},
               tests() {
-                it('throws MinLengthError', () => {
+                test('throws MinLengthError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -227,7 +228,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -241,7 +242,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the dbConnector of the model', () => {
+            test('returns the dbConnector of the model', () => {
               expect(subject()).toEqual(dbConnector);
             });
           },
@@ -256,7 +257,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default dbConnector', () => {
+        test('returns default dbConnector', () => {
           expect(subject()).toEqual(new DefaultConnector());
         });
 
@@ -271,7 +272,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the dbConnector of the model', () => {
+            test('returns the dbConnector of the model', () => {
               expect(subject()).toEqual(dbConnector);
             });
           },
@@ -290,7 +291,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -304,7 +305,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the attrAccessors of the model', () => {
+            test('returns the attrAccessors of the model', () => {
               expect(subject()).toEqual(['foo']);
             });
           },
@@ -319,7 +320,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual([]);
         });
 
@@ -334,14 +335,14 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the attrAccessors of the model', () => {
+            test('returns the attrAccessors of the model', () => {
               expect(subject()).toEqual(['foo']);
             });
 
             context('when attrAccessors is empty string', {
               definitions() {},
               tests() {
-                it('throws MinLengthError', () => {
+                test('throws MinLengthError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -370,7 +371,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -384,7 +385,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the schema of the model', () => {
+            test('returns the schema of the model', () => {
               expect(subject()).toEqual({ foo: { type: 'bar' }});
             });
           },
@@ -399,7 +400,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({ id: { type: 'integer' }});
         });
 
@@ -414,7 +415,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the schema of the model', () => {
+            test('returns the schema of the model', () => {
               expect(subject()).toEqual({
                 id: { type: 'integer' },
                 foo: { type: 'bar' },
@@ -434,7 +435,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the schema of the model', () => {
+                test('returns the schema of the model', () => {
                   expect(subject()).toEqual({
                     id: { type: 'integer' },
                     foo: { type: 'bar' },
@@ -459,7 +460,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -473,7 +474,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the belongsTo of the model', () => {
+            test('returns the belongsTo of the model', () => {
               expect(subject()).toEqual({ user: { model: User }});
             });
 
@@ -487,7 +488,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the belongsTo of the model', () => {
+                test('returns the belongsTo of the model', () => {
                   expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
                 });
               },
@@ -504,7 +505,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({});
         });
 
@@ -519,7 +520,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the belongsTo of the model and adds defaults', () => {
+            test('returns the belongsTo of the model and adds defaults', () => {
               expect(subject()).toEqual({ user: { model: User, foreignKey: 'userId' }});
             });
 
@@ -534,7 +535,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the belongsTo of the model', () => {
+                test('returns the belongsTo of the model', () => {
                   expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
                 });
               },
@@ -555,7 +556,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -569,7 +570,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the hasMany of the model and adds defaults', () => {
+            test('returns the hasMany of the model and adds defaults', () => {
               expect(subject()).toEqual({ user: { model: User }});
             });
 
@@ -583,7 +584,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the hasMany of the model', () => {
+                test('returns the hasMany of the model', () => {
                   expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
                 });
               },
@@ -600,7 +601,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({});
         });
 
@@ -615,7 +616,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the hasMany of the model and adds defaults', () => {
+            test('returns the hasMany of the model and adds defaults', () => {
               expect(subject()).toEqual({ user: { model: User, foreignKey: 'newKlassId' }});
             });
 
@@ -630,7 +631,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the hasMany of the model', () => {
+                test('returns the hasMany of the model', () => {
                   expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
                 });
               },
@@ -652,7 +653,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -666,7 +667,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the hasOne of the model and adds defaults', () => {
+            test('returns the hasOne of the model and adds defaults', () => {
               expect(subject()).toEqual({ user: { model: User }});
             });
 
@@ -680,7 +681,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the hasOne of the model', () => {
+                test('returns the hasOne of the model', () => {
                   expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
                 });
               },
@@ -697,7 +698,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({});
         });
 
@@ -712,7 +713,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the hasOne of the model and adds defaults', () => {
+            test('returns the hasOne of the model and adds defaults', () => {
               expect(subject()).toEqual({ user: { model: User, foreignKey: 'newKlassId' }});
             });
 
@@ -727,7 +728,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the hasOne of the model', () => {
+                test('returns the hasOne of the model', () => {
                   expect(subject()).toEqual({ user: { model: User, foreignKey: 'foo' }});
                 });
               },
@@ -749,7 +750,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -763,7 +764,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the validators of the model', () => {
+            test('returns the validators of the model', () => {
               expect(subject()).toEqual({ foo: [promiseValidator]});
             });
           },
@@ -778,7 +779,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({});
         });
 
@@ -793,7 +794,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the validators of the model', () => {
+            test('returns the validators of the model', () => {
               expect(subject()).toEqual({ foo: [promiseValidator]});
             });
 
@@ -808,7 +809,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the validators of the model', () => {
+                test('returns the validators of the model', () => {
                   expect(subject()).toEqual({ foo: [promiseValidator]});
                 });
               },
@@ -828,7 +829,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the validators of the model', () => {
+                test('returns the validators of the model', () => {
                   expect(subject()).toEqual({
                     foo: [promiseValidator],
                     bar: [promiseValidator],
@@ -853,7 +854,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -866,7 +867,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual([]);
         });
 
@@ -884,7 +885,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the validators of the model', () => {
+            test('returns the validators of the model', () => {
               expect(subject()).toEqual([promiseValidator, promiseValidator]);
             });
 
@@ -898,7 +899,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the active  validators of the model', () => {
+                test('returns the active  validators of the model', () => {
                   expect(subject()).toEqual([promiseValidator]);
                 });
               },
@@ -914,7 +915,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the active validators of the model', () => {
+                test('returns the active validators of the model', () => {
                   expect(subject()).toEqual([]);
                 });
               },
@@ -950,7 +951,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -964,7 +965,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the callbacks of the model', () => {
+            test('returns the callbacks of the model', () => {
               expect(subject()).toEqual(callbacks);
             });
           },
@@ -979,7 +980,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({
             beforeSave: [],
             afterSave: [],
@@ -1005,7 +1006,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the callbacks of the model', () => {
+            test('returns the callbacks of the model', () => {
               expect(subject()).toEqual(callbacks);
             });
 
@@ -1031,7 +1032,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the callbacks of the model', () => {
+                test('returns the callbacks of the model', () => {
                   expect(subject()).toEqual({
                     beforeSave: [],
                     afterSave: [],
@@ -1070,7 +1071,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the callbacks of the model', () => {
+                test('returns the callbacks of the model', () => {
                   expect(subject()).toEqual(callbacks);
                 });
               },
@@ -1098,7 +1099,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the callbacks of the model', () => {
+                test('returns the callbacks of the model', () => {
                   expect(subject()).toEqual(callbacks);
                 });
               },
@@ -1134,7 +1135,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -1147,7 +1148,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({
             beforeSave: [],
             afterSave: [],
@@ -1173,7 +1174,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the callbacks of the model', () => {
+            test('returns the callbacks of the model', () => {
               expect(subject()).toEqual(callbacks);
             });
 
@@ -1198,7 +1199,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the active callbacks of the model', () => {
+                test('returns the active callbacks of the model', () => {
                   expect(subject()).toEqual({
                     beforeSave: [],
                     afterSave: [],
@@ -1232,7 +1233,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the active callbacks of the model', () => {
+                test('returns the active callbacks of the model', () => {
                   expect(subject()).toEqual({
                     beforeSave: [],
                     afterSave: [],
@@ -1264,7 +1265,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -1278,7 +1279,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the skip of the model', () => {
+            test('returns the skip of the model', () => {
               expect(subject()).toEqual(4711);
             });
           },
@@ -1293,7 +1294,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default skip', () => {
+        test('returns default skip', () => {
           expect(subject()).toEqual(0);
         });
 
@@ -1307,14 +1308,14 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the skip of the model', () => {
+            test('returns the skip of the model', () => {
               expect(subject()).toEqual(4711);
             });
 
             context('when skip is below 0', {
               definitions() { },
               tests() {
-                it('throws LowerBoundsError', () => {
+                test('throws LowerBoundsError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -1331,7 +1332,7 @@ describe('NextModel', () => {
             context('when skip is floating point', {
               definitions() {},
               tests() {
-                it('throws TypeError', () => {
+                test('throws TypeError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -1360,7 +1361,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -1374,7 +1375,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the limit of the model', () => {
+            test('returns the limit of the model', () => {
               expect(subject()).toEqual(4711);
             });
           },
@@ -1389,7 +1390,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default limit', () => {
+        test('returns default limit', () => {
           expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
         });
 
@@ -1404,14 +1405,14 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the limit of the model', () => {
+            test('returns the limit of the model', () => {
               expect(subject()).toEqual(4711);
             });
 
             context('when limit is below 0', {
               definitions() { },
               tests() {
-                it('throws LowerBoundsError', () => {
+                test('throws LowerBoundsError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -1428,7 +1429,7 @@ describe('NextModel', () => {
             context('when limit is floating point', {
               definitions() { },
               tests() {
-                it('throws TypeError', () => {
+                test('throws TypeError', () => {
                   expect(() => {
                     @Model
                     class NewKlass extends NextModel {
@@ -1457,7 +1458,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -1471,7 +1472,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the query of the model', () => {
+            test('returns the query of the model', () => {
               expect(subject()).toEqual({ foo: 'bar' });
             });
           },
@@ -1486,7 +1487,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default query', () => {
+        test('returns default query', () => {
           expect(subject()).toEqual({});
         });
 
@@ -1501,7 +1502,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the query of the model', () => {
+            test('returns the query of the model', () => {
               expect(subject()).toEqual({ foo: 'bar' });
             });
           },
@@ -1520,7 +1521,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -1534,7 +1535,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the order of the model', () => {
+            test('returns the order of the model', () => {
               expect(subject()).toEqual({ foo: 'asc' });
             });
           },
@@ -1549,7 +1550,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default order', () => {
+        test('returns default order', () => {
           expect(subject()).toEqual({});
         });
 
@@ -1564,7 +1565,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the order of the model', () => {
+            test('returns the order of the model', () => {
               expect(subject()).toEqual({ foo: 'asc' });
             });
           },
@@ -1584,7 +1585,7 @@ describe('NextModel', () => {
           Klass = NewKlass;
         },
         tests() {
-          it('throws PropertyNotDefinedError', () => {
+          test('throws PropertyNotDefinedError', () => {
             expect(subject).toThrow(PropertyNotDefinedError);
           });
 
@@ -1598,7 +1599,7 @@ describe('NextModel', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('returns the skippedValidators of the model', () => {
+              test('returns the skippedValidators of the model', () => {
                 expect(subject()).toEqual(['foo']);
               });
             },
@@ -1613,7 +1614,7 @@ describe('NextModel', () => {
           Klass = NewKlass;
         },
         tests() {
-          it('returns default skippedValidators', () => {
+          test('returns default skippedValidators', () => {
             expect(subject()).toEqual([]);
           });
 
@@ -1628,7 +1629,7 @@ describe('NextModel', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('returns the skippedValidators of the model', () => {
+              test('returns the skippedValidators of the model', () => {
                 expect(subject()).toEqual(['foo']);
               });
             },
@@ -1645,7 +1646,7 @@ describe('NextModel', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('returns the skippedValidators of the model as array', () => {
+              test('returns the skippedValidators of the model as array', () => {
                 expect(subject()).toEqual(['foo']);
               });
             },
@@ -1654,7 +1655,7 @@ describe('NextModel', () => {
           context('when skippedValidators is empty string', {
             definitions() { },
             tests() {
-              it('throws MinLengthError', () => {
+              test('throws MinLengthError', () => {
                 expect(() => {
                   @Model
                   class NewKlass extends NextModel {
@@ -1683,7 +1684,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -1696,7 +1697,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns false', () => {
+        test('returns false', () => {
           expect(subject()).toBeFalsy();
         });
 
@@ -1711,7 +1712,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns true', () => {
+            test('returns true', () => {
               expect(subject()).toBeTruthy();
             });
           },
@@ -1728,7 +1729,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns true', () => {
+            test('returns true', () => {
               expect(subject()).toBeTruthy();
             });
           },
@@ -1739,7 +1740,7 @@ describe('NextModel', () => {
             key = 'baz';
           },
           tests() {
-            it('returns false', () => {
+            test('returns false', () => {
               expect(subject()).toBeFalsy();
             });
           },
@@ -1759,7 +1760,7 @@ describe('NextModel', () => {
           Klass = NewKlass;
         },
         tests() {
-          it('throws PropertyNotDefinedError', () => {
+          test('throws PropertyNotDefinedError', () => {
             expect(subject).toThrow(PropertyNotDefinedError);
           });
 
@@ -1773,7 +1774,7 @@ describe('NextModel', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('returns the skippedCallbacks of the model', () => {
+              test('returns the skippedCallbacks of the model', () => {
                 expect(subject()).toEqual(['beforeSave']);
               });
             },
@@ -1788,7 +1789,7 @@ describe('NextModel', () => {
           Klass = NewKlass;
         },
         tests() {
-          it('returns default skippedCallbacks', () => {
+          test('returns default skippedCallbacks', () => {
             expect(subject()).toEqual([]);
           });
 
@@ -1803,7 +1804,7 @@ describe('NextModel', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('returns the skippedCallbacks of the model', () => {
+              test('returns the skippedCallbacks of the model', () => {
                 expect(subject()).toEqual(['beforeSave']);
               });
             },
@@ -1820,7 +1821,7 @@ describe('NextModel', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('returns the skippedCallbacks of the model as array', () => {
+              test('returns the skippedCallbacks of the model as array', () => {
                 expect(subject()).toEqual(['beforeSave']);
               });
             },
@@ -1841,7 +1842,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -1854,7 +1855,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns false', () => {
+        test('returns false', () => {
           expect(subject()).toBeFalsy();
         });
 
@@ -1869,7 +1870,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns true', () => {
+            test('returns true', () => {
               expect(subject()).toBeTruthy();
             });
           },
@@ -1886,7 +1887,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns true', () => {
+            test('returns true', () => {
               expect(subject()).toBeTruthy();
             });
           },
@@ -1897,7 +1898,7 @@ describe('NextModel', () => {
             key = 'beforeUpdate';
           },
           tests() {
-            it('returns false', () => {
+            test('returns false', () => {
               expect(subject()).toBeFalsy();
             });
           },
@@ -1916,7 +1917,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -1930,7 +1931,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('throws PropertyNotDefinedError', () => {
+            test('throws PropertyNotDefinedError', () => {
               expect(subject).toThrow(PropertyNotDefinedError);
             });
 
@@ -1946,7 +1947,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('throws PropertyNotDefinedError', () => {
+                test('throws PropertyNotDefinedError', () => {
                   expect(subject).toThrow(PropertyNotDefinedError);
                 });
 
@@ -1960,7 +1961,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('throws PropertyNotDefinedError', () => {
+                    test('throws PropertyNotDefinedError', () => {
                       expect(subject).toThrow(PropertyNotDefinedError);
                     });
                   },
@@ -1979,7 +1980,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject().sort()).toEqual(['id'].sort());
         });
 
@@ -1994,7 +1995,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the keys of the schema', () => {
+            test('returns the keys of the schema', () => {
               expect(subject().sort()).toEqual(['id', 'foo'].sort());
             });
 
@@ -2011,7 +2012,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the keys of the belongsTo relation', () => {
+                test('returns the keys of the belongsTo relation', () => {
                   expect(subject().sort()).toEqual(['id', 'foo', 'userId'].sort());
                 });
 
@@ -2026,7 +2027,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns the keys of the attrAccessors', () => {
+                    test('returns the keys of the attrAccessors', () => {
                       expect(subject().sort()).toEqual(['id', 'foo', 'userId', 'bar'].sort());
                     });
                   },
@@ -2050,7 +2051,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -2063,7 +2064,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns false for any key', () => {
+        test('returns false for any key', () => {
           expect(subject()).toBeFalsy();
         });
 
@@ -2078,7 +2079,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns true when key is in schema', () => {
+            test('returns true when key is in schema', () => {
               expect(subject()).toBeTruthy();
             });
 
@@ -2087,7 +2088,7 @@ describe('NextModel', () => {
                 key = Klass.identifier;
               },
               tests() {
-                it('returns true', () => {
+                test('returns true', () => {
                   expect(subject()).toBeTruthy();
                 });
               },
@@ -2098,7 +2099,7 @@ describe('NextModel', () => {
                 key = 'userId';
               },
               tests() {
-                it('returns false', () => {
+                test('returns false', () => {
                   expect(subject()).toBeFalsy();
                 });
 
@@ -2115,7 +2116,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns true', () => {
+                    test('returns true', () => {
                       expect(subject()).toBeTruthy();
                     });
                   },
@@ -2128,7 +2129,7 @@ describe('NextModel', () => {
                 key = 'bar';
               },
               tests() {
-                it('returns false', () => {
+                test('returns false', () => {
                   expect(subject()).toBeFalsy();
                 });
 
@@ -2144,7 +2145,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns true', () => {
+                    test('returns true', () => {
                       expect(subject()).toBeTruthy();
                     });
                   },
@@ -2167,7 +2168,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -2181,7 +2182,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('throws PropertyNotDefinedError', () => {
+            test('throws PropertyNotDefinedError', () => {
               expect(subject).toThrow(PropertyNotDefinedError);
             });
 
@@ -2197,7 +2198,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('throws PropertyNotDefinedError', () => {
+                test('throws PropertyNotDefinedError', () => {
                   expect(subject).toThrow(PropertyNotDefinedError);
                 });
 
@@ -2211,7 +2212,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('throws PropertyNotDefinedError', () => {
+                    test('throws PropertyNotDefinedError', () => {
                       expect(subject).toThrow(PropertyNotDefinedError);
                     });
                   },
@@ -2230,7 +2231,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject().sort()).toEqual(['id'].sort());
         });
 
@@ -2245,7 +2246,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns the dbKeys of the schema', () => {
+            test('returns the dbKeys of the schema', () => {
               expect(subject().sort()).toEqual(['id', 'foo'].sort());
             });
 
@@ -2262,7 +2263,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns the dbKeys of the belongsTo relation', () => {
+                test('returns the dbKeys of the belongsTo relation', () => {
                   expect(subject().sort()).toEqual(['id', 'foo', 'userId'].sort());
                 });
 
@@ -2277,7 +2278,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('does not change attrAccessors', () => {
+                    test('does not change attrAccessors', () => {
                       expect(subject().sort()).toEqual(['id', 'foo', 'userId'].sort());
                     });
                   },
@@ -2301,7 +2302,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -2314,7 +2315,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns false for any key', () => {
+        test('returns false for any key', () => {
           expect(subject()).toBeFalsy();
         });
 
@@ -2329,7 +2330,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns true when key is in schema', () => {
+            test('returns true when key is in schema', () => {
               expect(subject()).toBeTruthy();
             });
 
@@ -2338,7 +2339,7 @@ describe('NextModel', () => {
                 key = Klass.identifier;
               },
               tests() {
-                it('returns true', () => {
+                test('returns true', () => {
                   expect(subject()).toBeTruthy();
                 });
               },
@@ -2349,7 +2350,7 @@ describe('NextModel', () => {
                 key = 'userId';
               },
               tests() {
-                it('returns false', () => {
+                test('returns false', () => {
                   expect(subject()).toBeFalsy();
                 });
 
@@ -2366,7 +2367,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns true', () => {
+                    test('returns true', () => {
                       expect(subject()).toBeTruthy();
                     });
                   },
@@ -2379,7 +2380,7 @@ describe('NextModel', () => {
                 key = 'bar';
               },
               tests() {
-                it('returns false', () => {
+                test('returns false', () => {
                   expect(subject()).toBeFalsy();
                 });
 
@@ -2395,7 +2396,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns true', () => {
+                    test('returns true', () => {
                       expect(subject()).toBeFalsy();
                     });
                   },
@@ -2421,7 +2422,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -2434,7 +2435,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('sets default query', () => {
+        test('sets default query', () => {
           expect(subject()).toEqual({
             $and: [
               {foo: 'bar'},
@@ -2453,7 +2454,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   { foo: 'baz' },
@@ -2472,7 +2473,7 @@ describe('NextModel', () => {
             subject = () => Klass.queryBy(query).queryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2495,7 +2496,7 @@ describe('NextModel', () => {
             subject = () => Klass.queryBy(query).andQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2518,7 +2519,7 @@ describe('NextModel', () => {
             subject = () => Klass.queryBy(query).orQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
                   {
@@ -2541,7 +2542,7 @@ describe('NextModel', () => {
             subject = () => Klass.queryBy(query).notQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
                   {
@@ -2572,7 +2573,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -2585,7 +2586,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('sets default query', () => {
+        test('sets default query', () => {
           expect(subject()).toEqual({
             $and: [
               {foo: 'bar'},
@@ -2604,7 +2605,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   { foo: 'baz' },
@@ -2623,7 +2624,7 @@ describe('NextModel', () => {
             subject = () => Klass.andQueryBy(query).andQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2646,7 +2647,7 @@ describe('NextModel', () => {
             subject = () => Klass.andQueryBy(query).queryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2669,7 +2670,7 @@ describe('NextModel', () => {
             subject = () => Klass.andQueryBy(query).orQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
                   {
@@ -2692,7 +2693,7 @@ describe('NextModel', () => {
             subject = () => Klass.andQueryBy(query).notQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
                   {
@@ -2723,7 +2724,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -2736,7 +2737,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('sets default query', () => {
+        test('sets default query', () => {
           expect(subject()).toEqual({
             $or: [
               {foo: 'bar'},
@@ -2755,7 +2756,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
                   { foo: 'baz' },
@@ -2774,7 +2775,7 @@ describe('NextModel', () => {
             subject = () => Klass.orQueryBy(query).orQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
                   {
@@ -2797,7 +2798,7 @@ describe('NextModel', () => {
             subject = () => Klass.orQueryBy(query).queryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2820,7 +2821,7 @@ describe('NextModel', () => {
             subject = () => Klass.orQueryBy(query).andQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2843,7 +2844,7 @@ describe('NextModel', () => {
             subject = () => Klass.orQueryBy(query).notQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
                   {
@@ -2874,7 +2875,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -2887,7 +2888,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('sets default query', () => {
+        test('sets default query', () => {
           expect(subject()).toEqual({
             $not: [
               {foo: 'bar'},
@@ -2906,7 +2907,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
                   { foo: 'baz' },
@@ -2925,7 +2926,7 @@ describe('NextModel', () => {
             subject = () => Klass.notQueryBy(query).notQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
                   {
@@ -2948,7 +2949,7 @@ describe('NextModel', () => {
             subject = () => Klass.notQueryBy(query).queryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2971,7 +2972,7 @@ describe('NextModel', () => {
             subject = () => Klass.notQueryBy(query).andQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $and: [
                   {
@@ -2994,7 +2995,7 @@ describe('NextModel', () => {
             subject = () => Klass.notQueryBy(query).orQueryBy({ bar: 'baz' }).query;
           },
           tests() {
-            it('sets the query of the model', () => {
+            test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
                   {
@@ -3025,7 +3026,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3038,7 +3039,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default order', () => {
+        test('returns default order', () => {
           expect(subject()).toEqual({
             foo: 'asc',
           });
@@ -3055,7 +3056,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('overrides the order of the model', () => {
+            test('overrides the order of the model', () => {
               expect(subject()).toEqual({
                 foo: 'asc',
               });
@@ -3076,7 +3077,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3089,7 +3090,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default query', () => {
+        test('returns default query', () => {
           expect(subject()).toEqual({});
         });
 
@@ -3104,7 +3105,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('resets the query of the model', () => {
+            test('resets the query of the model', () => {
               expect(subject()).toEqual({});
             });
           },
@@ -3123,7 +3124,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3136,7 +3137,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default order', () => {
+        test('returns default order', () => {
           expect(subject()).toEqual({});
         });
 
@@ -3151,7 +3152,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('resets the order of the model', () => {
+            test('resets the order of the model', () => {
               expect(subject()).toEqual({});
             });
           },
@@ -3174,7 +3175,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3187,7 +3188,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns default query and order', () => {
+        test('returns default query and order', () => {
           expect(subject()).toEqual({
             query: {},
             order: {},
@@ -3205,7 +3206,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('resets order of the model', () => {
+            test('resets order of the model', () => {
               expect(subject()).toEqual({
                 query: {},
                 order: {},
@@ -3225,7 +3226,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('resets the query of the model', () => {
+            test('resets the query of the model', () => {
               expect(subject()).toEqual({
                 query: {},
                 order: {},
@@ -3260,7 +3261,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns new NextModel instance', () => {
+        test('returns new NextModel instance', () => {
           expect(subject()).toEqual(expect.any(NextModel));
         });
       },
@@ -3273,15 +3274,15 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns new NextModel instance', () => {
+        test('returns new NextModel instance', () => {
           expect(subject()).toEqual(expect.any(NextModel));
         });
 
-        it('returns new Model without any changes', () => {
+        test('returns new Model without any changes', () => {
           expect(subject().changes).toEqual({});
         });
 
-        it('returns new Model without any errors', () => {
+        test('returns new Model without any errors', () => {
           expect(subject().errors).toEqual({});
         });
 
@@ -3292,15 +3293,15 @@ describe('NextModel', () => {
             };
           },
           tests() {
-            it('returns new Model without any changes', () => {
+            test('returns new Model without any changes', () => {
               expect(subject().changes).toEqual({});
             });
 
-            it('returns new Model without any errors', () => {
+            test('returns new Model without any errors', () => {
               expect(subject().errors).toEqual({});
             });
 
-            it('has no accessable attribute', () => {
+            test('has no accessable attribute', () => {
               expect(subject().foo).toBeUndefined();
             });
 
@@ -3317,15 +3318,15 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns new Model without any changes', () => {
+                test('returns new Model without any changes', () => {
                   expect(subject().changes).toEqual({});
                 });
     
-                it('returns new Model without any errors', () => {
+                test('returns new Model without any errors', () => {
                   expect(subject().errors).toEqual({});
                 });
     
-                it('has accessable attribute', () => {
+                test('has accessable attribute', () => {
                   expect(subject().foo).toEqual('bar');
                 });
               },
@@ -3344,15 +3345,15 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns new Model without any changes', () => {
+                test('returns new Model without any changes', () => {
                   expect(subject().changes).toEqual({});
                 });
     
-                it('returns new Model without any errors', () => {
+                test('returns new Model without any errors', () => {
                   expect(subject().errors).toEqual({});
                 });
     
-                it('has no accessable attribute', () => {
+                test('has no accessable attribute', () => {
                   expect(subject().foo).toBeUndefined();
                 });
               },
@@ -3369,15 +3370,15 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns new Model without any changes', () => {
+                test('returns new Model without any changes', () => {
                   expect(subject().changes).toEqual({});
                 });
     
-                it('returns new Model without any errors', () => {
+                test('returns new Model without any errors', () => {
                   expect(subject().errors).toEqual({});
                 });
     
-                it('has accessable attribute', () => {
+                test('has accessable attribute', () => {
                   expect(subject().foo).toEqual('bar');
                 });
               },
@@ -3395,15 +3396,15 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns new Model without any changes', () => {
+                test('returns new Model without any changes', () => {
                   expect(subject().changes).toEqual({});
                 });
     
-                it('returns new Model without any errors', () => {
+                test('returns new Model without any errors', () => {
                   expect(subject().errors).toEqual({});
                 });
     
-                it('has no accessable attribute', () => {
+                test('has no accessable attribute', () => {
                   expect(subject().foo).toBeUndefined();
                 });
               },
@@ -3473,7 +3474,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3486,7 +3487,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({
             id: undefined,
           });
@@ -3500,7 +3501,7 @@ describe('NextModel', () => {
             }
           },
           tests() {
-            it('returns object with applied attributes', () => {
+            test('returns object with applied attributes', () => {
               expect(subject()).toEqual({
                 id: 1,
               });
@@ -3522,7 +3523,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns object with keys of the schema', () => {
+            test('returns object with keys of the schema', () => {
               expect(subject()).toEqual({
                 id: undefined,
                 foo: undefined,
@@ -3538,7 +3539,7 @@ describe('NextModel', () => {
                 }
               },
               tests() {
-                it('returns object with applied attributes', () => {
+                test('returns object with applied attributes', () => {
                   expect(subject()).toEqual({
                     id: 1,
                     foo: 'bar',
@@ -3563,7 +3564,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns object with keys of the belongsTo relation', () => {
+                test('returns object with keys of the belongsTo relation', () => {
                   expect(subject()).toEqual({
                     id: undefined,
                     foo: undefined,
@@ -3581,7 +3582,7 @@ describe('NextModel', () => {
                     }
                   },
                   tests() {
-                    it('returns object with applied attributes', () => {
+                    test('returns object with applied attributes', () => {
                       expect(subject()).toEqual({
                         id: 1,
                         userId: 2,
@@ -3606,7 +3607,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns object with keys of the attrAccessors', () => {
+                    test('returns object with keys of the attrAccessors', () => {
                       expect(subject()).toEqual({
                         id: undefined,
                         foo: undefined,
@@ -3625,7 +3626,7 @@ describe('NextModel', () => {
                         }
                       },
                       tests() {
-                        it('returns object with applied attributes', () => {
+                        test('returns object with applied attributes', () => {
                           expect(subject()).toEqual({
                             id: 1,
                             foo: 'bar',
@@ -3658,7 +3659,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3671,7 +3672,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({
             id: undefined,
           });
@@ -3685,7 +3686,7 @@ describe('NextModel', () => {
             }
           },
           tests() {
-            it('returns object with applied attributes', () => {
+            test('returns object with applied attributes', () => {
               expect(subject()).toEqual({
                 id: 1,
               });
@@ -3707,7 +3708,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns object with keys of the schema', () => {
+            test('returns object with keys of the schema', () => {
               expect(subject()).toEqual({
                 id: undefined,
                 foo: undefined,
@@ -3723,7 +3724,7 @@ describe('NextModel', () => {
                 }
               },
               tests() {
-                it('returns object with applied attributes', () => {
+                test('returns object with applied attributes', () => {
                   expect(subject()).toEqual({
                     id: 1,
                     foo: 'bar',
@@ -3748,7 +3749,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns object with keys of the belongsTo relation', () => {
+                test('returns object with keys of the belongsTo relation', () => {
                   expect(subject()).toEqual({
                     id: undefined,
                     foo: undefined,
@@ -3766,7 +3767,7 @@ describe('NextModel', () => {
                     }
                   },
                   tests() {
-                    it('returns object with applied attributes', () => {
+                    test('returns object with applied attributes', () => {
                       expect(subject()).toEqual({
                         id: 1,
                         userId: 2,
@@ -3791,7 +3792,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns object with keys of the attrAccessors', () => {
+                    test('returns object with keys of the attrAccessors', () => {
                       expect(subject()).toEqual({
                         id: undefined,
                         foo: undefined,
@@ -3809,7 +3810,7 @@ describe('NextModel', () => {
                         }
                       },
                       tests() {
-                        it('returns object with applied attributes', () => {
+                        test('returns object with applied attributes', () => {
                           expect(subject()).toEqual({
                             id: 1,
                             foo: 'bar',
@@ -3857,7 +3858,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -3870,7 +3871,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns empty default', () => {
+        test('returns empty default', () => {
           expect(subject()).toEqual({
             id: undefined,
           });
@@ -3884,7 +3885,7 @@ describe('NextModel', () => {
             }
           },
           tests() {
-            it('returns object with applied attributes', () => {
+            test('returns object with applied attributes', () => {
               expect(subject()).toEqual({
                 id: 1,
               });
@@ -3906,7 +3907,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns object with keys of the schema', () => {
+            test('returns object with keys of the schema', () => {
               expect(subject()).toEqual({
                 id: undefined,
                 foo: undefined,
@@ -3922,7 +3923,7 @@ describe('NextModel', () => {
                 }
               },
               tests() {
-                it('returns object with applied attributes', () => {
+                test('returns object with applied attributes', () => {
                   expect(subject()).toEqual({
                     id: 1,
                     foo: 'bar',
@@ -3947,7 +3948,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns object with keys of the belongsTo relation', () => {
+                test('returns object with keys of the belongsTo relation', () => {
                   expect(subject()).toEqual({
                     id: undefined,
                     foo: undefined,
@@ -3965,7 +3966,7 @@ describe('NextModel', () => {
                     }
                   },
                   tests() {
-                    it('returns object with applied attributes', () => {
+                    test('returns object with applied attributes', () => {
                       expect(subject()).toEqual({
                         id: 1,
                         userId: 2,
@@ -3990,7 +3991,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns object with keys of the attrAccessors', () => {
+                    test('returns object with keys of the attrAccessors', () => {
                       expect(subject()).toEqual({
                         id: undefined,
                         foo: undefined,
@@ -4009,7 +4010,7 @@ describe('NextModel', () => {
                         }
                       },
                       tests() {
-                        it('returns object with applied attributes', () => {
+                        test('returns object with applied attributes', () => {
                           expect(subject()).toEqual({
                             id: 1,
                             foo: 'bar',
@@ -4042,7 +4043,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -4055,7 +4056,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns true', () => {
+        test('returns true', () => {
           expect(subject()).toBeTruthy();
         });
 
@@ -4067,7 +4068,7 @@ describe('NextModel', () => {
             }
           },
           tests() {
-            it('returns false', () => {
+            test('returns false', () => {
               expect(subject()).toBeFalsy();
             });
           },
@@ -4087,7 +4088,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -4100,7 +4101,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns false', () => {
+        test('returns false', () => {
           expect(subject()).toBeFalsy();
         });
 
@@ -4112,7 +4113,7 @@ describe('NextModel', () => {
             }
           },
           tests() {
-            it('returns true', () => {
+            test('returns true', () => {
               expect(subject()).toBeTruthy();
             });
           },
@@ -4133,7 +4134,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('throws PropertyNotDefinedError', () => {
+        test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
       },
@@ -4146,7 +4147,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        it('returns initial false but true after changes', () => {
+        test('returns initial false but true after changes', () => {
           expect(subject()).toBeFalsy();
           klass.id = undefined;
           expect(klass.hasChanges).toBeFalsy();
@@ -4154,7 +4155,7 @@ describe('NextModel', () => {
           expect(klass.hasChanges).toBeTruthy();
         });
 
-        it('does not change when updating unknown attributes', () => {
+        test('does not change when updating unknown attributes', () => {
           expect(subject()).toBeFalsy();
           klass.foo = '💩';
           expect(klass.hasChanges).toBeFalsy();
@@ -4168,7 +4169,7 @@ describe('NextModel', () => {
             }
           },
           tests() {
-            it('returns initial false but true after changes', () => {
+            test('returns initial false but true after changes', () => {
               expect(subject()).toBeFalsy();
               klass.id = 1;
               expect(klass.hasChanges).toBeFalsy();
@@ -4192,7 +4193,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it('returns initial false but true after changes', () => {
+            test('returns initial false but true after changes', () => {
               expect(subject()).toBeFalsy();
               klass.foo = undefined;
               expect(klass.hasChanges).toBeFalsy();
@@ -4209,7 +4210,7 @@ describe('NextModel', () => {
                 }
               },
               tests() {
-                it('returns initial false but true after changes', () => {
+                test('returns initial false but true after changes', () => {
                   expect(subject()).toBeFalsy();
                   klass.foo = 'bar';
                   expect(klass.hasChanges).toBeFalsy();
@@ -4235,7 +4236,7 @@ describe('NextModel', () => {
                 Klass = NewKlass;
               },
               tests() {
-                it('returns initial false but true after changes', () => {
+                test('returns initial false but true after changes', () => {
                   expect(subject()).toBeFalsy();
                   klass.userId = undefined;
                   expect(klass.hasChanges).toBeFalsy();
@@ -4253,7 +4254,7 @@ describe('NextModel', () => {
                     }
                   },
                   tests() {
-                    it('returns initial false but true after changes', () => {
+                    test('returns initial false but true after changes', () => {
                       expect(subject()).toBeFalsy();
                       klass.userId = 2;
                       expect(klass.hasChanges).toBeFalsy();
@@ -4277,7 +4278,7 @@ describe('NextModel', () => {
                     Klass = NewKlass;
                   },
                   tests() {
-                    it('returns initial false but true after changes', () => {
+                    test('returns initial false but true after changes', () => {
                       expect(subject()).toBeFalsy();
                       klass.bar = undefined;
                       expect(klass.hasChanges).toBeFalsy();
@@ -4295,7 +4296,7 @@ describe('NextModel', () => {
                         }
                       },
                       tests() {
-                        it('returns initial false but true after changes', () => {
+                        test('returns initial false but true after changes', () => {
                           expect(subject()).toBeFalsy();
                           klass.bar = 'foo';
                           expect(klass.hasChanges).toBeFalsy();
