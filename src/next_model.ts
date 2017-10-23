@@ -322,7 +322,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
   const validators: ValidatorArrays = {};
   try {
-    for (const name in (model.validators || {})) {
+    for (const name in (model.validators)) {
       const validator = model.validators[name];
       if (validator === undefined) {
         // skip
