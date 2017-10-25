@@ -474,8 +474,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
   class StrictNextModel extends model {
     [key: string]: any;
     data: Attributes = {};
-    changes: Changes = {};
-    errors: Errors = {};
+    _changes: Changes = {};
+    _errors: Errors = {};
 
     static get modelName(): string {
       return modelName;
@@ -689,21 +689,20 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     private resetChanges(): NextModel {
-      this.changes = {};
+      this._changes = {};
       return this;
     }
 
     private resetErrors(): NextModel {
-      this.errors = {};
+      this._errors = {};
       return this;
     }
 
     addError(key: string, error: Error): NextModel {
-      console.log(this);
-      if (this.errors[key] === undefined) {
-        this.errors[key] = [error];
+      if (this._errors[key] === undefined) {
+        this._errors[key] = [error];
       } else {
-        this.errors[key].push(error);
+        this._errors[key].push(error);
       }
       return this;
     }
@@ -759,11 +758,19 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     get hasChanges(): boolean {
-      return Object.keys(this.changes).length > 0;
+      return Object.keys(this._changes).length > 0;
+    }
+
+    get changes(): Changes {
+      return this._changes;
     }
 
     get hasErrors(): boolean {
-      return Object.keys(this.errors).length > 0;
+      return Object.keys(this._errors).length > 0;
+    }
+
+    get errors(): Errors {
+      return this._errors;
     }
 
     get model(): typeof NextModel {
@@ -772,10 +779,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     isValid(): Promise<boolean> {
       this.resetErrors();
-      this.errors = {};
       const promises: Promise<boolean>[] = [];
-      for (const key in this.model.activeValidators) {
-        const validators = this.model.activeValidators[key];
+      const activeValidators: ValidatorArrays = this.model.activeValidators;
+      for (const key in activeValidators) {
+        const validators = activeValidators[key];
         for (const validator of validators) {
           promises.push(validator(this).then(validationResult => {
             if (validationResult === true) {
@@ -809,15 +816,15 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
       set [key](value: any) {
         if (this.data[key] !== value) {
-          const change: Change | undefined = this.changes[key];
+          const change: Change | undefined = this._changes[key];
           if (change !== undefined) {
             if (change.from === value) {
-              delete this.changes[key];
+              delete this._changes[key];
             } else {
               change.to = value;
             }
           } else {
-            this.changes[key] = <Change>{
+            this._changes[key] = <Change>{
               from: this.data[key],
               to: value,
             };
@@ -896,8 +903,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
 export class NextModel {
   [key: string]: any;
   data: Attributes;
-  changes: Changes;
-  errors: Errors;
+  _changes: Changes;
+  _errors: Errors;
 
   static get modelName(): string {
     throw new PropertyNotDefinedError('.modelName');
@@ -1083,8 +1090,16 @@ export class NextModel {
     throw new PropertyNotDefinedError('#hasChanges');
   }
 
+  get changes(): Changes {
+    throw new PropertyNotDefinedError('#changes');
+  }
+
   get hasErrors(): boolean {
     throw new PropertyNotDefinedError('#hasErrors');
+  }
+
+  get errors(): Errors {
+    throw new PropertyNotDefinedError('#errors');
   }
 
   get model(): typeof NextModel {
