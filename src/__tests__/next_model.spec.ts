@@ -4565,8 +4565,9 @@ describe('NextModel', () => {
 
   describe('#hasErrors', () => {
     let Klass: typeof NextModel;
+    let klass: NextModel;
 
-    const subject = () => new Klass().hasErrors;
+    const subject = () => (klass = new Klass()).hasErrors;
 
     context('when decorator is not present', {
       definitions() {
@@ -4587,30 +4588,10 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns false', () => {
+        test('returns false as long as no errors are present', () => {
           expect(subject()).toBeFalsy();
-        });
-        context('when errors are present', {
-          definitions() {
-            @Model
-            class NewKlass extends NextModel {
-              get errors(): Errors {
-                return {
-                  foo: [new Error('bar')],
-                };
-              }
-
-              set errors(_errors: Errors) {
-
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            test('returns initial true', () => {
-              expect(subject()).toBeTruthy();
-            });
-          },
+          klass._errors = { id: [new Error()] };
+          expect(klass.hasErrors).toBeTruthy();
         });
       },
     });
@@ -4650,7 +4631,7 @@ describe('NextModel', () => {
       },
       tests() {
         test('returns true', () => {
-          expect(subject()).toBeTruthy();
+          return expect(subject()).resolves.toBeTruthy();
         });
         context('when validator returns true', {
           definitions() {
@@ -4670,7 +4651,7 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns true', () => {
-              expect(subject()).toBeTruthy();
+              return expect(subject()).resolves.toBeTruthy();
             });
           },
         });
@@ -4693,7 +4674,7 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns false', () => {
-              expect(subject()).toBeFalsy();
+              return expect(subject()).resolves.toBeFalsy();
             });
           },
         });
@@ -4715,8 +4696,8 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            test.only('returns false', () => {
-              return subject().then(result => expect(result).toBeFalsy());
+            test('returns false', () => {
+              return expect(subject()).resolves.toBeFalsy();
             });
           },
         });
