@@ -868,7 +868,6 @@ describe('NextModel', () => {
       },
       tests() {
         test('returns empty default', () => {
-          expect(subject()).toEqual([]);
           expect(subject()).toEqual({});
         });
 
