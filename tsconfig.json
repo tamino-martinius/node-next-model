@@ -6,7 +6,7 @@
     "sourceMap": true,
     "declaration": true,
     "rootDir": "src",
-    "outDir": "lib",
+    "outDir": "dist",
     "noLib": true,
     "allowSyntheticDefaultImports": true,
     "removeComments": true,
