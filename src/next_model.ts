@@ -196,7 +196,7 @@ export interface CallbackArrays {
   afterAssign: SyncCallback[];
 };
 
-export type Validator = (klass: NextModel) => Promise<boolean>;
+export type Validator = (klass: NextModel) => Promise<Error | boolean>;
 export interface Validators {
   [key: string]: Validator | Validator[];
 };
@@ -513,11 +513,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return validators;
     }
 
-    static get activeValidators(): Validator[] {
-      const validators: Validator[] = [];
+    static get activeValidators(): ValidatorArrays {
+      const validators: ValidatorArrays = {};
       for (const key in this.model.validators) {
         if (!this.model.isValidatorSkipped(key)) {
-          validators.push(...this.model.validators[key]);
+          validators[key] = this.model.validators[key];
         }
       }
       return validators;
@@ -685,10 +685,26 @@ export function Model(model: typeof NextModel): typeof NextModel {
         this.assign(attrs);
       }
       this.resetChanges();
+      this.resetErrors();
     }
 
     private resetChanges(): NextModel {
       this.changes = {};
+      return this;
+    }
+
+    private resetErrors(): NextModel {
+      this.errors = {};
+      return this;
+    }
+
+    addError(key: string, error: Error): NextModel {
+      console.log(this);
+      if (this.errors[key] === undefined) {
+        this.errors[key] = [error];
+      } else {
+        this.errors[key].push(error);
+      }
       return this;
     }
 
@@ -755,8 +771,31 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     isValid(): Promise<boolean> {
-      this.model.activeValidators.map(validator => validator(this))
-      throw new PropertyNotDefinedError('#isValid');
+      this.resetErrors();
+      this.errors = {};
+      const promises: Promise<boolean>[] = [];
+      for (const key in this.model.activeValidators) {
+        const validators = this.model.activeValidators[key];
+        for (const validator of validators) {
+          promises.push(validator(this).then(validationResult => {
+            if (validationResult === true) {
+              return true;
+            } else if (validationResult === false) {
+              this.addError(key, new Error('Validation Failed'));
+              return false;
+            } else {
+              this.addError(key, validationResult);
+              return false;
+            }
+          }));
+        }
+      }
+      return Promise.all(promises).then(bools => {
+        for (const bool of bools) {
+          if (bool === false) return false;
+        }
+        return true;
+      });
     }
   };
 
@@ -792,8 +831,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   for (const name in belongsTo) {
     Class = class NewClass extends Class {
       get [name]() {
-        const model = <typeof StrictNextModel>this.constructor;
-        const relation: StrictRelation = model.hasMany[name];
+        const relation = <StrictRelation>this.model.belongsTo[name];
         const id = this[relation.foreignKey];
         if (id !== undefined && id !== null) {
           const query: Query = {
@@ -806,8 +844,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       }
 
       set [name](value: any) {
-        const model = <typeof StrictNextModel>this.constructor;
-        const relation: StrictRelation = model.hasMany[name];
+        const relation = <StrictRelation>this.model.belongsTo[name];
         if (value === undefined || value === null) {
           this[relation.foreignKey] = undefined;
         } else {
@@ -898,7 +935,7 @@ export class NextModel {
     throw new PropertyNotDefinedError('.validators');
   }
 
-  static get activeValidators(): Validator[] {
+  static get activeValidators(): ValidatorArrays {
     throw new PropertyNotDefinedError('.activeValidators');
   }
 

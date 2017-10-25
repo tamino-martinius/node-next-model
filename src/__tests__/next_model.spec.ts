@@ -869,6 +869,7 @@ describe('NextModel', () => {
       tests() {
         test('returns empty default', () => {
           expect(subject()).toEqual([]);
+          expect(subject()).toEqual({});
         });
 
         context('when validators are present', {
@@ -886,7 +887,10 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns the validators of the model', () => {
-              expect(subject()).toEqual([promiseValidator, promiseValidator]);
+              expect(subject()).toEqual({
+                foo: [promiseValidator],
+                bar: [promiseValidator],
+              });
             });
 
             context('when validators are partially skipped', {
@@ -900,7 +904,9 @@ describe('NextModel', () => {
               },
               tests() {
                 test('returns the active  validators of the model', () => {
-                  expect(subject()).toEqual([promiseValidator]);
+                  expect(subject()).toEqual({
+                    bar: [promiseValidator],
+                  });
                 });
               },
             });
@@ -916,7 +922,7 @@ describe('NextModel', () => {
               },
               tests() {
                 test('returns the active validators of the model', () => {
-                  expect(subject()).toEqual([]);
+                  expect(subject()).toEqual({});
                 });
               },
             });
@@ -3325,9 +3331,34 @@ describe('NextModel', () => {
                 test('returns new Model without any errors', () => {
                   expect(subject().errors).toEqual({});
                 });
-    
-                test('has accessable attribute', () => {
+
+                test('has readable attribute', () => {
                   expect(subject().foo).toEqual('bar');
+                });
+
+                test('has writeable attribute', () => {
+                  const klass: NextModel = subject();
+                  klass.foo = 'baz';
+                  expect(klass.foo).toEqual('baz');
+                });
+
+                test('writing attributes updates changes', () => {
+                  const klass: NextModel = subject();
+                  expect(klass.changes).toEqual({});
+                  klass.foo = 'baz';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'baz',
+                    },
+                  });
+                  klass.foo = 'foo';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'foo',
+                    },
+                  });
+                  klass.foo = 'bar';
+                  expect(klass.changes).toEqual({});
                 });
               },
             });
@@ -3377,13 +3408,37 @@ describe('NextModel', () => {
                 test('returns new Model without any errors', () => {
                   expect(subject().errors).toEqual({});
                 });
-    
-                test('has accessable attribute', () => {
+
+                test('has readable attribute', () => {
                   expect(subject().foo).toEqual('bar');
+                });
+
+                test('has writeable attribute', () => {
+                  const klass: NextModel = subject();
+                  klass.foo = 'baz';
+                  expect(klass.foo).toEqual('baz');
+                });
+
+                test('writing attributes updates changes', () => {
+                  const klass: NextModel = subject();
+                  expect(klass.changes).toEqual({});
+                  klass.foo = 'baz';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'baz',
+                    },
+                  });
+                  klass.foo = 'foo';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'foo',
+                    },
+                  });
+                  klass.foo = 'bar';
+                  expect(klass.changes).toEqual({});
                 });
               },
             });
-
 
             context('when attrAccessor is present without matching key', {
               definitions() {
@@ -3410,51 +3465,240 @@ describe('NextModel', () => {
               },
             });
 
-            context('when belongsTo relation is present with matching key', {
+            context('when belongsTo is present with matching key', {
               definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      foo: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
               },
               tests() {
-                pending('not yet implemented');
+                test('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                test('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+
+                test.skip('has readable attribute', () => {
+                  expect(subject().foo).toEqual('bar');
+                });
+
+                test.skip('has writeable attribute', () => {
+                  const klass: NextModel = subject();
+                  klass.foo = 'baz';
+                  expect(klass.foo).toEqual('baz');
+                });
+
+                test.skip('writing attributes updates changes', () => {
+                  const klass: NextModel = subject();
+                  expect(klass.changes).toEqual({});
+                  klass.foo = 'baz';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'baz',
+                    },
+                  });
+                  klass.foo = 'foo';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'foo',
+                    },
+                  });
+                  klass.foo = 'bar';
+                  expect(klass.changes).toEqual({});
+                });
               },
             });
 
-            context('when belongsTo relation is present without matching key', {
+            context('when belongsTo is present without matching key', {
               definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      baz: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
               },
               tests() {
-                pending('not yet implemented');
+                test('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+
+                test('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                test('has no accessable attribute', () => {
+                  expect(subject().foo).toBeUndefined();
+                });
               },
             });
 
-            context('when hasMany relation is present with matching key', {
+            context('when hasMany is present with matching key', {
               definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get hasMany(): HasMany {
+                    return {
+                      foo: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
               },
               tests() {
-                pending('not yet implemented');
+                test('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                test('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+
+                test.skip('has readable attribute', () => {
+                  expect(subject().foo).toEqual('bar');
+                });
+
+                test.skip('has writeable attribute', () => {
+                  const klass: NextModel = subject();
+                  klass.foo = 'baz';
+                  expect(klass.foo).toEqual('baz');
+                });
+
+                test.skip('writing attributes updates changes', () => {
+                  const klass: NextModel = subject();
+                  expect(klass.changes).toEqual({});
+                  klass.foo = 'baz';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'baz',
+                    },
+                  });
+                  klass.foo = 'foo';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'foo',
+                    },
+                  });
+                  klass.foo = 'bar';
+                  expect(klass.changes).toEqual({});
+                });
               },
             });
 
-            context('when hasMany relation is present without matching key', {
+            context('when hasMany is present without matching key', {
               definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get hasMany(): HasMany {
+                    return {
+                      baz: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
               },
               tests() {
-                pending('not yet implemented');
+                test('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+
+                test('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                test('has no accessable attribute', () => {
+                  expect(subject().foo).toBeUndefined();
+                });
               },
             });
 
-            context('when hasOne relation is present with matching key', {
+            context('when hasOne is present with matching key', {
               definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get hasOne(): HasOne {
+                    return {
+                      foo: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
               },
               tests() {
-                pending('not yet implemented');
+                test('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+    
+                test('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+
+                test.skip('has readable attribute', () => {
+                  expect(subject().foo).toEqual('bar');
+                });
+
+                test.skip('has writeable attribute', () => {
+                  const klass: NextModel = subject();
+                  klass.foo = 'baz';
+                  expect(klass.foo).toEqual('baz');
+                });
+
+                test.skip('writing attributes updates changes', () => {
+                  const klass: NextModel = subject();
+                  expect(klass.changes).toEqual({});
+                  klass.foo = 'baz';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'baz',
+                    },
+                  });
+                  klass.foo = 'foo';
+                  expect(klass.changes).toEqual({
+                    foo: {
+                      from: 'bar', to: 'foo',
+                    },
+                  });
+                  klass.foo = 'bar';
+                  expect(klass.changes).toEqual({});
+                });
               },
             });
 
-            context('when hasOne relation is present without matching key', {
+            context('when hasOne is present without matching key', {
               definitions() {
+                @Model
+                class NewKlass extends NextModel {
+                  static get hasOne(): HasOne {
+                    return {
+                      baz: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
               },
               tests() {
-                pending('not yet implemented');
+                test('returns new Model without any changes', () => {
+                  expect(subject().changes).toEqual({});
+                });
+
+                test('returns new Model without any errors', () => {
+                  expect(subject().errors).toEqual({});
+                });
+    
+                test('has no accessable attribute', () => {
+                  expect(subject().foo).toBeUndefined();
+                });
               },
             });
           },
@@ -4153,6 +4397,8 @@ describe('NextModel', () => {
           expect(klass.hasChanges).toBeFalsy();
           klass.id = 1;
           expect(klass.hasChanges).toBeTruthy();
+          klass.id = undefined;
+          expect(klass.hasChanges).toBeFalsy();
         });
 
         test('does not change when updating unknown attributes', () => {
@@ -4320,9 +4566,8 @@ describe('NextModel', () => {
 
   describe('#hasErrors', () => {
     let Klass: typeof NextModel;
-    let klass: NextModel;
 
-    const subject = () => (klass = new Klass()).hasErrors;
+    const subject = () => new Klass().hasErrors;
 
     context('when decorator is not present', {
       definitions() {
@@ -4377,6 +4622,106 @@ describe('NextModel', () => {
   });
 
   describe('#isValid()', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    const error = new Error();
+    const trueValidator: Validator = (_item) => Promise.resolve(true);
+    const falseValidator: Validator = (_item) => Promise.resolve(false);
+    const errorValidator: Validator = (_item) => Promise.resolve(error);
+
+    const subject = () => (klass = new Klass()).isValid();
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns true', () => {
+          expect(subject()).toBeTruthy();
+        });
+        context('when validator returns true', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: trueValidator,
+                };
+              }
+
+              set errors(_errors: Errors) {
+
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns true', () => {
+              expect(subject()).toBeTruthy();
+            });
+          },
+        });
+
+        context('when validator returns false', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: falseValidator,
+                };
+              }
+
+              set errors(_errors: Errors) {
+
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns false', () => {
+              expect(subject()).toBeFalsy();
+            });
+          },
+        });
+
+        context('when validator returns Error', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: errorValidator,
+                };
+              }
+
+              set errors(_errors: Errors) {
+
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test.only('returns false', () => {
+              return subject().then(result => expect(result).toBeFalsy());
+            });
+          },
+        });
+      },
+    });
   });
 });
