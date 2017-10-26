@@ -4586,7 +4586,34 @@ describe('NextModel', () => {
   });
 
   describe('#model', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+
+    const subject = () => new Klass().model;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the prototype of the model instance', () => {
+          expect(subject()).toEqual(Klass);
+        });
+      },
+    });
   });
 
   describe('#isValid()', () => {
