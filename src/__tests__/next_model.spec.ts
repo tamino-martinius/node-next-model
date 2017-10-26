@@ -28,24 +28,12 @@ import {
 } from '../connector';
 
 import {
+  context,
+} from './types';
+
+import {
   User,
 } from '../__mocks__/next_model';
-
-interface Context {
-  definitions: () => void;
-  tests: () => void;
-  reset?: () => void,
-};
-
-const context = (description: string, {definitions, tests, reset}: Context) => {
-  describe(description, () => {
-    beforeEach(definitions);
-    tests();
-    if (reset !== undefined) {
-      afterEach(reset);
-    }
-  })
-};
 
 describe('NextModel', () => {
   // Static properties
