@@ -3154,11 +3154,11 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.model', () => {
+  describe('.unscoped', () => {
     let Klass: typeof NextModel;
     const subject = () => ({
-      query: Klass.model.query,
-      order: Klass.model.order,
+      query: Klass.unscoped.query,
+      order: Klass.unscoped.order,
     });
 
 
