@@ -720,7 +720,11 @@ export function Model(model: typeof NextModel): typeof NextModel {
     save(): Promise<NextModel> {
       return this.isValid().then(isValid => {
         if (isValid) {
-          return this.model.dbConnector.save(this);
+          if (this.isNew) {
+            return this.model.dbConnector.create(this);
+          } else {
+            return this.model.dbConnector.update(this);
+          }
         } else {
           return Promise.resolve(this);
         }
@@ -728,7 +732,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     delete(): Promise<NextModel> {
-      return this.model.dbConnector.save(this);
+      return this.model.dbConnector.delete(this);
     }
 
     update(attrs: Attributes): Promise<NextModel> {
