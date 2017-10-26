@@ -740,7 +740,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.save();
     }
 
-    reload(): Promise<NextModel> {
+    reload(): Promise<NextModel | undefined> {
       return this.model.dbConnector.reload(this);
     }
 
