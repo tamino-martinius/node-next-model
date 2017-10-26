@@ -48,6 +48,10 @@ export interface Storage {
   [modelName: string]: Attributes[];
 }
 
+export interface IdStorage {
+  [modelName: string]: number;
+}
+
 export type SpecialFilter = (items: Attributes[], query: Query) => Attributes[];
 export interface SpecialFilters {
   [key: string]: SpecialFilter;
