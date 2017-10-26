@@ -515,9 +515,9 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get activeValidators(): ValidatorArrays {
       const validators: ValidatorArrays = {};
-      for (const key in this.model.validators) {
-        if (!this.model.isValidatorSkipped(key)) {
-          validators[key] = this.model.validators[key];
+      for (const key in this.validators) {
+        if (!this.isValidatorSkipped(key)) {
+          validators[key] = this.validators[key];
         }
       }
       return validators;
@@ -529,16 +529,16 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get activeCallbacks(): CallbackArrays {
       return {
-        beforeSave: (this.model.isCallbackSkipped('beforeSave') ? [] : callbacks.beforeSave),
-        afterSave: (this.model.isCallbackSkipped('afterSave') ? [] : callbacks.afterSave),
-        beforeUpdate: (this.model.isCallbackSkipped('beforeUpdate') ? [] : callbacks.beforeUpdate),
-        afterUpdate: (this.model.isCallbackSkipped('afterUpdate') ? [] : callbacks.afterUpdate),
-        beforeDelete: (this.model.isCallbackSkipped('beforeDelete') ? [] : callbacks.beforeDelete),
-        afterDelete: (this.model.isCallbackSkipped('afterDelete') ? [] : callbacks.afterDelete),
-        beforeReload: (this.model.isCallbackSkipped('beforeReload') ? [] : callbacks.beforeReload),
-        afterReload: (this.model.isCallbackSkipped('afterReload') ? [] : callbacks.afterReload),
-        beforeAssign: (this.model.isCallbackSkipped('beforeAssign') ? [] : callbacks.beforeAssign),
-        afterAssign: (this.model.isCallbackSkipped('afterAssign') ? [] : callbacks.afterAssign),
+        beforeSave: (this.isCallbackSkipped('beforeSave') ? [] : callbacks.beforeSave),
+        afterSave: (this.isCallbackSkipped('afterSave') ? [] : callbacks.afterSave),
+        beforeUpdate: (this.isCallbackSkipped('beforeUpdate') ? [] : callbacks.beforeUpdate),
+        afterUpdate: (this.isCallbackSkipped('afterUpdate') ? [] : callbacks.afterUpdate),
+        beforeDelete: (this.isCallbackSkipped('beforeDelete') ? [] : callbacks.beforeDelete),
+        afterDelete: (this.isCallbackSkipped('afterDelete') ? [] : callbacks.afterDelete),
+        beforeReload: (this.isCallbackSkipped('beforeReload') ? [] : callbacks.beforeReload),
+        afterReload: (this.isCallbackSkipped('afterReload') ? [] : callbacks.afterReload),
+        beforeAssign: (this.isCallbackSkipped('beforeAssign') ? [] : callbacks.beforeAssign),
+        afterAssign: (this.isCallbackSkipped('afterAssign') ? [] : callbacks.afterAssign),
       };
     }
 
@@ -654,7 +654,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       };
     }
 
-    static get model(): typeof StrictNextModel {
+    static get unscoped(): typeof StrictNextModel {
       return class extends this {
         static get query(): Query {
           return {};
@@ -1030,8 +1030,8 @@ export class NextModel {
     throw new PropertyNotDefinedError('.unordered');
   }
 
-  static get model(): typeof NextModel {
-    throw new PropertyNotDefinedError('.model');
+  static get unscoped(): typeof NextModel {
+    throw new PropertyNotDefinedError('.unscoped');
   }
 
   static get all(): Promise<NextModel[]> {
@@ -1070,7 +1070,7 @@ export class NextModel {
     throw new PropertyNotDefinedError('#update');
   }
 
-  reload(): Promise<NextModel> {
+  reload(): Promise<NextModel | undefined> {
     throw new PropertyNotDefinedError('#reload');
   }
 
