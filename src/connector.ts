@@ -60,24 +60,26 @@ export interface SpecialFilters {
 
 export class DefaultConnector implements Connector {
   private storage: Storage = {};
+  private ids: IdStorage = {};
 
   constructor(storage: Storage = {}) {
     this.storage = storage;
   }
 
-  get specialFilters(): SpecialFilters {
+  private get specialFilters(): SpecialFilters {
+    const context = this;
     return {
       $and(items: Attributes[], predicates: Query[]): Attributes[] {
-        const arrays: Attributes[][] = predicates.map(query => this.query(items, query));
+        const arrays: Attributes[][] = predicates.map(query => context.query(items, query));
         return intersection(...arrays);
       },
       $or(items: Attributes[], predicates: Query[]): Attributes[] {
-        const arrays: Attributes[][] = predicates.map(query => this.query(items, query));
+        const arrays: Attributes[][] = predicates.map(query => context.query(items, query));
         return union(...arrays);
       },
       $not(items: Attributes[], predicates: Query[]): Attributes[] {
-        const arrays: Attributes[][] = predicates.map(query => this.query(items, query));
-        const array: Attributes[] = intersection.apply(intersection, arrays);
+        const arrays: Attributes[][] = predicates.map(query => context.query(items, query));
+        const array: Attributes[] = union(...arrays);
         return without(items, ...array);
       },
     };
@@ -116,55 +118,64 @@ export class DefaultConnector implements Connector {
           $and: specialQueries,
         });
       } else if (specialQueryKeys[0] !== undefined) {
-        const arrays: Attributes[][] = [];
-        for (const key in specialQueries) {
-          const specialFilter = this.specialFilters[key];
-          if (specialFilter) {
-            arrays.push(specialFilter(items, specialQueries[key]));
-          } else {
-            arrays.push([]);
-          }
-        }
-        return intersection.apply(intersection, arrays);
+        return this.specialFilters[specialQueryKeys[0]](items, query[specialQueryKeys[0]]);
       } else {
         return items;
       }
     }
   }
 
+  nextId(model: typeof NextModel): number {
+    this.ids[model.modelName] = this.ids[model.modelName] || 1;
+    return this.ids[model.modelName]++;
+  }
+
+  items(model: typeof NextModel): Attributes[] {
+    this.storage[model.modelName] = this.storage[model.modelName] || [];
+    return this.storage[model.modelName];
+  }
+
   all(model: typeof NextModel): Promise<NextModel[]> {
-    const items: Attributes[] = this.storage[model.modelName] || [];
-    const attrArray: Attributes[] = this.query(items, model.query);
+    const attrArray: Attributes[] = this.query(this.items(model), model.query);
     return Promise.resolve(attrArray.map(attrs => new model(attrs)));
   }
 
-  first(model: typeof NextModel): Promise<NextModel> {
-    return this.all(model).then(items => items[0]);
+  first(model: typeof NextModel): Promise<NextModel | undefined> {
+    const attrArray: Attributes[] = this.query(this.items(model), model.query);
+    if (attrArray.length > 0) {
+      return Promise.resolve(new model(attrArray[0]));
+    } else {
+      return Promise.resolve(undefined);
+    }
   }
 
   count(model: typeof NextModel): Promise<number> {
-    return this.all(model).then(items => items.length);
+    return Promise.resolve(this.query(this.items(model), model.query).length);
   }
 
-  save(instance: NextModel) {
-    const items: Attributes[] = this.storage[instance.model.modelName];
-    if (instance.isNew) {
-      instance[instance.model.identifier] = items.length;
-      items.push(instance.dbAttributes);
+  reload(instance: NextModel): Promise<NextModel | undefined> {
+    const model = instance.model;
+    const id: any = instance[model.identifier];
+    if (id !== undefined) {
+      return this.first(model.unscoped.queryBy({
+        [model.identifier]: id,
+      }));
     } else {
-      items[instance[instance.model.identifier]] = instance.attributes;
+      return Promise.resolve(undefined);
     }
+  }
+
+  create(instance: NextModel) {
+    const items: Attributes[] = this.storage[instance.model.modelName];
+    instance[instance.model.identifier] = items.length;
+    items.push(instance.dbAttributes);
     return Promise.resolve(instance);
   }
 
-  reload(instance: NextModel) {
-    const id: any = instance[instance.model.identifier];
-    if (id !== undefined) {
-      const items: Attributes[] = this.storage[instance.model.modelName];
-      return Promise.resolve(new instance.model(items[id]));
-    } else {
-      return Promise.resolve(new instance.model());
-    }
+  update(instance: NextModel) {
+    const items: Attributes[] = this.storage[instance.model.modelName];
+    items[instance[instance.model.identifier]] = instance.attributes;
+    return Promise.resolve(instance);
   }
 
   delete(instance: NextModel) {
