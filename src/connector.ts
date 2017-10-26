@@ -39,9 +39,10 @@ export interface Connector {
   all(model: typeof NextModel): Promise<NextModel[]>;
   first(model: typeof NextModel): Promise<NextModel | undefined>;
   count(model: typeof NextModel): Promise<number>;
-  save(instance: NextModel): Promise<NextModel>;
+  reload(instance: NextModel): Promise<NextModel | undefined>;
+  create(instance: NextModel): Promise<NextModel>;
+  update(instance: NextModel): Promise<NextModel>;
   delete(instance: NextModel): Promise<NextModel>;
-  reload(instance: NextModel): Promise<NextModel>;
 };
 
 export interface Storage {
