@@ -4630,10 +4630,6 @@ describe('NextModel', () => {
                   id: trueValidator,
                 };
               }
-
-              set errors(_errors: Errors) {
-
-              }
             };
             Klass = NewKlass;
           },
@@ -4653,10 +4649,6 @@ describe('NextModel', () => {
                   id: falseValidator,
                 };
               }
-
-              set errors(_errors: Errors) {
-
-              }
             };
             Klass = NewKlass;
           },
@@ -4675,10 +4667,6 @@ describe('NextModel', () => {
                 return {
                   id: errorValidator,
                 };
-              }
-
-              set errors(_errors: Errors) {
-
               }
             };
             Klass = NewKlass;
