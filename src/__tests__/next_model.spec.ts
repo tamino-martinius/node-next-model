@@ -4585,6 +4585,110 @@ describe('NextModel', () => {
     });
   });
 
+  describe('#errors', () => {
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    const error = new Error();
+    const trueValidator: Validator = (_item) => Promise.resolve(true);
+    const falseValidator: Validator = (_item) => Promise.resolve(false);
+    const errorValidator: Validator = (_item) => Promise.resolve(error);
+
+    const subject = () => klass.errors;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('returns empty errors object', () => {
+          return expect(subject()).toEqual({});
+        });
+        context('when validator returns true', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: trueValidator,
+                };
+              }
+            };
+            Klass = NewKlass;
+            klass = new Klass();
+            return klass.isValid();
+          },
+          tests() {
+            test('returns empty errors object', () => {
+              return expect(subject()).toEqual({});
+            });
+          },
+        });
+
+        context('when validator returns false', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: falseValidator,
+                };
+              }
+            };
+            Klass = NewKlass;
+            klass = new Klass();
+            return klass.isValid();
+          },
+          tests() {
+            test('returns errors object with default error', () => {
+              return expect(subject()).toEqual({
+                id: [new Error('Validation Failed')],
+              });
+            });
+          },
+        });
+
+        context('when validator returns Error', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: errorValidator,
+                };
+              }
+            };
+            Klass = NewKlass;
+            klass = new Klass();
+            return klass.isValid();
+          },
+          tests() {
+            test('returns error', () => {
+              return expect(subject()).toEqual({
+                id: [error],
+              });
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('#model', () => {
     let Klass: typeof NextModel;
 
