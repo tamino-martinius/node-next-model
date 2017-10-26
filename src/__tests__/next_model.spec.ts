@@ -4551,6 +4551,79 @@ describe('NextModel', () => {
     });
   });
 
+  describe('#changes', () => {
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    let attrs: Attributes | undefined = undefined;
+    const subject = () => (klass = new Klass(attrs)).changes;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns initial empty changes and updates on settings attributes', () => {
+          expect(subject()).toEqual({});
+          klass.id = undefined;
+          expect(klass.changes).toEqual({});
+          klass.id = 1;
+          expect(klass.changes).toEqual({
+            id: { from: undefined, to: 1 },
+          });
+          klass.id = 2;
+          expect(klass.changes).toEqual({
+            id: { from: undefined, to: 2 },
+          });
+          klass.id = undefined;
+          expect(klass.changes).toEqual({});
+        });
+
+        test('does not change when updating unknown attributes', () => {
+          expect(subject()).toEqual({});
+          klass.foo = '💩';
+          expect(klass.changes).toEqual({});
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              id: 1,
+              baz: '💩',
+            }
+          },
+          tests() {
+            test('returns initial false but true after changes', () => {
+              expect(subject()).toEqual({});
+              klass.id = 1;
+              expect(klass.changes).toEqual({});
+              klass.id = 2;
+              expect(klass.changes).toEqual({
+                id: { from: 1, to: 2 },
+              });
+            });
+          },
+          reset() {
+            attrs = undefined;
+          },
+        });
+      },
+    });
+  });
+
   describe('#hasErrors', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
