@@ -146,7 +146,8 @@ export class DefaultConnector implements Connector {
   }
 
   all(model: typeof NextModel): Promise<NextModel[]> {
-    const attrArray: Attributes[] = this.query(this.items(model), model.query);
+    const items: Attributes[] = this.items(model);
+    const attrArray: Attributes[] = this.query(items, model.query);
     return Promise.resolve(attrArray.map(attrs => new model(attrs)));
   }
 
@@ -186,16 +187,18 @@ export class DefaultConnector implements Connector {
     const model = instance.model;
     const items: Attributes[] = this.storage[model.modelName];
     const index: number | undefined = this.indexOf(items, instance);
-    items[index] = instance.dbAttributes;
+    if (index !== undefined) {
+      items[index] = instance.dbAttributes;
+    }
     return Promise.resolve(instance);
   }
 
   delete(instance: NextModel) {
-    const id: any = instance[instance.model.identifier];
-    if (id !== undefined) {
-      const items: Attributes[] = this.storage[instance.model.modelName];
-      delete items[id];
-      instance[instance.model.identifier] = undefined;
+    const model = instance.model;
+    const items: Attributes[] = this.storage[model.modelName];
+    const index: number | undefined = this.indexOf(items, instance);
+    if (index !== undefined) {
+      items.splice(index, 1);
     }
     return Promise.resolve(instance);
   }
