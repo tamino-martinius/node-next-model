@@ -3231,15 +3231,96 @@ describe('NextModel', () => {
   });
 
   describe('.all', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    const subject = () => Klass.all;
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns empty array', () => {
+          return expect(subject()).resolves.toEqual([]);
+        });
+      },
+    });
   });
 
   describe('.first', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    const subject = () => Klass.first;
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns empty array', () => {
+          return expect(subject()).resolves.toBeUndefined();
+        });
+      },
+    });
   });
 
   describe('.count', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    const subject = () => Klass.count;
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns empty array', () => {
+          return expect(subject()).resolves.toEqual(0);
+        });
+      },
+    });
   });
 
   describe('.constructor', () => {
@@ -4061,13 +4142,91 @@ describe('NextModel', () => {
     });
   });
 
-  describe('#save()', () => {
-    pending('not yet implemented');
-  });
+  // describe('#save()', () => {
+  //   let Klass: typeof NextModel;
+  //   let klass: NextModel;
+  //   const subject = () => klass.save();
 
-  describe('#delete()', () => {
-    pending('not yet implemented');
-  });
+  //   context('when decorator is not present', {
+  //     definitions() {
+  //       class NewKlass extends NextModel {};
+  //       Klass = NewKlass;
+  //     },
+  //     tests() {
+  //       test('throws PropertyNotDefinedError', () => {
+  //         expect(subject).toThrow(PropertyNotDefinedError);
+  //       });
+  //     },
+  //   });
+
+  //   context('when decorator is present', {
+  //     definitions() {
+  //       @Model
+  //       class NewKlass extends NextModel {};
+  //       Klass = NewKlass;
+  //       klass = new Klass();
+  //     },
+  //     tests() {
+  //       test('sets instance id if item is new', () => {
+  //         return expect(subject()).resolves.toEqual(new Klass({ id: 1 }));
+  //       });
+
+  //       context('when item is persisted', {
+  //         definitions() {
+  //           klass = new Klass({ id: 1 });
+  //         },
+  //         tests() {
+  //           test('returns instance', () => {
+  //             return expect(subject()).resolves.toEqual(klass);
+  //           });
+  //         },
+  //       });
+  //     },
+  //   });
+  // });
+
+  // describe('#delete()', () => {
+  //   let Klass: typeof NextModel;
+  //   let klass: NextModel;
+  //   const subject = () => klass.delete();
+
+  //   context('when decorator is not present', {
+  //     definitions() {
+  //       class NewKlass extends NextModel {};
+  //       Klass = NewKlass;
+  //     },
+  //     tests() {
+  //       test('throws PropertyNotDefinedError', () => {
+  //         expect(subject).toThrow(PropertyNotDefinedError);
+  //       });
+  //     },
+  //   });
+
+  //   context('when decorator is present', {
+  //     definitions() {
+  //       @Model
+  //       class NewKlass extends NextModel {};
+  //       Klass = NewKlass;
+  //       klass = new Klass();
+  //     },
+  //     tests() {
+  //       test('returns instance', () => {
+  //         return expect(subject()).resolves.toEqual(klass);
+  //       });
+
+  //       context('when item is persisted', {
+  //         definitions() {
+  //           klass = new Klass({ id: 1 });
+  //         },
+  //         tests() {
+  //           test('returns instance', () => {
+  //             return expect(subject()).resolves.toEqual(klass);
+  //           });
+  //         },
+  //       });
+  //     },
+  //   });
+  // });
 
   describe('#update(attrs)', () => {
     pending('not yet implemented');
@@ -4753,6 +4912,33 @@ describe('NextModel', () => {
             test('returns error', () => {
               return expect(subject()).toEqual({
                 id: [error],
+              });
+            });
+          },
+        });
+
+
+        context('when multiple validators are failing', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: [falseValidator, errorValidator],
+                };
+              }
+            };
+            Klass = NewKlass;
+            klass = new Klass();
+            return klass.isValid();
+          },
+          tests() {
+            test('returns errors object with default error', () => {
+              return expect(subject()).toEqual({
+                id: [
+                  new Error('Validation Failed'),
+                  error,
+                ],
               });
             });
           },
