@@ -1164,10 +1164,131 @@ describe('DefaultConnector', () => {
   });
 
   describe('#update', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let items: Attributes[];
+    let attributes: Attributes | undefined = undefined;
+    let cn: DefaultConnector;
+    let klass: () => NextModel = () => new Klass(attributes);
+    const subject = () => {
+      cn = connector();
+      items = cn.items(Klass);
+      return cn.update(klass());
+    }
+
+    context('with complex model', {
+      definitions() {
+        attributes = {
+          id: 1,
+          foo: 'bar',
+          bar: 'baz',
+        };
+
+        storage = {
+          Foo: [
+            { id: 1, foo: 'foo' },
+          ],
+        };
+
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+
+          static get schema(): Schema {
+            return {
+              foo: { type: 'string' },
+            }
+          }
+
+          static get attrAccessors(): string[] {
+            return ['bar'];
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('updates item within storage storage', () => {
+          return subject().then(instance => {
+            expect(instance).toEqual(new Klass({id: 1, foo: 'bar', bar: 'baz'}));
+            expect(items).toEqual([
+              {id: 1, foo: 'bar'},
+            ]);
+            return cn.update(new Klass({id: 1}));
+          }).then(instance => {
+            expect(instance).toEqual(new Klass({id: 1, foo: undefined}));
+            expect(items).toEqual([
+              {id: 1, foo: undefined},
+            ]);
+          });
+        });
+
+        context('when item is not in storage', {
+          definitions() {
+            storage = {
+              Foo: [
+                { id: 2, foo: 'foo' },
+              ],
+            };
+          },
+          tests() {
+            test('does not change storage', () => {
+              return subject().then(instance => {
+                expect(instance).toEqual(new Klass({id: 1, foo: 'bar', bar: 'baz'}));
+                expect(items).toEqual([
+                  {id: 2, foo: 'foo'},
+                ]);
+              });
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('#delete', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let items: Attributes[];
+    let cn: DefaultConnector;
+    const subject = (item: NextModel) => {
+      cn = connector();
+      items = cn.items(Klass);
+      return cn.delete(item);
+    }
+
+    context('with simple model', {
+      definitions() {
+        storage = {
+          Foo: [
+            { id: 1 },
+            { id: 3 },
+          ],
+        };
+
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('removed item from storage', () => {
+          return subject(new Klass({ id: 1 })).then(instance => {
+            expect(instance).toEqual(new Klass({ id: 1 }));
+            expect(items).toEqual([
+              {id: 3},
+            ]);
+            return cn.delete(new Klass({id: 2}));
+          }).then(instance => {
+            expect(instance).toEqual(new Klass({ id: 2 }));
+            expect(items).toEqual([
+              { id: 3 },
+            ]);
+          });
+        });
+      },
+    });
   });
 });
