@@ -4,8 +4,6 @@ import {
   Query,
 } from './next_model';
 
-
-import camelCase from 'lodash/camelCase';
 import {
 //   assign,
 //   camelCase,
@@ -59,11 +57,12 @@ export interface SpecialFilters {
 };
 
 export class DefaultConnector implements Connector {
-  private storage: Storage = {};
-  private ids: IdStorage = {};
+  private storage: Storage;
+  private ids: IdStorage;
 
   constructor(storage: Storage = {}) {
     this.storage = storage;
+    this.ids = {};
   }
 
   private get specialFilters(): SpecialFilters {
@@ -125,9 +124,20 @@ export class DefaultConnector implements Connector {
     }
   }
 
-  nextId(model: typeof NextModel): number {
+  private nextId(model: typeof NextModel): number {
     this.ids[model.modelName] = this.ids[model.modelName] || 1;
     return this.ids[model.modelName]++;
+  }
+
+  private indexOf(items: Attributes[], instance: NextModel): number | undefined {
+    const identifier: string = instance.model.identifier;
+    const id: any = instance[identifier];
+    for (let index = 0; index < items.length; index++) {
+      if (items[index][identifier] === id) {
+        return index
+      }
+    }
+    return undefined;
   }
 
   items(model: typeof NextModel): Attributes[] {
@@ -155,26 +165,28 @@ export class DefaultConnector implements Connector {
 
   reload(instance: NextModel): Promise<NextModel | undefined> {
     const model = instance.model;
-    const id: any = instance[model.identifier];
-    if (id !== undefined) {
-      return this.first(model.unscoped.queryBy({
-        [model.identifier]: id,
-      }));
-    } else {
+    const items: Attributes[] = this.items(model);
+    const index: number | undefined = this.indexOf(items, instance);
+    if (index === undefined) {
       return Promise.resolve(undefined);
+    } else {
+      return Promise.resolve(new model(items[index]));
     }
   }
 
   create(instance: NextModel) {
-    const items: Attributes[] = this.storage[instance.model.modelName];
-    instance[instance.model.identifier] = items.length;
+    const model = instance.model;
+    const items: Attributes[] = this.storage[model.modelName];
+    instance.data[model.identifier] = this.nextId(model);
     items.push(instance.dbAttributes);
     return Promise.resolve(instance);
   }
 
   update(instance: NextModel) {
-    const items: Attributes[] = this.storage[instance.model.modelName];
-    items[instance[instance.model.identifier]] = instance.attributes;
+    const model = instance.model;
+    const items: Attributes[] = this.storage[model.modelName];
+    const index: number | undefined = this.indexOf(items, instance);
+    items[index] = instance.dbAttributes;
     return Promise.resolve(instance);
   }
 
