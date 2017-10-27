@@ -2,6 +2,8 @@ import {
   Model,
   NextModel,
   Query,
+  Attributes,
+  Schema,
 } from '../next_model';
 
 import {
@@ -47,14 +49,6 @@ describe('DefaultConnector', () => {
                 { id: 1 },
               ],
             };
-
-            @Model
-            class NewKlass extends NextModel {
-              static get modelName(): string {
-                return 'Foo';
-              }
-            };
-            Klass = NewKlass;
           },
           tests() {
             test('returns all items as model instances', () => {
@@ -74,14 +68,6 @@ describe('DefaultConnector', () => {
                 { id: 3 },
               ],
             };
-    
-            @Model
-            class NewKlass extends NextModel {
-              static get modelName(): string {
-                return 'Foo';
-              }
-            };
-            Klass = NewKlass;
           },
           tests() {
             test('returns all items as model instances', () => {
@@ -91,7 +77,7 @@ describe('DefaultConnector', () => {
                 new Klass({ id: 3 }),
               ]);
             });
-    
+
             context('when query for first item property match', {
               definitions() {
                 @Model
@@ -414,14 +400,6 @@ describe('DefaultConnector', () => {
                 { id: 1 },
               ],
             };
-    
-            @Model
-            class NewKlass extends NextModel {
-              static get modelName(): string {
-                return 'Foo';
-              }
-            };
-            Klass = NewKlass;
           },
           tests() {
             test('returns all items as model instances', () => {
@@ -439,14 +417,6 @@ describe('DefaultConnector', () => {
                 { id: 3 },
               ],
             };
-    
-            @Model
-            class NewKlass extends NextModel {
-              static get modelName(): string {
-                return 'Foo';
-              }
-            };
-            Klass = NewKlass;
           },
           tests() {
             test('returns all items as model instances', () => {
@@ -749,14 +719,6 @@ describe('DefaultConnector', () => {
                 { id: 1 },
               ],
             };
-    
-            @Model
-            class NewKlass extends NextModel {
-              static get modelName(): string {
-                return 'Foo';
-              }
-            };
-            Klass = NewKlass;
           },
           tests() {
             test('returns one', () => {
@@ -774,14 +736,6 @@ describe('DefaultConnector', () => {
                 { id: 3 },
               ],
             };
-    
-            @Model
-            class NewKlass extends NextModel {
-              static get modelName(): string {
-                return 'Foo';
-              }
-            };
-            Klass = NewKlass;
           },
           tests() {
             test('returns total count', () => {
@@ -1059,11 +1013,154 @@ describe('DefaultConnector', () => {
   });
 
   describe('#reload', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let klass: () => NextModel = () => new Klass({id: 1});
+    const subject = () => connector().reload(klass());
+
+    context('with simple model', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns undefined for empty storage', () => {
+          return expect(subject()).resolves.toBeUndefined();
+        });
+
+        context('with item missing in prefilled storage', {
+          definitions() {
+            storage = {
+              Foo: [
+                { id: 2 },
+                { id: 3 },
+              ],
+            };
+          },
+          tests() {
+            test('returns undefined', () => {
+              return expect(subject()).resolves.toBeUndefined();
+            });
+          },
+        });
+
+        context('with item in prefilled storage', {
+          definitions() {
+            storage = {
+              Foo: [
+                { id: 1 },
+              ],
+            };
+          },
+          tests() {
+            test('returns klass from storage', () => {
+              return expect(subject()).resolves.toEqual(new Klass({id: 1}));
+            });
+
+            context('with unsaved klass', {
+              definitions() {
+                klass = () => new Klass();
+              },
+              tests() {
+                test('returns klass from storage', () => {
+                  return expect(subject()).resolves.toBeUndefined();
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('#insert', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let items: Attributes[];
+    let attributes: Attributes | undefined = undefined;
+    let cn: DefaultConnector;
+    let klass: () => NextModel = () => new Klass(attributes);
+    const subject = () => {
+      cn = connector();
+      items = cn.items(Klass);
+      return cn.create(klass());
+    }
+
+    context('with simple model', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('sets instance id and adds item to storage', () => {
+          return subject().then(instance => {
+            expect(instance).toEqual(new Klass({id: 1}));
+            expect(items).toEqual([
+              {id: 1},
+            ]);
+            return cn.create(new Klass());
+          }).then(instance => {
+            expect(instance).toEqual(new Klass({id: 2}));
+            expect(items).toEqual([
+              {id: 1},
+              {id: 2},
+            ]);
+          });
+        });
+      },
+    });
+
+    context('with complex model', {
+      definitions() {
+        attributes = {
+          foo: 'bar',
+          bar: 'baz',
+        };
+
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+
+          static get schema(): Schema {
+            return {
+              foo: { type: 'string' },
+            }
+          }
+
+          static get attrAccessors(): string[] {
+            return ['bar'];
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('sets instance id and adds item to storage', () => {
+          return subject().then(instance => {
+            expect(instance).toEqual(new Klass({id: 1, foo: 'bar', bar: 'baz'}));
+            expect(items).toEqual([
+              {id: 1, foo: 'bar'},
+            ]);
+            return cn.create(new Klass());
+          }).then(instance => {
+            expect(instance).toEqual(new Klass({id: 2}));
+            expect(items).toEqual([
+              {foo: 'bar', id: 1},
+              {id: 2},
+            ]);
+          });
+        });
+      },
+    });
   });
 
   describe('#update', () => {
