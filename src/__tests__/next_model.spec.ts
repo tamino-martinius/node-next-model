@@ -4142,91 +4142,93 @@ describe('NextModel', () => {
     });
   });
 
-  // describe('#save()', () => {
-  //   let Klass: typeof NextModel;
-  //   let klass: NextModel;
-  //   const subject = () => klass.save();
+  describe('#save()', () => {
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    const subject = () => klass.save();
 
-  //   context('when decorator is not present', {
-  //     definitions() {
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       test('throws PropertyNotDefinedError', () => {
-  //         expect(subject).toThrow(PropertyNotDefinedError);
-  //       });
-  //     },
-  //   });
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
 
-  //   context('when decorator is present', {
-  //     definitions() {
-  //       @Model
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //       klass = new Klass();
-  //     },
-  //     tests() {
-  //       test('sets instance id if item is new', () => {
-  //         return expect(subject()).resolves.toEqual(new Klass({ id: 1 }));
-  //       });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('sets instance id if item is new', () => {
+          return expect(subject()).resolves.toEqual(new Klass({ id: 1 }));
+        });
 
-  //       context('when item is persisted', {
-  //         definitions() {
-  //           klass = new Klass({ id: 1 });
-  //         },
-  //         tests() {
-  //           test('returns instance', () => {
-  //             return expect(subject()).resolves.toEqual(klass);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
+        context('when item is persisted', {
+          definitions() {
+            klass = new Klass({ id: 1 });
+          },
+          tests() {
+            test('returns instance', () => {
+              return expect(subject()).resolves.toEqual(klass);
+            });
+          },
+        });
+      },
+    });
+  });
 
-  // describe('#delete()', () => {
-  //   let Klass: typeof NextModel;
-  //   let klass: NextModel;
-  //   const subject = () => klass.delete();
+  describe('#delete()', () => {
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    const subject = () => klass.delete();
 
-  //   context('when decorator is not present', {
-  //     definitions() {
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       test('throws PropertyNotDefinedError', () => {
-  //         expect(subject).toThrow(PropertyNotDefinedError);
-  //       });
-  //     },
-  //   });
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
 
-  //   context('when decorator is present', {
-  //     definitions() {
-  //       @Model
-  //       class NewKlass extends NextModel {};
-  //       Klass = NewKlass;
-  //       klass = new Klass();
-  //     },
-  //     tests() {
-  //       test('returns instance', () => {
-  //         return expect(subject()).resolves.toEqual(klass);
-  //       });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('returns instance', () => {
+          return expect(subject()).resolves.toEqual(klass);
+        });
 
-  //       context('when item is persisted', {
-  //         definitions() {
-  //           klass = new Klass({ id: 1 });
-  //         },
-  //         tests() {
-  //           test('returns instance', () => {
-  //             return expect(subject()).resolves.toEqual(klass);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
+        context('when item is persisted', {
+          definitions() {
+            klass = new Klass({ id: 1 });
+          },
+          tests() {
+            test('returns instance', () => {
+              return expect(subject()).resolves.toEqual(klass);
+            });
+          },
+        });
+      },
+    });
+  });
 
   describe('#update(attrs)', () => {
     pending('not yet implemented');
