@@ -177,7 +177,7 @@ export class DefaultConnector implements Connector {
 
   create(instance: NextModel) {
     const model = instance.model;
-    const items: Attributes[] = this.storage[model.modelName];
+    const items: Attributes[] = this.items(model);
     instance.data[model.identifier] = this.nextId(model);
     items.push(instance.dbAttributes);
     return Promise.resolve(instance);
@@ -185,7 +185,7 @@ export class DefaultConnector implements Connector {
 
   update(instance: NextModel) {
     const model = instance.model;
-    const items: Attributes[] = this.storage[model.modelName];
+    const items: Attributes[] = this.items(model);
     const index: number | undefined = this.indexOf(items, instance);
     if (index !== undefined) {
       items[index] = instance.dbAttributes;
@@ -195,7 +195,7 @@ export class DefaultConnector implements Connector {
 
   delete(instance: NextModel) {
     const model = instance.model;
-    const items: Attributes[] = this.storage[model.modelName];
+    const items: Attributes[] = this.items(model);
     const index: number | undefined = this.indexOf(items, instance);
     if (index !== undefined) {
       items.splice(index, 1);
