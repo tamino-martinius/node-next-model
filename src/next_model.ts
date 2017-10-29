@@ -893,9 +893,9 @@ export function Model(model: typeof NextModel): typeof NextModel {
           const query: Query = {
             [relation.foreignKey]: id,
           };
-          return relation.model.queryBy(query);
+          return relation.model.queryBy(query).first;
         } else {
-          throw new PropertyNotDefinedError('#' + model.identifier);
+          return Promise.reject(new PropertyNotDefinedError('#' + model.identifier));
         }
       }
     };
