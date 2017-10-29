@@ -16,8 +16,8 @@
     "node": ">=4.3.2"
   },
   "scripts": {
-    "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
-    "test": "jest",
+    "coverage": "rm -rf coverage* && jest --coverage --verbose && node remap_coverage.js && rm -rf coverage_jest_raw*",
+    "test": "jest --verbose",
     "build": "tsc",
     "watch": "tsc -w"
   },
