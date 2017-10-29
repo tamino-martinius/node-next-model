@@ -2435,6 +2435,10 @@ describe('NextModel', () => {
           });
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.queryBy(query)) instanceof Klass).toBeTruthy();
+        });
+
         context('when query is already present', {
           definitions() {
             @Model
@@ -2584,6 +2588,10 @@ describe('NextModel', () => {
               {foo: 'bar'},
             ],
           });
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.andQueryBy(query)) instanceof Klass).toBeTruthy();
         });
 
         context('when query is already present', {
@@ -2737,6 +2745,10 @@ describe('NextModel', () => {
           });
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.orQueryBy(query)) instanceof Klass).toBeTruthy();
+        });
+
         context('when query is already present', {
           definitions() {
             @Model
@@ -2888,6 +2900,10 @@ describe('NextModel', () => {
           });
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.notQueryBy(query)) instanceof Klass).toBeTruthy();
+        });
+
         context('when query is already present', {
           definitions() {
             @Model
@@ -3037,6 +3053,10 @@ describe('NextModel', () => {
           });
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.orderBy(orderBy)) instanceof Klass).toBeTruthy();
+        });
+
         context('when order is already present', {
           definitions() {
             @Model
@@ -3086,6 +3106,10 @@ describe('NextModel', () => {
           expect(subject()).toEqual({});
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.unqueried) instanceof Klass).toBeTruthy();
+        });
+
         context('when query is already present', {
           definitions() {
             @Model
@@ -3131,6 +3155,10 @@ describe('NextModel', () => {
       tests() {
         test('returns default order', () => {
           expect(subject()).toEqual({});
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.unordered) instanceof Klass).toBeTruthy();
         });
 
         context('when order is already present', {
@@ -3185,6 +3213,10 @@ describe('NextModel', () => {
             query: {},
             order: {},
           });
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.unscoped) instanceof Klass).toBeTruthy();
         });
 
         context('when order is already present', {
@@ -4145,6 +4177,8 @@ describe('NextModel', () => {
   describe('#save()', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
+    const error = new Error();
+    const errorValidator: Validator = (_item) => Promise.resolve(error);
     const subject = () => klass.save();
 
     context('when decorator is not present', {
@@ -4170,6 +4204,28 @@ describe('NextModel', () => {
       tests() {
         test('sets instance id if item is new', () => {
           return expect(subject()).resolves.toEqual(new Klass({ id: 1 }));
+        });
+
+        context('when validator is failing', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: errorValidator,
+                };
+              }
+            };
+            Klass = NewKlass;
+            klass = new Klass();
+          },
+          tests() {
+            test('does not set id, but errors', () => {
+              const result = new Klass({});
+              result._errors = { id: [error] };
+              return expect(subject()).resolves.toEqual(result);
+            });
+          },
         });
 
         context('when item is persisted', {
@@ -4231,11 +4287,276 @@ describe('NextModel', () => {
   });
 
   describe('#update(attrs)', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let attrs: Attributes = {};
+    const error = new Error();
+    const errorValidator: Validator = (_item) => Promise.resolve(error);
+    const subject = () => new Klass().update(attrs);
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns empty default', () => {
+          expect(subject()).resolves.toEqual(new Klass({
+            id: undefined,
+          }));
+        });
+
+        context('when validator is failing', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get validators(): Validators {
+                return {
+                  id: errorValidator,
+                };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('does not set id, but errors', () => {
+              const result = new Klass({});
+              result._errors = { id: [error] };
+              return expect(subject()).resolves.toEqual(result);
+            });
+          },
+        });
+
+        context('when attributes are passed', {
+          definitions() {
+            attrs = {
+              id: 1,
+              baz: '💩',
+            }
+          },
+          tests() {
+            test('returns object with applied attributes', () => {
+              expect(subject()).resolves.toEqual(new Klass({
+                id: 1,
+              }));
+            });
+          },
+          reset() {
+            attrs = {};
+          },
+        });
+
+        context('when schema is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get schema(): Schema {
+                return { foo: { type: 'bar' }};
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns object with keys of the schema', () => {
+              expect(subject()).resolves.toEqual(new Klass({
+                id: undefined,
+                foo: undefined,
+              }));
+            });
+
+            context('when attributes are passed', {
+              definitions() {
+                attrs = {
+                  id: 1,
+                  foo: 'bar',
+                  baz: '💩',
+                }
+              },
+              tests() {
+                test('returns object with applied attributes', () => {
+                  expect(subject()).resolves.toEqual(({
+                    id: 1,
+                    foo: 'bar',
+                  }));
+                });
+              },
+              reset() {
+                attrs = {};
+              },
+            });
+
+            context('when belongsTo relation is present', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get belongsTo(): BelongsTo {
+                    return {
+                      user: { model: User },
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                test('returns object with keys of the belongsTo relation', () => {
+                  expect(subject()).resolves.toEqual(new Klass({
+                    id: undefined,
+                    foo: undefined,
+                    userId: undefined,
+                  }));
+                });
+
+                context('when attributes are passed', {
+                  definitions() {
+                    attrs = {
+                      id: 1,
+                      foo: 'bar',
+                      userId: 2,
+                      baz: '💩',
+                    }
+                  },
+                  tests() {
+                    test('returns object with applied attributes', () => {
+                      expect(subject()).resolves.toEqual(new Klass({
+                        id: 1,
+                        userId: 2,
+                        foo: 'bar',
+                      }));
+                    });
+                  },
+                  reset() {
+                    attrs = {};
+                  },
+                });
+
+                context('when attrAccessors are present', {
+                  definitions() {
+                    @Model
+                    class NewKlass extends Klass {
+                      static get attrAccessors(): string[] {
+                        return ['bar'];
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    test('returns object with keys of the attrAccessors', () => {
+                      expect(subject()).resolves.toEqual(new Klass({
+                        id: undefined,
+                        foo: undefined,
+                        userId: undefined,
+                        bar: undefined,
+                      }));
+                    });
+
+                    context('when attributes are passed', {
+                      definitions() {
+                        attrs = {
+                          id: 1,
+                          foo: 'bar',
+                          bar: 'foo',
+                          baz: '💩',
+                        }
+                      },
+                      tests() {
+                        test('returns object with applied attributes', () => {
+                          expect(subject()).resolves.toEqual(new Klass({
+                            id: 1,
+                            foo: 'bar',
+                            bar: 'foo',
+                          }));
+                        });
+                      },
+                      reset() {
+                        attrs = {};
+                      },
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('#reload()', () => {
-    pending('not yet implemented');
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    const subject = () => klass.reload();
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('returns instance', () => {
+          return expect(subject()).resolves.toBeUndefined();
+        });
+
+        context('when item is persisted', {
+          definitions() {
+            klass = new Klass({ id: 1 });
+          },
+          tests() {
+            test('returns instance', () => {
+              return expect(subject()).resolves.toBeUndefined();
+            });
+          },
+        });
+
+        context('when item is in storage', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get modelName(): string {
+                return 'Foo';
+              }
+
+              static get dbConnector(): Connector {
+                return new DefaultConnector({ Foo: [{ id: 1 }] });
+              }
+            };
+            Klass = NewKlass;
+            klass = new Klass({ id: 1});
+          },
+          tests() {
+            test('returns instance', () => {
+              return expect(subject()).resolves.toEqual(new Klass({ id: 1 }));
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('#assign(attrs)', () => {
