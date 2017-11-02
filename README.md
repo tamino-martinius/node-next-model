@@ -10,12 +10,10 @@ NextModel gives you the ability to:
 * Perform database operations in an **object-oriented** fashion.
 * Uses **Promises** for database queries.
 
-### Roadmap / Where can i contribute
+## Roadmap / Where can i contribute
 
 See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) project for current progress/tasks
 
-* Convert to typescript
-* Implement NextModel as a Decorator for classes
 * Fix **typos**
 * Improve **documentation**
 * `createdAt` and `updatedAt` **timestamps**
@@ -23,7 +21,7 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
 * Improve **schema** with eg. default values, limits
 * Improve **associations** eg. cascading deletions
 * Add more packages for eg. **versioning** and **soft deleting**
-* There are already some **tests**, but not every test case is covered.
+* Help to improve **tests** and the test **coverage**.
 * Add more connectors for eg. **graphQL** and **dynamoDB**
 * `includes` prefetches relations with two db queries *(fetch records => pluck ids => fetch related records by ids)* instead of one query per related model.
 

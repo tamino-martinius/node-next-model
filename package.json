@@ -1,12 +1,12 @@
 {
   "name": "next-model",
   "version": "0.6.1",
-  "description": "Rails like models using TypeScript/ES6.",
+  "description": "Rails like models using TypeScript/ES6 and Decorators.",
   "author": "Tamino Martinius <dev@zaku.eu>",
-  "main": "./lib/next-model.umd.js",
-  "module": "./lib/index.js",
-  "jsnext:main": "./lib/index.js",
-  "typings": "./lib/index.d.ts",
+  "main": "./dist/next_model.js",
+  "module": "./dist/next_model.js",
+  "jsnext:main": "./dist/next_model.js",
+  "typings": "./dist/next_model.d.ts",
   "license": "MIT",
   "repository": {
     "type": "git",

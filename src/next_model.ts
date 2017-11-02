@@ -3,6 +3,11 @@ import {
   DefaultConnector,
 } from './connector';
 
+export {
+  Connector,
+  DefaultConnector,
+} from './connector';
+
 import camelCase from 'lodash/camelCase';
 // import {
 // //   assign,
