@@ -8,35 +8,6 @@ export {
   DefaultConnector,
 } from './connector';
 
-import camelCase from 'lodash/camelCase';
-// import {
-// //   assign,
-//   camelCase,
-// //   concat,
-// //   difference,
-// //   filter,
-// //   first,
-// //   flatten,
-// //   includes,
-// //   isArray,
-// //   isFunction,
-// //   isNil,
-// //   isNumber,
-// //   isObject,
-// //   isString,
-// //   keys,
-// //   last,
-// //   map,
-// //   mapValues,
-// //   omit,
-// //   pick,
-// //   snakeCase,
-// //   union,
-// //   upperFirst,
-// //   values,
-// //   without,
-// } from 'lodash';
-
 export interface Relation {
   model: typeof NextModel,
   foreignKey?: string;
@@ -253,9 +224,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in model.belongsTo) {
       const relation = model.belongsTo[name];
-      const foreignKey = relation.foreignKey || camelCase(
-        relation.model.modelName + 'Id'
-      );
+      const foreignKey = relation.foreignKey || relation.model.modelName + 'Id';
       belongsTo[name] = {
         foreignKey,
         model: relation.model,
@@ -269,9 +238,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in model.hasMany) {
       const relation = model.hasMany[name];
-      const foreignKey = relation.foreignKey || camelCase(
-        modelName + 'Id'
-      );
+      const foreignKey = relation.foreignKey || modelName + 'Id';
       hasMany[name] = {
         foreignKey,
         model: relation.model,
@@ -285,9 +252,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in model.hasOne) {
       const relation = model.hasOne[name];
-      const foreignKey = relation.foreignKey || camelCase(
-        modelName + 'Id'
-      );
+      const foreignKey = relation.foreignKey || modelName + 'Id';
       hasOne[name] = {
         foreignKey,
         model: relation.model,
@@ -601,6 +566,26 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return !!lookupDbKeys[key];
     }
 
+    private static get queryAttributes(): Attributes {
+      const attrs: Attributes = {};
+      for (const key in this.query) {
+        if (!(key[0] === '$')) {
+          attrs[key] = this.query[key];
+        }
+      }
+      return attrs;
+    }
+
+    private static mergeAttributes(attrs1?: Attributes, attrs2?: Attributes): Attributes {
+      const attrs: Attributes = attrs1 || {};
+      if (attrs2 !== undefined) {
+        for (const key in attrs2) {
+          attrs[key] = attrs2[key];
+        }
+      }
+      return attrs;
+    }
+
     static queryBy(queryBy: Query, combinator: string = '$and'): typeof StrictNextModel {
       let query: Query = {};
       if (Object.keys(this.query).length > 0) {
@@ -681,6 +666,34 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get count(): Promise<number> {
       return this.dbConnector.count(this);
+    }
+
+    static build(attrs?: Attributes): NextModel {
+      return new this(this.mergeAttributes(this.queryAttributes, attrs));
+    }
+
+    static create(attrs?: Attributes): Promise<NextModel> {
+      return new this(this.mergeAttributes(this.queryAttributes, attrs)).save();
+    }
+
+    static firstOrInitialize(attrs?: Attributes): Promise<NextModel> {
+      return this.first.then(model => {
+        if (model === undefined) {
+          return this.build(attrs);
+        } else {
+          return model.assign(attrs || {});
+        }
+      });
+    }
+
+    static firstOrCreate(attrs?: Attributes): Promise<NextModel> {
+      return this.first.then(model => {
+        if (model === undefined) {
+          return this.create(attrs);
+        } else {
+          return model.assign(attrs || {}).save();
+        }
+      });
     }
 
     constructor(attrs?: Attributes) {
@@ -1053,6 +1066,22 @@ export class NextModel {
 
   static get count(): Promise<number> {
     throw new PropertyNotDefinedError('.count');
+  }
+
+  static build(_attrs?: Attributes): NextModel {
+    throw new PropertyNotDefinedError('.build');
+  }
+
+  static create(_attrs?: Attributes): Promise<NextModel> {
+    throw new PropertyNotDefinedError('.create');
+  }
+
+  static firstOrCreate(_attrs?: Attributes): Promise<NextModel> {
+    throw new PropertyNotDefinedError('.firstOrCreate');
+  }
+
+  static firstOrInitialize(_attrs?: Attributes): Promise<NextModel> {
+    throw new PropertyNotDefinedError('.firstOrInitialize');
   }
 
   constructor(_attrs?: Attributes) {
