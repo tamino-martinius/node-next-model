@@ -27,3 +27,171 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
 
   `User.includes({address: {}})`, `Profile.includes({user: {address: {}}})`
 * Add a solution to create **Migrations**
+
+## TOC
+
+* [Naming Conventions](#naming-conventions)
+* [Example](#example)
+* [Model Instances](#model-instances)
+  * [Build](#build)
+  * [Create](#create)
+* [Relations](#relations)
+  * [Belongs To](#belongs-to)
+  * [Has Many](#has-many)
+  * [Has One](#has-one)
+* [Searching](#searching)
+  * [Where](#where)
+  * [Order](#order)
+  * [Scopes](#scopes)
+  * [Unscope](#unscope)
+* [Fetching](#fetching)
+  * [All](#all)
+  * [Count](#count)
+  * [First](#first)
+  * [Last](#last)
+  * [Limit](#limit)
+  * [Skip](#skip)
+* [Class Properties](#class-properties)
+  * [Model Name](#model-name)
+  * [Schema](#schema)
+  * [Connector](#connector)
+  * [Identifier](#identifier)
+  * [Table Name](#table-name)
+  * [Accessors](#accessors)
+  * [Cache](#cache)
+  * [Default Scope](#default-scope)
+  * [Default Order](#default-scope)
+* [Instance Attributes](#instance-attributes)
+  * [IsNew](#isnew)
+  * [IsPersistent](#ispersistent)
+  * [Attributes](#attributes)
+  * [DatabaseAttributes](#databaseattributes)
+  * [isChanged](#ischanged)
+  * [Changes](#changes)
+  * [Custom Attributes](#custom-attributes)
+* [Instance Callbacks](#instance-callbacks)
+  * [Platform Specific Callbacks](#platform-specific-callbacks)
+  * [Change Callbacks](#change-callbacks)
+  * [Build Callbacks](#build-callbacks)
+  * [Create Callbacks](#create-callbacks)
+  * [Save Callbacks](#save-callbacks)
+  * [Delete Callbacks](#delete-callbacks)
+* [Instance Actions](#instance-actions)
+  * [Assign](#assign)
+  * [save](#save)
+  * [delete](#delete)
+  * [reload](#reload)
+* [Changelog](#changelog)
+
+## Naming Conventions
+
+To keep the configuration as short as possible, its recommended to use the following conventions:
+
+* Use camel case for multiple words
+  * `createdAt`
+  * `someOtherValue`
+  * `ChatMessage`
+* Every property starts with lower case.
+  * `createdAt`
+  * `someOtherValue`
+* Classes should be singular start with an capital letter.
+  * `Address`
+  * `Chat`
+  * `ChatMessage`
+* Foreign keys are the class names starting with an lower case character and end with Id.
+  * `User` - `userId`
+  * `Chat` - `chatId`
+  * `ChatMessage` - `chatMessageId`
+
+## Example
+
+~~~ts
+// import
+import {
+  Model,
+  NextModel,
+  Schema,
+  BelongsTo,
+  HasMany,
+} from 'next-model';
+
+// model definitions
+@Model
+class User extends NextModel {
+  // Optional typings for properties
+  id: number;
+  firstName: string;
+  lastName: string;
+  gender: string;
+
+  static get schema(): Schema {
+    return {
+      id: { type: 'integer' },
+      firstName: { type: 'string' },
+      lastName: { type: 'string' },
+      gender: { type: 'string' },
+    };
+  }
+
+  static get hasMany(): HasMany {
+    return {
+      addresses: { model: Address },
+    };
+  }
+
+  static get males(): typeof NextModel {
+    return this.queryBy({ gender: 'male' });
+  }
+
+  static get females(): typeof NextModel {
+    return this.queryBy({ gender: 'female' });
+  }
+
+  static withFirstName(firstName): typeof NextModel {
+    return this.queryBy({ firstName });
+  }
+
+  get name(): string {
+    return `${this.firstName} ${this.lastName}`;
+  }
+};
+
+@Model
+class Address extends NextModel {
+  static get schema(): Schema {
+    return {
+      id: { type: 'integer' },
+      street: { type: 'string' },
+    };
+  }
+
+  static get belongsTo(): BelongsTo {
+    return {
+      user: { model: User },
+    };
+  }
+};
+
+// Creating
+user = User.build({ firstName: 'John', lastName: 'Doe' });
+user.gender === 'male';
+user.name === 'John Doe';
+user.save().then(user => ... );
+
+User.create({
+  firstName: 'John',
+  lastName: 'Doe',
+  gender: 'male',
+}).then(user => ... );
+
+user.addresses.create({
+  street: 'Bakerstr.'
+}).then(address => ...);
+
+// Searching
+User.males.all.then(users => ... );
+User.withFirstName('John').first(user => ... );
+User.addresses.all.then(addresses => ... );
+User.where({ lastName: 'Doe' }).all.then(users => ... );
+User.males.order({ lastName: 'asc' }).all.then(users => ... );
+~~~
