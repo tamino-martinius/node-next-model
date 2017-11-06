@@ -121,6 +121,70 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.smallModelName', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.smallModelName;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('reflects name from class', () => {
+          expect(subject()).toEqual('newKlass');
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get modelName(): string {
+                return 'Foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the name of the model', () => {
+              expect(subject()).toEqual('foo');
+            });
+
+            context('when modelName is empty string', {
+              definitions() { },
+              tests() {
+                test('throws MinLengthError', () => {
+                  expect(() => {
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get modelName(): string {
+                        return '';
+                      }
+                    };
+                    Klass = NewKlass;
+                  }).toThrow(MinLengthError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.identifier', () => {
     let Klass: typeof NextModel;
     const subject = () => Klass.identifier;
