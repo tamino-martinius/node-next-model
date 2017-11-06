@@ -18,7 +18,7 @@
   "scripts": {
     "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
     "test": "jest",
-    "build": "rm -rf dist && tsc",
+    "build": "rm -rf dist/* && tsc",
     "watch": "tsc -w"
   },
   "devDependencies": {
