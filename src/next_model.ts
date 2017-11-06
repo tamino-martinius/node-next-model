@@ -274,15 +274,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
     if (schema[relation.foreignKey] === undefined) {
       schema[relation.foreignKey] = {};
       const model = relation.model;
-      if (
-        model.identifier !== undefined &&
-        model.schema !== undefined
-      ) {
-        const schemaAttr = model.schema[model.identifier];
-        if (schemaAttr !== undefined) {
-          schema[relation.foreignKey].type = schemaAttr.type;
-        }
-      }
+      const schemaAttr = model.schema[model.identifier];
+      schema[relation.foreignKey].type = schemaAttr.type;
     }
   }
   if (identifier && schema[identifier] === undefined) {
@@ -295,9 +288,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in (model.validators)) {
       const validator = model.validators[name];
-      if (validator === undefined) {
-        // skip
-      } else if (Array.isArray(validator)) {
+      if (Array.isArray(validator)) {
         validators[name] = validator;
       } else {
         validators[name] = [validator];
@@ -398,9 +389,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
   let skippedValidators: string[] = [];
   try {
-    if (model.skippedValidators === undefined) {
-      // keep default
-    } else if (typeof model.skippedValidators === 'string') {
+    if (typeof model.skippedValidators === 'string') {
       skippedValidators = [model.skippedValidators];
     } else {
       skippedValidators = model.skippedValidators;
@@ -416,9 +405,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
   let skippedCallbacks: (PromiseCallbackKeys | SyncCallbackKeys)[] = [];
   try {
-    if (model.skippedCallbacks === undefined) {
-      // keep default
-    } else if (typeof model.skippedCallbacks === 'string') {
+    if (typeof model.skippedCallbacks === 'string') {
       skippedCallbacks = [model.skippedCallbacks];
     } else {
       skippedCallbacks = model.skippedCallbacks;
@@ -581,12 +568,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return attrs;
     }
 
-    private static mergeAttributes(attrs1?: Attributes, attrs2?: Attributes): Attributes {
-      const attrs: Attributes = attrs1 || {};
-      if (attrs2 !== undefined) {
-        for (const key in attrs2) {
-          attrs[key] = attrs2[key];
-        }
+    private static mergeAttributes(attrs1: Attributes, attrs2: Attributes): Attributes {
+      const attrs: Attributes = attrs1;
+      for (const key in attrs2) {
+        attrs[key] = attrs2[key];
       }
       return attrs;
     }
@@ -673,36 +658,36 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.dbConnector.count(this);
     }
 
-    static build(attrs?: Attributes): NextModel {
+    static build(attrs: Attributes = {}): NextModel {
       return new this(this.mergeAttributes(this.queryAttributes, attrs));
     }
 
-    static create(attrs?: Attributes): Promise<NextModel> {
+    static create(attrs: Attributes = {}): Promise<NextModel> {
       return new this(this.mergeAttributes(this.queryAttributes, attrs)).save();
     }
 
-    static firstOrInitialize(attrs?: Attributes): Promise<NextModel> {
+    static firstOrInitialize(attrs: Attributes = {}): Promise<NextModel> {
       return this.first.then(model => {
         if (model === undefined) {
           return this.build(attrs);
         } else {
-          return model.assign(attrs || {});
+          return model.assign(attrs);
         }
       });
     }
 
-    static firstOrCreate(attrs?: Attributes): Promise<NextModel> {
+    static firstOrCreate(attrs: Attributes = {}): Promise<NextModel> {
       return this.first.then(model => {
         if (model === undefined) {
           return this.create(attrs);
         } else {
-          return model.assign(attrs || {}).save();
+          return model.assign(attrs).save();
         }
       });
     }
 
     constructor(attrs?: Attributes) {
-      super();
+      super(attrs)
       keys.map(key => this.data[key] = undefined);
       if (attrs !== undefined) {
         this.assign(attrs);
