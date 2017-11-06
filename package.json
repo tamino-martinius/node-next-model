@@ -16,9 +16,9 @@
     "node": ">=4.3.2"
   },
   "scripts": {
-    "coverage": "rm -rf coverage* && jest --coverage --verbose && node remap_coverage.js && rm -rf coverage_jest_raw*",
-    "test": "jest --verbose",
-    "build": "tsc",
+    "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
+    "test": "jest",
+    "build": "rm -rf dist && tsc",
     "watch": "tsc -w"
   },
   "devDependencies": {
@@ -40,9 +40,9 @@
   },
   "jest": {
     "transform": {
-      ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
+      ".ts": "<rootDir>/node_modules/ts-jest/preprocessor.js"
     },
-    "testRegex": "(\\.(test|spec))\\.(ts|tsx|js)$",
+    "testRegex": "\\.(test|spec)\\.ts$",
     "moduleFileExtensions": [
       "ts",
       "tsx",
