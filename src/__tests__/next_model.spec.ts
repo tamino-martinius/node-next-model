@@ -3674,16 +3674,15 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns empty default', () => {
+        test('returns created object', () => {
           return expect(subject()).resolves.toEqual({
-            id: undefined,
+            id: 1,
           });
         });
 
         context('when attributes are passed', {
           definitions() {
             attrs = {
-              id: 1,
               baz: '💩',
             }
           },
@@ -3712,7 +3711,7 @@ describe('NextModel', () => {
           tests() {
             test('returns object with keys of the schema', () => {
               return expect(subject()).resolves.toEqual({
-                id: undefined,
+                id: 1,
                 foo: undefined,
               });
             });
@@ -3720,7 +3719,6 @@ describe('NextModel', () => {
             context('when attributes are passed', {
               definitions() {
                 attrs = {
-                  id: 1,
                   foo: 'bar',
                   baz: '💩',
                 }
@@ -3753,7 +3751,7 @@ describe('NextModel', () => {
               tests() {
                 test('returns object with keys of the belongsTo relation', () => {
                   return expect(subject()).resolves.toEqual({
-                    id: undefined,
+                    id: 1,
                     foo: undefined,
                     userId: undefined,
                   });
@@ -3797,7 +3795,7 @@ describe('NextModel', () => {
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
                       return expect(subject()).resolves.toEqual({
-                        id: undefined,
+                        id: 1,
                         foo: 'bar',
                         userId: undefined,
                       });
@@ -3839,7 +3837,7 @@ describe('NextModel', () => {
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
                       return expect(subject()).resolves.toEqual({
-                        id: undefined,
+                        id: 1,
                         foo: undefined,
                         userId: undefined,
                         bar: undefined,
@@ -4132,14 +4130,13 @@ describe('NextModel', () => {
       tests() {
         test('returns empty default', () => {
           return expect(subject()).resolves.toEqual({
-            id: undefined,
+            id: 1,
           });
         });
 
         context('when attributes are passed', {
           definitions() {
             attrs = {
-              id: 1,
               baz: '💩',
             }
           },
@@ -4168,7 +4165,7 @@ describe('NextModel', () => {
           tests() {
             test('returns object with keys of the schema', () => {
               return expect(subject()).resolves.toEqual({
-                id: undefined,
+                id: 1,
                 foo: undefined,
               });
             });
@@ -4176,7 +4173,6 @@ describe('NextModel', () => {
             context('when attributes are passed', {
               definitions() {
                 attrs = {
-                  id: 1,
                   foo: 'bar',
                   baz: '💩',
                 }
@@ -4209,7 +4205,7 @@ describe('NextModel', () => {
               tests() {
                 test('returns object with keys of the belongsTo relation', () => {
                   return expect(subject()).resolves.toEqual({
-                    id: undefined,
+                    id: 1,
                     foo: undefined,
                     userId: undefined,
                   });
@@ -4218,7 +4214,6 @@ describe('NextModel', () => {
                 context('when attributes are passed', {
                   definitions() {
                     attrs = {
-                      id: 1,
                       foo: 'bar',
                       userId: 2,
                       baz: '💩',
@@ -4253,7 +4248,7 @@ describe('NextModel', () => {
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
                       return expect(subject()).resolves.toEqual({
-                        id: undefined,
+                        id: 1,
                         foo: 'bar',
                         userId: undefined,
                       });
@@ -4262,7 +4257,6 @@ describe('NextModel', () => {
                     context('when attributes are passed', {
                       definitions() {
                         attrs = {
-                          id: 1,
                           foo: 'bar',
                           bar: '💩',
                         }
@@ -4295,7 +4289,7 @@ describe('NextModel', () => {
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
                       return expect(subject()).resolves.toEqual({
-                        id: undefined,
+                        id: 1,
                         foo: undefined,
                         userId: undefined,
                         bar: undefined,
@@ -4305,7 +4299,6 @@ describe('NextModel', () => {
                     context('when attributes are passed', {
                       definitions() {
                         attrs = {
-                          id: 1,
                           foo: 'bar',
                           bar: 'foo',
                           baz: '💩',
@@ -4656,9 +4649,6 @@ describe('NextModel', () => {
                   const klass = subject();
                   klass.id = 1;
                   return expect(klass.users).resolves.toBeUndefined();
-                });
-
-                test.skip('check if query is correct', () => {
                 });
               },
             });
