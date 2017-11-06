@@ -190,6 +190,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   } catch (e) {
     if (!(e instanceof PropertyNotDefinedError)) throw e;
   }
+  const smallModelName: string = modelName[0].toLowerCase() + modelName.substr(1);
 
   let identifier: string = 'id';
   try {
@@ -224,7 +225,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in model.belongsTo) {
       const relation = model.belongsTo[name];
-      const foreignKey = relation.foreignKey || relation.model.modelName + 'Id';
+      const foreignKey = relation.foreignKey || relation.model.smallModelName + 'Id';
       belongsTo[name] = {
         foreignKey,
         model: relation.model,
@@ -238,7 +239,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in model.hasMany) {
       const relation = model.hasMany[name];
-      const foreignKey = relation.foreignKey || modelName + 'Id';
+      const foreignKey = relation.foreignKey || smallModelName + 'Id';
       hasMany[name] = {
         foreignKey,
         model: relation.model,
@@ -252,7 +253,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   try {
     for (const name in model.hasOne) {
       const relation = model.hasOne[name];
-      const foreignKey = relation.foreignKey || modelName + 'Id';
+      const foreignKey = relation.foreignKey || smallModelName + 'Id';
       hasOne[name] = {
         foreignKey,
         model: relation.model,
@@ -449,6 +450,10 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get modelName(): string {
       return modelName;
+    }
+
+    static get smallModelName(): string {
+      return smallModelName;
     }
 
     static get identifier(): string {
@@ -929,6 +934,10 @@ export class NextModel {
   _errors: Errors;
 
   static get modelName(): string {
+    throw new PropertyNotDefinedError('.modelName');
+  }
+
+  static get smallModelName(): string {
     throw new PropertyNotDefinedError('.modelName');
   }
 
