@@ -35,7 +35,21 @@ import {
 } from '../__mocks__/next_model';
 
 // Have a user seeded in his local db
-User.dbConnector.create(new User());
+
+const seededUserDb: () => Promise<NextModel> = () => {
+  return User.dbConnector.first(User)
+  .then(user => {
+    if (user !== undefined) {
+      return User.dbConnector.delete(user);
+    }
+    return Promise.resolve(user);
+  }).then(() => {
+    return User.dbConnector.create(User.build({
+      firstName: 'Seeded',
+      lastName: 'User',
+    }));
+  });
+};
 
 describe('NextModel', () => {
   // Static properties
@@ -3424,7 +3438,7 @@ describe('NextModel', () => {
 
   describe('#build(attrs)', () => {
     let Klass: typeof NextModel;
-    let attrs: Attributes = {};
+    let attrs: Attributes | undefined = undefined;
     const subject = () => Klass.build(attrs).attributes;
 
     context('when decorator is not present', {
@@ -3457,7 +3471,7 @@ describe('NextModel', () => {
             attrs = {
               id: 1,
               baz: '💩',
-            }
+            };
           },
           tests() {
             test('returns object with applied attributes', () => {
@@ -3495,7 +3509,7 @@ describe('NextModel', () => {
                   id: 1,
                   foo: 'bar',
                   baz: '💩',
-                }
+                };
               },
               tests() {
                 test('returns object with applied attributes', () => {
@@ -3538,7 +3552,7 @@ describe('NextModel', () => {
                       foo: 'bar',
                       userId: 2,
                       baz: '💩',
-                    }
+                    };
                   },
                   tests() {
                     test('returns object with applied attributes', () => {
@@ -3581,7 +3595,7 @@ describe('NextModel', () => {
                           id: 1,
                           foo: 'bar',
                           bar: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -3652,7 +3666,7 @@ describe('NextModel', () => {
 
   describe('#create(attrs)', () => {
     let Klass: typeof NextModel;
-    let attrs: Attributes = {};
+    let attrs: Attributes | undefined = undefined;
     const subject = () => Klass.create(attrs).then(klass => klass.attributes);
 
     context('when decorator is not present', {
@@ -3684,7 +3698,7 @@ describe('NextModel', () => {
           definitions() {
             attrs = {
               baz: '💩',
-            }
+            };
           },
           tests() {
             test('returns object with applied attributes', () => {
@@ -3721,7 +3735,7 @@ describe('NextModel', () => {
                 attrs = {
                   foo: 'bar',
                   baz: '💩',
-                }
+                };
               },
               tests() {
                 test('returns object with applied attributes', () => {
@@ -3807,7 +3821,7 @@ describe('NextModel', () => {
                           id: 1,
                           foo: 'bar',
                           bar: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -3851,7 +3865,7 @@ describe('NextModel', () => {
                           foo: 'bar',
                           bar: 'foo',
                           baz: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -3878,7 +3892,7 @@ describe('NextModel', () => {
 
   describe('#firstOrInitialize(attrs)', () => {
     let Klass: typeof NextModel;
-    let attrs: Attributes = {};
+    let attrs: Attributes | undefined = undefined;
     const subject = () => Klass.firstOrInitialize(attrs).then(klass => klass.attributes);
 
     context('when decorator is not present', {
@@ -3889,6 +3903,44 @@ describe('NextModel', () => {
       tests() {
         test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when query returns result', {
+      definitions() {
+        attrs = {
+          firstName: 'foo',
+        };
+        Klass = User;
+        return seededUserDb();
+      },
+      tests() {
+        test('returns database record with overwritten attributes', () => {
+          return expect(subject()).resolves.toEqual({
+            id: expect.any(Number),
+            firstName: 'foo',
+            lastName: 'User',
+          });
+        });
+      },
+    });
+
+    context('when query does not return result', {
+      definitions() {
+        attrs = {
+          firstName: 'foo',
+        };
+        Klass = User.queryBy({ id: 0 });
+        return seededUserDb();
+      },
+      tests() {
+        test('returns empty default', () => {
+          return expect(subject()).resolves.toEqual({
+            id: undefined,
+            firstName: 'foo',
+            lastName: undefined,
+          });
         });
       },
     });
@@ -3911,7 +3963,7 @@ describe('NextModel', () => {
             attrs = {
               id: 1,
               baz: '💩',
-            }
+            };
           },
           tests() {
             test('returns object with applied attributes', () => {
@@ -3949,7 +4001,7 @@ describe('NextModel', () => {
                   id: 1,
                   foo: 'bar',
                   baz: '💩',
-                }
+                };
               },
               tests() {
                 test('returns object with applied attributes', () => {
@@ -3992,7 +4044,7 @@ describe('NextModel', () => {
                       foo: 'bar',
                       userId: 2,
                       baz: '💩',
-                    }
+                    };
                   },
                   tests() {
                     test('returns object with applied attributes', () => {
@@ -4035,7 +4087,7 @@ describe('NextModel', () => {
                           id: 1,
                           foo: 'bar',
                           bar: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -4079,7 +4131,7 @@ describe('NextModel', () => {
                           foo: 'bar',
                           bar: 'foo',
                           baz: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -4106,8 +4158,8 @@ describe('NextModel', () => {
 
   describe('#firstOrCreate(attrs)', () => {
     let Klass: typeof NextModel;
-    let attrs: Attributes = {};
-    const subject = () => Klass.create(attrs).then(klass => klass.attributes);
+    let attrs: Attributes | undefined = undefined;
+    const subject = () => Klass.firstOrCreate(attrs).then(klass => klass.attributes);
 
     context('when decorator is not present', {
       definitions() {
@@ -4117,6 +4169,44 @@ describe('NextModel', () => {
       tests() {
         test('throws PropertyNotDefinedError', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when query returns result', {
+      definitions() {
+        attrs = {
+          firstName: 'foo',
+        };
+        Klass = User;
+        return seededUserDb();
+      },
+      tests() {
+        test('returns empty default', () => {
+          return expect(subject()).resolves.toEqual({
+            id: expect.any(Number),
+            firstName: 'foo',
+            lastName: 'User',
+          });
+        });
+      },
+    });
+
+    context('when query does not return result', {
+      definitions() {
+        attrs = {
+          firstName: 'foo',
+        };
+        Klass = User.queryBy({ id: 0 });
+        return seededUserDb();
+      },
+      tests() {
+        test('returns empty default', () => {
+          return expect(subject()).resolves.toEqual({
+            id: expect.any(Number),
+            firstName: 'foo',
+            lastName: undefined,
+          });
         });
       },
     });
@@ -4138,7 +4228,7 @@ describe('NextModel', () => {
           definitions() {
             attrs = {
               baz: '💩',
-            }
+            };
           },
           tests() {
             test('returns object with applied attributes', () => {
@@ -4175,7 +4265,7 @@ describe('NextModel', () => {
                 attrs = {
                   foo: 'bar',
                   baz: '💩',
-                }
+                };
               },
               tests() {
                 test('returns object with applied attributes', () => {
@@ -4217,7 +4307,7 @@ describe('NextModel', () => {
                       foo: 'bar',
                       userId: 2,
                       baz: '💩',
-                    }
+                    };
                   },
                   tests() {
                     test('returns object with applied attributes', () => {
@@ -4259,7 +4349,7 @@ describe('NextModel', () => {
                         attrs = {
                           foo: 'bar',
                           bar: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -4302,7 +4392,7 @@ describe('NextModel', () => {
                           foo: 'bar',
                           bar: 'foo',
                           baz: '💩',
-                        }
+                        };
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
@@ -4547,6 +4637,7 @@ describe('NextModel', () => {
                   }
                 };
                 Klass = NewKlass;
+                return seededUserDb();
               },
               tests() {
                 test('returns new Model without any changes', () => {
@@ -4578,8 +4669,14 @@ describe('NextModel', () => {
 
                 test('reads user from storage', () => {
                   const klass: NextModel = subject();
-                  klass.userId = 1;
-                  return expect(klass.user).resolves.toEqual(new User({ id: 1 }));
+                  return User.first.then(user => {
+                    klass.userId = user ? user.id : 1;
+                    return expect(klass.user).resolves.toEqual(new User({
+                      id: expect.any(Number),
+                      firstName: 'Seeded',
+                      lastName: 'User',
+                     }));
+                  })
                 });
               },
             });
