@@ -576,6 +576,51 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return attrs;
     }
 
+    static skipBy(amount: number): typeof NextModel {
+      if (amount < 0) {
+        throw new LowerBoundsError('#skipBy', 0);
+      }
+      if (!Number.isInteger(amount)) {
+        throw new TypeError('#skipBy', 'integer');
+      }
+      return class extends this {
+        static get skip(): number {
+          return amount;
+        }
+      };
+    }
+
+    static get unskipped(): typeof NextModel {
+      return class extends this {
+        static get skip(): number {
+          return 0;
+        }
+      };
+    }
+
+    static limitBy(amount: number): typeof NextModel {
+      if (amount < 0) {
+        throw new LowerBoundsError('#limitBy', 0);
+      }
+      if (!Number.isInteger(amount)) {
+        throw new TypeError('#limitBy', 'integer');
+      }
+
+      return class extends this {
+        static get limit(): number {
+          return amount;
+        }
+      };
+    }
+
+    static get unlimited(): typeof NextModel {
+      return class extends this {
+        static get limit(): number {
+          return Number.MAX_SAFE_INTEGER;
+        }
+      };
+    }
+
     static queryBy(queryBy: Query, combinator: string = '$and'): typeof StrictNextModel {
       let query: Query = {};
       if (Object.keys(this.query).length > 0) {
@@ -656,6 +701,14 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get count(): Promise<number> {
       return this.dbConnector.count(this);
+    }
+
+    static updateAll(attrs: Attributes): Promise<NextModel[]> {
+      return this.dbConnector.updateAll(this, attrs);
+    }
+
+    static deleteAll(): Promise<NextModel[]> {
+      return this.dbConnector.deleteAll(this);
     }
 
     static build(attrs: Attributes = {}): NextModel {
@@ -1018,23 +1071,39 @@ export class NextModel {
     throw new PropertyNotDefinedError('.hasDbKey');
   }
 
-  static queryBy(_queryBy: Query): typeof NextModel {
+  static skipBy(_amount: number): typeof NextModel {
+    throw new PropertyNotDefinedError('.skipBy()');
+  }
+
+  static get unskipped(): typeof NextModel {
+    throw new PropertyNotDefinedError('.unskip()');
+  }
+
+  static limitBy(_amount: number): typeof NextModel {
+    throw new PropertyNotDefinedError('.limitBy()');
+  }
+
+  static get unlimited(): typeof NextModel {
+    throw new PropertyNotDefinedError('.unlimited()');
+  }
+
+  static queryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.queryBy()');
   }
 
-  static andQueryBy(_queryBy: Query): typeof NextModel {
+  static andQueryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.andQueryBy()');
   }
 
-  static orQueryBy(_queryBy: Query): typeof NextModel {
+  static orQueryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.orQueryBy()');
   }
 
-  static notQueryBy(_queryBy: Query): typeof NextModel {
+  static notQueryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.notQueryBy()');
   }
 
-  static orderBy(_orderBy: Order): typeof NextModel {
+  static orderBy(_order: Order): typeof NextModel {
     throw new PropertyNotDefinedError('.orderBy()');
   }
 
@@ -1060,6 +1129,14 @@ export class NextModel {
 
   static get count(): Promise<number> {
     throw new PropertyNotDefinedError('.count');
+  }
+
+  static updateAll(_attrs?: Attributes): Promise<NextModel[]> {
+    throw new PropertyNotDefinedError('.updateAll');
+  }
+
+  static deleteAll(): Promise<NextModel[]> {
+    throw new PropertyNotDefinedError('.deleteAll');
   }
 
   static build(_attrs?: Attributes): NextModel {
