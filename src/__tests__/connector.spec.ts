@@ -23,7 +23,7 @@ beforeEach(() => {
 })
 
 describe('DefaultConnector', () => {
-  describe('#all', () => {
+  describe('#all(model)', () => {
     let Klass: typeof NextModel;
     const subject = () => connector().all(Klass);
 
@@ -374,7 +374,7 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#first', () => {
+  describe('#first(model)', () => {
     let Klass: typeof NextModel;
     const subject = () => connector().first(Klass);
 
@@ -693,7 +693,7 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#count', () => {
+  describe('#count(model)', () => {
     let Klass: typeof NextModel;
     const subject = () => connector().count(Klass);
 
@@ -1246,7 +1246,7 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#delete', () => {
+  describe('#delete(instance)', () => {
     let Klass: typeof NextModel;
     let items: Attributes[];
     let cn: DefaultConnector;

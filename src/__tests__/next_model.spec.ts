@@ -4417,7 +4417,7 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.constructor', () => {
+  describe('.constructor(attrs)', () => {
     let Klass: typeof NextModel;
     let attrs: Attributes | undefined = undefined;
     const subject = () => new Klass(attrs);
