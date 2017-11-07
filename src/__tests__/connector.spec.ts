@@ -1077,12 +1077,12 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#insert', () => {
+  describe('#insert(instance)', () => {
     let Klass: typeof NextModel;
     let items: Attributes[];
-    let attributes: Attributes | undefined = undefined;
+    let attrs: Attributes | undefined = undefined;
     let cn: DefaultConnector;
-    let klass: () => NextModel = () => new Klass(attributes);
+    let klass: () => NextModel = () => new Klass(attrs);
     const subject = () => {
       cn = connector();
       items = cn.items(Klass);
@@ -1120,7 +1120,7 @@ describe('DefaultConnector', () => {
 
     context('with complex model', {
       definitions() {
-        attributes = {
+        attrs = {
           foo: 'bar',
           bar: 'baz',
         };
@@ -1163,12 +1163,12 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#update', () => {
+  describe('#update(instance)', () => {
     let Klass: typeof NextModel;
     let items: Attributes[];
-    let attributes: Attributes | undefined = undefined;
+    let attrs: Attributes | undefined = undefined;
     let cn: DefaultConnector;
-    let klass: () => NextModel = () => new Klass(attributes);
+    let klass: () => NextModel = () => new Klass(attrs);
     const subject = () => {
       cn = connector();
       items = cn.items(Klass);
@@ -1177,7 +1177,7 @@ describe('DefaultConnector', () => {
 
     context('with complex model', {
       definitions() {
-        attributes = {
+        attrs = {
           id: 1,
           foo: 'bar',
           bar: 'baz',
