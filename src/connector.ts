@@ -37,6 +37,8 @@ export interface Connector {
   all(model: typeof NextModel): Promise<NextModel[]>;
   first(model: typeof NextModel): Promise<NextModel | undefined>;
   count(model: typeof NextModel): Promise<number>;
+  updateAll(model: typeof NextModel, attrs: Attributes): Promise<NextModel[]>;
+  deleteAll(model: typeof NextModel): Promise<NextModel[]>;
   reload(instance: NextModel): Promise<NextModel | undefined>;
   create(instance: NextModel): Promise<NextModel>;
   update(instance: NextModel): Promise<NextModel>;
@@ -134,7 +136,7 @@ export class DefaultConnector implements Connector {
     const id: any = instance[identifier];
     for (let index = 0; index < items.length; index++) {
       if (items[index][identifier] === id) {
-        return index
+        return index;
       }
     }
     return undefined;
@@ -162,6 +164,26 @@ export class DefaultConnector implements Connector {
 
   count(model: typeof NextModel): Promise<number> {
     return Promise.resolve(this.query(this.items(model), model.query).length);
+  }
+
+  updateAll(model: typeof NextModel, attrs: Attributes): Promise<NextModel[]> {
+    const items: Attributes[] = this.items(model);
+    const attrArray: Attributes[] = this.query(items, model.query);
+    const instances = attrArray.map(attrs => new model(attrs));
+    return Promise.all(instances.map(instance => this.update(instance.assign(attrs))));
+  }
+
+  deleteAll(model: typeof NextModel): Promise<NextModel[]> {
+    const items: Attributes[] = this.items(model);
+    const attrArray: Attributes[] = this.query(items, model.query);
+    const instances = attrArray.map(attrs => new model(attrs));
+    instances.forEach(instance => {
+      const index: number | undefined = this.indexOf(this.items(model), instance);
+      if (index !== undefined) {
+        items.splice(index, 1);
+      }
+    });
+    return Promise.resolve(instances);
   }
 
   reload(instance: NextModel): Promise<NextModel | undefined> {
@@ -192,6 +214,8 @@ export class DefaultConnector implements Connector {
     }
     return Promise.resolve(instance);
   }
+
+
 
   delete(instance: NextModel) {
     const model = instance.model;
