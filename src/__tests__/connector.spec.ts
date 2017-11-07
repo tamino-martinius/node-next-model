@@ -1013,6 +1013,97 @@ describe('DefaultConnector', () => {
   });
 
   describe('#reload', () => {
+  describe('#updateAll(model, attrs)', () => {
+    let Klass: typeof NextModel;
+    let items: Attributes[];
+    let attrs: Attributes = {};
+    let cn: DefaultConnector;
+    const subject = () => {
+      cn = connector();
+      items = cn.items(Klass);
+      return cn.updateAll(Klass, attrs);
+    }
+
+    context('with complex model', {
+      definitions() {
+        attrs = {
+          id: 1,
+          foo: 'bar',
+          bar: 'baz',
+        };
+
+        storage = {
+          Foo: [
+            { id: 1, foo: 'foo' },
+          ],
+        };
+
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+
+          static get query(): Query {
+            return {
+              id: 1,
+            };
+          }
+
+          static get schema(): Schema {
+            return {
+              foo: { type: 'string' },
+            }
+          }
+
+          static get attrAccessors(): string[] {
+            return ['bar'];
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('updates item within storage storage', () => {
+          return subject().then(instances => {
+            expect(instances).toEqual([
+              new Klass({ id: 1, foo: 'bar', bar: 'baz', }),
+            ]);
+            expect(items).toEqual([
+              { id: 1, foo: 'bar' },
+            ]);
+            return cn.updateAll(Klass, { foo: undefined });
+          }).then(instances => {
+            expect(instances).toEqual([
+              new Klass({ id: 1, foo: undefined }),
+            ]);
+            expect(items).toEqual([
+              { id: 1, foo: undefined },
+            ]);
+          });
+        });
+
+        context('when item is not in storage', {
+          definitions() {
+            storage = {
+              Foo: [
+                { id: 2, foo: 'foo' },
+              ],
+            };
+          },
+          tests() {
+            test('does not change storage', () => {
+              return subject().then(instances => {
+                expect(instances).toEqual([]);
+                expect(items).toEqual([
+                  { id: 2, foo: 'foo' },
+                ]);
+              });
+            });
+          },
+        });
+      },
+    });
+  });
     let Klass: typeof NextModel;
     let klass: () => NextModel = () => new Klass({id: 1});
     const subject = () => connector().reload(klass());
