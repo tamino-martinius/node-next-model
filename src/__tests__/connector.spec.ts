@@ -1012,7 +1012,6 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#reload', () => {
   describe('#updateAll(model, attrs)', () => {
     let Klass: typeof NextModel;
     let items: Attributes[];
@@ -1104,6 +1103,103 @@ describe('DefaultConnector', () => {
       },
     });
   });
+
+  describe('#deleteAll(model)', () => {
+    let Klass: typeof NextModel;
+    let items: Attributes[];
+    let cn: DefaultConnector;
+    const subject = (model: typeof NextModel) => {
+      cn = connector();
+      items = cn.items(model);
+      return cn.deleteAll(model);
+    }
+
+    context('with simple model', {
+      definitions() {
+        storage = {
+          Foo: [
+            { id: 1 },
+            { id: 2 },
+            { id: 3 },
+          ],
+        };
+
+        @Model
+        class NewKlass extends NextModel {
+          static get modelName(): string {
+            return 'Foo';
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('removed item from storage', () => {
+          return subject(Klass.queryBy({ id: 2 })).then(instances => {
+            expect(instances).toEqual([
+              new Klass({ id: 2 }),
+            ]);
+            expect(items).toEqual([
+              { id: 1 },
+              { id: 3 },
+            ]);
+            return cn.deleteAll(Klass);
+          }).then(instances => {
+            expect(instances).toEqual([
+              new Klass({ id: 1 }),
+              new Klass({ id: 3 }),
+            ]);
+            expect(items).toEqual([]);
+          });
+        });
+      },
+    });
+
+    context('race condition', {
+      definitions() {
+        storage = {
+          Foo: [
+            { id: 1 },
+            { id: 2 },
+            { id: 3 },
+          ],
+        };
+
+        @Model
+        class NewKlass extends NextModel {
+          static get query(): Query {
+            return {
+              id: 0,
+            };
+          }
+
+          static get modelName(): string {
+            return 'Foo';
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('finds item but its already removed', () => {
+          cn = connector();
+          items = cn.items(Klass);
+          cn.items = jest.fn().mockReturnValueOnce([{ id: 0 }]).mockReturnValueOnce(items);
+          return cn.deleteAll(Klass).then(instances => {
+            expect(instances).toEqual([
+              new Klass({ id: 0 }),
+            ]);
+            expect(items).toEqual([
+              { id: 1 },
+              { id: 2 },
+              { id: 3 },
+            ]);
+          })
+        });
+      },
+    });
+
+  });
+
+  describe('#reload(instance)', () => {
     let Klass: typeof NextModel;
     let klass: () => NextModel = () => new Klass({id: 1});
     const subject = () => connector().reload(klass());
