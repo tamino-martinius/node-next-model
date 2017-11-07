@@ -2482,6 +2482,230 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.skipBy(amount)', () => {
+    let Klass: typeof NextModel;
+    const subject = (amount: number) => Klass.skipBy(amount).skip;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns default skip', () => {
+          expect(subject(0)).toEqual(0);
+        });
+
+        context('when skip is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skip(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('overrides the skip of the model', () => {
+              expect(subject(815)).toEqual(815);
+            });
+
+            context('when skip is below 0', {
+              definitions() { },
+              tests() {
+                test('throws LowerBoundsError', () => {
+                  expect(() => subject(-1)).toThrow(LowerBoundsError);
+                });
+              },
+            });
+
+            context('when skip is floating point', {
+              definitions() { },
+              tests() {
+                test('throws TypeError', () => {
+                  expect(() => subject(1.5)).toThrow(TypeError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.unskipped', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.unskipped.skip;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns default skip', () => {
+          expect(subject()).toEqual(0);
+        });
+
+        context('when skip is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skip(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('overrides the skip of the model', () => {
+              expect(subject()).toEqual(0);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.limitBy(amount)', () => {
+    let Klass: typeof NextModel;
+    const subject = (amount: number) => Klass.limitBy(amount).limit;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns default skip', () => {
+          expect(subject(0)).toEqual(0);
+        });
+
+        context('when skip is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skip(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('overrides the skip of the model', () => {
+              expect(subject(815)).toEqual(815);
+            });
+
+            context('when skip is below 0', {
+              definitions() { },
+              tests() {
+                test('throws LowerBoundsError', () => {
+                  expect(() => subject(-1)).toThrow(LowerBoundsError);
+                });
+              },
+            });
+
+            context('when skip is floating point', {
+              definitions() { },
+              tests() {
+                test('throws TypeError', () => {
+                  expect(() => subject(1.5)).toThrow(TypeError);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.unlimited', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.unlimited.limit;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns default skip', () => {
+          expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
+        });
+
+        context('when skip is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skip(): number {
+                return 4711;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('overrides the skip of the model', () => {
+              expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.queryBy(query)', () => {
     let Klass: typeof NextModel;
     const query: Query = {
@@ -3431,6 +3655,69 @@ describe('NextModel', () => {
       tests() {
         test('returns empty array', () => {
           return expect(subject()).resolves.toEqual(0);
+        });
+      },
+    });
+  });
+
+  describe('.updateAll(attrs)', () => {
+    let Klass: typeof NextModel;
+    let attrs: Attributes = {};
+    const subject = () => Klass.updateAll(attrs);
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns empty array', () => {
+          return expect(subject()).resolves.toEqual([]);
+        });
+      },
+    });
+  });
+
+  describe('.deleteAll(attrs)', () => {
+    let Klass: typeof NextModel;
+    const subject = () => Klass.deleteAll();
+
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns empty array', () => {
+          return expect(subject()).resolves.toEqual([]);
         });
       },
     });
