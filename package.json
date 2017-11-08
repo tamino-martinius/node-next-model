@@ -24,9 +24,7 @@
   },
   "devDependencies": {
     "@types/jest": "^21.1.2",
-    "@types/lodash": "^4.14.77",
     "@types/node": "^8.0.33",
-    "@types/pluralize": "0.0.27",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.0",
     "codecov": "^3.0.0",
     "jest": "^21.2.1",
@@ -35,10 +33,6 @@
     "remap-istanbul": "^0.9.5",
     "ts-jest": "^21.1.2",
     "typescript": "^2.5.3"
-  },
-  "peerDependencies": {
-    "lodash": "^4.12.0",
-    "pluralize": "^3.1.0"
   },
   "jest": {
     "transform": {
