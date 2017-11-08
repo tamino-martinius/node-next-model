@@ -187,6 +187,25 @@ describe('DefaultConnector', () => {
               },
             });
 
+            context('when query is with empty $and', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get query(): Query {
+                    return {
+                      $and: [],
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                test('returns all matching items as model instances', () => {
+                  return expect(subject()).resolves.toEqual([]);
+                });
+              },
+            });
+
             context('when query is with single $and', {
               definitions() {
                 @Model
@@ -230,6 +249,46 @@ describe('DefaultConnector', () => {
                   return expect(subject()).resolves.toEqual([
                     new Klass({ id: 1 }),
                   ]);
+                });
+              },
+            });
+
+            context('when query is with multiple $and', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get query(): Query {
+                    return {
+                      $and: [
+                        { id: 1 },
+                        { id: 2 },
+                      ],
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                test('returns all matching items as model instances', () => {
+                  return expect(subject()).resolves.toEqual([]);
+                });
+              },
+            });
+            context('when query is with empty $or', {
+              definitions() {
+                @Model
+                class NewKlass extends Klass {
+                  static get query(): Query {
+                    return {
+                      $or: [],
+                    };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                test('returns all matching items as model instances', () => {
+                  return expect(subject()).resolves.toEqual([]);
                 });
               },
             });
