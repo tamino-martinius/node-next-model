@@ -1012,6 +1012,8 @@ describe('NextModel', () => {
       afterReload: [promiseCallback],
       beforeAssign: [syncCallback],
       afterAssign: [syncCallback],
+      beforeChange: [syncCallback],
+      afterChange: [syncCallback],
     };
     const subject = () => Klass.callbacks;
 
@@ -1063,6 +1065,8 @@ describe('NextModel', () => {
             afterReload: [],
             beforeAssign: [],
             afterAssign: [],
+            beforeChange: [],
+            afterChange: [],
           });
         });
 
@@ -1097,6 +1101,8 @@ describe('NextModel', () => {
                       afterReload: undefined,
                       beforeAssign: undefined,
                       afterAssign: undefined,
+                      beforeChange: undefined,
+                      afterChange: undefined,
                     };
                   }
                 };
@@ -1115,6 +1121,8 @@ describe('NextModel', () => {
                     afterReload: [],
                     beforeAssign: [],
                     afterAssign: [],
+                    beforeChange: [],
+                    afterChange: [],
                   });
                 });
               },
@@ -1136,6 +1144,8 @@ describe('NextModel', () => {
                       afterReload: promiseCallback,
                       beforeAssign: syncCallback,
                       afterAssign: syncCallback,
+                      beforeChange: syncCallback,
+                      afterChange: syncCallback,
                     };
                   }
                 };
@@ -1164,6 +1174,8 @@ describe('NextModel', () => {
                       afterReload: promiseCallback,
                       beforeAssign: [syncCallback],
                       afterAssign: syncCallback,
+                      beforeChange: [syncCallback],
+                      afterChange: syncCallback,
                     };
                   }
                 };
@@ -1196,6 +1208,8 @@ describe('NextModel', () => {
       afterReload: [promiseCallback],
       beforeAssign: [syncCallback],
       afterAssign: [syncCallback],
+      beforeChange: [syncCallback],
+      afterChange: [syncCallback],
     };
     const subject = () => Klass.activeCallbacks;
 
@@ -1231,6 +1245,8 @@ describe('NextModel', () => {
             afterReload: [],
             beforeAssign: [],
             afterAssign: [],
+            beforeChange: [],
+            afterChange: [],
           });
         });
 
@@ -1264,6 +1280,8 @@ describe('NextModel', () => {
                       'afterReload',
                       'beforeAssign',
                       'afterAssign',
+                      'beforeChange',
+                      'afterChange',
                     ];
                   }
                 };
@@ -1282,6 +1300,8 @@ describe('NextModel', () => {
                     afterReload: [],
                     beforeAssign: [],
                     afterAssign: [],
+                    beforeChange: [],
+                    afterChange: [],
                   });
                 });
               },
@@ -1298,6 +1318,7 @@ describe('NextModel', () => {
                       'afterDelete',
                       'beforeReload',
                       'afterAssign',
+                      'beforeChange',
                     ];
                   }
                 };
@@ -1316,6 +1337,8 @@ describe('NextModel', () => {
                     afterReload: [promiseCallback],
                     beforeAssign: [syncCallback],
                     afterAssign: [],
+                    beforeChange: [],
+                    afterChange: [syncCallback],
                   });
                 });
               },

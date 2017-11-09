@@ -145,7 +145,7 @@ export interface Errors {
 };
 
 export type SyncCallback = (klass: NextModel) => boolean;
-export type SyncCallbackKeys = 'beforeAssign' | 'afterAssign'
+export type SyncCallbackKeys = 'beforeAssign' | 'afterAssign' | 'beforeChange' | 'afterChange'
 export type PromiseCallback = (klass: NextModel) => Promise<boolean>;
 export type PromiseCallbackKeys = 'beforeSave' | 'afterSave' | 'beforeUpdate' | 'afterUpdate' | 'beforeDelete' | 'afterDelete' | 'beforeReload' | 'afterReload'
 
@@ -160,6 +160,8 @@ export interface Callbacks {
   afterReload?: PromiseCallback | PromiseCallback[];
   beforeAssign?: SyncCallback | SyncCallback[];
   afterAssign?: SyncCallback | SyncCallback[];
+  beforeChange?: SyncCallback | SyncCallback[];
+  afterChange?: SyncCallback | SyncCallback[];
 };
 
 export interface CallbackArrays {
@@ -173,6 +175,8 @@ export interface CallbackArrays {
   afterReload: PromiseCallback[];
   beforeAssign: SyncCallback[];
   afterAssign: SyncCallback[];
+  beforeChange: SyncCallback[];
+  afterChange: SyncCallback[];
 };
 
 export type Validator = (klass: NextModel) => Promise<Error | boolean>;
@@ -336,6 +340,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
     afterReload: [],
     beforeAssign: [],
     afterAssign: [],
+    beforeChange: [],
+    afterChange: [],
   };
   try {
     callbacks = {
@@ -349,6 +355,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
       afterReload: promisifyCallbacks(model.callbacks.afterReload),
       beforeAssign: syncifyCallbacks(model.callbacks.beforeAssign),
       afterAssign: syncifyCallbacks(model.callbacks.afterAssign),
+      beforeChange: syncifyCallbacks(model.callbacks.beforeChange),
+      afterChange: syncifyCallbacks(model.callbacks.afterChange),
     };
   } catch (e) {
     // just PropertyNotDefinedError expected
@@ -508,6 +516,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
         afterReload: (this.isCallbackSkipped('afterReload') ? [] : callbacks.afterReload),
         beforeAssign: (this.isCallbackSkipped('beforeAssign') ? [] : callbacks.beforeAssign),
         afterAssign: (this.isCallbackSkipped('afterAssign') ? [] : callbacks.afterAssign),
+        beforeChange: (this.isCallbackSkipped('beforeChange') ? [] : callbacks.beforeChange),
+        afterChange: (this.isCallbackSkipped('afterChange') ? [] : callbacks.afterChange),
       };
     }
 
