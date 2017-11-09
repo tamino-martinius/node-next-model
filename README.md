@@ -118,7 +118,7 @@ import {
 // model definitions
 @Model
 class User extends NextModel {
-  // Optional typings for properties
+  // This typings are optional but improves autocomplete
   id: number;
   firstName: string;
   lastName: string;
@@ -173,7 +173,7 @@ class Address extends NextModel {
 };
 
 // Creating
-user = User.build({ firstName: 'John', lastName: 'Doe' });
+user = User.males.build({ firstName: 'John', lastName: 'Doe' });
 user.gender === 'male';
 user.name === 'John Doe';
 user.save().then(user => ... );
@@ -192,6 +192,6 @@ user.addresses.create({
 User.males.all.then(users => ... );
 User.withFirstName('John').first(user => ... );
 User.addresses.all.then(addresses => ... );
-User.where({ lastName: 'Doe' }).all.then(users => ... );
+User.queryBy({ lastName: 'Doe' }).all.then(users => ... );
 User.males.order({ lastName: 'asc' }).all.then(users => ... );
 ~~~
