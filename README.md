@@ -303,3 +303,75 @@ class User extends NextModel {
 
 user.address.then(address => ... );
 ~~~
+
+## Queries
+
+### queryBy
+
+Special query syntax is dependent on used connector. But all connectors and the cache supports basic attribute filtering and the special queries $and, $or and $now. All special queries start with an leading $.
+
+~~~js
+User.queryBy({ gender: 'male' });
+User.queryBy({ age: 21 });
+User.queryBy({ name: 'John', gender: 'male' });
+User.queryBy({ $or: [
+  { firstName: 'John' },
+  { firstName: 'Foo' },
+]});
+User.queryBy({ $and: [
+  { firstName: 'John' },
+  { lastName: 'Doe' },
+]});
+User.queryBy({ $not: [
+  { gender: 'male' },
+  { gender: 'female' },
+]});
+User.males.queryBy({ name: 'John' });
+~~~
+
+### orderBy
+
+The fetched data can be sorted before fetching then. The `orderBy` function takes an object with property names as keys and the sort direction as value. Valid values are `asc` and `desc`.
+
+~~~js
+User.orderBy({ name: 'asc' });
+User.orderBy({ name: 'desc' });
+User.orderBy({ name: 'asc', age: 'desc' });
+User.males.orderBy({ name: 'asc' });
+~~~
+
+### skip
+
+An defined amont of matching records can be skipped with `.skipBy(amount)` and be resetted with  `.unskipped`. The current skipped amount of records can be fetched with `.skip`.
+
+*Please note:* `.skipBy(amount)` and `.unskipped` will return a scoped model and will not modify the existing one.
+
+Default value is `0`.
+
+~~~js
+User.count; //=> 10
+User.skip; //=> 0
+User.skipBy(3).count; //=> 7
+User.skip; //=> 0 !
+User = User.skipBy(15);
+User.skip; //=> 15
+User.skipBy(5).unskipped.count; //=> 10
+~~~
+
+### limit
+
+The resultset can be limited with `.limitBy(amount)` and be resetted with  `.unlimited`. The current limit can be fetched with `.limit`.
+
+*Please note:* `.limitBy(amount)` and `.unlimited` will return a scoped model and will not modify the existing one.
+
+Default value is `Number.MAX_SAFE_INTEGER`.
+
+~~~js
+User.count; //=> 10
+User.limit; //=> Number.MAX_SAFE_INTEGER
+User.limitBy(3).count; //=> 3
+User.limit; //=> Number.MAX_SAFE_INTEGER !
+User = User.limitBy(15);
+User.limit; //=> 15
+User.limitBy(5).unlimited.count; //=> 10
+~~~
