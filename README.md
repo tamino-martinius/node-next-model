@@ -195,3 +195,30 @@ User.addresses.all.then(addresses => ... );
 User.queryBy({ lastName: 'Doe' }).all.then(users => ... );
 User.males.order({ lastName: 'asc' }).all.then(users => ... );
 ~~~
+
+## Model Instances
+
+### build
+
+Initializes new record without saving it to the database.
+
+~~~js
+user = User.build({ firstName: 'John', lastName: 'Doe' });
+user.isNew === true;
+user.name === 'John Doe';
+~~~
+
+### create
+
+Returns a `Promise` which returns the created record on success or the initialized if sth. goes wrong.
+
+~~~js
+User.create({
+  firstName: 'John',
+  lastName: 'Doe',
+}).then(user => {
+  user.isNew === false;
+}).catch(user => {
+  user.isNew === true;
+});
+~~~
