@@ -375,3 +375,52 @@ User = User.limitBy(15);
 User.limit; //=> 15
 User.limitBy(5).unlimited.count; //=> 10
 ~~~
+
+## Scopes
+
+Scopes are predefined search queries on a Model.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get males() {
+    return this.queryBy({ gender: 'male' });
+  }
+
+  static get females() {
+    return this.queryBy({ gender: 'female' });
+  }
+
+  static get withFirstName(firstName) {
+    return this.queryBy({ firstName });
+  }
+};
+~~~
+
+Now you can use these scopes to search/filter records.
+
+~~~js
+User.males;
+User.withFirstName('John');
+~~~
+
+Scopes can be chained with other scopes or search queries.
+
+~~~js
+User.males.witFirsthName('John');
+User.withFirstName('John').queryBy({ gender: 'transgender' });
+~~~
+
+### Build from scope
+
+~~~js
+profile = User.males.build();
+profile.gender === 'male';
+~~~
+
+### Scope chaining
+
+~~~js
+User.males.young;
+User.males.young.queryBy({ ... });
+~~~
