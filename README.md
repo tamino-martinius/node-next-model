@@ -288,3 +288,18 @@ class User extends NextModel {
 user.addresses.all.then(addresses => ... );
 user.addresses.create({ ... }).then(address => ... );
 ~~~
+
+### hasOne
+
+~~~js
+@Model
+class User extends NextModel {
+  static get hasOne() {
+    return {
+      address: { model: Address },
+    }
+  }
+};
+
+user.address.then(address => ... );
+~~~
