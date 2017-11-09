@@ -244,3 +244,47 @@ user = User.where({ gender: 'male'}).build();
 user.gender === 'male';
 ~~~
 
+## Relations
+
+Define the Model associations. Describe the relation between models to get predefined scopes and constructors.
+
+### belongsTo
+
+~~~js
+@Model
+class Address extends NextModel {
+  static get belongsTo() {
+    return {
+      user: { model: User },
+    }
+  }
+};
+
+Address.create({
+  userId: id
+}).then(address => {
+  return address.user;
+}).then(user => {
+  user.id === id;
+});
+
+address = Address.build();
+address.user = user;
+address.userId === user.id;
+~~~
+
+### hasMany
+
+~~~js
+@Model
+class User extends NextModel {
+  static get hasMany() {
+    return {
+      addresses: { model: Address },
+    }
+  }
+};
+
+user.addresses.all.then(addresses => ... );
+user.addresses.create({ ... }).then(address => ... );
+~~~
