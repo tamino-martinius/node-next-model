@@ -636,9 +636,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
           const keyCounts: Dict<number> = $and.reduce((counts, q) => {
             for (const key of Object.keys(q)) {
               if (key.startsWith('$')) {
-                if (key !== '$and') {
-                  counts[key] = 2;
-                }
+                counts[key] = 2;
               } else {
                 if (counts[key] === undefined) {
                   counts[key] = 1;
