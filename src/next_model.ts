@@ -54,9 +54,9 @@ export class TypeError {
   }
 };
 
-export interface BooleanLookupDict {
-  [key: string]: boolean;
-};
+export interface Dict<T> {
+  [key: string]: T;
+}
 
 export interface BelongsTo {
   [key: string]: Relation;
@@ -115,6 +115,9 @@ export interface Scopes {
 };
 
 export interface Query {
+  $and?: Query[];
+  $or?: Query[];
+  $not?: Query[];
   [key: string]: any;
 };
 
@@ -179,6 +182,10 @@ export interface Validators {
 export interface ValidatorArrays {
   [key: string]: Validator[];
 };
+
+export function dictValues<T>(dict: Dict<T>): T[] {
+  return Object.keys(dict).map(key => dict[key]);
+}
 
 export function Model(model: typeof NextModel): typeof NextModel {
   let modelName: string = model.name;
@@ -417,14 +424,14 @@ export function Model(model: typeof NextModel): typeof NextModel {
   const keys = Object.keys(schema);
   keys.push.apply(keys, attrAccessors);
 
-  const lookupKeys: BooleanLookupDict = {};
+  const lookupKeys: Dict<boolean> = {};
   for (const key of keys) {
     lookupKeys[key] = true;
   }
 
   const dbKeys = Object.keys(schema);
 
-  const lookupDbKeys: BooleanLookupDict = {};
+  const lookupDbKeys: Dict<boolean> = {};
   for (const key of dbKeys) {
     lookupDbKeys[key] = true;
   }
@@ -621,6 +628,46 @@ export function Model(model: typeof NextModel): typeof NextModel {
       };
     }
 
+    private static simplifyQuery(query: Query): Query {
+      const result: Query = {};
+      for (const key in query) {
+        if (key === '$and' && query.$and !== undefined) {
+          const $and: Query[] = query.$and.map(q => this.simplifyQuery(q));
+          const keyCounts: Dict<number> = $and.reduce((counts, q) => {
+            for (const key of Object.keys(q)) {
+              if (key.startsWith('$')) {
+                if (key !== '$and') {
+                  counts[key] = 2;
+                }
+              } else {
+                if (counts[key] === undefined) {
+                  counts[key] = 1;
+                } else {
+                  counts[key] += 1;
+                }
+              }
+            }
+            return counts;
+          }, <Dict<number>>{});
+          const maxKeyCount: number = Math.max(...dictValues(keyCounts));
+          const onlyNewKeys: boolean = Object.keys(query).reduce(
+            (onlyNew, k) => onlyNew = onlyNew && keyCounts[k] === undefined
+            , true
+          );
+          if (maxKeyCount === 1 && onlyNewKeys) {
+            for (const subQuery of $and) {
+              Object.keys(subQuery).forEach(k => result[k] = subQuery[k]);
+            }
+          } else {
+            result.$and = $and;
+          }
+        } else {
+          result[key] = query[key];
+        }
+      }
+      return result;
+    }
+
     static queryBy(queryBy: Query, combinator: string = '$and'): typeof StrictNextModel {
       let query: Query = {};
       if (Object.keys(this.query).length > 0) {
@@ -635,6 +682,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
           [combinator]: [queryBy],
         };
       }
+
+      query = this.simplifyQuery(query);
 
       return class extends this {
         static get query(): Query {
@@ -787,7 +836,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
             return this.model.dbConnector.update(this);
           }
         } else {
-          return Promise.resolve(this);
+          return Promise.reject(this);
         }
       });
     }

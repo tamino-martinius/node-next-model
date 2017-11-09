@@ -3857,89 +3857,61 @@ describe('NextModel', () => {
 
                 context('when query is present', {
                   definitions() {
-                    @Model
-                    class NewKlass extends Klass {
-                      static get query(): Query {
-                        return {
-                          foo: 'bar',
-                        };
-                      }
-                    };
-                    Klass = NewKlass;
                   },
                   tests() {
-                    test('returns object with keys of the attrAccessors', () => {
-                      expect(subject()).toEqual({
+                    test('applies values from query if possible', () => {
+                      expect(
+                        Klass
+                          .queryBy({ foo: 'bar' })
+                          .build(attrs)
+                          .attributes
+                      ).toEqual({
                         id: undefined,
                         foo: 'bar',
-                        userId: undefined,
                       });
-                    });
-
-                    context('when attributes are passed', {
-                      definitions() {
-                        attrs = {
-                          id: 1,
-                          foo: 'bar',
-                          bar: '💩',
-                        };
-                      },
-                      tests() {
-                        test('returns object with applied attributes', () => {
-                          expect(subject()).toEqual({
+                      expect(
+                        Klass
+                          .queryBy({
                             id: 1,
                             foo: 'bar',
-                          });
-                        });
-                      },
-                      reset() {
-                        attrs = {};
-                      },
-                    });
-                  },
-                });
-
-                context('when attrAccessors are present', {
-                  definitions() {
-                    @Model
-                    class NewKlass extends Klass {
-                      static get attrAccessors(): string[] {
-                        return ['bar'];
-                      }
-                    };
-                    Klass = NewKlass;
-                  },
-                  tests() {
-                    test('returns object with keys of the attrAccessors', () => {
-                      expect(subject()).toEqual({
+                            bar: '💩',
+                          })
+                          .build(attrs)
+                          .attributes
+                      ).toEqual({
+                        id: 1,
+                        foo: 'bar',
+                      });
+                      expect(
+                        Klass
+                          .queryBy({ foo: 'bar' })
+                          .andQueryBy({ foo: 'baz' })
+                          .build(attrs)
+                          .attributes
+                      ).toEqual({
                         id: undefined,
                         foo: undefined,
-                        userId: undefined,
-                        bar: undefined,
                       });
-                    });
-
-                    context('when attributes are passed', {
-                      definitions() {
-                        attrs = {
-                          id: 1,
-                          foo: 'bar',
-                          bar: 'foo',
-                          baz: '💩',
-                        }
-                      },
-                      tests() {
-                        test('returns object with applied attributes', () => {
-                          expect(subject()).toEqual({
-                            id: 1,
-                            foo: 'bar',
-                            bar: 'foo',
-                          });
-                        });
-                      },
-                      reset() {
-                        attrs = {};
-                      },
+                      expect(
+                        Klass
+                          .queryBy({ foo: 'bar' })
+                          .andQueryBy({ id: 1 })
+                          .build(attrs)
+                          .attributes
+                      ).toEqual({
+                        id: 1,
+                        foo: 'bar',
+                      });
+                      expect(
+                        Klass
+                          .queryBy({ foo: 'bar' })
+                          .orQueryBy({ foo: 'baz' })
+                          .build(attrs)
+                          .attributes
+                      ).toEqual({
+                        id: undefined,
+                        foo: 'bar',
+                      });
                     });
                   },
                 });
@@ -5459,7 +5431,7 @@ describe('NextModel', () => {
             test('does not set id, but errors', () => {
               const result = new Klass({});
               result._errors = { id: [error] };
-              return expect(subject()).resolves.toEqual(result);
+              return expect(subject()).rejects.toEqual(result);
             });
           },
         });
@@ -5570,7 +5542,7 @@ describe('NextModel', () => {
             test('does not set id, but errors', () => {
               const result = new Klass({});
               result._errors = { id: [error] };
-              return expect(subject()).resolves.toEqual(result);
+              return expect(subject()).rejects.toEqual(result);
             });
           },
         });
