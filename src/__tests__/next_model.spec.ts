@@ -4908,8 +4908,8 @@ describe('NextModel', () => {
                 });
 
                 test('has readable attribute', () => {
-                  expect(subject().user).resolves.toBeUndefined();
-                  expect(subject().userId).resolves.toBeUndefined();
+                  expect(subject().userId).toBeUndefined();
+                  return expect(subject().user).resolves.toBeUndefined();
                 });
 
                 test('has writeable id attribute', () => {
@@ -5521,8 +5521,8 @@ describe('NextModel', () => {
       },
       tests() {
         test('returns empty default', () => {
-          expect(subject()).resolves.toEqual(new Klass({
-            id: undefined,
+          return expect(subject()).resolves.toEqual(new Klass({
+            id: expect.any(Number),
           }));
         });
 
@@ -5556,7 +5556,7 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns object with applied attributes', () => {
-              expect(subject()).resolves.toEqual(new Klass({
+              return expect(subject()).resolves.toEqual(new Klass({
                 id: 1,
               }));
             });
@@ -5578,8 +5578,8 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns object with keys of the schema', () => {
-              expect(subject()).resolves.toEqual(new Klass({
-                id: undefined,
+              return expect(subject()).resolves.toEqual(new Klass({
+                id: expect.any(Number),
                 foo: undefined,
               }));
             });
@@ -5594,7 +5594,7 @@ describe('NextModel', () => {
               },
               tests() {
                 test('returns object with applied attributes', () => {
-                  expect(subject()).resolves.toEqual(({
+                  return expect(subject()).resolves.toEqual(new Klass({
                     id: 1,
                     foo: 'bar',
                   }));
@@ -5619,8 +5619,8 @@ describe('NextModel', () => {
               },
               tests() {
                 test('returns object with keys of the belongsTo relation', () => {
-                  expect(subject()).resolves.toEqual(new Klass({
-                    id: undefined,
+                  return expect(subject()).resolves.toEqual(new Klass({
+                    id: expect.any(Number),
                     foo: undefined,
                     userId: undefined,
                   }));
@@ -5637,7 +5637,7 @@ describe('NextModel', () => {
                   },
                   tests() {
                     test('returns object with applied attributes', () => {
-                      expect(subject()).resolves.toEqual(new Klass({
+                      return expect(subject()).resolves.toEqual(new Klass({
                         id: 1,
                         userId: 2,
                         foo: 'bar',
@@ -5661,8 +5661,8 @@ describe('NextModel', () => {
                   },
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
-                      expect(subject()).resolves.toEqual(new Klass({
-                        id: undefined,
+                      return expect(subject()).resolves.toEqual(new Klass({
+                        id: expect.any(Number),
                         foo: undefined,
                         userId: undefined,
                         bar: undefined,
@@ -5680,7 +5680,7 @@ describe('NextModel', () => {
                       },
                       tests() {
                         test('returns object with applied attributes', () => {
-                          expect(subject()).resolves.toEqual(new Klass({
+                          return expect(subject()).resolves.toEqual(new Klass({
                             id: 1,
                             foo: 'bar',
                             bar: 'foo',

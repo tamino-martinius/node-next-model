@@ -16,11 +16,11 @@
     "node": ">=4.3.2"
   },
   "scripts": {
-    "coverage": "rm -rf coverage* && jest --coverage --verbose && node remap_coverage.js && rm -rf coverage_jest_raw*",
+    "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
     "test": "jest",
     "build": "rm -rf dist/* && tsc",
     "watch": "tsc -w",
-    "ci": "rm -rf coverage/* && jest --coverage --verbose && node remap_coverage.js && rm -rf coverage_jest_raw* && codecov"
+    "ci": "rm -rf coverage/* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw* && codecov"
   },
   "devDependencies": {
     "@types/jest": "^21.1.2",
