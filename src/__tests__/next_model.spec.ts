@@ -36,14 +36,12 @@ import {
 
 // Have a user seeded in his local db
 
+const emptyUserDb: () => Promise<NextModel[]> = () => {
+  return User.dbConnector.deleteAll(User);
+};
+
 const seededUserDb: () => Promise<NextModel> = () => {
-  return User.dbConnector.first(User)
-  .then(user => {
-    if (user !== undefined) {
-      return User.dbConnector.delete(user);
-    }
-    return Promise.resolve(user);
-  }).then(() => {
+  return emptyUserDb().then(() => {
     return User.dbConnector.create(User.build({
       firstName: 'Seeded',
       lastName: 'User',
@@ -2509,6 +2507,10 @@ describe('NextModel', () => {
           expect(subject(0)).toEqual(0);
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.skipBy(0)) instanceof Klass).toBeTruthy();
+        });
+
         context('when skip is present', {
           definitions() {
             @Model
@@ -2574,6 +2576,10 @@ describe('NextModel', () => {
           expect(subject()).toEqual(0);
         });
 
+        test('returns instance of Klass', () => {
+          expect(new (Klass.unskipped) instanceof Klass).toBeTruthy();
+        });
+
         context('when skip is present', {
           definitions() {
             @Model
@@ -2617,26 +2623,30 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns default skip', () => {
+        test('returns default limit', () => {
           expect(subject(0)).toEqual(0);
         });
 
-        context('when skip is present', {
+        test('returns instance of Klass', () => {
+          expect(new (Klass.limitBy(0)) instanceof Klass).toBeTruthy();
+        });
+
+        context('when limit is present', {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skip(): number {
+              static get limit(): number {
                 return 4711;
               }
             };
             Klass = NewKlass;
           },
           tests() {
-            test('overrides the skip of the model', () => {
+            test('overrides the limit of the model', () => {
               expect(subject(815)).toEqual(815);
             });
 
-            context('when skip is below 0', {
+            context('when limit is below 0', {
               definitions() { },
               tests() {
                 test('throws LowerBoundsError', () => {
@@ -2645,7 +2655,7 @@ describe('NextModel', () => {
               },
             });
 
-            context('when skip is floating point', {
+            context('when limit is floating point', {
               definitions() { },
               tests() {
                 test('throws TypeError', () => {
@@ -2682,11 +2692,15 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns default skip', () => {
+        test('returns default limit', () => {
           expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
         });
 
-        context('when skip is present', {
+        test('returns instance of Klass', () => {
+          expect(new (Klass.unlimited) instanceof Klass).toBeTruthy();
+        });
+
+        context('when limit is present', {
           definitions() {
             @Model
             class NewKlass extends NextModel {
@@ -2697,7 +2711,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('overrides the skip of the model', () => {
+            test('overrides the limit of the model', () => {
               expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
             });
           },
@@ -2734,9 +2748,7 @@ describe('NextModel', () => {
       tests() {
         test('sets default query', () => {
           expect(subject()).toEqual({
-            $and: [
-              {foo: 'bar'},
-            ],
+            foo: 'bar',
           });
         });
 
@@ -2776,14 +2788,35 @@ describe('NextModel', () => {
           tests() {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
-                $and: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
-                  { bar: 'baz' },
-                ],
+                foo: 'bar',
+                bar: 'baz',
+              });
+            });
+          },
+        });
+
+        context('when querying with nested query', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel { };
+            Klass = NewKlass;
+            subject = () => Klass.queryBy({
+              $and: [
+                {
+                  $and: [
+                    {
+                      foo: 'bar',
+                    },
+                  ],
+                },
+              ],
+            }).andQueryBy({ bar: 'baz' }).query;
+          },
+          tests() {
+            test('sets the query of the model', () => {
+              expect(subject()).toEqual({
+                foo: 'bar',
+                bar: 'baz',
               });
             });
           },
@@ -2799,14 +2832,8 @@ describe('NextModel', () => {
           tests() {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
-                $and: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
-                  { bar: 'baz' },
-                ],
+                foo: 'bar',
+                bar: 'baz',
               });
             });
           },
@@ -2823,11 +2850,7 @@ describe('NextModel', () => {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
+                  { foo: 'bar' },
                   { bar: 'baz' },
                 ],
               });
@@ -2846,11 +2869,7 @@ describe('NextModel', () => {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
+                  { foo: 'bar' },
                   { bar: 'baz' },
                 ],
               });
@@ -2889,9 +2908,7 @@ describe('NextModel', () => {
       tests() {
         test('sets default query', () => {
           expect(subject()).toEqual({
-            $and: [
-              {foo: 'bar'},
-            ],
+            foo: 'bar',
           });
         });
 
@@ -2931,14 +2948,8 @@ describe('NextModel', () => {
           tests() {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
-                $and: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
-                  { bar: 'baz' },
-                ],
+                foo: 'bar',
+                bar: 'baz',
               });
             });
           },
@@ -2954,14 +2965,8 @@ describe('NextModel', () => {
           tests() {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
-                $and: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
-                  { bar: 'baz' },
-                ],
+                foo: 'bar',
+                bar: 'baz',
               });
             });
           },
@@ -2978,11 +2983,7 @@ describe('NextModel', () => {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $or: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
+                  { foo: 'bar' },
                   { bar: 'baz' },
                 ],
               });
@@ -3001,11 +3002,7 @@ describe('NextModel', () => {
             test('sets the query of the model', () => {
               expect(subject()).toEqual({
                 $not: [
-                  {
-                    $and: [
-                      { foo: 'bar' },
-                    ],
-                  },
+                  { foo: 'bar' },
                   { bar: 'baz' },
                 ],
               });
@@ -3910,7 +3907,7 @@ describe('NextModel', () => {
                           .attributes
                       ).toEqual({
                         id: undefined,
-                        foo: 'bar',
+                        foo: undefined,
                       });
                     });
                   },
@@ -4190,8 +4187,8 @@ describe('NextModel', () => {
         attrs = {
           firstName: 'foo',
         };
-        Klass = User.queryBy({ id: 0 });
-        return seededUserDb();
+        Klass = User;
+        return emptyUserDb();
       },
       tests() {
         test('returns empty default', () => {
@@ -4456,8 +4453,8 @@ describe('NextModel', () => {
         attrs = {
           firstName: 'foo',
         };
-        Klass = User.queryBy({ id: 0 });
-        return seededUserDb();
+        Klass = User;
+        return emptyUserDb();
       },
       tests() {
         test('returns empty default', () => {
@@ -4969,7 +4966,7 @@ describe('NextModel', () => {
                 test('returns queryable model', () => {
                   const klass = subject();
                   klass.id = 1;
-                  expect(klass.users.query).toEqual({ $and: [{ fooId: 1 }] });
+                  expect(klass.users.query).toEqual({ fooId: 1 });
                   expect(new klass.users() instanceof User).toBeTruthy();
                 });
               },
