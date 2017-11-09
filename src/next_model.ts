@@ -660,7 +660,12 @@ export function Model(model: typeof NextModel): typeof NextModel {
             result.$and = $and;
           }
         } else {
-          result[key] = query[key];
+          if (key.startsWith('$') && query[key] !== undefined) {
+            const subQueries: Query[] = query[key];
+            result[key] = subQueries.map(q => this.simplifyQuery(q));
+          } else {
+            result[key] = query[key];
+          }
         }
       }
       return result;
