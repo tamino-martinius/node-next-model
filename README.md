@@ -222,3 +222,25 @@ User.create({
   user.isNew === true;
 });
 ~~~
+
+### From Scopes and queries
+
+An record can be `build` or `create`d from scopes. These records are created with scope values as default.
+
+~~~js
+address = user.addresses.build();
+address.userId === user.id;
+
+user = User.males.build();
+user.gender === 'male';
+
+user = User.withFirstName('John').build();
+user.firstName === 'John';
+
+user = User.withFirstName('John').queryBy({ lastName: 'Doe' }).build();
+user.name === 'John Doe';
+
+user = User.where({ gender: 'male'}).build();
+user.gender === 'male';
+~~~
+
