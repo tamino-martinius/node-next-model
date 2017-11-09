@@ -762,7 +762,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     static get count(): Promise<number> {
-      return this.dbConnector.count(this);
+      return this.dbConnector.count(this.unordered);
     }
 
     static updateAll(attrs: Attributes): Promise<NextModel[]> {
