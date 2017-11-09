@@ -424,3 +424,39 @@ profile.gender === 'male';
 User.males.young;
 User.males.young.queryBy({ ... });
 ~~~
+
+## Fetching
+
+If you want to read the data of the samples of the [previous section](#fetching) you can fetch if with the following functions. Each fetching function will return a `Promise` to read the data.
+
+### all
+
+Returns all data of the query. Results can be limited by [skip](#skip) and [limitBy](#limit).
+
+~~~js
+User.all.then(users => ...);
+User.males.all.then(users => ...);
+User.queryBy({ firstName: 'John' }).all.then(users => ...);
+~~~
+
+### first
+
+Returns the first record which matches the query. Use **orderBy** to sort matching records before fetching the first one.
+
+~~~js
+User.first.then(user => ...);
+User.males.first.then(user => ...);
+User.queryBy({ firstName: 'John' }).first.then(user => ...);
+User.orderBy({ lastName: 'asc' }).first.then(user => ...);
+~~~
+
+### count
+
+Returns the count of the matching records. Ignores [orderBy](#orderBy), [skip](#skip) and [limit](#limitBy) and always returns complete count of matching records.
+
+~~~js
+User.count.then(count => ...);
+User.males.count.then(count => ...);
+User.queryBy({ name: 'John' }).count.then(count => ...);
+User.count === User.limit(5).count
+~~~
