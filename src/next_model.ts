@@ -147,11 +147,13 @@ export interface Errors {
 export type SyncCallback = (klass: NextModel) => boolean;
 export type SyncCallbackKeys = 'beforeAssign' | 'afterAssign' | 'beforeChange' | 'afterChange'
 export type PromiseCallback = (klass: NextModel) => Promise<boolean>;
-export type PromiseCallbackKeys = 'beforeSave' | 'afterSave' | 'beforeUpdate' | 'afterUpdate' | 'beforeDelete' | 'afterDelete' | 'beforeReload' | 'afterReload'
+export type PromiseCallbackKeys = 'beforeValidation' | 'afterValidation' | 'beforeSave' | 'afterSave' | 'beforeUpdate' | 'afterUpdate' | 'beforeDelete' | 'afterDelete' | 'beforeReload' | 'afterReload'
 
 export interface Callbacks {
   beforeSave?: PromiseCallback | PromiseCallback[];
   afterSave?: PromiseCallback | PromiseCallback[];
+  beforeValidation?: PromiseCallback | PromiseCallback[];
+  afterValidation?: PromiseCallback | PromiseCallback[];
   beforeUpdate?: PromiseCallback | PromiseCallback[];
   afterUpdate?: PromiseCallback | PromiseCallback[];
   beforeDelete?: PromiseCallback | PromiseCallback[];
@@ -165,6 +167,8 @@ export interface Callbacks {
 };
 
 export interface CallbackArrays {
+  beforeValidation: PromiseCallback[];
+  afterValidation: PromiseCallback[];
   beforeSave: PromiseCallback[];
   afterSave: PromiseCallback[];
   beforeUpdate: PromiseCallback[];
@@ -330,6 +334,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
   }
 
   let callbacks: CallbackArrays = {
+    beforeValidation: [],
+    afterValidation: [],
     beforeSave: [],
     afterSave: [],
     beforeUpdate: [],
@@ -345,6 +351,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
   };
   try {
     callbacks = {
+      beforeValidation: promisifyCallbacks(model.callbacks.beforeValidation),
+      afterValidation: promisifyCallbacks(model.callbacks.afterValidation),
       beforeSave: promisifyCallbacks(model.callbacks.beforeSave),
       afterSave: promisifyCallbacks(model.callbacks.afterSave),
       beforeUpdate: promisifyCallbacks(model.callbacks.beforeUpdate),
@@ -506,6 +514,8 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get activeCallbacks(): CallbackArrays {
       return {
+        beforeValidation: (this.isCallbackSkipped('beforeValidation') ? [] : callbacks.beforeValidation),
+        afterValidation: (this.isCallbackSkipped('afterValidation') ? [] : callbacks.afterValidation),
         beforeSave: (this.isCallbackSkipped('beforeSave') ? [] : callbacks.beforeSave),
         afterSave: (this.isCallbackSkipped('afterSave') ? [] : callbacks.afterSave),
         beforeUpdate: (this.isCallbackSkipped('beforeUpdate') ? [] : callbacks.beforeUpdate),
@@ -575,7 +585,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return !!lookupDbKeys[key];
     }
 
-    private static get queryAttributes(): Attributes {
+    static get queryAttributes(): Attributes {
       const attrs: Attributes = {};
       for (const key in this.query) {
         if (!(key[0] === '$')) {
@@ -585,12 +595,44 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return attrs;
     }
 
-    private static mergeAttributes(attrs1: Attributes, attrs2: Attributes): Attributes {
+    static mergeAttributes(attrs1: Attributes, attrs2: Attributes): Attributes {
       const attrs: Attributes = attrs1;
       for (const key in attrs2) {
         attrs[key] = attrs2[key];
       }
       return attrs;
+    }
+
+    static runPromiseCallbacks(callbacks: PromiseCallback[], instance: NextModel): Promise<boolean> {
+      const cb: PromiseCallback | undefined = callbacks.shift();
+      if (cb === undefined) {
+        return Promise.resolve(true);
+      } else {
+        return cb(instance).then(successful => {
+          if (successful === false) {
+            return false;
+          } else {
+            return this.runPromiseCallbacks(callbacks, instance);
+          }
+        }).catch(() => false)
+      }
+    }
+
+    static runSyncCallbacks(callbacks: SyncCallback[], instance: NextModel): boolean {
+      const cb: SyncCallback | undefined = callbacks.shift();
+      if (cb === undefined) {
+        return true;
+      } else {
+        try {
+          if (cb(instance) === false) {
+            return false;
+          } else {
+            return this.runSyncCallbacks(callbacks, instance);
+          }
+        } catch {
+          return false;
+        }
+      }
     }
 
     static skipBy(amount: number): typeof NextModel {
@@ -843,11 +885,21 @@ export function Model(model: typeof NextModel): typeof NextModel {
     save(): Promise<NextModel> {
       return this.isValid().then(isValid => {
         if (isValid) {
-          if (this.isNew) {
-            return this.model.dbConnector.create(this);
-          } else {
-            return this.model.dbConnector.update(this);
-          }
+          const beforeCallbacks = this.model.activeCallbacks.beforeSave;
+          return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
+            if (successful === true) {
+              const promise = this.isNew ?
+                this.model.dbConnector.create(this) :
+                this.model.dbConnector.update(this);
+              return promise.then(instance => {
+                const afterCallbacks = this.model.activeCallbacks.beforeSave;
+                this.model.runPromiseCallbacks(afterCallbacks, instance);
+                return instance;
+              })
+            } else {
+              return Promise.reject(this);
+            }
+          })
         } else {
           return Promise.reject(this);
         }
@@ -855,23 +907,61 @@ export function Model(model: typeof NextModel): typeof NextModel {
     }
 
     delete(): Promise<NextModel> {
-      return this.model.dbConnector.delete(this);
+      const beforeCallbacks = this.model.activeCallbacks.beforeDelete;
+      return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
+        if (successful === true) {
+          return this.model.dbConnector.delete(this).then(instance => {
+            const afterCallbacks = this.model.activeCallbacks.beforeDelete;
+            this.model.runPromiseCallbacks(afterCallbacks, instance);
+            return instance;
+          });
+        } else {
+          return Promise.reject(this);
+        }
+      });
     }
 
     update(attrs: Attributes): Promise<NextModel> {
       this.assign(attrs);
-      return this.save();
+      const beforeCallbacks = this.model.activeCallbacks.beforeUpdate;
+      return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
+        if (successful === true) {
+          return this.save().then(instance => {
+            const afterCallbacks = this.model.activeCallbacks.beforeUpdate;
+            this.model.runPromiseCallbacks(afterCallbacks, instance);
+            return instance;
+          });
+        } else {
+          return Promise.reject(this);
+        }
+      });
     }
 
     reload(): Promise<NextModel | undefined> {
-      return this.model.dbConnector.reload(this);
+      const beforeCallbacks = this.model.activeCallbacks.beforeReload;
+      return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
+        if (successful === true) {
+          return this.model.dbConnector.reload(this).then(instance => {
+            const afterCallbacks = this.model.activeCallbacks.beforeReload;
+            this.model.runPromiseCallbacks(afterCallbacks, instance || this);
+            return instance;
+          });
+        } else {
+          return Promise.reject(this);
+        }
+      });
     }
 
     assign(attrs: Attributes): NextModel {
-      for (const key in attrs) {
-        if (this.model.hasKey(key)) {
-          this.data[key] = attrs[key];
+      const beforeCallbacks = this.model.activeCallbacks.beforeAssign;
+      if (this.model.runSyncCallbacks(beforeCallbacks, this) === true) {
+        for (const key in attrs) {
+          if (this.model.hasKey(key)) {
+            this.data[key] = attrs[key];
+          }
         }
+        const afterCallbacks = this.model.activeCallbacks.beforeAssign;
+        this.model.runSyncCallbacks(afterCallbacks, this);
       }
       return this;
     }
@@ -900,35 +990,46 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this._errors;
     }
 
-    get model(): typeof NextModel {
-      return <typeof NextModel>this.constructor;
+    get model(): typeof StrictNextModel {
+      return <typeof StrictNextModel>this.constructor;
     }
 
     isValid(): Promise<boolean> {
-      this.resetErrors();
-      const promises: Promise<boolean>[] = [];
-      const activeValidators: ValidatorArrays = this.model.activeValidators;
-      for (const key in activeValidators) {
-        const validators = activeValidators[key];
-        for (const validator of validators) {
-          promises.push(validator(this).then(validationResult => {
-            if (validationResult === true) {
-              return true;
-            } else if (validationResult === false) {
-              this.addError(key, new Error('Validation Failed'));
-              return false;
-            } else {
-              this.addError(key, validationResult);
-              return false;
+      const beforeCallbacks = this.model.activeCallbacks.beforeValidation;
+      return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
+        if (successful === true) {
+          this.resetErrors();
+          const promises: Promise<boolean>[] = [];
+          const activeValidators: ValidatorArrays = this.model.activeValidators;
+          for (const key in activeValidators) {
+            const validators = activeValidators[key];
+            for (const validator of validators) {
+              promises.push(validator(this).then(validationResult => {
+                if (validationResult === true) {
+                  return true;
+                } else if (validationResult === false) {
+                  this.addError(key, new Error('Validation Failed'));
+                  return false;
+                } else {
+                  this.addError(key, validationResult);
+                  return false;
+                }
+              }));
             }
-          }));
+          }
+          return Promise.all(promises).then(bools => {
+            for (const bool of bools) {
+              if (bool === false) return false;
+            }
+            return true;
+          }).then(isValid => {
+            const afterCallbacks = this.model.activeCallbacks.beforeValidation;
+            this.model.runPromiseCallbacks(afterCallbacks, this);
+            return isValid;
+          });
+        } else {
+          return Promise.resolve(false);
         }
-      }
-      return Promise.all(promises).then(bools => {
-        for (const bool of bools) {
-          if (bool === false) return false;
-        }
-        return true;
       });
     }
   };
@@ -942,21 +1043,26 @@ export function Model(model: typeof NextModel): typeof NextModel {
       }
 
       set [key](value: any) {
-        if (this.data[key] !== value) {
-          const change: Change | undefined = this._changes[key];
-          if (change !== undefined) {
-            if (change.from === value) {
-              delete this._changes[key];
+        const beforeCallbacks = this.model.activeCallbacks.beforeChange;
+        if (this.model.runSyncCallbacks(beforeCallbacks, this) === true) {
+          if (this.data[key] !== value) {
+            const change: Change | undefined = this._changes[key];
+            if (change !== undefined) {
+              if (change.from === value) {
+                delete this._changes[key];
+              } else {
+                change.to = value;
+              }
             } else {
-              change.to = value;
+              this._changes[key] = <Change>{
+                from: this.data[key],
+                to: value,
+              };
             }
-          } else {
-            this._changes[key] = <Change>{
-              from: this.data[key],
-              to: value,
-            };
+            this.data[key] = value;
           }
-          this.data[key] = value;
+          const afterCallbacks = this.model.activeCallbacks.beforeChange;
+          this.model.runSyncCallbacks(afterCallbacks, this);
         }
       }
     };

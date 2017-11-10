@@ -1002,6 +1002,8 @@ describe('NextModel', () => {
     let promiseCallback: PromiseCallback = jest.fn().mockReturnValue(Promise.resolve(true));
     let syncCallback: SyncCallback = jest.fn().mockReturnValue(true);
     const callbacks: Callbacks = {
+      beforeValidation: [promiseCallback],
+      afterValidation: [promiseCallback],
       beforeSave: [promiseCallback],
       afterSave: [promiseCallback],
       beforeUpdate: [promiseCallback],
@@ -1055,6 +1057,8 @@ describe('NextModel', () => {
       tests() {
         test('returns empty default', () => {
           expect(subject()).toEqual({
+            beforeValidation: [],
+            afterValidation: [],
             beforeSave: [],
             afterSave: [],
             beforeUpdate: [],
@@ -1091,6 +1095,8 @@ describe('NextModel', () => {
                 class NewKlass extends NextModel {
                   static get callbacks(): Callbacks {
                     return {
+                      beforeValidation: undefined,
+                      afterValidation: undefined,
                       beforeSave: undefined,
                       afterSave: undefined,
                       beforeUpdate: undefined,
@@ -1111,6 +1117,8 @@ describe('NextModel', () => {
               tests() {
                 test('returns the callbacks of the model', () => {
                   expect(subject()).toEqual({
+                    beforeValidation: [],
+                    afterValidation: [],
                     beforeSave: [],
                     afterSave: [],
                     beforeUpdate: [],
@@ -1134,6 +1142,8 @@ describe('NextModel', () => {
                 class NewKlass extends NextModel {
                   static get callbacks(): Callbacks {
                     return {
+                      beforeValidation: promiseCallback,
+                      afterValidation: promiseCallback,
                       beforeSave: promiseCallback,
                       afterSave: promiseCallback,
                       beforeUpdate: promiseCallback,
@@ -1164,6 +1174,8 @@ describe('NextModel', () => {
                 class NewKlass extends NextModel {
                   static get callbacks(): Callbacks {
                     return {
+                      beforeValidation: [promiseCallback],
+                      afterValidation: promiseCallback,
                       beforeSave: [promiseCallback],
                       afterSave: promiseCallback,
                       beforeUpdate: [promiseCallback],
@@ -1198,6 +1210,8 @@ describe('NextModel', () => {
     let promiseCallback: PromiseCallback = jest.fn().mockReturnValue(Promise.resolve(true));
     let syncCallback: SyncCallback = jest.fn().mockReturnValue(true);
     const callbacks: Callbacks = {
+      beforeValidation: [promiseCallback],
+      afterValidation: [promiseCallback],
       beforeSave: [promiseCallback],
       afterSave: [promiseCallback],
       beforeUpdate: [promiseCallback],
@@ -1235,6 +1249,8 @@ describe('NextModel', () => {
       tests() {
         test('returns empty default', () => {
           expect(subject()).toEqual({
+            beforeValidation: [],
+            afterValidation: [],
             beforeSave: [],
             afterSave: [],
             beforeUpdate: [],
@@ -1270,6 +1286,8 @@ describe('NextModel', () => {
                 class NewKlass extends Klass {
                   static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
                     return [
+                      'beforeValidation',
+                      'afterValidation',
                       'beforeSave',
                       'afterSave',
                       'beforeUpdate',
@@ -1290,6 +1308,8 @@ describe('NextModel', () => {
               tests() {
                 test('returns the active callbacks of the model', () => {
                   expect(subject()).toEqual({
+                    beforeValidation: [],
+                    afterValidation: [],
                     beforeSave: [],
                     afterSave: [],
                     beforeUpdate: [],
@@ -1312,6 +1332,7 @@ describe('NextModel', () => {
                 class NewKlass extends Klass {
                   static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
                     return [
+                      'beforeValidation',
                       'beforeSave',
                       'afterSave',
                       'beforeDelete',
@@ -1327,6 +1348,8 @@ describe('NextModel', () => {
               tests() {
                 test('returns the active callbacks of the model', () => {
                   expect(subject()).toEqual({
+                    beforeValidation: [],
+                    afterValidation: [promiseCallback],
                     beforeSave: [],
                     afterSave: [],
                     beforeUpdate: [promiseCallback],
