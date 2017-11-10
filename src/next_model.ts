@@ -892,7 +892,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
                 this.model.dbConnector.create(this) :
                 this.model.dbConnector.update(this);
               return promise.then(instance => {
-                const afterCallbacks = this.model.activeCallbacks.beforeSave;
+                const afterCallbacks = this.model.activeCallbacks.afterSave;
                 this.model.runPromiseCallbacks(afterCallbacks, instance);
                 return instance;
               })
@@ -911,7 +911,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
         if (successful === true) {
           return this.model.dbConnector.delete(this).then(instance => {
-            const afterCallbacks = this.model.activeCallbacks.beforeDelete;
+            const afterCallbacks = this.model.activeCallbacks.afterDelete;
             this.model.runPromiseCallbacks(afterCallbacks, instance);
             return instance;
           });
@@ -927,7 +927,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
         if (successful === true) {
           return this.save().then(instance => {
-            const afterCallbacks = this.model.activeCallbacks.beforeUpdate;
+            const afterCallbacks = this.model.activeCallbacks.afterUpdate;
             this.model.runPromiseCallbacks(afterCallbacks, instance);
             return instance;
           });
@@ -942,7 +942,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this.model.runPromiseCallbacks(beforeCallbacks, this).then(successful => {
         if (successful === true) {
           return this.model.dbConnector.reload(this).then(instance => {
-            const afterCallbacks = this.model.activeCallbacks.beforeReload;
+            const afterCallbacks = this.model.activeCallbacks.afterReload;
             this.model.runPromiseCallbacks(afterCallbacks, instance || this);
             return instance;
           });
@@ -960,7 +960,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
             this.data[key] = attrs[key];
           }
         }
-        const afterCallbacks = this.model.activeCallbacks.beforeAssign;
+        const afterCallbacks = this.model.activeCallbacks.afterAssign;
         this.model.runSyncCallbacks(afterCallbacks, this);
       }
       return this;
@@ -1023,7 +1023,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
             }
             return true;
           }).then(isValid => {
-            const afterCallbacks = this.model.activeCallbacks.beforeValidation;
+            const afterCallbacks = this.model.activeCallbacks.afterValidation;
             this.model.runPromiseCallbacks(afterCallbacks, this);
             return isValid;
           });
@@ -1061,7 +1061,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
             }
             this.data[key] = value;
           }
-          const afterCallbacks = this.model.activeCallbacks.beforeChange;
+          const afterCallbacks = this.model.activeCallbacks.afterChange;
           this.model.runSyncCallbacks(afterCallbacks, this);
         }
       }
