@@ -2,7 +2,13 @@
 
 ## vNext
 
-* Validations
+## v1.0.0
+
+Complete rewrite in TypeScript
+
+* Added new Default connector
+* Basic validation
+* Implemented as Decorator
 
 ## v0.4.1
 
@@ -20,6 +26,7 @@ Callbacks can be postfixed with `Client` or `Server`.
 Tracked property changes.
 
 New functions:
+
 * `.trackChanges`
 * `#isChanged`
 * `#changes`
@@ -37,6 +44,7 @@ Added Browser compatibility
 ## v0.0.4
 
 Callbacks:
+
 * Supported actions: `build`, `create`, `save` and `delete`
 * have `before` and `after` hooks
 * can be an `Function`, `Promise`, `Redirect` or `Array`
@@ -52,9 +60,11 @@ Addec CI with Travis CI
 Published knex connector
 
 Functions removed:
+
 * `.useCache`
 
 Functions added:
+
 * `.getCache`
 * `.setCache`
 
@@ -62,12 +72,14 @@ Functions added:
 
 First release includes following functions
 
-**required properties**
+### required properties
+
 * `.modelName`
 * `.schema`
 * `.connector`
 
-**optional properties**
+### optional properties
+
 * `.identifier`
 * `.tableName`
 * `.attrAccessors`
@@ -79,7 +91,8 @@ First release includes following functions
 * `.defaultScope`
 * `.defaultOrder`
 
-**computed properties**
+### computed properties
+
 * `.keys`
 * `.databaseKeys`
 * `.hasCache`
@@ -92,7 +105,8 @@ First release includes following functions
 * `.unorder`
 * `.reload`
 
-**functions**
+### functions
+
 * `.build(attrs)`
 * `.create(attrs)`
 * `.limit(amount)`
@@ -110,14 +124,16 @@ First release includes following functions
 * `.fetchHasOne()`
 * `.constructor(attrs)`
 
-**computed properties**
+### computed properties
+
 * `#attributes`
 * `#databaseAttributes`
 * `#isNew`
 * `#isPersisted`
 
-**functions**
-* `#assignAttribute(key, value)``
+### functions
+
+* `#assignAttribute(key, value)`
 * `#assign(attrs)`
 * `#save()`
 * `#delete()`
