@@ -39,11 +39,11 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
   * [belongsTo](#belongsto)
   * [hasMany](#hasmany)
   * [hasOne](#hasone)
-* [Queries](#searching)
+* [Queries](#queries)
   * [queryBy](#where)
   * [orderBy](#order)
-  * [skip](#skip)
-  * [limit](#limit)
+  * [skip](#skipby)
+  * [limit](#limitby)
 * [Scopes](#scopes)
   * [Scope chaining](#scope-chaining)
   * [Build from scope](#build-from-scope)
@@ -54,13 +54,14 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
 * [Batches](#batches)
   * [updateAll](#updateall)
   * [deleteAll](#deleteall)
-  * [count](#count)
 * [Class Properties](#class-properties)
   * [modelName](#modelname)
   * [Schema](#schema)
   * [dbConnector](#dbconnector)
   * [identifier](#identifier)
   * [attrAccessors](#attraccessors)
+  * [keys](#keys)
+  * [dbKeys](#dbKeys)
   * [query](#query)
   * [order](#order)
   * [skip](#skip)
@@ -308,7 +309,7 @@ user.address.then(address => ... );
 
 ### queryBy
 
-Special query syntax is dependent on used connector. But all connectors and the cache supports basic attribute filtering and the special queries $and, $or and $now. All special queries start with an leading $.
+Special query syntax is dependent on used connector. But all connectors and the cache supports basic attribute filtering and the special queries $and, $or and $now. All special queries start with an leading $. The query can be completely cleared by calling `.unqueried`
 
 ~~~js
 User.queryBy({ gender: 'male' });
@@ -327,20 +328,22 @@ User.queryBy({ $not: [
   { gender: 'female' },
 ]});
 User.males.queryBy({ name: 'John' });
+User.males.unqueried.females;
 ~~~
 
 ### orderBy
 
-The fetched data can be sorted before fetching then. The `orderBy` function takes an object with property names as keys and the sort direction as value. Valid values are `asc` and `desc`.
+The fetched data can be sorted before fetching then. The `orderBy` function takes an object with property names as keys and the sort direction as value. Valid values are `asc` and `desc`. The order can be resetted by calling `.unordered`.
 
 ~~~js
 User.orderBy({ name: 'asc' });
 User.orderBy({ name: 'desc' });
 User.orderBy({ name: 'asc', age: 'desc' });
 User.males.orderBy({ name: 'asc' });
+User.orderBy({ name: 'asc' }).unordered;
 ~~~
 
-### skip
+### skipBy
 
 An defined amont of matching records can be skipped with `.skipBy(amount)` and be resetted with  `.unskipped`. The current skipped amount of records can be fetched with `.skip`.
 
@@ -358,7 +361,7 @@ User.skip; //=> 15
 User.skipBy(5).unskipped.count; //=> 10
 ~~~
 
-### limit
+### limitBy
 
 The resultset can be limited with `.limitBy(amount)` and be resetted with  `.unlimited`. The current limit can be fetched with `.limit`.
 
@@ -431,7 +434,7 @@ If you want to read the data of the samples of the [previous section](#fetching)
 
 ### all
 
-Returns all data of the query. Results can be limited by [skip](#skip) and [limitBy](#limit).
+Returns all data of the query. Results can be limited by [skipBy](#skipby) and [limitBy](#limitby).
 
 ~~~js
 User.all.then(users => ...);
@@ -452,11 +455,535 @@ User.orderBy({ lastName: 'asc' }).first.then(user => ...);
 
 ### count
 
-Returns the count of the matching records. Ignores [orderBy](#orderBy), [skip](#skip) and [limit](#limitBy) and always returns complete count of matching records.
+Returns the count of the matching records. Ignores [orderBy](#orderBy), [skip](#skipby) and [limit](#limitby) and always returns complete count of matching records.
 
 ~~~js
 User.count.then(count => ...);
 User.males.count.then(count => ...);
 User.queryBy({ name: 'John' }).count.then(count => ...);
-User.count === User.limit(5).count
+User.count === User.limit(5).count;
+~~~
+
+## Batches
+
+When there is a need to change/delete multiple records at once its recommended to use the following methods if possible. They provide a much better performance compared to do it record by record.
+
+### updateaAll
+
+`.updateAll(attrs)` updates all matching records with the passed attributes.
+
+~~~js
+User.queryBy({ firstName: 'John' }).updateAll({ gender: 'male' }).then(users => ...);
+User.updateAll({ encryptedPassword: undefined }).then(users => ...);
+~~~
+
+### deleteAll
+
+Deletes and returns all matching records..
+
+~~~js
+User.deleteAll().then(deletedUsers => ...);
+User.queryBy({ firstName: 'John', lastName: 'Doe' }).deleteAll().then(deletedUsers => ...);
+~~~
+
+
+## Class Properties
+
+Class Properties are static getters which can be defined with the class. Some of them can be modified by [Queries](#queries) which creates a new Class.
+
+### modelName
+
+The model name needs to be defined for every model. The name should be singular camelcase, starting with an uppercase char. If the `.modelName` is not passed its reflected from its Class Name.
+
+~~~js
+@Model
+class User extends NextModel {};
+User.modelName; //=> 'User'
+
+@Model
+class User extends NextModel {
+  static get modelName() {
+    return 'User';
+  }
+};
+
+@Model
+class UserAddress extends NextModel {
+  static get modelName() {
+    return 'UserAddress';
+  }
+};
+~~~
+
+### schema
+
+A schema describes all (database stored) properties. Foreign keys from relations like [belongsTo](#belongsto) are automatically added to the schema. The existing types and their names are depending on the used Database connector.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get schema() {
+    return {
+      id: { type: 'integer' },
+      name: { type: 'string' },
+    };
+  }
+};
+~~~
+
+### dbConnector
+
+A connector is the bridge between models and the database. NextModel comes with an DefaultConnector which reads and writes on an simpe js object.
+
+Available connectors:
+
+* WIP [knex](https://github.com/tamino-martinius/node-next-model-knex-connector.git) (mySQL, postgres, sqlite3, ...)
+* WIP [local-storage](https://github.com/tamino-martinius/node-next-model-local-storage-connector.git) (Client side for Browser usage)
+
+~~~js
+const Connector = require('next-model-knex-connector');
+const connector = new Connector(options);
+
+@Model
+class User extends NextModel {
+  static get connector() {
+    return connector;
+  }
+};
+~~~
+
+Define an base model with connector to prevent adding connector to all Models.
+
+*Please note:* In this case its better to call the `@Model` Decorator just on the final models and not on the base model, else you need to define the [modelName](#modelname) on each model because its reflected from the base model.
+
+~~~js
+class BaseModel extends NextModel {
+  static get connector() {
+    return connector;
+  }
+};
+
+@Model
+class User extends BaseModel {
+  ...
+};
+
+@Model
+class Address extends BaseModel {
+  ...
+};
+~~~
+
+
+### Identifier
+
+Defines the name of the primary key. It also gets automatically added to the schema with type `'integer'` if the identifier is not present at the schema. The identifier values must be serialized to an unique value with `toString()`
+
+Default values is `id`.
+
+~~~js
+@Model
+class User extends BaseModel {
+  static get identifier() {
+    return 'key';
+  }
+};
+~~~
+
+You also can define your identifier on the [schema](#schema) to change the default type.
+
+~~~js
+@Model
+class User extends BaseModel {
+  static get identifier() {
+    return 'uid';
+  }
+
+  static get schema() {
+    return {
+      uid: { type: 'uuid' },
+      ...
+    };
+  }
+};
+~~~
+
+### attrAccessors
+
+Accessors define properties which can be passed to [build](#build), [create](#create) functions or assignments, but are not passed to the database. Use them to store temporary data like passing values to model but not to database layer. Attributes defined this way are returned by [attributes](#attributes) but not by [dbAttributes](#dbattributes).
+
+~~~js
+class User extends NextModel {
+  static get accessors {
+    return [
+      'checkForConflicts',
+    ];
+  }
+};
+
+user = User.build({ checkForConflicts: true });
+user.checkForConflicts === true;
+
+user = User.build({ foo: 'bar' });
+user.foo === undefined;
+~~~
+
+### keys
+
+The `.keys` will return all possible attributes you can pass to build new model Instances. The keys depend on [Relations](#relations), [schema](#schema), [attrAccessors](#attraccessors) and the [identifier](#identifier).
+
+~~~js
+@Model
+class Foo extends NextModel{};
+Foo.keys //=> ['id']
+class Foo extends NextModel{
+  static get schema(): Schema {
+    return {
+      bar: { type: 'string' },
+    };
+  }
+
+  static get belongsTo(): BelongsTo {
+    return {
+      bar: { model: Bar },
+    };
+  }
+
+  static get attrAccessors(): string[] {
+    return ['baz'];
+  }
+};
+Foo.keys //=> ['id', 'bar', 'barId', 'baz']
+~~~
+
+### dbKeys
+
+The `.dbKeys` will return all attributes which are persistend stored at the database. The keys depend on [Relations](#relations), [schema](#schema) and the [identifier](#identifier).
+
+~~~js
+@Model
+class Foo extends NextModel{};
+Foo.keys //=> ['id']
+class Foo extends NextModel{
+  static get schema(): Schema {
+    return {
+      bar: { type: 'string' },
+    };
+  }
+
+  static get belongsTo(): BelongsTo {
+    return {
+      bar: { model: Bar },
+    };
+  }
+
+  static get attrAccessors(): string[] {
+    return ['baz'];
+  }
+};
+Foo.keys //=> ['id', 'bar', 'barId']
+~~~
+
+### query
+
+A default scope can be defined by adding a getter for `.query`. You need call [unqueried](#queryby) to search without this scope.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get query(): Query {
+    return {
+      deletedAt: null,
+    };
+  }
+};
+
+User.first.then(user => user.deletedAt === null);
+User.unqueried.where( ... );
+~~~
+
+### order
+
+Adds an default Order to all queries unless its overwritten.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get order(): Order {
+    return {
+      name: 'asc',
+    };
+  }
+};
+~~~
+
+### skip
+
+Adds an default amount of skipped records on every query. This can be changed by [skipBy](#skipby) and removed by `.unskipped`.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get limit(): number {
+    return 10;
+  }
+};
+~~~
+
+### limit
+
+Limits all queries made to this model to an specific amount. This can be changed by [limitBy](#limitby) and removed by `.unlimited`.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get limit(): number {
+    return 100;
+  }
+};
+~~~
+
+## Instance Attributes
+
+### isNew
+
+An record is new unless the record is saved to the database. NextModel checks if the identifier property is set for this attribute.
+
+~~~js
+address = Address.build();
+address.isNew === true;
+address.save().then(address => {
+  address.isNew === false;
+});
+~~~
+
+### isPersistent
+
+The opposite of [isNew](#isnew). Returns false unless the record is not saved to the database.
+
+~~~js
+address = Address.build();
+address.isPersistent === false;
+address.save().then(address => {
+  address.isPersistent === true;
+});
+~~~
+
+### attributes
+
+Returns an object which contains all properties defined by schema and attrAccessors.
+
+~~~js
+@Model
+class Address extends NextModel {
+  static get schema() {
+    return {
+      street: { type: 'string' },
+      city: { type: 'string' },
+    };
+  }
+
+  static get attrAccessors() {
+    return ['fetchGeoCoord'];
+  }
+};
+
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+  fetchGeoCoord: false,
+});
+address.foo = 'bar';
+
+address.attributes === {
+  street: '1st street',
+  city: 'New York',
+  fetchGeoCoord: false
+};
+~~~
+
+### dbAttributes
+
+Returns an object which contains all properties defined only by schema.
+
+~~~js
+@Model
+class Address extends NextModel {
+  static get schema() {
+    return {
+      street: { type: 'string' },
+      city: { type: 'string' },
+    };
+  }
+
+  static get attrAccessors() {
+    return ['fetchGeoCoord'];
+  }
+};
+
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+  fetchGeoCoord: false,
+});
+address.foo = 'bar';
+
+address.dbAttributes === {
+  street: '1st street',
+  city: 'New York',
+};
+~~~
+
+### isChanged
+
+When you change a fresh build or created Class instance this property changes to true.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.isChanged === false;
+address.street = '2nd street';
+address.isChanged === true;
+~~~
+
+This property does not change when the value is same after assignment.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.isChanged === false;
+address.street = '1st street';
+address.isChanged === false;
+~~~
+
+### changes
+
+The `changes` property contains an `object` of changes per property which has changed. Each entry contains an `from` and `to` property. Just the last value is saved at the `to` property if the property is changed multiple times. The changes are cleared once its set again to its initial value, or if the record got saved.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.changes === {};
+address.street = '2nd street';
+address.changes === {
+  street: { from: '1st street', to: '2nd street' },
+};
+address.street = '3rd street';
+address.changes === {
+  street: { from: '1st street', to: '3nd street' },
+};
+address.street = '1st street';
+address.changes === {};
+~~~
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.changes === {};
+address.street = '2nd street';
+address.changes === {
+  street: { from: '1st street', to: '2nd street' },
+};
+address.save(address =>
+  address.changes === {}
+);
+~~~
+
+### Custom Attributes
+
+Custom attributes can be defined as on every other js class.
+
+~~~js
+class User extends NextModel {
+  static get schema() {
+    return {
+      firstname: {type: String},
+      lastname: {type: String}
+    }
+  }
+
+  get name() {
+    return `${this.firstName} ${this.lastName}`;
+  }
+}
+
+user = User.build({
+  firstname: 'Foo',
+  lastname: 'Bar'
+});
+user.name === 'Foo Bar';
+~~~
+
+## Instance Callbacks
+
+With callbacks you can run code before or after an action. Actions which currently supports callbacks are `save`, `update`, `delete`, `reload`, `assign` and `change`. Callbacks are always named `before{Action}` and `after{Action}`. Callbacks can be sync or async with Promises. Callbacks get called with the current model instance and should return a bool value. If an `before{Action}` callback returns `false` or gets rejected the action will be aborted and non of the following callbacks will be called. If an `after{Action}` callback will return `false` or gets rejected none of the following callback will be called, but the action will not be rolled back.
+
+*Please Note:* `assign` and `change` just supports sync callbacks.
+
+[TODO]
+
+## Instance Actions
+
+### assign
+
+You can assign a new value to an [schema](#schema) or [accessor](#accessors) defined property. This does **not** automatically save the data to the database. All assigned attributes will be tracked by [changes](#changes)
+
+~~~js
+address.assign({
+  street: '1st Street',
+  city: 'New York',
+});
+~~~
+
+### save
+
+Saves the record to database. Returns a `Promise` with the created record including its newly created id. An already existing record gets updated.
+
+~~~js
+address = Address.build({street: '1st street'});
+address.save().then(
+  (address) => address.isNew === false;
+).catch(
+  (address) => address.isNew === true;
+);
+~~~
+
+~~~js
+address.street = 'changed';
+address.save().then( ... );
+~~~
+
+### delete
+
+Removes the record from database. Returns a `Promise` with the deleted record.
+
+~~~js
+address.isNew === false;
+address.delete().then(
+  (address) => address.isNew === true;
+).catch(
+  (address) => address.isNew === false;
+);
+~~~
+
+### reload
+
+Refetches the record from database. All temporary attributes and changes will be lost. Returns a `Promise` with the reloaded record.
+
+~~~js
+address.isNew === false;
+address.street = 'changed';
+address.notAnDatabaseColumn = 'foo';
+address.reload().then((address) => {
+  address.name === '1st Street';
+  address.notAnDatabaseColumn === undefined;
+});
 ~~~
