@@ -4209,44 +4209,6 @@ describe('NextModel', () => {
       },
     });
 
-    context('when query returns result', {
-      definitions() {
-        attrs = {
-          firstName: 'foo',
-        };
-        Klass = User;
-        return seededUserDb();
-      },
-      tests() {
-        test('returns database record with overwritten attributes', () => {
-          return expect(subject()).resolves.toEqual({
-            id: expect.any(Number),
-            firstName: 'foo',
-            lastName: 'User',
-          });
-        });
-      },
-    });
-
-    context('when query does not return result', {
-      definitions() {
-        attrs = {
-          firstName: 'foo',
-        };
-        Klass = User;
-        return emptyUserDb();
-      },
-      tests() {
-        test('returns empty default', () => {
-          return expect(subject()).resolves.toEqual({
-            id: undefined,
-            firstName: 'foo',
-            lastName: undefined,
-          });
-        });
-      },
-    });
-
     context('when decorator is present', {
       definitions() {
         @Model
@@ -4258,6 +4220,44 @@ describe('NextModel', () => {
           return expect(subject()).resolves.toEqual({
             id: undefined,
           });
+        });
+
+        context('when query returns result', {
+          definitions() {
+            attrs = {
+              firstName: 'foo',
+            };
+            Klass = User;
+            return seededUserDb();
+          },
+          tests() {
+            test('returns database record with overwritten attributes', () => {
+              return expect(subject()).resolves.toEqual({
+                id: expect.any(Number),
+                firstName: 'foo',
+                lastName: 'User',
+              });
+            });
+          },
+        });
+
+        context('when query does not return result', {
+          definitions() {
+            attrs = {
+              firstName: 'foo',
+            };
+            Klass = User;
+            return emptyUserDb();
+          },
+          tests() {
+            test('returns empty default', () => {
+              return expect(subject()).resolves.toEqual({
+                id: undefined,
+                firstName: 'foo',
+                lastName: undefined,
+              });
+            });
+          },
         });
 
         context('when attributes are passed', {
@@ -4475,44 +4475,6 @@ describe('NextModel', () => {
       },
     });
 
-    context('when query returns result', {
-      definitions() {
-        attrs = {
-          firstName: 'foo',
-        };
-        Klass = User;
-        return seededUserDb();
-      },
-      tests() {
-        test('returns empty default', () => {
-          return expect(subject()).resolves.toEqual({
-            id: expect.any(Number),
-            firstName: 'foo',
-            lastName: 'User',
-          });
-        });
-      },
-    });
-
-    context('when query does not return result', {
-      definitions() {
-        attrs = {
-          firstName: 'foo',
-        };
-        Klass = User;
-        return emptyUserDb();
-      },
-      tests() {
-        test('returns empty default', () => {
-          return expect(subject()).resolves.toEqual({
-            id: expect.any(Number),
-            firstName: 'foo',
-            lastName: undefined,
-          });
-        });
-      },
-    });
-
     context('when decorator is present', {
       definitions() {
         @Model
@@ -4524,6 +4486,44 @@ describe('NextModel', () => {
           return expect(subject()).resolves.toEqual({
             id: 1,
           });
+        });
+
+        context('when query returns result', {
+          definitions() {
+            attrs = {
+              firstName: 'foo',
+            };
+            Klass = User;
+            return seededUserDb();
+          },
+          tests() {
+            test('returns empty default', () => {
+              return expect(subject()).resolves.toEqual({
+                id: expect.any(Number),
+                firstName: 'foo',
+                lastName: 'User',
+              });
+            });
+          },
+        });
+
+        context('when query does not return result', {
+          definitions() {
+            attrs = {
+              firstName: 'foo',
+            };
+            Klass = User;
+            return emptyUserDb();
+          },
+          tests() {
+            test('returns empty default', () => {
+              return expect(subject()).resolves.toEqual({
+                id: expect.any(Number),
+                firstName: 'foo',
+                lastName: undefined,
+              });
+            });
+          },
         });
 
         context('when attributes are passed', {
