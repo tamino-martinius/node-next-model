@@ -4721,6 +4721,8 @@ describe('NextModel', () => {
 
   describe('.constructor(attrs)', () => {
     let Klass: typeof NextModel;
+    let klass: NextModel;
+    let cb: SyncCallback;
     let attrs: Attributes | undefined = undefined;
     const subject = () => new Klass(attrs);
 
@@ -4732,6 +4734,196 @@ describe('NextModel', () => {
       tests() {
         test('returns new NextModel instance', () => {
           expect(subject()).toEqual(expect.any(NextModel));
+        });
+      },
+    });
+
+    context('when before callback is present', {
+      definitions() {
+        cb = jest.fn().mockReturnValue(true);
+
+        @Model
+        class NewKlass extends NextModel {
+          static get callbacks(): Callbacks {
+            return {
+              beforeChange: cb,
+            };
+          }
+        };
+        klass = new NewKlass();
+      },
+      tests() {
+        test('calls callback and sets attribute', () => {
+          klass.id = 1;
+          expect(klass.id).toEqual(1);
+          expect(cb).toHaveBeenCalled();
+        });
+
+        context('when callback returns false', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(false);
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeChange: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and does not set attribute', () => {
+              klass.id = 1;
+              expect(klass.id).toBeUndefined();
+              expect(cb).toHaveBeenCalled();
+            });
+          },
+        });
+
+        context('when callback throws error', {
+          definitions() {
+            cb = jest.fn().mockImplementation(() => { throw new Error(); });
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeChange: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and does not set attribute', () => {
+              klass.id = 1;
+              expect(klass.id).toBeUndefined();
+              expect(cb).toHaveBeenCalled();
+            });
+          },
+        });
+
+        context('when first of multiple callbacks returns false', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(true);
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeChange: [
+                    () => false,
+                    cb,
+                  ],
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls only first callback and does not set attribute', () => {
+              klass.id = 1;
+              expect(klass.id).toBeUndefined();
+              expect(cb).not.toHaveBeenCalled();
+            });
+          },
+        });
+      },
+    });
+
+    context('when after callback is present', {
+      definitions() {
+        cb = jest.fn().mockReturnValue(true);
+
+        @Model
+        class NewKlass extends NextModel {
+          static get callbacks(): Callbacks {
+            return {
+              afterChange: cb,
+            };
+          }
+        };
+        klass = new NewKlass();
+      },
+      tests() {
+        test('calls callback and sets attribute', () => {
+          klass.id = 1;
+          expect(klass.id).toEqual(1);
+          expect(cb).toHaveBeenCalled();
+        });
+
+        context('when callback returns false', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(false);
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterChange: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and sets attribute', () => {
+              klass.id = 1;
+              expect(klass.id).toEqual(1);
+              expect(cb).toHaveBeenCalled();
+            });
+          },
+        });
+
+        context('when callback returns false', {
+          definitions() {
+            cb = jest.fn().mockImplementation(() => { throw new Error(); });
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterChange: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and sets attribute', () => {
+              klass.id = 1;
+              expect(klass.id).toEqual(1);
+              expect(cb).toHaveBeenCalled();
+            });
+          },
+        });
+
+        context('when first of multiple callbacks returns false', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(true);
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterChange: [
+                    () => false,
+                    cb,
+                  ],
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls only first callback and sets attribute', () => {
+              klass.id = 1;
+              expect(klass.id).toEqual(1);
+              expect(cb).not.toHaveBeenCalled();
+            });
+          },
         });
       },
     });
@@ -5428,6 +5620,7 @@ describe('NextModel', () => {
   describe('#save()', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
+    let cb: PromiseCallback;
     const error = new Error();
     const errorValidator: Validator = (_item) => Promise.resolve(error);
     const subject = () => klass.save();
@@ -5455,6 +5648,204 @@ describe('NextModel', () => {
       tests() {
         test('sets instance id if item is new', () => {
           return expect(subject()).resolves.toEqual(new Klass({ id: 1 }));
+        });
+
+        context('when before callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeSave: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and sets instance id', () => {
+              return subject().then(instance => {
+                expect(instance).toEqual(new Klass({ id: 1 }));
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeSave: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and does not save klass', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeSave: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and does not save klass', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeSave: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and does not save klass', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
+        });
+
+        context('when after callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterSave: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and sets instance id', () => {
+              return subject().then(instance => {
+                expect(instance).toEqual(new Klass({ id: 1 }));
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterSave: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and sets instance id', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(new Klass({ id: 1 }));
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterSave: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and sets instance id', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(new Klass({ id: 1 }));
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterSave: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and sets instance id', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(new Klass({ id: 1 }));
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
         });
 
         context('when validator is failing', {
@@ -5496,6 +5887,7 @@ describe('NextModel', () => {
   describe('#delete()', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
+    let cb: PromiseCallback;
     const subject = () => klass.delete();
 
     context('when decorator is not present', {
@@ -5523,6 +5915,204 @@ describe('NextModel', () => {
           return expect(subject()).resolves.toEqual(klass);
         });
 
+        context('when before callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeDelete: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and returns class', () => {
+              return subject().then(instance => {
+                expect(instance).toEqual(klass);
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeDelete: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns class', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeDelete: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns class', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeDelete: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and returns class', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
+        });
+
+        context('when after callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterDelete: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and returns klass', () => {
+              return subject().then(instance => {
+                expect(instance).toEqual(klass);
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterDelete: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns class', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterDelete: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns class', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterDelete: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and returns class', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
+        });
+
         context('when item is persisted', {
           definitions() {
             klass = new Klass({ id: 1 });
@@ -5539,15 +6129,18 @@ describe('NextModel', () => {
 
   describe('#update(attrs)', () => {
     let Klass: typeof NextModel;
+    let klass: NextModel;
+    let cb: PromiseCallback;
     let attrs: Attributes = {};
     const error = new Error();
     const errorValidator: Validator = (_item) => Promise.resolve(error);
-    const subject = () => new Klass().update(attrs);
+    const subject = () => klass.update(attrs);
 
     context('when decorator is not present', {
       definitions() {
         class NewKlass extends NextModel {};
         Klass = NewKlass;
+        klass = new Klass();
       },
       tests() {
         test('throws PropertyNotDefinedError', () => {
@@ -5561,6 +6154,7 @@ describe('NextModel', () => {
         @Model
         class NewKlass extends NextModel {};
         Klass = NewKlass;
+        klass = new Klass();
       },
       tests() {
         test('returns empty default', () => {
@@ -5580,6 +6174,7 @@ describe('NextModel', () => {
               }
             };
             Klass = NewKlass;
+            klass = new Klass();
           },
           tests() {
             test('does not set id, but errors', () => {
@@ -5592,6 +6187,7 @@ describe('NextModel', () => {
 
         context('when attributes are passed', {
           definitions() {
+            klass = new Klass();
             attrs = {
               id: 1,
               baz: '💩',
@@ -5602,6 +6198,212 @@ describe('NextModel', () => {
               return expect(subject()).resolves.toEqual(new Klass({
                 id: 1,
               }));
+            });
+
+            context('when before callback is present', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeUpdate: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns updated class', () => {
+                  return subject().then(instance => {
+                    expect(instance).toEqual(new Klass({
+                      id: 1,
+                    }));
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          beforeUpdate: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns class', () => {
+                      return subject().catch(instance => {
+                        expect(instance).toEqual(klass);
+                        expect(cb).toHaveBeenCalled();
+                      });
+                    });
+                  },
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          beforeUpdate: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns class', () => {
+                      return subject().catch(instance => {
+                        expect(instance).toEqual(klass);
+                        expect(cb).toHaveBeenCalled();
+                      });
+                    });
+                  },
+                });
+
+                context('when first of multiple callbacks returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          beforeUpdate: [
+                            () => Promise.resolve(false),
+                            cb,
+                          ],
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls only first callback and returns class', () => {
+                      return subject().catch(instance => {
+                        expect(instance).toEqual(klass);
+                        expect(cb).not.toHaveBeenCalled();
+                      });
+                    });
+                  },
+                });
+              },
+            });
+
+            context('when after callback is present', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterUpdate: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns updated klass', () => {
+                  return subject().then(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          afterUpdate: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns class', () => {
+                      return subject().catch(instance => {
+                        expect(instance).toEqual(new Klass({
+                          id: 1,
+                        }));
+                        expect(cb).toHaveBeenCalled();
+                      });
+                    });
+                  },
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          afterUpdate: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns updated class', () => {
+                      return subject().catch(instance => {
+                        expect(instance).toEqual(new Klass({
+                          id: 1,
+                        }));
+                        expect(cb).toHaveBeenCalled();
+                      });
+                    });
+                  },
+                });
+
+                context('when first of multiple callbacks returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          afterUpdate: [
+                            () => Promise.resolve(false),
+                            cb,
+                          ],
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls only first callback and returns updated class', () => {
+                      return subject().catch(instance => {
+                        expect(instance).toEqual(new Klass({
+                          id: 1,
+                        }));
+                        expect(cb).not.toHaveBeenCalled();
+                      });
+                    });
+                  },
+                });
+              },
             });
           },
           reset() {
@@ -5618,6 +6420,7 @@ describe('NextModel', () => {
               }
             };
             Klass = NewKlass;
+            klass = new Klass();
           },
           tests() {
             test('returns object with keys of the schema', () => {
@@ -5629,6 +6432,7 @@ describe('NextModel', () => {
 
             context('when attributes are passed', {
               definitions() {
+                klass = new Klass();
                 attrs = {
                   id: 1,
                   foo: 'bar',
@@ -5659,6 +6463,7 @@ describe('NextModel', () => {
                   }
                 };
                 Klass = NewKlass;
+                klass = new Klass();
               },
               tests() {
                 test('returns object with keys of the belongsTo relation', () => {
@@ -5671,6 +6476,7 @@ describe('NextModel', () => {
 
                 context('when attributes are passed', {
                   definitions() {
+                    klass = new Klass();
                     attrs = {
                       id: 1,
                       foo: 'bar',
@@ -5701,6 +6507,7 @@ describe('NextModel', () => {
                       }
                     };
                     Klass = NewKlass;
+                    klass = new Klass();
                   },
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
@@ -5714,6 +6521,7 @@ describe('NextModel', () => {
 
                     context('when attributes are passed', {
                       definitions() {
+                        klass = new Klass();
                         attrs = {
                           id: 1,
                           foo: 'bar',
@@ -5747,6 +6555,7 @@ describe('NextModel', () => {
   describe('#reload()', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
+    let cb: PromiseCallback;
     const subject = () => klass.reload();
 
     context('when decorator is not present', {
@@ -5772,6 +6581,204 @@ describe('NextModel', () => {
       tests() {
         test('returns instance', () => {
           return expect(subject()).resolves.toBeUndefined();
+        });
+
+        context('when before callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeReload: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and returns undefined', () => {
+              return subject().then(instance => {
+                expect(instance).toBeUndefined();
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeReload: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns klass', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeReload: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns klass', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeReload: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and returns klass', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toEqual(klass);
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
+        });
+
+        context('when after callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterReload: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and returns klass', () => {
+              return subject().then(instance => {
+                expect(instance).toBeUndefined();
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterReload: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns undefined', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toBeUndefined();
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterReload: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns undefined', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toBeUndefined();
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterReload: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and returns undefined', () => {
+                  return subject().catch(instance => {
+                    expect(instance).toBeUndefined();
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
         });
 
         context('when item is persisted', {
@@ -5812,13 +6819,16 @@ describe('NextModel', () => {
 
   describe('#assign(attrs)', () => {
     let Klass: typeof NextModel;
+    let klass: NextModel;
+    let cb: SyncCallback;
     let attrs: Attributes = {};
-    const subject = () => new Klass().assign(attrs).attributes;
+    const subject = () => klass.assign(attrs).attributes;
 
     context('when decorator is not present', {
       definitions() {
         class NewKlass extends NextModel {};
         Klass = NewKlass;
+        klass = new Klass();
       },
       tests() {
         test('throws PropertyNotDefinedError', () => {
@@ -5832,6 +6842,7 @@ describe('NextModel', () => {
         @Model
         class NewKlass extends NextModel {};
         Klass = NewKlass;
+        klass = new Klass();
       },
       tests() {
         test('returns empty default', () => {
@@ -5842,6 +6853,7 @@ describe('NextModel', () => {
 
         context('when attributes are passed', {
           definitions() {
+            klass = new Klass();
             attrs = {
               id: 1,
               baz: '💩',
@@ -5852,6 +6864,188 @@ describe('NextModel', () => {
               expect(subject()).toEqual({
                 id: 1,
               });
+            });
+
+            context('when before callback is present', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(true);
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeAssign: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns assigned class', () => {
+                  expect(subject()).toEqual({ id: 1 });
+                  expect(cb).toHaveBeenCalled();
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(false);
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          beforeAssign: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns class', () => {
+                      expect(subject()).toEqual({ id: undefined });
+                      expect(cb).toHaveBeenCalled();
+                    });
+                  },
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockImplementation(() => { throw new Error(); });
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          beforeAssign: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns class', () => {
+                      expect(subject()).toEqual({ id: undefined });
+                      expect(cb).toHaveBeenCalled();
+                    });
+                  },
+                });
+
+                context('when first of multiple callbacks returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(true);
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          beforeAssign: [
+                            () => false,
+                            cb,
+                          ],
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls only first callback and returns class', () => {
+                      expect(subject()).toEqual({ id: undefined });
+                      expect(cb).not.toHaveBeenCalled();
+                    });
+                  },
+                });
+              },
+            });
+
+            context('when after callback is present', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(true);
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterAssign: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns assigned klass', () => {
+                  expect(subject()).toEqual({ id: 1 });
+                  expect(cb).toHaveBeenCalled();
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(false);
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          afterAssign: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns assigned class', () => {
+                      expect(subject()).toEqual({ id: 1 });
+                      expect(cb).toHaveBeenCalled();
+                    });
+                  },
+                });
+
+                context('when callback returns false', {
+                  definitions() {
+                    cb = jest.fn().mockImplementation(() => { throw new Error(); });
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          afterAssign: cb,
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls callback and returns assigned class', () => {
+                      expect(subject()).toEqual({ id: 1 });
+                      expect(cb).toHaveBeenCalled();
+                    });
+                  },
+                });
+
+                context('when first of multiple callbacks returns false', {
+                  definitions() {
+                    cb = jest.fn().mockReturnValue(true);
+
+                    @Model
+                    class NewKlass extends NextModel {
+                      static get callbacks(): Callbacks {
+                        return {
+                          afterAssign: [
+                            () => false,
+                            cb,
+                          ],
+                        };
+                      }
+                    };
+                    klass = new NewKlass();
+                  },
+                  tests() {
+                    test('calls only first callback and returns assigned class', () => {
+                      expect(subject()).toEqual({ id: 1 });
+                      expect(cb).not.toHaveBeenCalled();
+                    });
+                  },
+                });
+              },
             });
           },
           reset() {
@@ -5868,6 +7062,7 @@ describe('NextModel', () => {
               }
             };
             Klass = NewKlass;
+            klass = new Klass();
           },
           tests() {
             test('returns object with keys of the schema', () => {
@@ -5879,6 +7074,7 @@ describe('NextModel', () => {
 
             context('when attributes are passed', {
               definitions() {
+                klass = new Klass();
                 attrs = {
                   id: 1,
                   foo: 'bar',
@@ -5909,6 +7105,7 @@ describe('NextModel', () => {
                   }
                 };
                 Klass = NewKlass;
+                klass = new Klass();
               },
               tests() {
                 test('returns object with keys of the belongsTo relation', () => {
@@ -5921,6 +7118,7 @@ describe('NextModel', () => {
 
                 context('when attributes are passed', {
                   definitions() {
+                    klass = new Klass();
                     attrs = {
                       id: 1,
                       foo: 'bar',
@@ -5952,6 +7150,7 @@ describe('NextModel', () => {
                       }
                     };
                     Klass = NewKlass;
+                    klass = new Klass();
                   },
                   tests() {
                     test('returns object with keys of the attrAccessors', () => {
@@ -5965,6 +7164,7 @@ describe('NextModel', () => {
 
                     context('when attributes are passed', {
                       definitions() {
+                        klass = new Klass();
                         attrs = {
                           id: 1,
                           foo: 'bar',
@@ -6555,6 +7755,7 @@ describe('NextModel', () => {
   describe('#isValid()', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
+    let cb: PromiseCallback;
     const error = new Error();
     const trueValidator: Validator = (_item) => Promise.resolve(true);
     const falseValidator: Validator = (_item) => Promise.resolve(false);
@@ -6584,6 +7785,205 @@ describe('NextModel', () => {
         test('returns true', () => {
           return expect(subject()).resolves.toBeTruthy();
         });
+
+        context('when before callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  beforeValidation: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and returns true', () => {
+              return klass.isValid().then(instance => {
+                expect(instance).toBeTruthy();
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeValidation: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns false', () => {
+                  return klass.isValid().catch(instance => {
+                    expect(instance).toBeFalsy();
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeValidation: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns false', () => {
+                  return klass.isValid().catch(instance => {
+                    expect(instance).toBeFalsy();
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      beforeValidation: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and returns false', () => {
+                  return klass.isValid().catch(instance => {
+                    expect(instance).toBeFalsy();
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
+        });
+
+        context('when after callback is present', {
+          definitions() {
+            cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+            @Model
+            class NewKlass extends NextModel {
+              static get callbacks(): Callbacks {
+                return {
+                  afterValidation: cb,
+                };
+              }
+            };
+            klass = new NewKlass();
+          },
+          tests() {
+            test('calls callback and returns true', () => {
+            return klass.isValid().then(instance => {
+                expect(instance).toBeTruthy();
+                expect(cb).toHaveBeenCalled();
+              });
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterValidation: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns true', () => {
+                  return klass.isValid().catch(instance => {
+                    expect(instance).toBeTruthy();
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when callback returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.reject(false));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterValidation: cb,
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls callback and returns true', () => {
+                  return klass.isValid().catch(instance => {
+                    expect(instance).toBeTruthy();
+                    expect(cb).toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+
+            context('when first of multiple callbacks returns false', {
+              definitions() {
+                cb = jest.fn().mockReturnValue(Promise.resolve(true));
+
+                @Model
+                class NewKlass extends NextModel {
+                  static get callbacks(): Callbacks {
+                    return {
+                      afterValidation: [
+                        () => Promise.resolve(false),
+                        cb,
+                      ],
+                    };
+                  }
+                };
+                klass = new NewKlass();
+              },
+              tests() {
+                test('calls only first callback and returns true', () => {
+                  return klass.isValid().catch(instance => {
+                    expect(instance).toBeTruthy();
+                    expect(cb).not.toHaveBeenCalled();
+                  });
+                });
+              },
+            });
+          },
+        });
+
         context('when validator returns true', {
           definitions() {
             @Model
