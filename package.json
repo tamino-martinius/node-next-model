@@ -20,7 +20,7 @@
     "test": "jest",
     "build": "rm -rf dist/* && tsc",
     "watch": "tsc -w",
-    "ci": "rm -rf coverage/* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw* && codecov"
+    "ci": "npm run coverage && codecov"
   },
   "devDependencies": {
     "@types/jest": "^21.1.2",
