@@ -551,6 +551,26 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return skippedValidators;
     }
 
+    static skipValidator(key: string): typeof StrictNextModel {
+      const skippedValidators: string[] = [key];
+      skippedValidators.push(...this.skippedValidators);
+      return class extends this {
+        static get skippedValidators(): string[] {
+          return skippedValidators;
+        }
+      };
+    }
+
+    static skipValidators(keys: string[]): typeof StrictNextModel {
+      const skippedValidators: string[] = keys;
+      skippedValidators.push(...this.skippedValidators);
+      return class extends this {
+        static get skippedValidators(): string[] {
+          return skippedValidators;
+        }
+      };
+    }
+
     static isValidatorSkipped(key: string): boolean {
       for (const validatorKey of this.skippedValidators) {
         if (validatorKey === key) return true;
@@ -560,6 +580,26 @@ export function Model(model: typeof NextModel): typeof NextModel {
 
     static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
       return skippedCallbacks;
+    }
+
+    static skipCallback(key: PromiseCallbackKeys | SyncCallbackKeys): typeof StrictNextModel {
+      const skippedCallbacks: (PromiseCallbackKeys | SyncCallbackKeys)[] = [key];
+      skippedCallbacks.push(...this.skippedCallbacks);
+      return class extends this {
+        static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+          return skippedCallbacks;
+        }
+      };
+    }
+
+    static skipCallbacks(keys: (PromiseCallbackKeys | SyncCallbackKeys)[]): typeof StrictNextModel {
+      const skippedCallbacks: (PromiseCallbackKeys | SyncCallbackKeys)[] = keys;
+      skippedCallbacks.push(...this.skippedCallbacks);
+      return class extends this {
+        static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+          return skippedCallbacks;
+        }
+      };
     }
 
     static isCallbackSkipped(key: PromiseCallbackKeys | SyncCallbackKeys): boolean {
@@ -1225,12 +1265,28 @@ export class NextModel {
     throw new PropertyNotDefinedError('.skippedValidators');
   }
 
+  static skipValidator(_key: string): typeof NextModel {
+    throw new PropertyNotDefinedError('.skipValidator');
+  }
+
+  static skipValidators(_keys: string[]): typeof NextModel {
+    throw new PropertyNotDefinedError('.skipValidators');
+  }
+
   static isValidatorSkipped(_key: string): boolean {
     throw new PropertyNotDefinedError('.isValidatorSkipped');
   }
 
   static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
     throw new PropertyNotDefinedError('.skippedCallbacks');
+  }
+
+  static skipCallback(_key: PromiseCallbackKeys | SyncCallbackKeys): typeof NextModel {
+    throw new PropertyNotDefinedError('.skipCallback');
+  }
+
+  static skipCallbacks(_keys: (PromiseCallbackKeys | SyncCallbackKeys)[]): typeof NextModel {
+    throw new PropertyNotDefinedError('.skipCallbacks');
   }
 
   static isCallbackSkipped(_key: string): boolean {

@@ -17,7 +17,7 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
 * Fix **typos**
 * Improve **documentation**
 * `createdAt` and `updatedAt` **timestamps**
-* Predefined and custom **validations**
+* Predefined **validations**
 * Improve **schema** with eg. default values, limits
 * Improve **associations** eg. cascading deletions
 * Add more packages for eg. **versioning** and **soft deleting**
