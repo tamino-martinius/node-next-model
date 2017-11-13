@@ -76,6 +76,8 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
   * [errors](#errors)
   * [Custom Attributes](#custom-attributes)
 * [Instance Callbacks](#instance-callbacks)
+  * [Promise Callbacks](#promise-callbacks)
+  * [Sync Callbacks](#sync-callbacks)
 * [Instance Actions](#instance-actions)
   * [assign](#assign)
   * [save](#save)
@@ -924,11 +926,130 @@ user.name === 'Foo Bar';
 
 ## Instance Callbacks
 
-With callbacks you can run code before or after an action. Actions which currently supports callbacks are `save`, `update`, `delete`, `reload`, `assign` and `change`. Callbacks are always named `before{Action}` and `after{Action}`. Callbacks can be sync or async with Promises. Callbacks get called with the current model instance and should return a bool value. If an `before{Action}` callback returns `false` or gets rejected the action will be aborted and non of the following callbacks will be called. If an `after{Action}` callback will return `false` or gets rejected none of the following callback will be called, but the action will not be rolled back.
+With callbacks you can run code before or after an action. Actions which currently supports callbacks are `save`, `update`, `delete`, `reload`, `assign`, `change` and `validation`. Callbacks are always named `before{Action}` and `after{Action}`. Callbacks are async with Promises (except `assign` and `change`). Callbacks get called with the current model instance and should return a bool value. If an `before{Action}` callback returns `false` or gets rejected the action will be aborted and non of the following callbacks will be called. If an `after{Action}` callback will return `false` or gets rejected none of the following callback will be called, but the action will not be rolled back.
 
 *Please Note:* `assign` and `change` just supports sync callbacks.
 
-[TODO]
+### Pmomise Callbacks
+
+Callbacks can be defined as function which returns a promised boolean.
+
+~~~js
+@Model
+class User extends NextModel {
+  static beforeSave(user): boolean {
+    if (user.isNew) user.createdAt = Date.now();
+    user.updatedAt = Date.now();
+    return Pronise.resolve(true);
+  }
+};
+~~~
+
+Callbacks can be defined as getter to return other methods.
+
+~~~js
+class BaseModel extends NextModel {
+  static setTimestemps(instance): Promise<boolean> {
+    if (instance.isNew) instance.createdAt = Date.now();
+    instance.updatedAt = Date.now();
+    return Pronise.resolve(true);
+  }
+}
+
+@Model
+class User extends BaseModel {
+  static get beforeSave(): PromiseCallback {
+    return this.setTimestemps;
+  }
+};
+~~~
+
+Callbacks can be defined as getter to return multiple methods.
+
+~~~js
+@Model
+class User extends BaseModel {
+  static setGeoCoord(user): Promise<boolean> {
+    return GeoService.getGeoCoord(user.address).then(coord => {
+      user.coord = coord;
+      return true;
+    }).catch(() => return false);
+  }
+
+  static get beforeSave(): PromiseCallback[] {
+    return [
+      this.setGeoCoord,
+      this.setTimestemps,
+    ];
+  }
+};
+~~~
+
+### Sync Callbacks
+
+Callbacks can be defined as function which returns a boolean.
+
+~~~js
+@Model
+class User extends NextModel {
+  static afterChange(user): boolean {
+    if (user.isNew) user.createdAt = Date.now();
+    const changeCount = Object.keys(user.changes).length;
+    if (changeCount === 1) {
+      if (user.changes.updatedAt === undefined) {
+        user.updatedAt = Date.now();
+      } else {
+       user.revertChange('updatedAt');
+      }
+    }
+    return true;
+  }
+};
+~~~
+
+Callbacks can be defined as getter to return other methods.
+
+~~~js
+class BaseModel extends NextModel {
+  static setTimestemps(instance): boolean {
+    if (instance.isNew) instance.createdAt = Date.now();
+    const changeCount = Object.keys(instance.changes).length;
+    if (changeCount === 1) {
+      if (instance.changes.updatedAt === undefined) {
+        instance.updatedAt = Date.now();
+      } else {
+       instance.revertChange('updatedAt');
+      }
+    }
+    return true;
+  }
+}
+
+@Model
+class User extends BaseModel {
+  static get afterChange(): SyncCallback {
+    return this.setTimestemps;
+  }
+};
+~~~
+
+Callbacks can be defined as getter to return multiple methods.
+
+~~~js
+@Model
+class User extends BaseModel {
+  static someOtherCallback(instance): boolean {
+    ...
+  }
+
+  static get afterChange(): PromiseCallback[] {
+    return [
+      this.someOtherCallback,
+      this.setTimestemps,
+    ];
+  }
+};
+~~~
 
 ## Instance Actions
 
