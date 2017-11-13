@@ -1692,101 +1692,203 @@ describe('NextModel', () => {
   });
 
   describe('.skippedValidators', () => {
-    describe('.skippedValidators', () => {
-      let Klass: typeof NextModel;
-      const subject = () => Klass.skippedValidators;
-  
-      context('when decorator is not present', {
-        definitions() {
-          class NewKlass extends NextModel {};
-          Klass = NewKlass;
-        },
-        tests() {
-          test('throws PropertyNotDefinedError', () => {
-            expect(subject).toThrow(PropertyNotDefinedError);
-          });
+    let Klass: typeof NextModel;
+    const subject = () => Klass.skippedValidators;
 
-          context('when skippedValidators is present', {
-            definitions() {
-              class NewKlass extends NextModel {
-                static get skippedValidators(): string | string[] {
-                  return ['foo'];
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              test('returns the skippedValidators of the model', () => {
-                expect(subject()).toEqual(['foo']);
-              });
-            },
-          });
-        },
-      });
-  
-      context('when decorator is present', {
-        definitions() {
-          @Model
-          class NewKlass extends NextModel {};
-          Klass = NewKlass;
-        },
-        tests() {
-          test('returns default skippedValidators', () => {
-            expect(subject()).toEqual([]);
-          });
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-          context('when skippedValidators is array', {
-            definitions() {
-              @Model
-              class NewKlass extends NextModel {
-                static get skippedValidators(): string | string[] {
-                  return ['foo'];
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              test('returns the skippedValidators of the model', () => {
-                expect(subject()).toEqual(['foo']);
-              });
-            },
-          });
+        context('when skippedValidators is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return ['foo'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skippedValidators of the model', () => {
+              expect(subject()).toEqual(['foo']);
+            });
+          },
+        });
+      },
+    });
 
-          context('when skippedValidators is string', {
-            definitions() {
-              @Model
-              class NewKlass extends NextModel {
-                static get skippedValidators(): string | string[] {
-                  return 'foo';
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              test('returns the skippedValidators of the model as array', () => {
-                expect(subject()).toEqual(['foo']);
-              });
-            },
-          });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns default skippedValidators', () => {
+          expect(subject()).toEqual([]);
+        });
 
-          context('when skippedValidators is empty string', {
-            definitions() { },
-            tests() {
-              test('throws MinLengthError', () => {
-                expect(() => {
-                  @Model
-                  class NewKlass extends NextModel {
-                    static get skippedValidators(): string | string[] {
-                      return '';
-                    }
-                  };
-                  Klass = NewKlass;
-                }).toThrow(MinLengthError);
-              });
-            },
-          });
-        },
-      });
+        context('when skippedValidators is array', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return ['foo'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skippedValidators of the model', () => {
+              expect(subject()).toEqual(['foo']);
+            });
+          },
+        });
+
+        context('when skippedValidators is string', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return 'foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skippedValidators of the model as array', () => {
+              expect(subject()).toEqual(['foo']);
+            });
+          },
+        });
+
+        context('when skippedValidators is empty string', {
+          definitions() { },
+          tests() {
+            test('throws MinLengthError', () => {
+              expect(() => {
+                @Model
+                class NewKlass extends NextModel {
+                  static get skippedValidators(): string | string[] {
+                    return '';
+                  }
+                };
+                Klass = NewKlass;
+              }).toThrow(MinLengthError);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.skipValidator(key)', () => {
+    let Klass: typeof NextModel;
+    let key: string = 'foo';
+    const subject = () => Klass.skipValidator(key).skippedValidators;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('adds key to skipped validators', () => {
+          expect(subject()).toEqual(['foo']);
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.skipValidator(key)) instanceof Klass).toBeTruthy();
+        });
+
+        context('when skippedValidators is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return ['bar'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('adds key to skipped validators', () => {
+              expect(subject()).toEqual(['foo', 'bar']);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.skipValidators(keys)', () => {
+    let Klass: typeof NextModel;
+    let keys: string[] = ['foo', 'bar'];
+    const subject = () => Klass.skipValidators(keys).skippedValidators;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('adds key to skipped validators', () => {
+          expect(subject()).toEqual(['foo', 'bar']);
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.skipValidators(keys)) instanceof Klass).toBeTruthy();
+        });
+
+        context('when skippedValidators is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedValidators(): string | string[] {
+                return ['baz'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('adds key to skipped validators', () => {
+              expect(subject()).toEqual(['foo', 'bar', 'baz']);
+            });
+          },
+        });
+      },
     });
   });
 
@@ -1867,84 +1969,188 @@ describe('NextModel', () => {
   });
 
   describe('.skippedCallbacks', () => {
-    describe('.skippedCallbacks', () => {
-      let Klass: typeof NextModel;
-      const subject = () => Klass.skippedCallbacks;
-  
-      context('when decorator is not present', {
-        definitions() {
-          class NewKlass extends NextModel {};
-          Klass = NewKlass;
-        },
-        tests() {
-          test('throws PropertyNotDefinedError', () => {
-            expect(subject).toThrow(PropertyNotDefinedError);
-          });
+    let Klass: typeof NextModel;
+    const subject = () => Klass.skippedCallbacks;
 
-          context('when skippedCallbacks is present', {
-            definitions() {
-              class NewKlass extends NextModel {
-                static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
-                  return ['beforeSave'];
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              test('returns the skippedCallbacks of the model', () => {
-                expect(subject()).toEqual(['beforeSave']);
-              });
-            },
-          });
-        },
-      });
-  
-      context('when decorator is present', {
-        definitions() {
-          @Model
-          class NewKlass extends NextModel {};
-          Klass = NewKlass;
-        },
-        tests() {
-          test('returns default skippedCallbacks', () => {
-            expect(subject()).toEqual([]);
-          });
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
 
-          context('when skippedCallbacks is array', {
-            definitions() {
-              @Model
-              class NewKlass extends NextModel {
-                static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
-                  return ['beforeSave'];
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              test('returns the skippedCallbacks of the model', () => {
-                expect(subject()).toEqual(['beforeSave']);
-              });
-            },
-          });
+        context('when skippedCallbacks is present', {
+          definitions() {
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                return ['beforeSave'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skippedCallbacks of the model', () => {
+              expect(subject()).toEqual(['beforeSave']);
+            });
+          },
+        });
+      },
+    });
 
-          context('when skippedCallbacks is string', {
-            definitions() {
-              @Model
-              class NewKlass extends NextModel {
-                static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
-                  return 'beforeSave';
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              test('returns the skippedCallbacks of the model as array', () => {
-                expect(subject()).toEqual(['beforeSave']);
-              });
-            },
-          });
-        },
-      });
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {};
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns default skippedCallbacks', () => {
+          expect(subject()).toEqual([]);
+        });
+
+        context('when skippedCallbacks is array', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                return ['beforeSave'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skippedCallbacks of the model', () => {
+              expect(subject()).toEqual(['beforeSave']);
+            });
+          },
+        });
+
+        context('when skippedCallbacks is string', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                return 'beforeSave';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skippedCallbacks of the model as array', () => {
+              expect(subject()).toEqual(['beforeSave']);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.skipCallback(key)', () => {
+    let Klass: typeof NextModel;
+    let key: SyncCallbackKeys | PromiseCallbackKeys = 'beforeSave';
+    const subject = () => Klass.skipCallback(key).skippedCallbacks;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('adds key to skipped Callbacks', () => {
+          expect(subject()).toEqual(['beforeSave']);
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.skipCallback(key)) instanceof Klass).toBeTruthy();
+        });
+
+
+        context('when skippedCallbacks is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): SyncCallbackKeys | PromiseCallbackKeys | (SyncCallbackKeys | PromiseCallbackKeys)[] {
+                return ['beforeUpdate'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('adds key to skipped Callbacks', () => {
+              expect(subject()).toEqual(['beforeSave', 'beforeUpdate']);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.skipCallbacks(keys)', () => {
+    let Klass: typeof NextModel;
+    let keys: (SyncCallbackKeys | PromiseCallbackKeys)[] = ['beforeSave', 'afterSave'];
+    const subject = () => Klass.skipCallbacks(keys).skippedCallbacks;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('adds key to skipped callbacks', () => {
+          expect(subject()).toEqual(['beforeSave', 'afterSave']);
+        });
+
+        test('returns instance of Klass', () => {
+          expect(new (Klass.skipCallbacks(keys)) instanceof Klass).toBeTruthy();
+        });
+
+
+        context('when skippedCallbacks is present', {
+          definitions() {
+            @Model
+            class NewKlass extends NextModel {
+              static get skippedCallbacks(): SyncCallbackKeys | PromiseCallbackKeys | (SyncCallbackKeys | PromiseCallbackKeys)[] {
+                return ['beforeUpdate'];
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('adds key to skipped callbacks', () => {
+              expect(subject()).toEqual(['beforeSave', 'afterSave', 'beforeUpdate']);
+            });
+          },
+        });
+      },
     });
   });
 
@@ -4723,6 +4929,7 @@ describe('NextModel', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
     let cb: SyncCallback;
+    let fn = jest.fn();
     let attrs: Attributes | undefined = undefined;
     const subject = () => new Klass(attrs);
 
@@ -4734,6 +4941,29 @@ describe('NextModel', () => {
       tests() {
         test('returns new NextModel instance', () => {
           expect(subject()).toEqual(expect.any(NextModel));
+        });
+      },
+    });
+
+    context('when base class has its own constructor', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {
+          constructor(attrs?: Attributes) {
+            fn(attrs);
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('calls constructor with empty object when nothing is passed', () => {
+          klass = new Klass();
+          expect(fn).toHaveBeenCalledWith({});
+        });
+
+        test('calls constructor with attributes', () => {
+          klass = new Klass({ foo: 'bar' });
+          expect(fn).toHaveBeenCalledWith({ foo: 'bar' });
         });
       },
     });
