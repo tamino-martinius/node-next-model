@@ -7614,6 +7614,59 @@ describe('NextModel', () => {
     });
   });
 
+  describe('#revertChanges', () => {
+    let Klass: typeof NextModel;
+    let klass: NextModel;
+    const subject = () => klass.revertChanges().changes;
+
+    context('when decorator is not present', {
+      definitions() {
+        class NewKlass extends NextModel { };
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('throws PropertyNotDefinedError', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+      },
+    });
+
+    context('when decorator is present', {
+      definitions() {
+        @Model
+        class NewKlass extends NextModel {
+          static get schema(): Schema {
+            return {
+              foo: { type: 'string' },
+              bar: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+        klass = new Klass();
+      },
+      tests() {
+        test('returns initial empty changes and updates after revert', () => {
+          expect(klass.changes).toEqual({});
+          expect(subject()).toEqual({});
+          klass.foo = 'foo';
+          expect(klass.changes).toEqual({
+            foo: { from: undefined, to: 'foo' },
+          });
+          expect(subject()).toEqual({});
+          klass.foo = 'foo';
+          klass.bar = 'bar';
+          expect(klass.changes).toEqual({
+            foo: { from: undefined, to: 'foo' },
+            bar: { from: undefined, to: 'bar' },
+          });
+          expect(subject()).toEqual({});
+        });
+      },
+    });
+  });
+
   describe('#hasErrors', () => {
     let Klass: typeof NextModel;
     let klass: NextModel;
