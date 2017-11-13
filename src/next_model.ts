@@ -883,10 +883,12 @@ export function Model(model: typeof NextModel): typeof NextModel {
       });
     }
 
-    constructor(attrs?: Attributes) {
-      super(attrs)
-      keys.map(key => this.data[key] = undefined);
-      if (attrs !== undefined) {
+    constructor(attrs: Attributes = {}) {
+      super(attrs);
+      const dataKeys: string[] = Object.keys(this.data);
+      const emptyKeys = keys.filter(key => dataKeys.indexOf(key) === -1);
+      emptyKeys.map(key => this.data[key] = undefined);
+      if (Object.keys(attrs).length > 0){
         this.assign(attrs);
       }
       this.resetChanges();
