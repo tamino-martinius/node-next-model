@@ -83,6 +83,7 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
   * [save](#save)
   * [delete](#delete)
   * [reload](#reload)
+  * [revertChanges](#revertchanges)
   * [isValid](#isvalid)
 * [Changelog](#changelog)
 
@@ -1107,6 +1108,40 @@ address.reload().then((address) => {
   address.name === '1st Street';
   address.notAnDatabaseColumn === undefined;
 });
+~~~
+
+### revertCachanges
+
+Reverts an unsaved change with `#revertChange(key)` or reverts all unsaved changed with `#revertChanges()`.
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.changes === {};
+address.street = '2nd street';
+address.changes === {
+  street: { from: '1st street', to: '2nd street' },
+};
+address.revertChange('street');
+address.changes === {};
+~~~
+
+~~~js
+address = Address.build({
+  street: '1st street',
+  city: 'New York',
+});
+address.changes === {};
+address.street = '2nd street';
+address.city = 'San Francisco',
+address.changes === {
+  street: { from: '1st street', to: '2nd street' },
+  street: { from: 'New York', to: 'San Francisco' },
+};
+address.revertChanges();
+address.changes === {};
 ~~~
 
 ## Changelog
