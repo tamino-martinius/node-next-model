@@ -60,6 +60,7 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
   * [dbConnector](#dbconnector)
   * [identifier](#identifier)
   * [attrAccessors](#attraccessors)
+  * [validators](#validators)
   * [keys](#keys)
   * [dbKeys](#dbKeys)
   * [query](#query)
@@ -78,6 +79,7 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
 * [Instance Callbacks](#instance-callbacks)
   * [Promise Callbacks](#promise-callbacks)
   * [Sync Callbacks](#sync-callbacks)
+  * [Skip Callbacks](#skip-callbacks)
 * [Instance Actions](#instance-actions)
   * [assign](#assign)
   * [save](#save)
@@ -598,11 +600,11 @@ You also can define your identifier on the [schema](#schema) to change the defau
 ~~~js
 @Model
 class User extends BaseModel {
-  static get identifier() {
+  static get identifier(): string {
     return 'uid';
   }
 
-  static get schema() {
+  static get schema(): Schema {
     return {
       uid: { type: 'uuid' },
       ...
@@ -617,7 +619,7 @@ Accessors define properties which can be passed to [build](#build), [create](#cr
 
 ~~~js
 class User extends NextModel {
-  static get accessors {
+  static get attrAccessors: string[] {
     return [
       'checkForConflicts',
     ];
@@ -629,6 +631,30 @@ user.checkForConflicts === true;
 
 user = User.build({ foo: 'bar' });
 user.foo === undefined;
+~~~
+
+### validators
+
+Validators is an object with keys of type string and values which are Promises to check if an instance is valid. An Validator gets the model instance and returns an promised boolean. The values can also be Arrays of Validators. These validators are checked with [isValid](#isValid).
+
+~~~js
+class User extends NextModel {
+  static get validators: Validators {
+    return {
+      ageCheck: (user) => Promise.resolve(user.age > 0),
+    };
+  }
+};
+
+new User({ age: 28 }).isValid().then(isValid => ...) //=> true
+new User({ age: -1 }).isValid().then(isValid => ...) //=> flase
+~~~
+
+Validators can be skipped by `.skipValidator(key)` by passing the key of the validator. Multiple keys could be skipped by `.skipValidators(keys)` or be defining the getter `.skippedValidators`.
+
+~~~js
+UncheckedUser = User.skipValidator('ageCheck');
+new User({ age: -1 }).isValid().then(isValid => ...) //=> true
 ~~~
 
 ### keys
@@ -1052,6 +1078,25 @@ class User extends BaseModel {
 };
 ~~~
 
+### Skip Callbacks
+
+Callbacks can be skipped by passing its key to `.skipCallback(key)`. To skip multiple callback keys pass them to `.skipCallbacks(keys)` or define `.skippedCallbacks`.
+
+~~~js
+@Model
+class User extends NextModel {
+  static skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+    return ['beforeSave', 'afterSave];
+  }
+};
+
+User.skipCallback('beforeSave').create( ... );
+User.skipCallbacks([
+  'beforeSave',
+  'afterSave',
+]).create( ... );
+~~~
+
 ## Instance Actions
 
 ### assign
@@ -1142,6 +1187,42 @@ address.changes === {
 };
 address.revertChanges();
 address.changes === {};
+~~~
+
+### isValid
+
+Checks if the current instance is valid. Promises to return boolean value.
+
+~~~js
+@Model
+class User extends NextModel {
+  static get validators(): Validators {
+    return {
+      ageCheck: (user) => Promise.resolve(user.age > 0),
+    };
+  }
+};
+
+new User({ age: 28 }).isValid().then(isValid => ...) //=> true
+new User({ age: -1 }).isValid().then(isValid => ...) //=> flase
+
+UncheckedUser = User.skipValidator('ageCheck');
+new User({ age: -1 }).isValid().then(isValid => ...) //=> true
+~~~
+
+~~~js
+@Model
+class User extends NextModel {
+  static ageCheck(user): Promise<boolean> {
+    return Promise.resolve(user.age > 0);
+  }
+
+  static get validators(): Validators {
+    return {
+      ageCheck: this.ageCheck,
+    };
+  }
+};
 ~~~
 
 ## Changelog
