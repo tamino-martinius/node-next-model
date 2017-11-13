@@ -1189,7 +1189,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
   return Class;
 };
 
-export class NextModel {
+export abstract class NextModel {
   [key: string]: any;
   data: Attributes;
   _changes: Changes;
