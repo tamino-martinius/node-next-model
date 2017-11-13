@@ -982,6 +982,13 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return this._changes;
     }
 
+    revertChange(key: string): StrictNextModel {
+      if (this._changes[key] !== undefined) {
+        this[key] = this._changes[key].from;
+      }
+      return this;
+    }
+
     get hasErrors(): boolean {
       return Object.keys(this._errors).length > 0;
     }
@@ -1365,6 +1372,10 @@ export class NextModel {
 
   get hasChanges(): boolean {
     throw new PropertyNotDefinedError('#hasChanges');
+  }
+
+  revertChange(_key: string): NextModel {
+    throw new PropertyNotDefinedError('#revertChange');
   }
 
   get changes(): Changes {
