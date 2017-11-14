@@ -20,7 +20,7 @@ let connector = () => new DefaultConnector(storage);
 
 beforeEach(() => {
   storage = undefined;
-})
+});
 
 describe('DefaultConnector', () => {
   describe('#all(model)', () => {
