@@ -256,46 +256,58 @@ Define the Model associations. Describe the relation between models to get prede
 
 ### belongsTo
 
-~~~js
-@Model
-class Address extends NextModel {
-  static get belongsTo() {
-    return {
-      user: { model: User },
-    }
-  }
-};
+A `.belongsTo` association sets up a one-to-one connection with another model, such that each instance of the declaring model "belongs to" one instance of the other model.
 
-Address.create({
-  userId: id
-}).then(address => {
-  return address.user;
-}).then(user => {
-  user.id === id;
-});
-
-address = Address.build();
-address.user = user;
-address.userId === user.id;
-~~~
-
-### hasMany
+For example, if your application includes users and addresses, and each user can be assigned to exactly one address, you'd declare the user model this way:
 
 ~~~js
 @Model
 class User extends NextModel {
-  static get hasMany() {
+  static get belongsTo() {
     return {
-      addresses: { model: Address },
+      address: { model: Address },
     }
   }
 };
 
-user.addresses.all.then(addresses => ... );
-user.addresses.create({ ... }).then(address => ... );
+User.create({
+  addressId: id
+}).then(user => {
+  return user.address;
+}).then(address => {
+  address.id === id;
+});
+
+user = User.build();
+user.address = address;
+user.addressId === address.id;
+~~~
+
+### hasMany
+
+A `.hasMany` association indicates a one-to-many connection with another model. You'll often find this association on the "other side" of a [belongsTo](#belongsto) association. This association indicates that each instance of the model has zero or more instances of another model.
+
+For example, in an application containing users and addresses, the author model could be declared like this:
+
+~~~js
+@Model
+class Address extends NextModel {
+  static get hasMany() {
+    return {
+      users: { model: User },
+    }
+  }
+};
+
+address.users.all.then(users => ... );
+address.users.create({ ... }).then(user => ... );
 ~~~
 
 ### hasOne
+
+A `.hasOne` association also sets up a one-to-one connection with another model, but with somewhat different semantics (and consequences). This association indicates that each instance of a model contains or possesses one instance of another model.
+
+For example, if each address in your application has only one user, you'd declare the user model like this:
 
 ~~~js
 @Model
@@ -303,6 +315,15 @@ class User extends NextModel {
   static get hasOne() {
     return {
       address: { model: Address },
+    }
+  }
+};
+
+@Model
+class Address extends NextModel {
+  static get belongsTo() {
+    return {
+      user: { model: User },
     }
   }
 };
