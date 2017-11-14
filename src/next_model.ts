@@ -148,6 +148,7 @@ export type SyncCallback = (klass: NextModel) => boolean;
 export type SyncCallbackKeys = 'beforeAssign' | 'afterAssign' | 'beforeChange' | 'afterChange'
 export type PromiseCallback = (klass: NextModel) => Promise<boolean>;
 export type PromiseCallbackKeys = 'beforeValidation' | 'afterValidation' | 'beforeSave' | 'afterSave' | 'beforeUpdate' | 'afterUpdate' | 'beforeDelete' | 'afterDelete' | 'beforeReload' | 'afterReload'
+export type CallbackKeys = SyncCallbackKeys | PromiseCallbackKeys;
 
 export interface Callbacks {
   beforeSave?: PromiseCallback | PromiseCallback[];
@@ -426,7 +427,7 @@ export function Model(model: typeof NextModel): typeof NextModel {
     if (!(e instanceof PropertyNotDefinedError)) throw e;
   }
 
-  let skippedCallbacks: (PromiseCallbackKeys | SyncCallbackKeys)[] = [];
+  let skippedCallbacks: CallbackKeys[] = [];
   try {
     if (typeof model.skippedCallbacks === 'string') {
       skippedCallbacks = [model.skippedCallbacks];
@@ -578,31 +579,31 @@ export function Model(model: typeof NextModel): typeof NextModel {
       return false;
     }
 
-    static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+    static get skippedCallbacks(): CallbackKeys[] {
       return skippedCallbacks;
     }
 
-    static skipCallback(key: PromiseCallbackKeys | SyncCallbackKeys): typeof StrictNextModel {
-      const skippedCallbacks: (PromiseCallbackKeys | SyncCallbackKeys)[] = [key];
+    static skipCallback(key: CallbackKeys): typeof StrictNextModel {
+      const skippedCallbacks: CallbackKeys[] = [key];
       skippedCallbacks.push(...this.skippedCallbacks);
       return class extends this {
-        static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+        static get skippedCallbacks(): CallbackKeys[] {
           return skippedCallbacks;
         }
       };
     }
 
-    static skipCallbacks(keys: (PromiseCallbackKeys | SyncCallbackKeys)[]): typeof StrictNextModel {
-      const skippedCallbacks: (PromiseCallbackKeys | SyncCallbackKeys)[] = keys;
+    static skipCallbacks(keys: CallbackKeys[]): typeof StrictNextModel {
+      const skippedCallbacks: CallbackKeys[] = keys;
       skippedCallbacks.push(...this.skippedCallbacks);
       return class extends this {
-        static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+        static get skippedCallbacks(): CallbackKeys[] {
           return skippedCallbacks;
         }
       };
     }
 
-    static isCallbackSkipped(key: PromiseCallbackKeys | SyncCallbackKeys): boolean {
+    static isCallbackSkipped(key: CallbackKeys): boolean {
       for (const callbackKey of this.skippedCallbacks) {
         if (callbackKey === key) return true;
       }
@@ -1189,280 +1190,883 @@ export function Model(model: typeof NextModel): typeof NextModel {
   return Class;
 };
 
-export abstract class NextModel {
+/**
+ * Rails like models using **TypeScript**.
+ *
+ * NextModel gives you the ability to:
+ *
+ * - Represent **models** and their data.
+ * - Represent **associations** between these models.
+ * - Represent **inheritance** hierarchies through related models.
+ * - Perform database operations in an **object-oriented** fashion.
+ * - Uses **Promises** for database queries.
+ *
+ * @export
+ * @class NextModel
+ */
+export class NextModel {
   [key: string]: any;
   data: Attributes;
   _changes: Changes;
   _errors: Errors;
 
+  /**
+   * The model name needs to be defined for every model.
+   * The name should be singular camelcase, starting with an uppercase char.
+   * If the `.modelName` is not passed its reflected from its Class Name.
+   *
+   * @readonly
+   * @static
+   * @type {string}
+   * @memberof NextModel
+   * @example
+   * @Model
+   * class User extends NextModel {};
+   * User.modelName; //=> 'User'
+   * @example
+   * @Model
+   * class User extends NextModel {
+   *   static get modelName() {
+   *     return 'User';
+   *   }
+   * };
+   * User.modelName; //=> 'User'
+   * @example
+   * @Model
+   * class UserAddress extends NextModel {
+   *   static get modelName() {
+   *     return 'UserAddress';
+   *   }
+   * };
+   * UserAddress.modelName; //=> 'UserAddress'
+   */
   static get modelName(): string {
     throw new PropertyNotDefinedError('.modelName');
   }
 
+  /**
+   * Returns same result as the `.modelName`, but starts with lower case character.
+   *
+   * @readonly
+   * @static
+   * @see modelName
+   * @type {string}
+   * @memberof NextModel
+   * @example
+   * @Model
+   * class User extends NextModel {};
+   * User.smallModelName; //=> 'user'
+   * @example
+   * @Model
+   * class User extends NextModel {
+   *   static get modelName() {
+   *     return 'User';
+   *   }
+   * };
+   * User.smallModelName; //=> 'user'
+   * @example
+   * @Model
+   * class UserAddress extends NextModel {
+   *   static get modelName() {
+   *     return 'UserAddress';
+   *   }
+   * };
+   * UserAddress.smallModelName; //=> 'userAddress'
+   */
   static get smallModelName(): string {
     throw new PropertyNotDefinedError('.modelName');
   }
 
+  /**
+   * Defines the name of the primary key. It also gets automatically added to
+   * the schema with type `'integer'` if the identifier is not present at the schema.
+   * The identifier values must be serialized to an unique value with `toString()`.
+   *
+   * @readonly
+   * @static
+   * @default 'id'
+   * @type {string}
+   * @memberof NextModel
+   */
   static get identifier(): string {
     throw new PropertyNotDefinedError('.identifier');
   }
 
+  /**
+   * A connector is the bridge between models and the database.
+   * NextModel comes with an DefaultConnector which reads and writes on an simpe js object.
+   *
+   * @readonly
+   * @static
+   * @default DefaultConnector
+   * @type {Connector}
+   * @memberof NextModel
+   */
   static get dbConnector(): Connector {
     throw new PropertyNotDefinedError('.dbConnector');
   }
 
+  /**
+   * Accessors define properties which can be passed to `.build()`, `.create()`
+   * functions or assignments, but are not passed to the database
+   * Use them to store temporary data like passing values to model but not to database layer.
+   * Attributes defined this way are returned by `#attributes` but not by `#dbAttributes`.
+   *
+   * @readonly
+   * @static
+   * @default []
+   * @see build, create, attributes, dbAttributes
+   * @type {string[]}
+   * @memberof NextModel
+   */
   static get attrAccessors(): string[] {
     throw new PropertyNotDefinedError('.attrAccessors');
   }
 
+  /**
+   * A schema describes all (database stored) properties. Foreign keys from
+   * relations like `.belongsTo` are automatically added to the schema.
+   * The existing types and their names are depending on the used Database connector.
+   *
+   * @readonly
+   * @static
+   * @default {}
+   * @see belongsTo
+   * @type {Schema}
+   * @memberof NextModel
+   */
   static get schema(): Schema {
     throw new PropertyNotDefinedError('.schema');
   }
 
+  /**
+   * A belongs_to association sets up a one-to-one connection with another model,
+   * such that each instance of the declaring model "belongs to" one instance
+   * of the other model.
+   *
+   * @readonly
+   * @static
+   * @type {BelongsTo}
+   * @memberof NextModel
+   */
   static get belongsTo(): BelongsTo {
     throw new PropertyNotDefinedError('.belongsTo');
   }
 
+  /**
+   * A `.hasMany` association indicates a one-to-many connection with another model.
+   * You'll often find this association on the "other side" of a `.belongsTo` association.
+   * This association indicates that each instance of the model has zero or
+   * more instances of another model.
+
+   * 
+   * @readonly
+   * @static
+   * @see belongsTo
+   * @type {HasMany}
+   * @memberof NextModel
+   */
   static get hasMany(): HasMany {
     throw new PropertyNotDefinedError('.hasMany');
   }
 
+  /**
+   * A `.hasOne` association also sets up a one-to-one connection with another model,
+   * but with somewhat different semantics (and consequences). This association indicates
+   * that each instance of a model contains or possesses one instance of another model.
+   *
+   * @readonly
+   * @static
+   * @type {HasOne}
+   * @memberof NextModel
+   */
   static get hasOne(): HasOne {
     throw new PropertyNotDefinedError('.hasOne');
   }
 
+  /**
+   * Validators is an object with keys of type string and values which are Promises
+   * to check if an instance is valid. An Validator gets the model instance and
+   * returns an promised boolean. The values can also be Arrays of Validators.
+   * These validators are checked with `#isValid()`.
+   *
+   * @readonly
+   * @static
+   * @see isValid
+   * @type {Validators}
+   * @memberof NextModel
+   */
   static get validators(): Validators {
     throw new PropertyNotDefinedError('.validators');
   }
 
+
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {ValidatorArrays}
+   * @memberof NextModel
+   */
   static get activeValidators(): ValidatorArrays {
     throw new PropertyNotDefinedError('.activeValidators');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {Callbacks}
+   * @memberof NextModel
+   */
   static get callbacks(): Callbacks {
     throw new PropertyNotDefinedError('.callbacks');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {CallbackArrays}
+   * @memberof NextModel
+   */
   static get activeCallbacks(): CallbackArrays {
     throw new PropertyNotDefinedError('.activeCallbacks');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {number}
+   * @memberof NextModel
+   */
   static get skip(): number {
     throw new PropertyNotDefinedError('.skip');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {number}
+   * @memberof NextModel
+   */
   static get limit(): number {
     throw new PropertyNotDefinedError('.limit');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {Query}
+   * @memberof NextModel
+   */
   static get query(): Query {
     throw new PropertyNotDefinedError('.query');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {Order}
+   * @memberof NextModel
+   */
   static get order(): Order {
     throw new PropertyNotDefinedError('.order');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {(string | string[])}
+   * @memberof NextModel
+   */
   static get skippedValidators(): string | string[] {
     throw new PropertyNotDefinedError('.skippedValidators');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {string} _key 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static skipValidator(_key: string): typeof NextModel {
     throw new PropertyNotDefinedError('.skipValidator');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {string[]} _keys 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static skipValidators(_keys: string[]): typeof NextModel {
     throw new PropertyNotDefinedError('.skipValidators');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {string} _key 
+   * @returns {boolean} 
+   * @memberof NextModel
+   */
   static isValidatorSkipped(_key: string): boolean {
     throw new PropertyNotDefinedError('.isValidatorSkipped');
   }
 
-  static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {(CallbackKeys | CallbackKeys[])}
+   * @memberof NextModel
+   */
+  static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
     throw new PropertyNotDefinedError('.skippedCallbacks');
   }
 
-  static skipCallback(_key: PromiseCallbackKeys | SyncCallbackKeys): typeof NextModel {
+  /**
+   *
+   * 
+   * @static
+   * @param {(CallbackKeys)} _key
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
+  static skipCallback(_key: CallbackKeys): typeof NextModel {
     throw new PropertyNotDefinedError('.skipCallback');
   }
 
-  static skipCallbacks(_keys: (PromiseCallbackKeys | SyncCallbackKeys)[]): typeof NextModel {
+  /**
+   *
+   * 
+   * @static
+   * @param {(CallbackKeys[])} _keys
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
+  static skipCallbacks(_keys: CallbackKeys[]): typeof NextModel {
     throw new PropertyNotDefinedError('.skipCallbacks');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {string} _key 
+   * @returns {boolean} 
+   * @memberof NextModel
+   */
   static isCallbackSkipped(_key: string): boolean {
     throw new PropertyNotDefinedError('.isCallbackSkipped');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {string[]}
+   * @memberof NextModel
+   */
   static get keys(): string[] {
     throw new PropertyNotDefinedError('.keys');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {string} _key 
+   * @returns {boolean} 
+   * @memberof NextModel
+   */
   static hasKey(_key: string): boolean {
     throw new PropertyNotDefinedError('.hasKey');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {string[]}
+   * @memberof NextModel
+   */
   static get dbKeys(): string[] {
     throw new PropertyNotDefinedError('.dbKeys');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {string} _key 
+   * @returns {boolean} 
+   * @memberof NextModel
+   */
   static hasDbKey(_key: string): boolean {
     throw new PropertyNotDefinedError('.hasDbKey');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {number} _amount 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static skipBy(_amount: number): typeof NextModel {
     throw new PropertyNotDefinedError('.skipBy()');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {typeof NextModel}
+   * @memberof NextModel
+   */
   static get unskipped(): typeof NextModel {
     throw new PropertyNotDefinedError('.unskip()');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {number} _amount 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static limitBy(_amount: number): typeof NextModel {
     throw new PropertyNotDefinedError('.limitBy()');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {typeof NextModel}
+   * @memberof NextModel
+   */
   static get unlimited(): typeof NextModel {
     throw new PropertyNotDefinedError('.unlimited()');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Query} _query 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static queryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.queryBy()');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Query} _query 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static andQueryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.andQueryBy()');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Query} _query 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static orQueryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.orQueryBy()');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Query} _query 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static notQueryBy(_query: Query): typeof NextModel {
     throw new PropertyNotDefinedError('.notQueryBy()');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Order} _order 
+   * @returns {typeof NextModel} 
+   * @memberof NextModel
+   */
   static orderBy(_order: Order): typeof NextModel {
     throw new PropertyNotDefinedError('.orderBy()');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {typeof NextModel}
+   * @memberof NextModel
+   */
   static get unqueried(): typeof NextModel {
     throw new PropertyNotDefinedError('.unqueried');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {typeof NextModel}
+   * @memberof NextModel
+   */
   static get unordered(): typeof NextModel {
     throw new PropertyNotDefinedError('.unordered');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {typeof NextModel}
+   * @memberof NextModel
+   */
   static get unscoped(): typeof NextModel {
     throw new PropertyNotDefinedError('.unscoped');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {Promise<NextModel[]>}
+   * @memberof NextModel
+   */
   static get all(): Promise<NextModel[]> {
     throw new PropertyNotDefinedError('.all');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {(Promise<NextModel | undefined>)}
+   * @memberof NextModel
+   */
   static get first(): Promise<NextModel | undefined> {
     throw new PropertyNotDefinedError('.first');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @static
+   * @type {Promise<number>}
+   * @memberof NextModel
+   */
   static get count(): Promise<number> {
     throw new PropertyNotDefinedError('.count');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Attributes} [_attrs] 
+   * @returns {Promise<NextModel[]>} 
+   * @memberof NextModel
+   */
   static updateAll(_attrs?: Attributes): Promise<NextModel[]> {
     throw new PropertyNotDefinedError('.updateAll');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @returns {Promise<NextModel[]>} 
+   * @memberof NextModel
+   */
   static deleteAll(): Promise<NextModel[]> {
     throw new PropertyNotDefinedError('.deleteAll');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Attributes} [_attrs] 
+   * @returns {NextModel} 
+   * @memberof NextModel
+   */
   static build(_attrs?: Attributes): NextModel {
     throw new PropertyNotDefinedError('.build');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Attributes} [_attrs] 
+   * @returns {Promise<NextModel>} 
+   * @memberof NextModel
+   */
   static create(_attrs?: Attributes): Promise<NextModel> {
     throw new PropertyNotDefinedError('.create');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Attributes} [_attrs] 
+   * @returns {Promise<NextModel>} 
+   * @memberof NextModel
+   */
   static firstOrCreate(_attrs?: Attributes): Promise<NextModel> {
     throw new PropertyNotDefinedError('.firstOrCreate');
   }
 
+  /**
+   *
+   * 
+   * @static
+   * @param {Attributes} [_attrs] 
+   * @returns {Promise<NextModel>} 
+   * @memberof NextModel
+   */
   static firstOrInitialize(_attrs?: Attributes): Promise<NextModel> {
     throw new PropertyNotDefinedError('.firstOrInitialize');
   }
 
+  /**
+   * Creates an instance of NextModel.
+   * @param {Attributes} [_attrs] 
+   * @memberof NextModel
+   */
   constructor(_attrs?: Attributes) {
 
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {Attributes}
+   * @memberof NextModel
+   */
   get attributes(): Attributes {
     throw new PropertyNotDefinedError('#attributes');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {Attributes}
+   * @memberof NextModel
+   */
   get dbAttributes(): Attributes {
     throw new PropertyNotDefinedError('#attributes');
   }
 
+  /**
+   *
+   * 
+   * @returns {Promise<NextModel>} 
+   * @memberof NextModel
+   */
   save(): Promise<NextModel> {
     throw new PropertyNotDefinedError('#save');
   }
 
+  /**
+   *
+   * 
+   * @returns {Promise<NextModel>} 
+   * @memberof NextModel
+   */
   delete(): Promise<NextModel> {
     throw new PropertyNotDefinedError('#delete');
   }
 
+  /**
+   *
+   * 
+   * @param {Attributes} _attrs 
+   * @returns {Promise<NextModel>} 
+   * @memberof NextModel
+   */
   update(_attrs: Attributes): Promise<NextModel> {
     throw new PropertyNotDefinedError('#update');
   }
 
+  /**
+   *
+   * 
+   * @returns {(Promise<NextModel | undefined>)} 
+   * @memberof NextModel
+   */
   reload(): Promise<NextModel | undefined> {
     throw new PropertyNotDefinedError('#reload');
   }
 
+  /**
+   *
+   * 
+   * @param {Attributes} _attrs 
+   * @returns {NextModel} 
+   * @memberof NextModel
+   */
   assign(_attrs: Attributes): NextModel {
     throw new PropertyNotDefinedError('#assign');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {boolean}
+   * @memberof NextModel
+   */
   get isNew(): boolean {
     throw new PropertyNotDefinedError('#isNew');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {boolean}
+   * @memberof NextModel
+   */
   get isPersisted(): boolean {
     throw new PropertyNotDefinedError('#isPersisted');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {boolean}
+   * @memberof NextModel
+   */
   get hasChanges(): boolean {
     throw new PropertyNotDefinedError('#hasChanges');
   }
 
+  /**
+   *
+   * 
+   * @param {string} _key 
+   * @returns {NextModel} 
+   * @memberof NextModel
+   */
   revertChange(_key: string): NextModel {
     throw new PropertyNotDefinedError('#revertChange');
   }
 
+  /**
+   *
+   * 
+   * @returns {NextModel} 
+   * @memberof NextModel
+   */
   revertChanges(): NextModel {
     throw new PropertyNotDefinedError('#revertChanges');
   }
 
+  /**
+   *
+   *
+   * @readonly
+   * @type {Changes}
+   * @memberof NextModel
+   */
   get changes(): Changes {
     throw new PropertyNotDefinedError('#changes');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {boolean}
+   * @memberof NextModel
+   */
   get hasErrors(): boolean {
     throw new PropertyNotDefinedError('#hasErrors');
   }
 
+  /**
+   *
+   *
+   * @readonly
+   * @type {Errors}
+   * @memberof NextModel
+   */
   get errors(): Errors {
     throw new PropertyNotDefinedError('#errors');
   }
 
+  /**
+   *
+   * 
+   * @readonly
+   * @type {typeof NextModel}
+   * @memberof NextModel
+   */
   get model(): typeof NextModel {
     throw new PropertyNotDefinedError('#model');
   }
 
+  /**
+   *
+   * 
+   * @returns {Promise<boolean>} 
+   * @memberof NextModel
+   */
   isValid(): Promise<boolean> {
     throw new PropertyNotDefinedError('#isValid');
   }

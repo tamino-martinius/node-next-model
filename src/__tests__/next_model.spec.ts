@@ -9,8 +9,7 @@ import {
   Validators,
   PromiseCallback,
   SyncCallback,
-  PromiseCallbackKeys,
-  SyncCallbackKeys,
+  CallbackKeys,
   Query,
   Order,
   Callbacks,
@@ -1284,7 +1283,7 @@ describe('NextModel', () => {
             context('when callbacks are disabled', {
               definitions() {
                 class NewKlass extends Klass {
-                  static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                  static get skippedCallbacks(): CallbackKeys[] {
                     return [
                       'beforeValidation',
                       'afterValidation',
@@ -1330,7 +1329,7 @@ describe('NextModel', () => {
             context('when callbacks partially disabled', {
               definitions() {
                 class NewKlass extends Klass {
-                  static get skippedCallbacks(): (PromiseCallbackKeys | SyncCallbackKeys)[] {
+                  static get skippedCallbacks(): CallbackKeys[] {
                     return [
                       'beforeValidation',
                       'beforeSave',
@@ -1985,7 +1984,7 @@ describe('NextModel', () => {
         context('when skippedCallbacks is present', {
           definitions() {
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return ['beforeSave'];
               }
             };
@@ -2015,7 +2014,7 @@ describe('NextModel', () => {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return ['beforeSave'];
               }
             };
@@ -2032,7 +2031,7 @@ describe('NextModel', () => {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return 'beforeSave';
               }
             };
@@ -2050,7 +2049,7 @@ describe('NextModel', () => {
 
   describe('.skipCallback(key)', () => {
     let Klass: typeof NextModel;
-    let key: SyncCallbackKeys | PromiseCallbackKeys = 'beforeSave';
+    let key: CallbackKeys = 'beforeSave';
     const subject = () => Klass.skipCallback(key).skippedCallbacks;
 
     context('when decorator is not present', {
@@ -2085,7 +2084,7 @@ describe('NextModel', () => {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): SyncCallbackKeys | PromiseCallbackKeys | (SyncCallbackKeys | PromiseCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return ['beforeUpdate'];
               }
             };
@@ -2103,7 +2102,7 @@ describe('NextModel', () => {
 
   describe('.skipCallbacks(keys)', () => {
     let Klass: typeof NextModel;
-    let keys: (SyncCallbackKeys | PromiseCallbackKeys)[] = ['beforeSave', 'afterSave'];
+    let keys: CallbackKeys[] = ['beforeSave', 'afterSave'];
     const subject = () => Klass.skipCallbacks(keys).skippedCallbacks;
 
     context('when decorator is not present', {
@@ -2138,7 +2137,7 @@ describe('NextModel', () => {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): SyncCallbackKeys | PromiseCallbackKeys | (SyncCallbackKeys | PromiseCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return ['beforeUpdate'];
               }
             };
@@ -2156,7 +2155,7 @@ describe('NextModel', () => {
 
   describe('.isCallbackSkipped(key)', () => {
     let Klass: typeof NextModel;
-    let key: PromiseCallbackKeys | SyncCallbackKeys = 'beforeSave';
+    let key: CallbackKeys = 'beforeSave';
     const subject = () => Klass.isCallbackSkipped(key);
 
     context('when decorator is not present', {
@@ -2186,7 +2185,7 @@ describe('NextModel', () => {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return 'beforeSave';
               }
             };
@@ -2203,7 +2202,7 @@ describe('NextModel', () => {
           definitions() {
             @Model
             class NewKlass extends NextModel {
-              static get skippedCallbacks(): PromiseCallbackKeys | SyncCallbackKeys | (PromiseCallbackKeys | SyncCallbackKeys)[] {
+              static get skippedCallbacks(): CallbackKeys | CallbackKeys[] {
                 return ['beforeSave', 'afterSave'];
               }
             };
