@@ -1287,6 +1287,13 @@ export class NextModel {
    * @default 'id'
    * @type {string}
    * @memberof NextModel
+   * @example
+   * @Model
+   * class User extends BaseModel {
+   *   static get identifier() {
+   *     return 'key';
+   *   }
+   * };
    */
   static get identifier(): string {
     throw new PropertyNotDefinedError('.identifier');
@@ -1301,6 +1308,32 @@ export class NextModel {
    * @default DefaultConnector
    * @type {Connector}
    * @memberof NextModel
+   * @example
+   * const Connector = require('next-model-knex-connector');
+   * const connector = new Connector(options);
+   *
+   * @Model
+   * class User extends NextModel {
+   *   static get connector() {
+   *     return connector;
+   *   }
+   * };
+   * @example
+   * class BaseModel extends NextModel {
+   *   static get connector() {
+   *     return connector;
+   *   }
+   * };
+   *
+   * @Model
+   * class User extends BaseModel {
+   *   ...
+   * };
+   *
+   * @Model
+   * class Address extends BaseModel {
+   *   ...
+   * };
    */
   static get dbConnector(): Connector {
     throw new PropertyNotDefinedError('.dbConnector');
@@ -1318,6 +1351,20 @@ export class NextModel {
    * @see build, create, attributes, dbAttributes
    * @type {string[]}
    * @memberof NextModel
+   * @example
+   * class User extends NextModel {
+   *   static get attrAccessors: string[] {
+   *     return [
+   *       'checkForConflicts',
+   *     ];
+   *   }
+   * };
+   *
+   * user = User.build({ checkForConflicts: true });
+   * user.checkForConflicts === true;
+   *
+   * user = User.build({ foo: 'bar' });
+   * user.foo === undefined;
    */
   static get attrAccessors(): string[] {
     throw new PropertyNotDefinedError('.attrAccessors');
@@ -1334,6 +1381,16 @@ export class NextModel {
    * @see belongsTo
    * @type {Schema}
    * @memberof NextModel
+   * @example
+   * @Model
+   * class User extends NextModel {
+   *   static get schema() {
+   *     return {
+   *       id: { type: 'integer' },
+   *       name: { type: 'string' },
+   *     };
+   *   }
+   * };
    */
   static get schema(): Schema {
     throw new PropertyNotDefinedError('.schema');
@@ -1348,6 +1405,27 @@ export class NextModel {
    * @static
    * @type {BelongsTo}
    * @memberof NextModel
+   * @example
+   * @Model
+   * class User extends NextModel {
+   *   static get belongsTo() {
+   *     return {
+   *       address: { model: Address },
+   *     }
+   *   }
+   * };
+   *
+   * User.create({
+   *   addressId: id
+   * }).then(user => {
+   8   return user.address;
+   * }).then(address => {
+   *   address.id === id;
+   * });
+   *
+   * user = User.build();
+   * user.address = address;
+   * user.addressId === address.id;
    */
   static get belongsTo(): BelongsTo {
     throw new PropertyNotDefinedError('.belongsTo');
@@ -1358,13 +1436,24 @@ export class NextModel {
    * You'll often find this association on the "other side" of a `.belongsTo` association.
    * This association indicates that each instance of the model has zero or
    * more instances of another model.
-
-   * 
+   *
    * @readonly
    * @static
    * @see belongsTo
    * @type {HasMany}
    * @memberof NextModel
+   * @example
+   * @Model
+   * class Address extends NextModel {
+   *   static get hasMany() {
+   *     return {
+   *       users: { model: User },
+   *     }
+   *   }
+   * };
+   *
+   * address.users.all.then(users => ... );
+   * address.users.create({ ... }).then(user => ... );
    */
   static get hasMany(): HasMany {
     throw new PropertyNotDefinedError('.hasMany');
@@ -1379,6 +1468,26 @@ export class NextModel {
    * @static
    * @type {HasOne}
    * @memberof NextModel
+   * @example
+   * @Model
+   * class User extends NextModel {
+   *   static get hasOne() {
+   *     return {
+   *       address: { model: Address },
+   *     }
+   *   }
+   * };
+   *
+   * @Model
+   * class Address extends NextModel {
+   *   static get belongsTo() {
+   *     return {
+   *       user: { model: User },
+   *     }
+   *   }
+   * };
+   *
+   * user.address.then(address => ... );
    */
   static get hasOne(): HasOne {
     throw new PropertyNotDefinedError('.hasOne');
@@ -1395,6 +1504,17 @@ export class NextModel {
    * @see isValid
    * @type {Validators}
    * @memberof NextModel
+   * @example
+   * class User extends NextModel {
+   *   static get validators: Validators {
+   *     return {
+   *       ageCheck: (user) => Promise.resolve(user.age > 0),
+   *     };
+   *   }
+   * };
+   *
+   * new User({ age: 28 }).isValid().then(isValid => ...) //=> true
+   * new User({ age: -1 }).isValid().then(isValid => ...) //=> flase
    */
   static get validators(): Validators {
     throw new PropertyNotDefinedError('.validators');
