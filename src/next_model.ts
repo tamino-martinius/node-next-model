@@ -9,67 +9,78 @@ import {
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
+  NextModelStatic,
+  Schema,
 } from './types';
 
 import {
 } from './util'
 
-export class NextModel implements NextModelConstructor {
-  private static cachedStrictFilter: StrictFilter | undefined;
-  private static cachedBelongsTo: StrictBelongsTo | undefined;
-  private static cachedHasOne: StrictHasOne | undefined;
-  private static cachedHasMany: StrictHasMany | undefined;
 
-  static get strictDefaultFilter(): StrictFilter {
-    if (this.cachedStrictFilter !== undefined) {
-      return this.cachedStrictFilter;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+// export function Model(model: typeof ModelConstructor): typeof NextModel {
+//   return class extends NextModel {
+//     static readonly modelName: string = model.modelName;
+//     static readonly defaultFilter?: Filter = model.defaultFilter;
+//     static readonly belongsTo?: BelongsTo = model.belongsTo;
+//     static readonly hasOne?: HasOne = model.hasOne;
+//     static readonly hasMany?: HasMany = model.hasMany;
+//   };
+// };
+
+function Model<T extends Schema>(): NextModelStatic<T> {
+  return class NextModel extends ModelStatic<T> {
+    private static cachedStrictFilter: StrictFilter | undefined;
+    private static cachedBelongsTo: StrictBelongsTo | undefined;
+    private static cachedHasOne: StrictHasOne | undefined;
+    private static cachedHasMany: StrictHasMany | undefined;
+
+    static get strictDefaultFilter(): StrictFilter {
+      if (this.cachedStrictFilter !== undefined) {
+        return this.cachedStrictFilter;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
     }
-  }
 
-  static get strictBelongsTo(): StrictBelongsTo {
-    if (this.cachedBelongsTo !== undefined) {
-      return this.cachedBelongsTo;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+    static get strictBelongsTo(): StrictBelongsTo {
+      if (this.cachedBelongsTo !== undefined) {
+        return this.cachedBelongsTo;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
     }
-  }
 
-  static get strictHasOne(): StrictHasOne {
-    if (this.cachedHasOne !== undefined) {
-      return this.cachedHasOne;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+    static get strictHasOne(): StrictHasOne {
+      if (this.cachedHasOne !== undefined) {
+        return this.cachedHasOne;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
     }
-  }
 
-  static get strictHasMany(): StrictHasMany {
-    if (this.cachedHasMany !== undefined) {
-      return this.cachedHasMany;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+    static get strictHasMany(): StrictHasMany {
+      if (this.cachedHasMany !== undefined) {
+        return this.cachedHasMany;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
     }
-  }
 
-  get model(): typeof NextModelConstructor {
-    return <typeof NextModelConstructor>this.constructor;
-  }
-};
-
-export function Model(model: typeof ModelConstructor): typeof NextModel {
-  return class extends NextModel {
-    static readonly modelName: string = model.modelName;
-    static readonly defaultFilter?: Filter = model.defaultFilter;
-    static readonly belongsTo?: BelongsTo = model.belongsTo;
-    static readonly hasOne?: HasOne = model.hasOne;
-    static readonly hasMany?: HasMany = model.hasMany;
+    get model(): typeof NextModelConstructor {
+      return <typeof NextModelConstructor>this.constructor;
+    }
   };
-};
+}
+
+@Model<NextModelStatic<User>>()
+class User extends NextModel {
+  readonly static modelName = 'User';
+
+}
 
 // import {
 //   Connector,
