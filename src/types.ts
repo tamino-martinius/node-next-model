@@ -1,7 +1,3 @@
-export interface Type<T> {
-  new(...args: any[]): T;
-};
-
 export type BaseType = number | string | boolean | null | undefined;
 
 export interface Tuple<T> {
@@ -85,9 +81,12 @@ export type StrictHasMany = Dict<StrictRelation>;
 export type Schema = Dict<BaseType>;
 
 
-export interface ModelStatic<T extends Schema> extends Type<ModelConstructor<T>> {
+export interface ModelStatic<T extends Schema> {
   readonly modelName: string;
   readonly schema: T;
+
+  new(params: Partial<T>): ModelConstructor<T>;
+  protptype: ModelConstructor<T>;
 
   readonly defaultFilter?: Filter<T>;
   readonly belongsTo?: BelongsTo;
