@@ -1,6 +1,5 @@
 import {
   ModelConstructor,
-  NextModelConstructor,
   Filter,
   BelongsTo,
   HasOne,
@@ -9,83 +8,91 @@ import {
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
-  NextModelStatic,
   Schema,
+  ModelStatic,
+  BaseType,
 } from './types';
 
 import {
 } from './util'
 
-
-// export function Model(model: typeof ModelConstructor): typeof NextModel {
-//   return class extends NextModel {
-//     static readonly modelName: string = model.modelName;
-//     static readonly defaultFilter?: Filter = model.defaultFilter;
-//     static readonly belongsTo?: BelongsTo = model.belongsTo;
-//     static readonly hasOne?: HasOne = model.hasOne;
-//     static readonly hasMany?: HasMany = model.hasMany;
-//   };
-// };
-
-function Model<T extends Schema>(): NextModelStatic<T> {
-  return class NextModel extends ModelStatic<T> {
-    private static cachedStrictFilter: StrictFilter | undefined;
-    private static cachedBelongsTo: StrictBelongsTo | undefined;
-    private static cachedHasOne: StrictHasOne | undefined;
-    private static cachedHasMany: StrictHasMany | undefined;
-
-    static get strictDefaultFilter(): StrictFilter {
-      if (this.cachedStrictFilter !== undefined) {
-        return this.cachedStrictFilter;
-      } else {
-        // [TODO] Generate strict version
-        return {};
-      }
-    }
-
-    static get strictBelongsTo(): StrictBelongsTo {
-      if (this.cachedBelongsTo !== undefined) {
-        return this.cachedBelongsTo;
-      } else {
-        // [TODO] Generate strict version
-        return {};
-      }
-    }
-
-    static get strictHasOne(): StrictHasOne {
-      if (this.cachedHasOne !== undefined) {
-        return this.cachedHasOne;
-      } else {
-        // [TODO] Generate strict version
-        return {};
-      }
-    }
-
-    static get strictHasMany(): StrictHasMany {
-      if (this.cachedHasMany !== undefined) {
-        return this.cachedHasMany;
-      } else {
-        // [TODO] Generate strict version
-        return {};
-      }
-    }
-
-    get model(): typeof NextModelConstructor {
-      return <typeof NextModelConstructor>this.constructor;
-    }
+function Model<S, T extends ModelStatic<S>>() {
+  return (constructor: T) => {
   };
 }
 
-interface UserSchema {
+class NextModel<S extends Schema> implements ModelConstructor<T> {
+  private static cachedStrictDefaultFilter: StrictFilter<S> | undefined;
+  private static cachedBelongsTo: StrictBelongsTo | undefined;
+  private static cachedHasOne: StrictHasOne | undefined;
+  private static cachedHasMany: StrictHasMany | undefined;
+
+  static get strictDefaultFilter(): StrictFilter<S> {
+    if (this.cachedStrictDefaultFilter !== undefined) {
+      return this.cachedStrictDefaultFilter;
+    } else {
+      // [TODO] Generate strict version
+      return {};
+    }
+  }
+
+  static get strictBelongsTo(): StrictBelongsTo {
+    if (this.cachedBelongsTo !== undefined) {
+      return this.cachedBelongsTo;
+    } else {
+      // [TODO] Generate strict version
+      return {};
+    }
+  }
+
+  static get strictHasOne(): StrictHasOne {
+    if (this.cachedHasOne !== undefined) {
+      return this.cachedHasOne;
+    } else {
+      // [TODO] Generate strict version
+      return {};
+    }
+  }
+
+  static get strictHasMany(): StrictHasMany {
+    if (this.cachedHasMany !== undefined) {
+      return this.cachedHasMany;
+    } else {
+      // [TODO] Generate strict version
+      return {};
+    }
+  }
+
+  constructor(props: Partial<S>) {
+
+  }
+
+  get model(): ModelStatic<S> {
+    return <ModelStatic<S>>this.constructor;
+  }
+}
+
+interface UserSchema extends Schema {
   firstName: string;
   lastName: string;
 }
 
-@Model<User>()
-class User<> extends NextModel {
-  readonly static modelName = 'User';
+@Model<UserSchema, ModelStatic<UserSchema>>()
+class User extends NextModel<UserSchema> {
+  static readonly modelName: string = 'User';
+  firstName: string;
+  lastName: string;
+  // [key: string]: any;
 
+  static get schema() {
+    return {
+      firstName: 'TEst',
+      lastName: 'TEst',
+    };
+  }
 }
+
+const u = new User({firstName: 'test'});
 
 // import {
 //   Connector,

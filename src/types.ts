@@ -1,3 +1,5 @@
+import { prototype } from "stream";
+
 export type BaseType = number | string | boolean | null | undefined;
 
 export interface Tuple<T> {
@@ -61,12 +63,12 @@ export interface StrictFilter<T extends Schema> {
 };
 
 export interface Relation {
-  model: NextModelStatic<Schema>;
+  model: ModelStatic<Schema>;
   foreignKey?: string;
 };
 
 export interface StrictRelation {
-  model: NextModelStatic<Schema>;
+  model: ModelStatic<Schema>;
   foreignKey: string;
 };
 
@@ -78,32 +80,28 @@ export type StrictBelongsTo = Dict<StrictRelation>;
 export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
-export type Schema = Dict<BaseType>;
-
+export type Schema = any;
 
 export interface ModelStatic<T extends Schema> {
   readonly modelName: string;
   readonly schema: T;
 
+  // new(...args: any[]): ModelConstructor<T>;
+  prototype: T;
   new(params: Partial<T>): ModelConstructor<T>;
-  protptype: ModelConstructor<T>;
+  // protptype: ModelConstructor<T>;
 
   readonly defaultFilter?: Filter<T>;
   readonly belongsTo?: BelongsTo;
   readonly hasOne?: HasOne;
   readonly hasMany?: HasMany;
-}
 
-export interface ModelConstructor<T extends Schema> {
-  readonly model: ModelStatic<T>;
-}
-
-export interface NextModelStatic<T extends Schema> extends ModelStatic<T> {
   readonly strictDefaultFilter: StrictFilter<T>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
 }
 
-export interface NextModelConstructor<T extends Schema> extends ModelConstructor<T> {
+export interface ModelConstructor<T extends Schema> {
+  readonly model: ModelStatic<T>;
 }
