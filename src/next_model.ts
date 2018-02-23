@@ -1,12 +1,26 @@
-import * as Types from './types';
+import {
+  ModelConstructor,
+  NextModelConstructor,
+  Filter,
+  BelongsTo,
+  HasOne,
+  HasMany,
+  StrictFilter,
+  StrictBelongsTo,
+  StrictHasOne,
+  StrictHasMany,
+} from './types';
 
-export class NextModel implements Types.NextModelConstructor {
-  private cachedStrictFilter: Types.StrictFilter | undefined;
-  private cachedBelongsTo: Types.StrictBelongsTo | undefined;
-  private cachedHasOne: Types.StrictHasOne | undefined;
-  private cachedHasMany: Types.StrictHasMany | undefined;
+import {
+} from './util'
 
-  get strictDefaultFilter(): Types.StrictFilter {
+export class NextModel implements NextModelConstructor {
+  private static cachedStrictFilter: StrictFilter | undefined;
+  private static cachedBelongsTo: StrictBelongsTo | undefined;
+  private static cachedHasOne: StrictHasOne | undefined;
+  private static cachedHasMany: StrictHasMany | undefined;
+
+  static get strictDefaultFilter(): StrictFilter {
     if (this.cachedStrictFilter !== undefined) {
       return this.cachedStrictFilter;
     } else {
@@ -15,7 +29,7 @@ export class NextModel implements Types.NextModelConstructor {
     }
   }
 
-  get strictBelongsTo(): Types.StrictBelongsTo {
+  static get strictBelongsTo(): StrictBelongsTo {
     if (this.cachedBelongsTo !== undefined) {
       return this.cachedBelongsTo;
     } else {
@@ -24,7 +38,7 @@ export class NextModel implements Types.NextModelConstructor {
     }
   }
 
-  get strictHasOne(): Types.StrictHasOne {
+  static get strictHasOne(): StrictHasOne {
     if (this.cachedHasOne !== undefined) {
       return this.cachedHasOne;
     } else {
@@ -33,7 +47,7 @@ export class NextModel implements Types.NextModelConstructor {
     }
   }
 
-  get strictHasMany(): Types.StrictHasMany {
+  static get strictHasMany(): StrictHasMany {
     if (this.cachedHasMany !== undefined) {
       return this.cachedHasMany;
     } else {
@@ -42,6 +56,19 @@ export class NextModel implements Types.NextModelConstructor {
     }
   }
 
+  get model(): typeof NextModelConstructor {
+    return <typeof NextModelConstructor>this.constructor;
+  }
+};
+
+export function Model(model: typeof ModelConstructor): typeof NextModel {
+  return class extends NextModel {
+    static readonly modelName: string = model.modelName;
+    static readonly defaultFilter?: Filter = model.defaultFilter;
+    static readonly belongsTo?: BelongsTo = model.belongsTo;
+    static readonly hasOne?: HasOne = model.hasOne;
+    static readonly hasMany?: HasMany = model.hasMany;
+  };
 };
 
 // import {

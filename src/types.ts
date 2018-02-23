@@ -1,3 +1,7 @@
+export interface Type<T> {
+  new(...args: any[]): T;
+};
+
 export type BaseType = number | string | boolean | null | undefined;
 
 export interface Tuple<T> {
@@ -9,56 +13,64 @@ export interface Dict<T> {
   [key: string]: T;
 };
 
-export type FilterProperty = Dict<BaseType>;
-export type FilterIn = Dict<Array<string> | Array<number>>;
-export type FilterBetween = Dict<Tuple<string> | Tuple<number>>;
+export type FilterProperty<T extends Schema> = Partial<T>;
+export type FilterIn<T extends Schema> = {
+  [P in keyof T]: Array<T[P]>;
+};
+export type FilterBetween<T extends Schema> = {
+  [P in keyof T]: Tuple<T[P]>;
+};
+export type FilterGreaterThen<T extends Schema> = Partial<T>;
+export type FilterGreaterThenEquals<T extends Schema> = Partial<T>;
+export type FilterLowerThen<T extends Schema> = Partial<T>;
+export type FilterLowerThenEquals<T extends Schema> = Partial<T>;
 
 export interface FilterRaw {
   $bindings: BaseType[] | { [key: string]: BaseType };
   $query: string;
 };
 
-export interface Filter {
-  $and?: Filter | Filter[];
-  $not?: Filter | Filter[];
-  $or?: Filter | Filter[];
+export type Filter<T extends Schema> = {
+  $and?: Filter<T> | FilterProperty<T> | (Filter<T> | FilterProperty<T>)[];
+  $not?: Filter<T> | FilterProperty<T> | (Filter<T> | FilterProperty<T>)[];
+  $or?: Filter<T> | FilterProperty<T> | (Filter<T> | FilterProperty<T>)[];
 
-  $in?: Filter | FilterIn[];
-  $notIn?: Filter | FilterIn[];
+  $in?: FilterIn<T> | FilterIn<T>[];
+  $notIn?: FilterIn<T> | FilterIn<T>[];
 
   $null?: string | string[];
   $notNull?: string | string[];
 
-  $between?: FilterBetween | FilterBetween[];
-  $notBetween?: FilterBetween | FilterBetween[];
+  $between?: FilterBetween<T> | FilterBetween<T>[];
+  $notBetween?: FilterBetween<T> | FilterBetween<T>[];
 
   $raw?: FilterRaw | FilterRaw[];
 };
 
-export interface StrictFilter {
-  $and?: Filter[];
-  $not?: Filter[];
-  $or?: Filter[];
+export interface StrictFilter<T extends Schema> {
+  $and?: (Filter<T> | FilterProperty<T>)[];
+  $not?: (Filter<T> | FilterProperty<T>)[];
+  $or?: (Filter<T> | FilterProperty<T>)[];
 
-  $in?: FilterIn[];
-  $notIn?: FilterIn[];
+  $in?: FilterIn<T>[];
+  $notIn?: FilterIn<T>[];
 
   $null?: string[];
   $notNull?: string[];
 
-  $between?: FilterBetween[];
-  $notBetween?: FilterBetween[];
+  $between?: FilterBetween<T>[];
+  $notBetween?: FilterBetween<T>[];
 
   $raw?: FilterRaw[];
 };
 
 export interface Relation {
-  model: NextModelConstructor;
+  model: NextModelStatic<Schema>;
   foreignKey?: string;
 };
 
 export interface StrictRelation {
-  model: NextModelConstructor;
+  model: NextModelStatic<Schema>;
   foreignKey: string;
 };
 
@@ -70,35 +82,29 @@ export type StrictBelongsTo = Dict<StrictRelation>;
 export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
-
-export interface Schema {
-  [key: string]: SchemaAttribute<any>;
-};
-
-export interface SchemaAttribute<Type> {
-  type?: string; // Only needed for js usage
-  defaultValue?: Type;
-  defaultGenerator?: (klass: NextModelInstance) => Type;
-};
+export type Schema = Dict<BaseType>;
 
 
-export interface NextModelConstructor {
-  readonly defaultFilter?: Filter;
-  readonly strictDefaultFilter: StrictFilter;
+export interface ModelStatic<T extends Schema> extends Type<ModelConstructor<T>> {
+  readonly modelName: string;
+  readonly schema: T;
 
+  readonly defaultFilter?: Filter<T>;
   readonly belongsTo?: BelongsTo;
-  readonly strictBelongsTo: StrictBelongsTo;
-
   readonly hasOne?: HasOne;
-  readonly strictHasOne: StrictHasOne;
-
   readonly hasMany?: HasMany;
+}
+
+export interface ModelConstructor<T extends Schema> {
+  readonly model: ModelStatic<T>;
+}
+
+export interface NextModelStatic<T extends Schema> extends ModelStatic<T> {
+  readonly strictDefaultFilter: StrictFilter<T>;
+  readonly strictBelongsTo: StrictBelongsTo;
+  readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
+}
 
-  constructor: NextModelInstance;
-};
-
-export interface NextModelInstance {
-  readonly model: NextModelConstructor;
-};
-
+export interface NextModelConstructor<T extends Schema> extends ModelConstructor<T> {
+}
