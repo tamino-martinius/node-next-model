@@ -76,8 +76,13 @@ function Model<T extends Schema>(): NextModelStatic<T> {
   };
 }
 
-@Model<NextModelStatic<User>>()
-class User extends NextModel {
+interface UserSchema {
+  firstName: string;
+  lastName: string;
+}
+
+@Model<User>()
+class User<> extends NextModel {
   readonly static modelName = 'User';
 
 }
