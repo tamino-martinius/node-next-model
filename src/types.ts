@@ -16,10 +16,10 @@ export interface Dict<T> {
 
 export type FilterProperty<S> = Partial<S>;
 export type FilterIn<S> = {
-  [P in keyof S]: Array<S[P]>;
+  [K in keyof S]: Array<S[K]>;
 };
 export type FilterBetween<S> = {
-  [P in keyof S]: Tuple<S[P]>;
+  [K in keyof S]: Tuple<S[K]>;
 };
 export type FilterGreaterThen<S> = Partial<S>;
 export type FilterGreaterThenEquals<S> = Partial<S>;
@@ -83,12 +83,8 @@ export type StrictBelongsTo = Dict<StrictRelation>;
 export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
-export type FindBy<S> = {
-  [P in keyof S]: (value: S[P]) => Promise<ModelConstructor<S>>;
-};
-
 export type QueryBy<S> = {
-  [P in keyof S]: (value: S[P]) => ModelStatic<S>;
+  [K in keyof S]: (value: S[K]) => ModelStatic<S>;
 };
 
 export interface SchemaProperty<T> {
@@ -96,8 +92,17 @@ export interface SchemaProperty<T> {
   defaultValue?: T | ((model: ModelConstructor<any>) => T);
 };
 
+export interface StrictSchemaProperty<T> {
+  type: string;
+  defaultValue: T | ((model: ModelConstructor<any>) => T);
+};
+
 export type Schema<S> = {
   [P in keyof S]: SchemaProperty<S[P]>;
+};
+
+export type StrictSchema<S> = {
+  [P in keyof S]: StrictSchemaProperty<S[P]>;
 };
 
 export interface ModelStatic<S> {
@@ -105,7 +110,7 @@ export interface ModelStatic<S> {
   readonly schema: Schema<S>;
 
   // new(...args: any[]): ModelConstructor<T>;
-  prototype: S;
+  // prototype: S;
   new(params: Partial<S>): ModelConstructor<S>;
   // protptype: ModelConstructor<S>;
 
@@ -118,6 +123,8 @@ export interface ModelStatic<S> {
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
+
+  // findBy<S, K extends keyof S>(key: K, value: S[K]): Promise<undefined | ModelConstructor<S>>;
 }
 
 export interface ModelConstructor<S> {
