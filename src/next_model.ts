@@ -1,33 +1,36 @@
 import {
   ModelConstructor,
-  Filter,
-  BelongsTo,
-  HasOne,
-  HasMany,
   StrictFilter,
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
   Schema,
   ModelStatic,
-  BaseType,
 } from './types';
 
 import {
 } from './util'
 
-function Model<S, T extends ModelStatic<S>>() {
-  return (constructor: T) => {
+function staticImplements<T>() {
+  return (_constructor: T) => {
+    // constructor.findBy.
   };
 }
 
-class NextModel<S extends Schema> implements ModelConstructor<T> {
-  private static cachedStrictDefaultFilter: StrictFilter<S> | undefined;
+@staticImplements<ModelStatic<any>>()
+class NextModel<S> implements ModelConstructor<S> {
+  private static cachedStrictDefaultFilter: StrictFilter<any> | undefined;
   private static cachedBelongsTo: StrictBelongsTo | undefined;
   private static cachedHasOne: StrictHasOne | undefined;
   private static cachedHasMany: StrictHasMany | undefined;
 
-  static get strictDefaultFilter(): StrictFilter<S> {
+  static readonly modelName: string = 'User';
+
+  static get schema(): Schema<any> {
+    return {};
+  }
+
+  static get strictDefaultFilter(): StrictFilter<any> {
     if (this.cachedStrictDefaultFilter !== undefined) {
       return this.cachedStrictDefaultFilter;
     } else {
@@ -63,7 +66,7 @@ class NextModel<S extends Schema> implements ModelConstructor<T> {
     }
   }
 
-  constructor(props: Partial<S>) {
+  constructor(_props: Partial<S>) {
 
   }
 
@@ -72,27 +75,27 @@ class NextModel<S extends Schema> implements ModelConstructor<T> {
   }
 }
 
-interface UserSchema extends Schema {
+interface UserSchema {
   firstName: string;
   lastName: string;
 }
 
-@Model<UserSchema, ModelStatic<UserSchema>>()
+@staticImplements<ModelStatic<UserSchema>>()
 class User extends NextModel<UserSchema> {
   static readonly modelName: string = 'User';
   firstName: string;
   lastName: string;
-  // [key: string]: any;
 
   static get schema() {
     return {
-      firstName: 'TEst',
-      lastName: 'TEst',
+      firstName: { type: 'string', defaultValue: 'TEst' },
+      lastName: { type: 'string' },
     };
   }
 }
 
 const u = new User({firstName: 'test'});
+console.log(u.model.defaultFilter);
 
 // import {
 //   Connector,
