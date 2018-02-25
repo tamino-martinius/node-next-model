@@ -5,15 +5,11 @@ import {
   StrictHasOne,
   StrictHasMany,
   ModelStatic,
+  staticImplements,
 } from './types';
 
 import {
 } from './util'
-
-function Model<S, T extends ModelStatic<S>>() {
-  return (_constructor: T) => {
-  };
-}
 
 class NextModel<S> implements ModelConstructor<S> {
   private static cachedStrictDefaultFilter: StrictFilter<any> | undefined;
@@ -71,7 +67,7 @@ interface UserSchema {
   lastName: string;
 }
 
-@Model<UserSchema, ModelStatic<UserSchema>>()
+@staticImplements<ModelStatic<UserSchema>>()
 class User extends NextModel<UserSchema> {
   static readonly modelName: string = 'User';
   firstName: string;
@@ -80,8 +76,8 @@ class User extends NextModel<UserSchema> {
 
   static get schema() {
     return {
-      firstName: 'TEst',
-      lastName: 'TEst',
+      firstName: { type: 'string' },
+      lastName: { type: 'string' },
     };
   }
 }

@@ -1,3 +1,8 @@
+export function staticImplements<T>() {
+  return (_constructor: T) => {
+  };
+}
+
 export type BaseType = number | string | boolean | null | undefined;
 
 export interface Tuple<T> {
@@ -61,12 +66,12 @@ export interface StrictFilter<S> {
 };
 
 export interface Relation {
-  model: ModelStatic<Schema>;
+  model: ModelStatic<any>;
   foreignKey?: string;
 };
 
 export interface StrictRelation {
-  model: ModelStatic<Schema>;
+  model: ModelStatic<any>;
   foreignKey: string;
 };
 
@@ -78,11 +83,26 @@ export type StrictBelongsTo = Dict<StrictRelation>;
 export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
-export type Schema = any;
+export type FindBy<S> = {
+  [P in keyof S]: (value: S[P]) => Promise<ModelConstructor<S>>;
+};
+
+export type QueryBy<S> = {
+  [P in keyof S]: (value: S[P]) => ModelStatic<S>;
+};
+
+export interface SchemaProperty<T> {
+  type: string;
+  defaultValue?: T | ((model: ModelConstructor<any>) => T);
+};
+
+export type Schema<S> = {
+  [P in keyof S]: SchemaProperty<S[P]>;
+};
 
 export interface ModelStatic<S> {
   readonly modelName: string;
-  readonly schema: S;
+  readonly schema: Schema<S>;
 
   // new(...args: any[]): ModelConstructor<T>;
   prototype: S;
