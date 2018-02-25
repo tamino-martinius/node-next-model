@@ -1,33 +1,27 @@
 import {
   ModelConstructor,
-  Filter,
-  BelongsTo,
-  HasOne,
-  HasMany,
   StrictFilter,
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
-  Schema,
   ModelStatic,
-  BaseType,
 } from './types';
 
 import {
 } from './util'
 
 function Model<S, T extends ModelStatic<S>>() {
-  return (constructor: T) => {
+  return (_constructor: T) => {
   };
 }
 
-class NextModel<S extends Schema> implements ModelConstructor<T> {
-  private static cachedStrictDefaultFilter: StrictFilter<S> | undefined;
+class NextModel<S> implements ModelConstructor<S> {
+  private static cachedStrictDefaultFilter: StrictFilter<any> | undefined;
   private static cachedBelongsTo: StrictBelongsTo | undefined;
   private static cachedHasOne: StrictHasOne | undefined;
   private static cachedHasMany: StrictHasMany | undefined;
 
-  static get strictDefaultFilter(): StrictFilter<S> {
+  static get strictDefaultFilter(): StrictFilter<any> {
     if (this.cachedStrictDefaultFilter !== undefined) {
       return this.cachedStrictDefaultFilter;
     } else {
@@ -63,7 +57,7 @@ class NextModel<S extends Schema> implements ModelConstructor<T> {
     }
   }
 
-  constructor(props: Partial<S>) {
+  constructor(_props: Partial<S>) {
 
   }
 
@@ -72,7 +66,7 @@ class NextModel<S extends Schema> implements ModelConstructor<T> {
   }
 }
 
-interface UserSchema extends Schema {
+interface UserSchema {
   firstName: string;
   lastName: string;
 }
@@ -93,6 +87,7 @@ class User extends NextModel<UserSchema> {
 }
 
 const u = new User({firstName: 'test'});
+console.log(u);
 
 // import {
 //   Connector,

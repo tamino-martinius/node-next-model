@@ -1,5 +1,3 @@
-import { prototype } from "stream";
-
 export type BaseType = number | string | boolean | null | undefined;
 
 export interface Tuple<T> {
@@ -11,53 +9,53 @@ export interface Dict<T> {
   [key: string]: T;
 };
 
-export type FilterProperty<T extends Schema> = Partial<T>;
-export type FilterIn<T extends Schema> = {
-  [P in keyof T]: Array<T[P]>;
+export type FilterProperty<S> = Partial<S>;
+export type FilterIn<S> = {
+  [P in keyof S]: Array<S[P]>;
 };
-export type FilterBetween<T extends Schema> = {
-  [P in keyof T]: Tuple<T[P]>;
+export type FilterBetween<S> = {
+  [P in keyof S]: Tuple<S[P]>;
 };
-export type FilterGreaterThen<T extends Schema> = Partial<T>;
-export type FilterGreaterThenEquals<T extends Schema> = Partial<T>;
-export type FilterLowerThen<T extends Schema> = Partial<T>;
-export type FilterLowerThenEquals<T extends Schema> = Partial<T>;
+export type FilterGreaterThen<S> = Partial<S>;
+export type FilterGreaterThenEquals<S> = Partial<S>;
+export type FilterLowerThen<S> = Partial<S>;
+export type FilterLowerThenEquals<S> = Partial<S>;
 
 export interface FilterRaw {
   $bindings: BaseType[] | { [key: string]: BaseType };
   $query: string;
 };
 
-export type Filter<T extends Schema> = {
-  $and?: Filter<T> | FilterProperty<T> | (Filter<T> | FilterProperty<T>)[];
-  $not?: Filter<T> | FilterProperty<T> | (Filter<T> | FilterProperty<T>)[];
-  $or?: Filter<T> | FilterProperty<T> | (Filter<T> | FilterProperty<T>)[];
+export type Filter<S> = {
+  $and?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
+  $not?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
+  $or?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
 
-  $in?: FilterIn<T> | FilterIn<T>[];
-  $notIn?: FilterIn<T> | FilterIn<T>[];
+  $in?: FilterIn<S> | FilterIn<S>[];
+  $notIn?: FilterIn<S> | FilterIn<S>[];
 
   $null?: string | string[];
   $notNull?: string | string[];
 
-  $between?: FilterBetween<T> | FilterBetween<T>[];
-  $notBetween?: FilterBetween<T> | FilterBetween<T>[];
+  $between?: FilterBetween<S> | FilterBetween<S>[];
+  $notBetween?: FilterBetween<S> | FilterBetween<S>[];
 
   $raw?: FilterRaw | FilterRaw[];
 };
 
-export interface StrictFilter<T extends Schema> {
-  $and?: (Filter<T> | FilterProperty<T>)[];
-  $not?: (Filter<T> | FilterProperty<T>)[];
-  $or?: (Filter<T> | FilterProperty<T>)[];
+export interface StrictFilter<S> {
+  $and?: (Filter<S> | FilterProperty<S>)[];
+  $not?: (Filter<S> | FilterProperty<S>)[];
+  $or?: (Filter<S> | FilterProperty<S>)[];
 
-  $in?: FilterIn<T>[];
-  $notIn?: FilterIn<T>[];
+  $in?: FilterIn<S>[];
+  $notIn?: FilterIn<S>[];
 
   $null?: string[];
   $notNull?: string[];
 
-  $between?: FilterBetween<T>[];
-  $notBetween?: FilterBetween<T>[];
+  $between?: FilterBetween<S>[];
+  $notBetween?: FilterBetween<S>[];
 
   $raw?: FilterRaw[];
 };
@@ -82,26 +80,26 @@ export type StrictHasMany = Dict<StrictRelation>;
 
 export type Schema = any;
 
-export interface ModelStatic<T extends Schema> {
+export interface ModelStatic<S> {
   readonly modelName: string;
-  readonly schema: T;
+  readonly schema: S;
 
   // new(...args: any[]): ModelConstructor<T>;
-  prototype: T;
-  new(params: Partial<T>): ModelConstructor<T>;
-  // protptype: ModelConstructor<T>;
+  prototype: S;
+  new(params: Partial<S>): ModelConstructor<S>;
+  // protptype: ModelConstructor<S>;
 
-  readonly defaultFilter?: Filter<T>;
+  readonly defaultFilter?: Filter<S>;
   readonly belongsTo?: BelongsTo;
   readonly hasOne?: HasOne;
   readonly hasMany?: HasMany;
 
-  readonly strictDefaultFilter: StrictFilter<T>;
+  readonly strictDefaultFilter: StrictFilter<S>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
 }
 
-export interface ModelConstructor<T extends Schema> {
-  readonly model: ModelStatic<T>;
+export interface ModelConstructor<S> {
+  readonly model: ModelStatic<S>;
 }
