@@ -1,78 +1,154 @@
 import {
-  ModelConstructor,
+  StrictSchema,
   StrictFilter,
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
   ModelStatic,
   staticImplements,
+  Schema,
 } from './types';
 
 import {
 } from './util'
 
-class NextModel<S> implements ModelConstructor<S> {
-  private static cachedStrictDefaultFilter: StrictFilter<any> | undefined;
-  private static cachedBelongsTo: StrictBelongsTo | undefined;
-  private static cachedHasOne: StrictHasOne | undefined;
-  private static cachedHasMany: StrictHasMany | undefined;
 
-  static get strictDefaultFilter(): StrictFilter<any> {
-    if (this.cachedStrictDefaultFilter !== undefined) {
-      return this.cachedStrictDefaultFilter;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+export class PropertyNotDefinedError implements Error {
+  name: string = 'PropertyNotDefinedError';
+  message: string;
+
+  constructor(name: string, isStatic: boolean = true, isReadonly: boolean = true) {
+    this.message = 'Please define ';
+    if (isStatic) this.message += 'static ';
+    if (isReadonly) this.message += 'readonly ';
+    this.message += `property '${name}' on your model`;
+  }
+};
+
+export class LowerBoundsError implements Error {
+  name: string = 'LowerBoundsError';
+  message: string;
+
+  constructor(name: string, lowerBound: number) {
+    this.message = `
+      Property '${name}' is expected to be greater or equal to '${lowerBound}'
+    `;
+  }
+};
+
+export class MinLengthError implements Error {
+  name: string = 'MinLengthError';
+  message: string;
+
+  constructor(name: string, minLength: number) {
+    this.message = `
+      Property '${name}' length is expected to be longer or equal to '${minLength}'
+    `;
+  }
+};
+
+export class TypeError implements Error {
+  name: string = 'TypeError';
+  message: string;
+
+  constructor(name: string, type: string) {
+    this.message = `
+      Property '${name}' is expected to an '${type}'
+    `;
+  }
+};
+
+export function NextModel<S>(): ModelStatic<S> {
+  @staticImplements<ModelStatic<S>>()
+  class NextModel {
+    private static cachedStrictSchema: StrictSchema<S> | undefined;
+    private static cachedStrictDefaultFilter: StrictFilter<S> | undefined;
+    private static cachedStrictBelongsTo: StrictBelongsTo | undefined;
+    private static cachedStrictHasOne: StrictHasOne | undefined;
+    private static cachedStrictHasMany: StrictHasMany | undefined;
+
+    static get modelName(): string {
+      throw new PropertyNotDefinedError('modelName');
     }
-  }
 
-  static get strictBelongsTo(): StrictBelongsTo {
-    if (this.cachedBelongsTo !== undefined) {
-      return this.cachedBelongsTo;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+    static get schema(): Schema<S> {
+      throw new PropertyNotDefinedError('schema');
     }
-  }
 
-  static get strictHasOne(): StrictHasOne {
-    if (this.cachedHasOne !== undefined) {
-      return this.cachedHasOne;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+    static get strictSchema(): StrictSchema<S> {
+      if (this.cachedStrictDefaultFilter !== undefined) {
+        return this.cachedStrictDefaultFilter;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
     }
-  }
 
-  static get strictHasMany(): StrictHasMany {
-    if (this.cachedHasMany !== undefined) {
-      return this.cachedHasMany;
-    } else {
-      // [TODO] Generate strict version
-      return {};
+    static get strictDefaultFilter(): StrictFilter<S> {
+      if (this.cachedStrictDefaultFilter !== undefined) {
+        return this.cachedStrictDefaultFilter;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
     }
-  }
 
-  constructor(_props: Partial<S>) {
+    static get strictBelongsTo(): StrictBelongsTo {
+      if (this.cachedStrictBelongsTo !== undefined) {
+        return this.cachedStrictBelongsTo;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
+    }
 
-  }
+    static get strictHasOne(): StrictHasOne {
+      if (this.cachedStrictHasOne !== undefined) {
+        return this.cachedStrictHasOne;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
+    }
 
-  get model(): ModelStatic<S> {
-    return <ModelStatic<S>>this.constructor;
-  }
-}
+    static get strictHasMany(): StrictHasMany {
+      if (this.cachedStrictHasMany !== undefined) {
+        return this.cachedStrictHasMany;
+      } else {
+        // [TODO] Generate strict version
+        return {};
+      }
+    }
+
+    // static findBy<T, K extends keyof T>(_key: K, _value: T): Promise<undefined | NextModel<any>> {
+    //   return Promise.resolve(undefined);
+    // }
+
+    constructor(_props: Partial<S>) {
+
+    }
+
+    get model(): ModelStatic<S> {
+      return <ModelStatic<S>>this.constructor;
+    }
+  };
+
+  return NextModel;
+};
 
 interface UserSchema {
   firstName: string;
   lastName: string;
 }
 
-@staticImplements<ModelStatic<UserSchema>>()
-class User extends NextModel<UserSchema> {
-  static readonly modelName: string = 'User';
+class User extends NextModel<UserSchema>() {;
   firstName: string;
   lastName: string;
   // [key: string]: any;
+
+  static get modelName() {
+    return 'User';
+  }
 
   static get schema() {
     return {
