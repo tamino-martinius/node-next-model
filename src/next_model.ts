@@ -63,6 +63,8 @@ export class TypeError implements Error {
 export function NextModel<S>(): ModelStatic<S> {
   @staticImplements<ModelStatic<S>>()
   class Model {
+    private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
+    private static readonly DEFAULT_SKIP = 0;
     private static cachedLowerModelName?: string;
     private static cachedStrictSchema?: StrictSchema<S>;
     private static cachedStrictFilter?: StrictFilter<S>;
@@ -74,6 +76,10 @@ export function NextModel<S>(): ModelStatic<S> {
 
     static get limit(): number {
       return this.DEFAULT_LIMIT;
+    }
+
+    static get skip(): number {
+      return this.DEFAULT_SKIP;
     }
 
     static get modelName(): string {
@@ -163,6 +169,23 @@ export function NextModel<S>(): ModelStatic<S> {
       return class extends this {
         static get limit(): number {
           return this.DEFAULT_LIMIT;
+        }
+      };
+    }
+
+    static skipBy(amount: number): typeof Model {
+      // [TODO] Validate input (!NaN && x >= 0  && x < Infinity)
+      return class extends this {
+        static get skip(): number {
+          return amount;
+        }
+      };
+    }
+
+    static get unskipped(): typeof Model {
+      return class extends this {
+        static get skip(): number {
+          return this.DEFAULT_SKIP;
         }
       };
     }
