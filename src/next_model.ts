@@ -198,8 +198,8 @@ export function NextModel<S>(): ModelStatic<S> {
 
     }
 
-    get model(): ModelStatic<S> {
-      return <ModelStatic<S>>this.constructor;
+    get model(): typeof Model {
+      return <typeof Model>this.constructor;
     }
   };
 
