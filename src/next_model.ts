@@ -76,6 +76,17 @@ export function NextModel<S>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('modelName');
     }
 
+    static get lowerModelName(): string {
+      if (this.cachedLowerModelName !== undefined) {
+        return this.cachedLowerModelName;
+      } else {
+        return this.cachedLowerModelName =
+          this.modelName.substr(0, 1).toLowerCase() +
+          this.modelName.substr(1)
+        ;
+      }
+    }
+
     static get schema(): Schema<S> {
       throw new PropertyNotDefinedError('schema');
     }
