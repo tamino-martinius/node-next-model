@@ -146,19 +146,6 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
-    static get queryBy(): QueryBy<S> {
-      if (this.cachedQueryBy !== undefined) {
-        return this.cachedQueryBy;
-      } else {
-        const queryBy = <QueryBy<S>>{};
-        Object.keys(this.strictSchema).forEach(key => {
-          // @ts-ignore
-          queryBy[key] = (value) => this.query({ [key]: value });
-        });
-        return this.cachedQueryBy = queryBy;
-      }
-    }
-
     static query(filter: Filter<S>): typeof Model {
       let defaultFilter = filter;
       if (this.defaultFilter !== undefined) {
@@ -173,8 +160,25 @@ export function NextModel<S>(): ModelStatic<S> {
       };
     }
 
+    static get queryBy(): QueryBy<S> {
+      if (this.cachedQueryBy !== undefined) {
+        return this.cachedQueryBy;
+      } else {
+        const queryBy = <QueryBy<S>>{};
+        Object.keys(this.strictSchema).forEach(key => {
+          // @ts-ignore
+          queryBy[key] = (value) => this.query({ [key]: value });
+        });
+        return this.cachedQueryBy = queryBy;
+      }
+    }
+
     static get first(): Promise<Model | undefined> {
       return Promise.resolve(new Model({}));
+    }
+
+    static find(filter: Filter<S>): Promise<Model | undefined> {
+      return this.query(filter).first;
     }
 
     static get findBy(): FindBy<S>  {
@@ -188,10 +192,6 @@ export function NextModel<S>(): ModelStatic<S> {
         });
         return findBy;
       }
-    }
-
-    static find(filter: Filter<S>): Promise<Model | undefined>  {
-      return this.query(filter).first;
     }
 
     constructor(_props: Partial<S>) {

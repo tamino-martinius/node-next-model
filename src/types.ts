@@ -136,11 +136,11 @@ export interface ModelStatic<S> {
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
 
-  readonly queryBy: QueryBy<S>;
   query(query: Filter<S>): ModelStatic<S>;
+  readonly queryBy: QueryBy<S>;
   readonly first: Promise<ModelConstructor<S> | undefined>;
-  readonly findBy: FindBy<S>;
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
+  readonly findBy: FindBy<S>;
 }
 
 export interface ModelConstructor<S> {
