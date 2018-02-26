@@ -18,7 +18,7 @@ describe('NextModel', () => {
   // Static properties
   describe('.modelName', () => {
     let Klass: typeof Model;
-    let modelName: string = 'foo';
+    let modelName: string = 'Foo';
 
     const subject = () => Klass.modelName;
 
@@ -44,6 +44,41 @@ describe('NextModel', () => {
           tests() {
             test('returns the name of the model', () => {
               expect(subject()).toEqual(modelName);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.lowerModelName', () => {
+    let Klass: typeof Model;
+    let modelName: string = 'Foo';
+
+    const subject = () => Klass.lowerModelName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get modelName(): string {
+                return modelName;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the name of the model with starting lowercase', () => {
+              expect(subject()).toEqual(modelName.toLowerCase());
             });
           },
         });
