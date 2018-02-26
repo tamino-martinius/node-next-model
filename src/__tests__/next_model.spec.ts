@@ -166,6 +166,7 @@ describe('NextModel', () => {
     pending('[TODO]');
   });
 
+  // Relations
   describe('.belongsTo', () => {
     pending('[TODO]');
   });
@@ -187,6 +188,27 @@ describe('NextModel', () => {
   });
 
   describe('.strictHasMany', () => {
+    pending('[TODO]');
+  });
+
+  // Queries
+  describe('.query', () => {
+    pending('[TODO]');
+  });
+
+  describe('.queryBy', () => {
+    pending('[TODO]');
+  });
+
+  describe('.first', () => {
+    pending('[TODO]');
+  });
+
+  describe('.find', () => {
+    pending('[TODO]');
+  });
+
+  describe('.findBy', () => {
     pending('[TODO]');
   });
 });
