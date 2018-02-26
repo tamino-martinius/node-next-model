@@ -1,4 +1,5 @@
 import {
+  ModelStatic,
   StrictSchema,
   StrictFilter,
   StrictBelongsTo,
@@ -60,12 +61,13 @@ export class TypeError implements Error {
 
 export function NextModel<S>(): ModelStatic<S> {
   @staticImplements<ModelStatic<S>>()
-  class NextModel {
     private static cachedStrictSchema: StrictSchema<S> | undefined;
     private static cachedStrictDefaultFilter: StrictFilter<S> | undefined;
     private static cachedStrictBelongsTo: StrictBelongsTo | undefined;
     private static cachedStrictHasOne: StrictHasOne | undefined;
     private static cachedStrictHasMany: StrictHasMany | undefined;
+  class Model {
+    private static cachedStrictSchema?: StrictSchema<S>;
 
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
@@ -76,11 +78,17 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get strictSchema(): StrictSchema<S> {
-      if (this.cachedStrictDefaultFilter !== undefined) {
-        return this.cachedStrictDefaultFilter;
+      if (this.cachedStrictSchema !== undefined) {
+        return this.cachedStrictSchema;
       } else {
-        // [TODO] Generate strict version
-        return {};
+        const schema = <StrictSchema<S>>this.schema;
+
+        for (const key in schema) {
+          if (!('defaultValue' in schema[key])) {
+            schema[key].defaultValue = undefined;
+          }
+        }
+        return this.cachedStrictDefaultFilter = schema;
       }
     }
 
@@ -120,7 +128,6 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
-    // static findBy<T, K extends keyof T>(_key: K, _value: T): Promise<undefined | NextModel<any>> {
     //   return Promise.resolve(undefined);
     // }
 
@@ -133,7 +140,7 @@ export function NextModel<S>(): ModelStatic<S> {
     }
   };
 
-  return NextModel;
+  return Model;
 };
 
 interface UserSchema {
