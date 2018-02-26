@@ -13,13 +13,17 @@ import {
   context,
 } from './types';
 
+import {
+  Faker,
+} from '../__mocks__/next_model';
+
 const Model = NextModel<any>();
 
 describe('NextModel', () => {
   //#region Static properties
   describe('.modelName', () => {
     let Klass: typeof Model;
-    let modelName: string = 'Foo';
+    let modelName: string = Faker.modelName;
 
     const subject = () => Klass.modelName;
 
@@ -54,7 +58,7 @@ describe('NextModel', () => {
 
   describe('.lowerModelName', () => {
     let Klass: typeof Model;
-    let modelName: string = 'Foo';
+    let modelName: string = Faker.modelName;
 
     const subject = () => Klass.lowerModelName;
 
@@ -194,7 +198,6 @@ describe('NextModel', () => {
     });
   });
 
-
   describe('.strictFilter', () => {
     let Klass: typeof Model;
     let filter: Filter<any> = { $not: { foo: 'bar' } };
@@ -231,11 +234,73 @@ describe('NextModel', () => {
   });
 
   describe('.limit', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let limit: number = Faker.limit;
+
+    const subject = () => Klass.limit;
+
+    context('limit is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns maximum limit', () => {
+          expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
+        });
+
+        context('when limit is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get limit(): number {
+                return limit;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the limit of the model', () => {
+              expect(subject()).toEqual(limit);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.skip', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let skip: number = Faker.skip;
+
+    const subject = () => Klass.skip;
+
+    context('skip is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns maximum skip', () => {
+          expect(subject()).toEqual(0);
+        });
+
+        context('when skip is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get skip(): number {
+                return skip;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the skip of the model', () => {
+              expect(subject()).toEqual(skip);
+            });
+          },
+        });
+      },
+    });
   });
   //#endregion
 
