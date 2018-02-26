@@ -85,5 +85,43 @@ describe('NextModel', () => {
       },
     });
   });
+
+
+  describe('.strictSchema', () => {
+    let Klass: typeof Model;
+    let schema: Schema<any> = { foo: { type: 'bar' } };
+
+    const subject = () => Klass.strictSchema;
+
+    context('schema is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get schema(): Schema<any> {
+                return schema;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('returns the schema with filled properties', () => {
+              expect('defaultValue' in schema.foo).toBeFalsy();
+              expect(subject()).toEqual(schema);
+              expect('defaultValue' in subject().foo).toBeTruthy();
+            });
+          },
+        });
+      },
+    });
+  });
 });
 
