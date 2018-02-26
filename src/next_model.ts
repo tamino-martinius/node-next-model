@@ -177,6 +177,19 @@ export function NextModel<S>(): ModelStatic<S> {
       return Promise.resolve(new Model({}));
     }
 
+    static get findBy(): FindBy<S>  {
+      if (this.cachedFindBy !== undefined) {
+        return this.cachedFindBy;
+      } else {
+        const findBy = <FindBy<S>>{};
+        Object.keys(this.strictSchema).forEach((key) => {
+          // @ts-ignore
+          findBy[key] = (value) => this.find({ [key]: value });
+        });
+        return findBy;
+      }
+    }
+
     static find(filter: Filter<S>): Promise<Model | undefined>  {
       return this.query(filter).first;
     }
