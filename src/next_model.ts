@@ -146,8 +146,19 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
-    //   return Promise.resolve(undefined);
-    // }
+    static get queryBy(): QueryBy<S> {
+      if (this.cachedQueryBy !== undefined) {
+        return this.cachedQueryBy;
+      } else {
+        const queryBy = <QueryBy<S>>{};
+        Object.keys(this.strictSchema).forEach(key => {
+          // @ts-ignore
+          queryBy[key] = (value) => this.query({ [key]: value });
+        });
+        return this.cachedQueryBy = queryBy;
+      }
+    }
+
     static query(filter: Filter<S>): typeof Model {
       let defaultFilter = filter;
       if (this.defaultFilter !== undefined) {
