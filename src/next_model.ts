@@ -61,13 +61,15 @@ export class TypeError implements Error {
 
 export function NextModel<S>(): ModelStatic<S> {
   @staticImplements<ModelStatic<S>>()
-    private static cachedStrictSchema: StrictSchema<S> | undefined;
-    private static cachedStrictDefaultFilter: StrictFilter<S> | undefined;
-    private static cachedStrictBelongsTo: StrictBelongsTo | undefined;
-    private static cachedStrictHasOne: StrictHasOne | undefined;
-    private static cachedStrictHasMany: StrictHasMany | undefined;
   class Model {
+    private static cachedLowerModelName?: string;
     private static cachedStrictSchema?: StrictSchema<S>;
+    private static cachedStrictDefaultFilter?: StrictFilter<S>;
+    private static cachedStrictBelongsTo?: StrictBelongsTo;
+    private static cachedStrictHasOne?: StrictHasOne;
+    private static cachedStrictHasMany?: StrictHasMany;
+    private static cachedQueryBy?: QueryBy<S>;
+    private static cachedFindBy?: FindBy<S>;
 
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
