@@ -19,8 +19,6 @@ import {
 
 const Model = NextModel<any>();
 
-
-
 describe('NextModel', () => {
   //#region Static properties
   describe('.modelName', () => {
@@ -155,7 +153,6 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns the schema with filled properties', () => {
-              console.log(schema);
               expect(subject()).toEqual(schema);
               for (const key in schema) {
                 expect('defaultValue' in subject()[key]).toBeTruthy();
@@ -168,140 +165,108 @@ describe('NextModel', () => {
   });
 
   describe('.filter', () => {
-    let Klass: typeof Model;
+    let Klass: typeof Model = Faker.model;
     let filter: Filter<any> = Faker.filter;
 
     const subject = () => Klass.filter;
 
-    context('filter is not extended', {
+    test('returns empty filter', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when filter is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() { };
+        class NewKlass extends NextModel<any>() {
+          static get filter(): Filter<any> {
+            return filter;
+          }
+        };
         Klass = NewKlass;
       },
       tests() {
-        test('returns empty filter', () => {
-          expect(subject()).toEqual({});
-        });
-
-        context('when filter is present', {
-          definitions() {
-            class NewKlass extends NextModel<any>() {
-              static get filter(): Filter<any> {
-                return filter;
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            test('returns the filter of the model', () => {
-              expect(subject()).toEqual(filter);
-            });
-          },
+        test('returns the filter of the model', () => {
+          expect(subject()).toEqual(filter);
         });
       },
     });
   });
 
   describe('.strictFilter', () => {
-    let Klass: typeof Model;
+    let Klass: typeof Model = Faker.model;
     let filter: Filter<any> = Faker.filter;
 
     const subject = () => Klass.strictFilter;
 
-    context('filter is not extended', {
+    test('returns empty filter', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when filter is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() { };
+        class NewKlass extends NextModel<any>() {
+          static get filter(): Filter<any> {
+            return filter;
+          }
+        };
         Klass = NewKlass;
       },
       tests() {
-        test('returns empty filter', () => {
-          expect(subject()).toEqual({});
-        });
-
-        context('when filter is present', {
-          definitions() {
-            class NewKlass extends NextModel<any>() {
-              static get filter(): Filter<any> {
-                return filter;
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            test('returns the strict filter of the model', () => {
-              expect(subject()).toEqual(filter);
-            });
-          },
+        test('returns the strict filter of the model', () => {
+          expect(subject()).toEqual(filter);
         });
       },
     });
   });
 
   describe('.limit', () => {
-    let Klass: typeof Model;
+    let Klass: typeof Model = Faker.model;
     let limit: number = Faker.limit;
 
     const subject = () => Klass.limit;
 
-    context('limit is not extended', {
+    test('returns maximum limit', () => {
+      expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
+    });
+
+    context('when limit is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() { };
+        class NewKlass extends NextModel<any>() {
+          static get limit(): number {
+            return limit;
+          }
+        };
         Klass = NewKlass;
       },
       tests() {
-        test('returns maximum limit', () => {
-          expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
-        });
-
-        context('when limit is present', {
-          definitions() {
-            class NewKlass extends NextModel<any>() {
-              static get limit(): number {
-                return limit;
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            test('returns the limit of the model', () => {
-              expect(subject()).toEqual(limit);
-            });
-          },
+        test('returns the limit of the model', () => {
+          expect(subject()).toEqual(limit);
         });
       },
     });
   });
 
   describe('.skip', () => {
-    let Klass: typeof Model;
+    let Klass: typeof Model = Faker.model;
     let skip: number = Faker.skip;
 
     const subject = () => Klass.skip;
 
-    context('skip is not extended', {
+    test('returns maximum skip', () => {
+      expect(subject()).toEqual(0);
+    });
+
+    context('when skip is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() { };
+        class NewKlass extends NextModel<any>() {
+          static get skip(): number {
+            return skip;
+          }
+        };
         Klass = NewKlass;
       },
       tests() {
-        test('returns maximum skip', () => {
-          expect(subject()).toEqual(0);
-        });
-
-        context('when skip is present', {
-          definitions() {
-            class NewKlass extends NextModel<any>() {
-              static get skip(): number {
-                return skip;
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            test('returns the skip of the model', () => {
-              expect(subject()).toEqual(skip);
-            });
-          },
+        test('returns the skip of the model', () => {
+          expect(subject()).toEqual(skip);
         });
       },
     });

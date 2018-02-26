@@ -4,7 +4,12 @@ import {
   Filter,
   Schema,
   ModelConstructor,
+  ModelStatic,
 } from '../types';
+
+import {
+  NextModel,
+} from '../next_model';
 
 function positiveInteger(): number {
   return faker.random.number(Number.MAX_SAFE_INTEGER);
@@ -41,6 +46,21 @@ console.log(`Running with seed ${seed}`)
 faker.seed(seed);
 
 export class Faker {
+  static get model(): ModelStatic<any> {
+    const modelName = this.modelName;
+    const schema = this.schema;
+
+    return class extends NextModel<any>() {
+      static get modelName() {
+        return modelName;
+      }
+
+      static get schema() {
+        return schema;
+      }
+    };
+  }
+
   static get modelName(): string {
     return className();
   }
