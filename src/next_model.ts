@@ -5,14 +5,15 @@ import {
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
-  ModelStatic,
   staticImplements,
   Schema,
+  QueryBy,
+  FindBy,
+  Filter,
 } from './types';
 
 import {
 } from './util'
-
 
 export class PropertyNotDefinedError implements Error {
   name: string = 'PropertyNotDefinedError';
