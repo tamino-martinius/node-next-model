@@ -100,7 +100,7 @@ export interface ModelStatic<S> {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly schema: Schema<S>;
-  readonly filter: Filter<S>;
+  readonly filter: Filter<S> | FilterProperty<S>;
   readonly limit: number;
   readonly skip: number;
 
@@ -109,7 +109,7 @@ export interface ModelStatic<S> {
   readonly hasMany: HasMany;
 
   readonly strictSchema: StrictSchema<S>;
-  readonly strictFilter: Filter<S>;
+  readonly strictFilter: Filter<S> | FilterProperty<S>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
