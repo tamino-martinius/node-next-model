@@ -173,6 +173,10 @@ export function NextModel<S>(): ModelStatic<S> {
       };
     }
 
+    static get first(): Promise<Model | undefined> {
+      return Promise.resolve(new Model({}));
+    }
+
 
     constructor(_props: Partial<S>) {
 
