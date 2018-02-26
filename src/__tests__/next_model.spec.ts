@@ -95,7 +95,7 @@ describe('NextModel', () => {
 
   describe('.schema', () => {
     let Klass: typeof Model;
-    let schema: Schema<any> = { foo: { type: 'bar' } };
+    let schema: Schema<any> = Faker.schema;
 
     const subject = () => Klass.schema;
 
@@ -130,7 +130,7 @@ describe('NextModel', () => {
 
   describe('.strictSchema', () => {
     let Klass: typeof Model;
-    let schema: Schema<any> = { foo: { type: 'bar' } };
+    let schema: Schema<any> = Faker.schema;
 
     const subject = () => Klass.strictSchema;
 
@@ -155,9 +155,11 @@ describe('NextModel', () => {
           },
           tests() {
             test('returns the schema with filled properties', () => {
-              expect('defaultValue' in schema.foo).toBeFalsy();
+              console.log(schema);
               expect(subject()).toEqual(schema);
-              expect('defaultValue' in subject().foo).toBeTruthy();
+              for (const key in schema) {
+                expect('defaultValue' in subject()[key]).toBeTruthy();
+              }
             });
           },
         });
@@ -167,7 +169,7 @@ describe('NextModel', () => {
 
   describe('.filter', () => {
     let Klass: typeof Model;
-    let filter: Filter<any> = { $not: { foo: 'bar' } };
+    let filter: Filter<any> = Faker.filter;
 
     const subject = () => Klass.filter;
 
@@ -202,7 +204,7 @@ describe('NextModel', () => {
 
   describe('.strictFilter', () => {
     let Klass: typeof Model;
-    let filter: Filter<any> = { $not: { foo: 'bar' } };
+    let filter: Filter<any> = Faker.filter;
 
     const subject = () => Klass.strictFilter;
 

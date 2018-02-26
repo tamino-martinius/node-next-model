@@ -57,7 +57,7 @@ export class Faker {
     for (let i = 0; i < count; i++) {
       const name = propertyName();
       schema[name] = { type: type() };
-      if (faker.random.boolean) schema[name].defaultValue = faker.lorem.text;
+      if (faker.random.boolean()) schema[name].defaultValue = faker.lorem.text();
     }
     return schema;
   }
