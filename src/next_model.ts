@@ -148,6 +148,20 @@ export function NextModel<S>(): ModelStatic<S> {
 
     //   return Promise.resolve(undefined);
     // }
+    static query(filter: Filter<S>): typeof Model {
+      let defaultFilter = filter;
+      if (this.defaultFilter !== undefined) {
+        defaultFilter = {
+          $and: [filter, this.defaultFilter],
+        };
+      }
+      return class extends this {
+        static get defaultFilter(): Filter<S> {
+          return defaultFilter;
+        }
+      };
+    }
+
 
     constructor(_props: Partial<S>) {
 
