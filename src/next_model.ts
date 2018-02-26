@@ -177,6 +177,9 @@ export function NextModel<S>(): ModelStatic<S> {
       return Promise.resolve(new Model({}));
     }
 
+    static find(filter: Filter<S>): Promise<Model | undefined>  {
+      return this.query(filter).first;
+    }
 
     constructor(_props: Partial<S>) {
 
