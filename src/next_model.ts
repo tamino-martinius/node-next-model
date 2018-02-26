@@ -1,7 +1,6 @@
 import {
   ModelStatic,
   StrictSchema,
-  StrictFilter,
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
@@ -67,7 +66,7 @@ export function NextModel<S>(): ModelStatic<S> {
     private static readonly DEFAULT_SKIP = 0;
     private static cachedLowerModelName?: string;
     private static cachedStrictSchema?: StrictSchema<S>;
-    private static cachedStrictFilter?: StrictFilter<S>;
+    private static cachedStrictFilter?: Filter<S>;
     private static cachedStrictBelongsTo?: StrictBelongsTo;
     private static cachedStrictHasOne?: StrictHasOne;
     private static cachedStrictHasMany?: StrictHasMany;
@@ -112,7 +111,7 @@ export function NextModel<S>(): ModelStatic<S> {
       return undefined;
     }
 
-    static get strictFilter(): StrictFilter<S> {
+    static get strictFilter(): Filter<S> {
       if (this.cachedStrictFilter !== undefined) {
         return this.cachedStrictFilter;
       } else {
