@@ -19,6 +19,8 @@ import {
 
 const Model = NextModel<any>();
 
+
+
 describe('NextModel', () => {
   //#region Static properties
   describe('.modelName', () => {
@@ -175,8 +177,8 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns undefined filter', () => {
-          expect(subject()).toBeUndefined();
+        test('returns empty filter', () => {
+          expect(subject()).toEqual({});
         });
 
         context('when filter is present', {
