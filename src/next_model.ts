@@ -138,8 +138,16 @@ export function NextModel<S>(): ModelStatic<S> {
       if (this.cachedStrictBelongsTo !== undefined) {
         return this.cachedStrictBelongsTo;
       } else {
-        // [TODO] Generate strict version
-        return {};
+        const belongsTo: StrictBelongsTo = {};
+        for (const name in this.belongsTo) {
+          const relation = this.belongsTo[name];
+          const foreignKey = relation.foreignKey || relation.model.lowerModelName + 'Id';
+          belongsTo[name] = {
+            foreignKey,
+            model: relation.model,
+          };
+        }
+        return this.cachedStrictBelongsTo = belongsTo;
       }
     }
 
