@@ -124,7 +124,6 @@ export interface ModelStatic<S> {
   // protptype: ModelConstructor<S>;
 
   readonly filter?: Filter<S>;
-  readonly defaultFilter?: Filter<S>;
 
   readonly belongsTo?: BelongsTo;
   readonly hasOne?: HasOne;
