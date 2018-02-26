@@ -293,6 +293,6 @@ class User extends NextModel<UserSchema>() {;
   }
 }
 
-const u = new User({firstName: 'test'});
-console.log(u);
+// const u = new User({firstName: 'test'});
+// console.log(u);
 // User.findBy('firstName', 1)
