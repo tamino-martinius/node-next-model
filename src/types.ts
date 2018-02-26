@@ -83,10 +83,6 @@ export type StrictBelongsTo = Dict<StrictRelation>;
 export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
-export type QueryBy<S> = {
-  [K in keyof S]: (value: S[K]) => ModelStatic<S>;
-};
-
 export interface SchemaProperty<T> {
   type: string;
   defaultValue?: T | ((model: ModelConstructor<any>) => T);
@@ -94,7 +90,7 @@ export interface SchemaProperty<T> {
 
 export interface StrictSchemaProperty<T> {
   type: string;
-  defaultValue: T | ((model: ModelConstructor<any>) => T);
+  defaultValue: undefined | T | ((model: ModelConstructor<any>) => T);
 };
 
 export type Schema<S> = {
@@ -105,8 +101,21 @@ export type StrictSchema<S> = {
   [P in keyof S]: StrictSchemaProperty<S[P]>;
 };
 
+export type QueryBy<S> = {
+  [P in keyof S]: (value: S[P]) => ModelStatic<S>;
+};
+
+export type Query<S> = (query: Filter<S>) => ModelStatic<S>;
+
+export type FindBy<S> = {
+  [P in keyof S]: (value: S[P]) => Promise<undefined | ModelConstructor<S>>;
+};
+
+export type Find<S> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
+
 export interface ModelStatic<S> {
   readonly modelName: string;
+  readonly lowerModelName: string;
   readonly schema: Schema<S>;
 
   // new(...args: any[]): ModelConstructor<T>;
@@ -125,7 +134,11 @@ export interface ModelStatic<S> {
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
 
-  // findBy<S, K extends keyof S>(key: K, value: S[K]): Promise<undefined | ModelConstructor<S>>;
+  readonly queryBy: QueryBy<S>;
+  query(query: Filter<S>): ModelStatic<S>;
+  readonly first: Promise<ModelConstructor<S> | undefined>;
+  readonly findBy: FindBy<S>;
+  find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
 }
 
 export interface ModelConstructor<S> {
