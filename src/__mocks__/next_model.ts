@@ -15,11 +15,25 @@ function className(): string {
 }
 
 function propertyName(): string {
-  return faker.lorem.word().toLowerCase();
+  return faker.database.column().toLowerCase();
 }
 
 function type(): string {
-  return faker.lorem.word().toLowerCase();
+  return faker.database.type().toLowerCase();
+}
+
+function filterKey(): string {
+  return faker.helpers.randomize([
+    '$and',
+    '$or',
+    '$not',
+  ]);
+}
+
+function filterItem(): any {
+  return {
+    [propertyName()]: faker.hacker.noun(),
+  };
 }
 
 const seed = positiveInteger();
@@ -32,7 +46,10 @@ export class Faker {
   }
 
   static get schema() {
-    return {}
+    return this.schemaByPropertyCount(faker.random.number({
+      min: 1,
+      max: 5,
+    }));
   }
 
   static schemaByPropertyCount(count: number): Schema<any> {
@@ -43,6 +60,22 @@ export class Faker {
       if (faker.random.boolean) schema[name].defaultValue = faker.lorem.text;
     }
     return schema;
+  }
+
+  static get filter() {
+    return this.filterByItemCount(faker.random.number({
+      min: 0,
+      max: 10,
+    }));
+  }
+
+  static filterByItemCount(count: number): Filter<any> {
+    const key = filterKey();
+    const filter = { [key]: [] };
+    for (let i = 0; i < count; i++) {
+      filter[key].push(filterItem());
+    }
+    return filter;
   }
 
   static get limit(): number {
