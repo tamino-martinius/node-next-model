@@ -1,27 +1,55 @@
 import faker from 'faker';
 
+import {
+  Filter,
+  Schema,
+  ModelConstructor,
+} from '../types';
+
+function positiveInteger(): number {
+  return faker.random.number(Number.MAX_SAFE_INTEGER);
+}
+
+function className(): string {
+  return faker.lorem.word();
+}
+
+function propertyName(): string {
+  return faker.lorem.word().toLowerCase();
+}
+
+function type(): string {
+  return faker.lorem.word().toLowerCase();
+}
+
+const seed = positiveInteger();
+console.log(`Running with seed ${seed}`)
+faker.seed(seed);
+
 export class Faker {
-  private static get positiveInteger(): number {
-    return faker.random.number({
-      min: 0,
-      max: Number.MAX_SAFE_INTEGER,
-      precision: 1,
-    });
-  }
-
-  private static get className(): string {
-    return faker.lorem.word();
-  }
-
   static get modelName(): string {
-    return this.className;
+    return className();
+  }
+
+  static get schema() {
+    return {}
+  }
+
+  static schemaByPropertyCount(count: number): Schema<any> {
+    let schema = {};
+    for (let i = 0; i < count; i++) {
+      const name = propertyName();
+      schema[name] = { type: type() };
+      if (faker.random.boolean) schema[name].defaultValue = faker.lorem.text;
+    }
+    return schema;
   }
 
   static get limit(): number {
-    return this.positiveInteger;
+    return positiveInteger();
   }
 
   static get skip(): number {
-    return this.positiveInteger;
+    return positiveInteger();
   }
 };
