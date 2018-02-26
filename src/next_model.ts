@@ -9,6 +9,9 @@ import {
   QueryBy,
   FindBy,
   Filter,
+  BelongsTo,
+  HasOne,
+  HasMany,
 } from './types';
 
 import {
@@ -107,8 +110,8 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
-    static get filter(): Filter<S> | undefined {
-      return undefined;
+    static get filter(): Filter<S> {
+      return {};
     }
 
     static get strictFilter(): Filter<S> {
@@ -127,6 +130,10 @@ export function NextModel<S>(): ModelStatic<S> {
       return this.DEFAULT_SKIP;
     }
 
+    static get belongsTo(): BelongsTo {
+      return {};
+    }
+
     static get strictBelongsTo(): StrictBelongsTo {
       if (this.cachedStrictBelongsTo !== undefined) {
         return this.cachedStrictBelongsTo;
@@ -136,6 +143,10 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
+    static get hasOne(): HasOne {
+      return {};
+    }
+
     static get strictHasOne(): StrictHasOne {
       if (this.cachedStrictHasOne !== undefined) {
         return this.cachedStrictHasOne;
@@ -143,6 +154,10 @@ export function NextModel<S>(): ModelStatic<S> {
         // [TODO] Generate strict version
         return {};
       }
+    }
+
+    static get hasMany(): HasMany {
+      return {};
     }
 
     static get strictHasMany(): StrictHasMany {
