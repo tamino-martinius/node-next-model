@@ -91,7 +91,7 @@ export function NextModel<S>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('schema');
     }
 
-    static get defaultFilter(): Filter<S> | undefined {
+    static get filter(): Filter<S> | undefined {
       return undefined;
     }
 
@@ -146,16 +146,16 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
-    static query(filter: Filter<S>): typeof Model {
-      let defaultFilter = filter;
-      if (this.defaultFilter !== undefined) {
-        defaultFilter = {
-          $and: [filter, this.defaultFilter],
+    static query(filterBy: Filter<S>): typeof Model {
+      let filter = filterBy;
+      if (this.filter !== undefined) {
+        filter = {
+          $and: [filterBy, this.filter],
         };
       }
       return class extends this {
-        static get defaultFilter(): Filter<S> {
-          return defaultFilter;
+        static get filter(): Filter<S> {
+          return filter;
         }
       };
     }
@@ -177,8 +177,8 @@ export function NextModel<S>(): ModelStatic<S> {
       return Promise.resolve(new Model({}));
     }
 
-    static find(filter: Filter<S>): Promise<Model | undefined> {
-      return this.query(filter).first;
+    static find(filterBy: Filter<S>): Promise<Model | undefined> {
+      return this.query(filterBy).first;
     }
 
     static get findBy(): FindBy<S>  {
