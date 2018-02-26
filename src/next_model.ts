@@ -72,6 +72,10 @@ export function NextModel<S>(): ModelStatic<S> {
     private static cachedQueryBy?: QueryBy<S>;
     private static cachedFindBy?: FindBy<S>;
 
+    static get limit(): number {
+      return this.DEFAULT_LIMIT;
+    }
+
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
     }
@@ -144,6 +148,23 @@ export function NextModel<S>(): ModelStatic<S> {
         // [TODO] Generate strict version
         return {};
       }
+    }
+
+    static limitBy(amount: number): typeof Model {
+      // [TODO] Validate input (!NaN && x >= 0  && x < Infinity)
+      return class extends this {
+        static get limit(): number {
+          return amount;
+        }
+      };
+    }
+
+    static get unlimited(): typeof Model {
+      return class extends this {
+        static get limit(): number {
+          return this.DEFAULT_LIMIT;
+        }
+      };
     }
 
     static query(filterBy: Filter<S>): typeof Model {
