@@ -32,37 +32,20 @@ export interface FilterRaw {
 };
 
 export type Filter<S> = {
-  $and?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
-  $not?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
-  $or?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
-
-  $in?: FilterIn<S> | FilterIn<S>[];
-  $notIn?: FilterIn<S> | FilterIn<S>[];
-
-  $null?: string | string[];
-  $notNull?: string | string[];
-
-  $between?: FilterBetween<S> | FilterBetween<S>[];
-  $notBetween?: FilterBetween<S> | FilterBetween<S>[];
-
-  $raw?: FilterRaw | FilterRaw[];
-};
-
-export interface StrictFilter<S> {
   $and?: (Filter<S> | FilterProperty<S>)[];
-  $not?: (Filter<S> | FilterProperty<S>)[];
+  $not?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
   $or?: (Filter<S> | FilterProperty<S>)[];
 
   $in?: FilterIn<S>[];
   $notIn?: FilterIn<S>[];
 
-  $null?: string[];
-  $notNull?: string[];
+  $null?: keyof S | (keyof S)[];
+  $notNull?: keyof S | (keyof S)[];
 
-  $between?: FilterBetween<S>[];
-  $notBetween?: FilterBetween<S>[];
+  $between?: FilterBetween<S> | FilterBetween<S>[];
+  $notBetween?: FilterBetween<S> | FilterBetween<S>[];
 
-  $raw?: FilterRaw[];
+  $raw?: FilterRaw | FilterRaw[];
 };
 
 export interface Relation {
@@ -117,12 +100,6 @@ export interface ModelStatic<S> {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly schema: Schema<S>;
-
-  // new(...args: any[]): ModelConstructor<T>;
-  // prototype: S;
-  new(params: Partial<S>): ModelConstructor<S>;
-  // protptype: ModelConstructor<S>;
-
   readonly filter?: Filter<S>;
   readonly limit?: number;
   readonly skip?: number;
@@ -132,7 +109,7 @@ export interface ModelStatic<S> {
   readonly hasMany?: HasMany;
 
   readonly strictSchema: StrictSchema<S>;
-  readonly strictFilter: StrictFilter<S>;
+  readonly strictFilter: Filter<S>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
@@ -147,6 +124,9 @@ export interface ModelStatic<S> {
   readonly first: Promise<ModelConstructor<S> | undefined>;
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
   readonly findBy: FindBy<S>;
+
+  new(params: Partial<S>): ModelConstructor<S>;
+  // prototype: S;
 }
 
 export interface ModelConstructor<S> {
