@@ -119,6 +119,7 @@ export interface ModelStatic<S> {
   readonly hasOne?: HasOne;
   readonly hasMany?: HasMany;
 
+  readonly strictSchema: StrictSchema<S>;
   readonly strictDefaultFilter: StrictFilter<S>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
