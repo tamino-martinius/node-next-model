@@ -121,7 +121,6 @@ describe('NextModel', () => {
     });
   });
 
-
   describe('.strictSchema', () => {
     let Klass: typeof Model;
     let schema: Schema<any> = { foo: { type: 'bar' } };
@@ -157,6 +156,38 @@ describe('NextModel', () => {
         });
       },
     });
+  });
+
+  describe('.filter', () => {
+    pending('[TODO]');
+  });
+
+  describe('.strictFilter', () => {
+    pending('[TODO]');
+  });
+
+  describe('.belongsTo', () => {
+    pending('[TODO]');
+  });
+
+  describe('.strictBelongsTo', () => {
+    pending('[TODO]');
+  });
+
+  describe('.hasOne', () => {
+    pending('[TODO]');
+  });
+
+  describe('.strictHasOne', () => {
+    pending('[TODO]');
+  });
+
+  describe('.hasMany', () => {
+    pending('[TODO]');
+  });
+
+  describe('.strictHasMany', () => {
+    pending('[TODO]');
   });
 });
 
