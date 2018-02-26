@@ -123,13 +123,15 @@ export interface ModelStatic<S> {
   new(params: Partial<S>): ModelConstructor<S>;
   // protptype: ModelConstructor<S>;
 
+  readonly filter?: Filter<S>;
   readonly defaultFilter?: Filter<S>;
+
   readonly belongsTo?: BelongsTo;
   readonly hasOne?: HasOne;
   readonly hasMany?: HasMany;
 
   readonly strictSchema: StrictSchema<S>;
-  readonly strictDefaultFilter: StrictFilter<S>;
+  readonly strictFilter: StrictFilter<S>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;

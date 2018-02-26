@@ -65,7 +65,7 @@ export function NextModel<S>(): ModelStatic<S> {
   class Model {
     private static cachedLowerModelName?: string;
     private static cachedStrictSchema?: StrictSchema<S>;
-    private static cachedStrictDefaultFilter?: StrictFilter<S>;
+    private static cachedStrictFilter?: StrictFilter<S>;
     private static cachedStrictBelongsTo?: StrictBelongsTo;
     private static cachedStrictHasOne?: StrictHasOne;
     private static cachedStrictHasMany?: StrictHasMany;
@@ -106,13 +106,13 @@ export function NextModel<S>(): ModelStatic<S> {
             schema[key].defaultValue = undefined;
           }
         }
-        return this.cachedStrictDefaultFilter = schema;
+        return this.cachedStrictSchema = schema;
       }
     }
 
-    static get strictDefaultFilter(): StrictFilter<S> {
-      if (this.cachedStrictDefaultFilter !== undefined) {
-        return this.cachedStrictDefaultFilter;
+    static get strictFilter(): StrictFilter<S> {
+      if (this.cachedStrictFilter !== undefined) {
+        return this.cachedStrictFilter;
       } else {
         // [TODO] Generate strict version
         return {};
