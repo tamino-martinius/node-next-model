@@ -91,6 +91,10 @@ export function NextModel<S>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('schema');
     }
 
+    static get defaultFilter(): Filter<S> | undefined {
+      return undefined;
+    }
+
     static get strictSchema(): StrictSchema<S> {
       if (this.cachedStrictSchema !== undefined) {
         return this.cachedStrictSchema;
