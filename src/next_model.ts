@@ -74,14 +74,6 @@ export function NextModel<S>(): ModelStatic<S> {
     private static cachedQueryBy?: QueryBy<S>;
     private static cachedFindBy?: FindBy<S>;
 
-    static get limit(): number {
-      return this.DEFAULT_LIMIT;
-    }
-
-    static get skip(): number {
-      return this.DEFAULT_SKIP;
-    }
-
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
     }
@@ -101,10 +93,6 @@ export function NextModel<S>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('schema');
     }
 
-    static get filter(): Filter<S> | undefined {
-      return undefined;
-    }
-
     static get strictSchema(): StrictSchema<S> {
       if (this.cachedStrictSchema !== undefined) {
         return this.cachedStrictSchema;
@@ -120,13 +108,24 @@ export function NextModel<S>(): ModelStatic<S> {
       }
     }
 
+    static get filter(): Filter<S> | undefined {
+      return undefined;
+    }
+
     static get strictFilter(): StrictFilter<S> {
       if (this.cachedStrictFilter !== undefined) {
         return this.cachedStrictFilter;
       } else {
-        // [TODO] Generate strict version
-        return {};
+        return this.cachedStrictFilter = this.filter || {};
       }
+    }
+
+    static get limit(): number {
+      return this.DEFAULT_LIMIT;
+    }
+
+    static get skip(): number {
+      return this.DEFAULT_SKIP;
     }
 
     static get strictBelongsTo(): StrictBelongsTo {
