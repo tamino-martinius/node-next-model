@@ -100,13 +100,13 @@ export interface ModelStatic<S> {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly schema: Schema<S>;
-  readonly filter?: Filter<S>;
-  readonly limit?: number;
-  readonly skip?: number;
+  readonly filter: Filter<S>;
+  readonly limit: number;
+  readonly skip: number;
 
-  readonly belongsTo?: BelongsTo;
-  readonly hasOne?: HasOne;
-  readonly hasMany?: HasMany;
+  readonly belongsTo: BelongsTo;
+  readonly hasOne: HasOne;
+  readonly hasMany: HasMany;
 
   readonly strictSchema: StrictSchema<S>;
   readonly strictFilter: Filter<S>;
