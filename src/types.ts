@@ -124,6 +124,8 @@ export interface ModelStatic<S> {
   // protptype: ModelConstructor<S>;
 
   readonly filter?: Filter<S>;
+  readonly limit?: number;
+  readonly skip?: number;
 
   readonly belongsTo?: BelongsTo;
   readonly hasOne?: HasOne;
@@ -135,8 +137,13 @@ export interface ModelStatic<S> {
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
 
+  limitBy(amount: number): ModelStatic<S>;
+  readonly unlimited: ModelStatic<S>;
+  skipBy(amount: number): ModelStatic<S>;
+  readonly unskipped: ModelStatic<S>;
   query(query: Filter<S>): ModelStatic<S>;
   readonly queryBy: QueryBy<S>;
+
   readonly first: Promise<ModelConstructor<S> | undefined>;
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
   readonly findBy: FindBy<S>;
