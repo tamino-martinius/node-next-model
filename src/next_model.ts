@@ -67,28 +67,14 @@ export function NextModel<S>(): ModelStatic<S> {
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
     private static readonly DEFAULT_SKIP = 0;
-    private static cachedLowerModelName?: string;
-    private static cachedStrictSchema?: StrictSchema<S>;
-    private static cachedStrictFilter?: Filter<S>;
-    private static cachedStrictBelongsTo?: StrictBelongsTo;
-    private static cachedStrictHasOne?: StrictHasOne;
-    private static cachedStrictHasMany?: StrictHasMany;
-    private static cachedQueryBy?: QueryBy<S>;
-    private static cachedFindBy?: FindBy<S>;
 
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
     }
 
     static get lowerModelName(): string {
-      if (this.cachedLowerModelName !== undefined) {
-        return this.cachedLowerModelName;
-      } else {
-        return this.cachedLowerModelName =
-          this.modelName.substr(0, 1).toLowerCase() +
-          this.modelName.substr(1)
-        ;
-      }
+      const name = this.modelName;
+      return name.substr(0, 1).toLowerCase() + name.substr(1);
     }
 
     static get schema(): Schema<S> {
@@ -96,18 +82,14 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get strictSchema(): StrictSchema<S> {
-      if (this.cachedStrictSchema !== undefined) {
-        return this.cachedStrictSchema;
-      } else {
-        const schema = <StrictSchema<S>>this.schema;
+      const schema = <StrictSchema<S>>this.schema;
 
-        for (const key in schema) {
-          if (!('defaultValue' in schema[key])) {
-            schema[key].defaultValue = undefined;
-          }
+      for (const key in schema) {
+        if (!('defaultValue' in schema[key])) {
+          schema[key].defaultValue = undefined;
         }
-        return this.cachedStrictSchema = schema;
       }
+      return schema;
     }
 
     static get filter(): Filter<S> {
@@ -115,11 +97,7 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get strictFilter(): Filter<S> {
-      if (this.cachedStrictFilter !== undefined) {
-        return this.cachedStrictFilter;
-      } else {
-        return this.cachedStrictFilter = this.filter || {};
-      }
+      return this.filter || {};
     }
 
     static get limit(): number {
@@ -135,20 +113,17 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get strictBelongsTo(): StrictBelongsTo {
-      if (this.cachedStrictBelongsTo !== undefined) {
-        return this.cachedStrictBelongsTo;
-      } else {
-        const belongsTo: StrictBelongsTo = {};
-        for (const name in this.belongsTo) {
-          const relation = this.belongsTo[name];
-          const foreignKey = relation.foreignKey || relation.model.lowerModelName + 'Id';
-          belongsTo[name] = {
-            foreignKey,
-            model: relation.model,
-          };
-        }
-        return this.cachedStrictBelongsTo = belongsTo;
+      const belongsTo: StrictBelongsTo = {};
+      for (const name in this.belongsTo) {
+        const relation = this.belongsTo[name];
+        const model = relation.model;
+        const foreignKey = relation.foreignKey || model.lowerModelName + 'Id';
+        belongsTo[name] = {
+          foreignKey,
+          model: relation.model,
+        };
       }
+      return belongsTo;
     }
 
     static get hasOne(): HasOne {
@@ -156,12 +131,16 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get strictHasOne(): StrictHasOne {
-      if (this.cachedStrictHasOne !== undefined) {
-        return this.cachedStrictHasOne;
-      } else {
-        // [TODO] Generate strict version
-        return {};
+      const hasOne: StrictHasOne = {};
+      for (const name in this.hasOne) {
+        const relation = this.hasOne[name];
+        const foreignKey = relation.foreignKey || this.lowerModelName + 'Id';
+        hasOne[name] = {
+          foreignKey,
+          model: relation.model,
+        };
       }
+      return hasOne;
     }
 
     static get hasMany(): HasMany {
@@ -169,12 +148,16 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get strictHasMany(): StrictHasMany {
-      if (this.cachedStrictHasMany !== undefined) {
-        return this.cachedStrictHasMany;
-      } else {
-        // [TODO] Generate strict version
-        return {};
+      const hasMany: StrictHasMany = {};
+      for (const name in this.hasMany) {
+        const relation = this.hasMany[name];
+        const foreignKey = relation.foreignKey || this.lowerModelName + 'Id';
+        hasMany[name] = {
+          foreignKey,
+          model: relation.model,
+        };
       }
+      return hasMany;
     }
 
     static limitBy(amount: number): typeof Model {
@@ -226,16 +209,12 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get queryBy(): QueryBy<S> {
-      if (this.cachedQueryBy !== undefined) {
-        return this.cachedQueryBy;
-      } else {
-        const queryBy = <QueryBy<S>>{};
-        Object.keys(this.strictSchema).forEach(key => {
-          // @ts-ignore
-          queryBy[key] = (value) => this.query({ [key]: value });
-        });
-        return this.cachedQueryBy = queryBy;
-      }
+      const queryBy = <QueryBy<S>>{};
+      Object.keys(this.strictSchema).forEach(key => {
+        // @ts-ignore
+        queryBy[key] = (value) => this.query({ [key]: value });
+      });
+      return queryBy;
     }
 
     static get first(): Promise<Model | undefined> {
@@ -247,16 +226,12 @@ export function NextModel<S>(): ModelStatic<S> {
     }
 
     static get findBy(): FindBy<S>  {
-      if (this.cachedFindBy !== undefined) {
-        return this.cachedFindBy;
-      } else {
-        const findBy = <FindBy<S>>{};
-        Object.keys(this.strictSchema).forEach((key) => {
-          // @ts-ignore
-          findBy[key] = (value) => this.find({ [key]: value });
-        });
-        return findBy;
-      }
+      const findBy = <FindBy<S>>{};
+      Object.keys(this.strictSchema).forEach((key) => {
+        // @ts-ignore
+        findBy[key] = (value) => this.find({ [key]: value });
+      });
+      return findBy;
     }
 
     constructor(_props: Partial<S>) {
