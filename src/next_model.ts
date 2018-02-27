@@ -246,27 +246,27 @@ export function NextModel<S>(): ModelStatic<S> {
   return Model;
 };
 
-interface UserSchema {
-  firstName: string;
-  lastName: string;
-}
+// interface UserSchema {
+//   firstName: string;
+//   lastName: string;
+// }
 
-class User extends NextModel<UserSchema>() {;
-  firstName: string;
-  lastName: string;
-  // [key: string]: any;
+// class User extends NextModel<UserSchema>() {;
+//   firstName: string;
+//   lastName: string;
+//   // [key: string]: any;
 
-  static get modelName() {
-    return 'User';
-  }
+//   static get modelName() {
+//     return 'User';
+//   }
 
-  static get schema() {
-    return {
-      firstName: { type: 'string' },
-      lastName: { type: 'string' },
-    };
-  }
-}
+//   static get schema() {
+//     return {
+//       firstName: { type: 'string' },
+//       lastName: { type: 'string' },
+//     };
+//   }
+// }
 
 // const u = new User({firstName: 'test'});
 // console.log(u);
