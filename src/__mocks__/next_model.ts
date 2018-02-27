@@ -17,7 +17,10 @@ import {
 } from '../next_model';
 
 function positiveInteger(): number {
-  return faker.random.number(Number.MAX_SAFE_INTEGER);
+  return faker.random.number({
+    min: 1,
+    max: Number.MAX_SAFE_INTEGER - 1,
+  });
 }
 
 function className(): string {
