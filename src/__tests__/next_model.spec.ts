@@ -276,7 +276,7 @@ describe('NextModel', () => {
   });
   //#endregion
 
-  // Relations
+  //#region Relations
   describe('.belongsTo', () => {
     let Klass: typeof Model = Faker.model;
     let belongsTo: BelongsTo = Faker.belongsTo;
@@ -453,8 +453,91 @@ describe('NextModel', () => {
       },
     });
   });
+  //#endregion
 
-  // Queries
+  //#region Queries
+  describe('.limitBy(amount)', () => {
+    let Klass: typeof Model = Faker.model;
+    let limit: number = Faker.limit;
+
+    const subject = () => Klass.limitBy(limit);
+
+    test('changes limit for new scope and keeps old scope unchanged', () => {
+      expect(subject().limit).toEqual(limit);
+      expect(Klass.limit).toEqual(Number.MAX_SAFE_INTEGER);
+    });
+  });
+
+  describe('.unlimited', () => {
+    let Klass: typeof Model = Faker.model;
+    let limit: number = Faker.limit;
+
+    const subject = () => Klass.unlimited;
+
+    test('changes limit to default', () => {
+      expect(subject().limit).toEqual(Number.MAX_SAFE_INTEGER);
+      expect(Klass.limit).toEqual(Number.MAX_SAFE_INTEGER);
+    });
+
+    context('when limit is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get limit(): number {
+            return limit;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('changes limit for new scope and keeps old scope unchanged', () => {
+          expect(subject().limit).toEqual(Number.MAX_SAFE_INTEGER);
+          expect(Klass.limit).toEqual(limit);
+        });
+      },
+    });
+  });
+
+  describe('.skipBy', () => {
+    let Klass: typeof Model = Faker.model;
+    let skip: number = Faker.skip;
+
+    const subject = () => Klass.skipBy(skip);
+
+    test('changes skip for new scope and keeps old scope unchanged', () => {
+      expect(subject().skip).toEqual(skip);
+      expect(Klass.skip).toEqual(0);
+    });
+  });
+
+  describe('.unskipped', () => {
+    let Klass: typeof Model = Faker.model;
+    let skip: number = Faker.skip;
+
+    const subject = () => Klass.unskipped;
+
+    test('changes skip to default', () => {
+      expect(subject().skip).toEqual(0);
+      expect(Klass.skip).toEqual(0);
+    });
+
+    context('when skip is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get skip(): number {
+            return skip;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('changes skip for new scope and keeps old scope unchanged', () => {
+          expect(subject().skip).toEqual(0);
+          expect(Klass.skip).toEqual(skip);
+        });
+      },
+    });
+  });
+
   describe('.query', () => {
     pending('[TODO]');
   });
@@ -474,5 +557,6 @@ describe('NextModel', () => {
   describe('.findBy', () => {
     pending('[TODO]');
   });
+  //#endregion
 });
 
