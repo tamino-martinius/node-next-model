@@ -1,10 +1,15 @@
 import faker from 'faker';
 
 import {
+  Dict,
   Filter,
   Schema,
   ModelConstructor,
   ModelStatic,
+  BelongsTo,
+  HasOne,
+  HasMany,
+  Relation,
 } from '../types';
 
 import {
@@ -96,6 +101,35 @@ export class Faker {
       filter[key].push(filterItem());
     }
     return filter;
+  }
+
+  static get relation(): Dict<Relation> {
+    return this.relationByCount(faker.random.number({
+      min: 1,
+      max: 3,
+    }));
+  }
+
+  static relationByCount(count: number): Dict<Relation> {
+    let belongsTo = {};
+    for (let i = 0; i < count; i++) {
+      const name = propertyName();
+      belongsTo[name] = { model: this.model };
+      if (faker.random.boolean()) belongsTo[name].foreignKey = propertyName();
+    }
+    return belongsTo;
+  }
+
+  static get belongsTo(): BelongsTo {
+    return this.relation;
+  }
+
+  static get hasOne(): HasOne {
+    return this.relation;
+  }
+
+  static get hasMany(): HasMany {
+    return this.relation;
   }
 
   static get limit(): number {
