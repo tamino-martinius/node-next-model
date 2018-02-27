@@ -4,6 +4,9 @@ import {
 } from '../next_model';
 
 import {
+  BelongsTo,
+  HasOne,
+  HasMany,
   Filter,
   Schema,
   ModelConstructor,
@@ -176,7 +179,7 @@ describe('NextModel', () => {
 
     context('when filter is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() {
+        class NewKlass extends Klass {
           static get filter(): Filter<any> {
             return filter;
           }
@@ -203,7 +206,7 @@ describe('NextModel', () => {
 
     context('when filter is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() {
+        class NewKlass extends Klass {
           static get filter(): Filter<any> {
             return filter;
           }
@@ -230,7 +233,7 @@ describe('NextModel', () => {
 
     context('when limit is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() {
+        class NewKlass extends Klass {
           static get limit(): number {
             return limit;
           }
@@ -257,7 +260,7 @@ describe('NextModel', () => {
 
     context('when skip is present', {
       definitions() {
-        class NewKlass extends NextModel<any>() {
+        class NewKlass extends Klass {
           static get skip(): number {
             return skip;
           }
@@ -275,27 +278,180 @@ describe('NextModel', () => {
 
   // Relations
   describe('.belongsTo', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let belongsTo: BelongsTo = Faker.belongsTo;
+
+    const subject = () => Klass.belongsTo;
+
+    test('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get belongsTo(): BelongsTo {
+            return belongsTo;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(belongsTo);
+        });
+      },
+    });
   });
 
   describe('.strictBelongsTo', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let belongsTo: BelongsTo = Faker.belongsTo;
+
+    const subject = () => Klass.strictBelongsTo;
+
+    test('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get belongsTo(): BelongsTo {
+            return belongsTo;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the strict relation of the model', () => {
+          for (const key in belongsTo) {
+            expect(subject()[key].model).toEqual(belongsTo[key].model);
+            if (belongsTo[key].foreignKey === undefined) {
+              expect('foreignKey' in subject()[key]).toBeTruthy();
+            }
+          }
+        });
+      },
+    });
   });
 
   describe('.hasOne', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let hasOne: HasOne = Faker.hasOne;
+
+    const subject = () => Klass.hasOne;
+
+    test('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasOne(): HasOne {
+            return hasOne;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(hasOne);
+        });
+      },
+    });
   });
 
   describe('.strictHasOne', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let hasOne: HasOne = Faker.hasOne;
+
+    const subject = () => Klass.strictHasOne;
+
+    test('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasOne(): HasOne {
+            return hasOne;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the strict relation of the model', () => {
+          for (const key in hasOne) {
+            expect(subject()[key].model).toEqual(hasOne[key].model);
+            if (hasOne[key].foreignKey === undefined) {
+              expect('foreignKey' in subject()[key]).toBeTruthy();
+            }
+          }
+        });
+      },
+    });
   });
 
   describe('.hasMany', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let hasMany: HasMany = Faker.hasMany;
+
+    const subject = () => Klass.hasMany;
+
+    test('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasMany(): HasMany {
+            return hasMany;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(hasMany);
+        });
+      },
+    });
   });
 
   describe('.strictHasMany', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let hasMany: HasMany = Faker.hasMany;
+
+    const subject = () => Klass.strictHasMany;
+
+    test('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasMany(): HasMany {
+            return hasMany;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        test('returns the strict relation of the model', () => {
+          for (const key in hasMany) {
+            expect(subject()[key].model).toEqual(hasMany[key].model);
+            if (hasMany[key].foreignKey === undefined) {
+              expect('foreignKey' in subject()[key]).toBeTruthy();
+            }
+          }
+        });
+      },
+    });
   });
 
   // Queries
