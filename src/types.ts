@@ -85,13 +85,13 @@ export type StrictSchema<S> = {
 };
 
 export type QueryBy<S> = {
-  [P in keyof S]: (value: S[P]) => ModelStatic<S>;
+  [P in keyof S]: (value: S[P] | S[P][]) => ModelStatic<S>;
 };
 
 export type Query<S> = (query: Filter<S>) => ModelStatic<S>;
 
 export type FindBy<S> = {
-  [P in keyof S]: (value: S[P]) => Promise<undefined | ModelConstructor<S>>;
+  [P in keyof S]: (value: S[P] | S[P][]) => Promise<undefined | ModelConstructor<S>>;
 };
 
 export type Find<S> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
