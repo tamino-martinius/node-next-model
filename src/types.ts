@@ -33,17 +33,17 @@ export interface FilterRaw {
 
 export type Filter<S> = {
   $and?: (Filter<S> | FilterProperty<S>)[];
-  $not?: Filter<S> | FilterProperty<S> | (Filter<S> | FilterProperty<S>)[];
+  $not?: Filter<S> | FilterProperty<S>;
   $or?: (Filter<S> | FilterProperty<S>)[];
 
-  $in?: FilterIn<S>[];
-  $notIn?: FilterIn<S>[];
+  $in?: FilterIn<S>;
+  $notIn?: FilterIn<S>;
 
-  $null?: keyof S | (keyof S)[];
-  $notNull?: keyof S | (keyof S)[];
+  $null?: keyof S;
+  $notNull?: keyof S;
 
-  $between?: FilterBetween<S> | FilterBetween<S>[];
-  $notBetween?: FilterBetween<S> | FilterBetween<S>[];
+  $between?: FilterBetween<S>;
+  $notBetween?: FilterBetween<S>;
 
   $raw?: FilterRaw | FilterRaw[];
 };
