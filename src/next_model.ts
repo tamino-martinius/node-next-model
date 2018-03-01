@@ -212,7 +212,11 @@ export function NextModel<S>(): ModelStatic<S> {
       const queryBy = <QueryBy<S>>{};
       Object.keys(this.strictSchema).forEach(key => {
         // @ts-ignore
-        queryBy[key] = (value) => this.query({ [key]: value });
+        queryBy[key] = (value) => {
+          const filter = Array.isArray(value) ?
+            { [key]: value } : { $in: { [key]: value } };
+          return this.query(<Filter<S>>filter);
+        };
       });
       return queryBy;
     }
@@ -229,7 +233,11 @@ export function NextModel<S>(): ModelStatic<S> {
       const findBy = <FindBy<S>>{};
       Object.keys(this.strictSchema).forEach((key) => {
         // @ts-ignore
-        findBy[key] = (value) => this.find({ [key]: value });
+        findBy[key] = (value) => {
+          const filter = Array.isArray(value) ?
+            { [key]: value } : { $in: { [key]: value } };
+          return this.find(<Filter<S>>filter);
+        };
       });
       return findBy;
     }
