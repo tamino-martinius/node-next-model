@@ -1,15 +1,39 @@
 import {
   ModelStatic,
   ModelConstructor,
+  Filter,
+  FilterProperty,
 } from './types';
 
 export interface Storage {
-  [key: string]: ModelConstructor<any>,
+  [key: string]: any[],
 }
 
-const storage: Storage = {};
+const globalStorage: Storage = {};
 
 export class Connector<S> implements ConnectorConstructor<S> {
+  private storage: Storage;
+
+  constructor(storage: Storage = globalStorage) {
+    this.storage = storage;
+  }
+
+  private collection(model: ModelStatic<S>): ModelConstructor<S>[] {
+    return this.storage[model.modelName] = this.storage[model.modelName] || [];
+  }
+
+  private filteredRecords(model: ModelStatic<S>): ModelConstructor<S>[] {
+
+  }
+
+  private andFilter(model: ModelStatic<S>, items: S[], filter: (Filter<S> | FilterProperty<S>)[]): S[] {
+
+  }
+
+  private filter(model: ModelStatic<S>, items: S[], filter: Filter<S> | FilterProperty<S>): S[] {
+
+  }
+
   all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
     throw new Error('Not yet implemented');
   }
@@ -30,19 +54,19 @@ export class Connector<S> implements ConnectorConstructor<S> {
     throw new Error('Not yet implemented');
   }
 
-  reload(model: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
+  reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
     throw new Error('Not yet implemented');
   }
 
-  create(model: ModelConstructor<S>): Promise<ModelConstructor<S>> {
+  create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     throw new Error('Not yet implemented');
   }
 
-  update(model: ModelConstructor<S>): Promise<ModelConstructor<S>> {
+  update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     throw new Error('Not yet implemented');
   }
 
-  delete(model: ModelConstructor<S>): Promise<ModelConstructor<S>> {
+  delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     throw new Error('Not yet implemented');
   }
 }
