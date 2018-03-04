@@ -12,6 +12,7 @@ import {
   BelongsTo,
   HasOne,
   HasMany,
+  Identifiable,
 } from './types';
 
 import {
@@ -62,11 +63,13 @@ export class TypeError implements Error {
   }
 };
 
-export function NextModel<S>(): ModelStatic<S> {
+export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   @staticImplements<ModelStatic<S>>()
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
     private static readonly DEFAULT_SKIP = 0;
+
+    id: any;
 
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
@@ -210,14 +213,13 @@ export function NextModel<S>(): ModelStatic<S> {
 
     static get queryBy(): QueryBy<S> {
       const queryBy = <QueryBy<S>>{};
-      Object.keys(this.strictSchema).forEach(key => {
-        // @ts-ignore
+      for (const key in this.strictSchema) {
         queryBy[key] = (value) => {
           const filter = Array.isArray(value) ?
             { [key]: value } : { $in: { [key]: value } };
           return this.query(<Filter<S>>filter);
         };
-      });
+      };
       return queryBy;
     }
 
@@ -231,14 +233,13 @@ export function NextModel<S>(): ModelStatic<S> {
 
     static get findBy(): FindBy<S>  {
       const findBy = <FindBy<S>>{};
-      Object.keys(this.strictSchema).forEach((key) => {
-        // @ts-ignore
+      for (const key in this.strictSchema) {
         findBy[key] = (value) => {
           const filter = Array.isArray(value) ?
             { [key]: value } : { $in: { [key]: value } };
           return this.find(<Filter<S>>filter);
         };
-      });
+      };
       return findBy;
     }
 
