@@ -327,7 +327,16 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
-    throw new Error('Not yet implemented');
+    const model = instance.model;
+    const collection = this.collection(model);
+    for (let i = 0; i < collection.length; i++) {
+      if (collection[i].id === instance.id) {
+        collection.splice(i, 1);
+        instance.id = undefined;
+        return Promise.resolve(instance);
+      }
+    }
+    return Promise.reject('[TODO] Cant find error');
   }
 }
 
