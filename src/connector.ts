@@ -121,6 +121,23 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => item[key] !== null && item[key] !== undefined);
   }
 
+  private betweenFilter(items: S[], filter: FilterBetween<S>): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => filter[key][1] >= item[key] && item[key] >= filter[key][0]);
+    }
+    throw '[TODO] Should not reach error';
+  }
+
+  private notBetweenFilter(items: S[], filter: FilterBetween<S>): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => filter[key][1] < item[key] || item[key] < filter[key][0]);
+    }
+    throw '[TODO] Should not reach error';
+  }
 
   }
 
