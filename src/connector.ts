@@ -18,14 +18,14 @@ export interface Storage {
 const globalStorage: Storage = {};
 let uuid: number = 0;
 
-export class Connector<S> implements ConnectorConstructor<S> {
+export class Connector<S extends Identifiable> implements ConnectorConstructor<S> {
   private storage: Storage;
 
   constructor(storage: Storage = globalStorage) {
     this.storage = storage;
   }
 
-  private collection(model: ModelStatic<S>): ModelConstructor<S>[] {
+  private collection(model: ModelStatic<S>): S[] {
     return this.storage[model.modelName] = this.storage[model.modelName] || [];
   }
 
