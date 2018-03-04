@@ -225,6 +225,13 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
+  private filter(items: S[], filter: Filter<S>): S[] {
+    for (const key in filter) {
+      if (key.startsWith('$')) {
+        return this.specialFilter(items, <FilterSpecial<S>>filter);
+      }
+    }
+    return this.propertyFilter(items, <FilterProperty<S>>filter);
   }
 
   all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
