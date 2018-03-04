@@ -192,6 +192,39 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
+  private specialFilter(items: S[], filter: FilterSpecial<S>): S[] {
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    if (filter.$and !== undefined)
+      return this.andFilter(items, filter.$and);
+    if (filter.$or !== undefined)
+      return this.orFilter(items, filter.$or);
+    if (filter.$not !== undefined)
+      return this.notFilter(items, filter.$not);
+    if (filter.$in !== undefined)
+      return this.inFilter(items, filter.$in);
+    if (filter.$notIn !== undefined)
+      return this.notInFilter(items, filter.$notIn);
+    if (filter.$null !== undefined)
+      return this.nullFilter(items, filter.$null);
+    if (filter.$notNull !== undefined)
+      return this.notNullFilter(items, filter.$notNull);
+    if (filter.$between !== undefined)
+      return this.betweenFilter(items, filter.$between);
+    if (filter.$notBetween !== undefined)
+      return this.notBetweenFilter(items, filter.$notBetween);
+    if (filter.$gt !== undefined)
+      return this.gtFilter(items, filter.$gt);
+    if (filter.$gte !== undefined)
+      return this.gteFilter(items, filter.$gte);
+    if (filter.$lt !== undefined)
+      return this.ltFilter(items, filter.$lt);
+    if (filter.$lte !== undefined)
+      return this.lteFilter(items, filter.$lte);
+    if (filter.$raw !== undefined)
+      return this.rawFilter(items, filter.$raw);
+    throw '[TODO] Should not reach error';
+  }
+
   }
 
   all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
