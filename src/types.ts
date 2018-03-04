@@ -49,7 +49,12 @@ export type Filter<S> = {
   $between?: FilterBetween<S>;
   $notBetween?: FilterBetween<S>;
 
-  $raw?: FilterRaw | FilterRaw[];
+  $gt?: FilterCompare<S>;
+  $gte?: FilterCompare<S>;
+  $lt?: FilterCompare<S>;
+  $lte?: FilterCompare<S>;
+
+  $raw?: FilterRaw;
 };
 
 export interface Relation {
