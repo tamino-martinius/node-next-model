@@ -29,7 +29,9 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return this.storage[model.modelName] = this.storage[model.modelName] || [];
   }
 
-  private filteredRecords(model: ModelStatic<S>): ModelConstructor<S>[] {
+  private items(model: ModelStatic<S>): S[] {
+    return this.filter(this.collection(model), model.strictFilter);
+  }
 
   }
 
