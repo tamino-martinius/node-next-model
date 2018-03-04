@@ -235,7 +235,8 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
-    throw new Error('Not yet implemented');
+    const items = this.items(model);
+    return Promise.resolve(items.map(item => new model(item)));
   }
 
   first(model: ModelStatic<S>): Promise<ModelConstructor<S> | undefined> {
