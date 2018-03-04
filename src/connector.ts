@@ -240,7 +240,8 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   first(model: ModelStatic<S>): Promise<ModelConstructor<S> | undefined> {
-    throw new Error('Not yet implemented');
+    const items = this.items(model);
+    return Promise.resolve(items.length > 0 ? new model(items[0]) : undefined);
   }
 
   count(model: ModelStatic<S>): Promise<number> {
