@@ -139,6 +139,40 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
+  private gtFilter(items: S[], filter: FilterCompare<S>): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => item[key] > filter[key]);
+    }
+    throw '[TODO] Should not reach error';
+  }
+
+  private gteFilter(items: S[], filter: FilterCompare<S>): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => item[key] >= filter[key]);
+    }
+    throw '[TODO] Should not reach error';
+  }
+
+  private ltFilter(items: S[], filter: FilterCompare<S>): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => item[key] < filter[key]);
+    }
+    throw '[TODO] Should not reach error';
+  }
+
+  private lteFilter(items: S[], filter: FilterCompare<S>): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => item[key] <= filter[key]);
+    }
+    throw '[TODO] Should not reach error';
   }
 
   private filter(model: ModelStatic<S>, items: S[], filter: Filter<S> | FilterProperty<S>): S[] {
