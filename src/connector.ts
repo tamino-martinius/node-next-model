@@ -16,6 +16,7 @@ export interface Storage {
 }
 
 const globalStorage: Storage = {};
+let uuid: number = 0;
 
 export class Connector<S> implements ConnectorConstructor<S> {
   private storage: Storage;
