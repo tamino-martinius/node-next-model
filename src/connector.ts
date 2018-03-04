@@ -245,7 +245,8 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   count(model: ModelStatic<S>): Promise<number> {
-    throw new Error('Not yet implemented');
+    const items = this.items(model);
+    return Promise.resolve(items.length);
   }
 
   updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]> {
