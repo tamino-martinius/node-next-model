@@ -276,7 +276,22 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
-    throw new Error('Not yet implemented');
+    const items = this.items(model);
+    const exists: { [key: string]: boolean } = {};
+    items.forEach(item => {
+      exists[item.id] = exists[item.id] || true;
+    });
+
+    const collection = this.collection(model);
+    for (let i = collection.length - 1; i >= 0; i--) {
+      if (exists[collection[i].id]) {
+        collection.splice(i, 1);
+      }
+    }
+    return Promise.resolve(items.map(item => {
+      delete item.id;
+      return new model(item);
+    }));
   }
 
   reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
