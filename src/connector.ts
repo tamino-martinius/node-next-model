@@ -306,7 +306,9 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
-    throw new Error('Not yet implemented');
+    instance.id = ++uuid;
+    this.collection(instance.model).push(instance.attributes);
+    return Promise.resolve(instance);
   }
 
   update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
