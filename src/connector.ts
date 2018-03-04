@@ -340,7 +340,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 }
 
-export interface ConnectorConstructor<S> {
+export interface ConnectorConstructor<S extends Identifiable> {
   all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
   first(model: ModelStatic<S>): Promise<ModelConstructor<S> | undefined>;
   count(model: ModelStatic<S>): Promise<number>;
