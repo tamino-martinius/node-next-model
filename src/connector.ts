@@ -96,6 +96,21 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
+  private notInFilter(items: S[], filter: FilterIn<S>): S[] {
+    // Cost: (1, n, m) => O(n, m) = n * m;
+    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    for (const key in filter) {
+      return items.filter(item => {
+        const values = filter[key];
+        for (const value of values) {
+          if (item[key] === value) return false;
+        }
+        return true;
+      });
+    }
+    throw '[TODO] Should not reach error';
+  }
+
 
   }
 
