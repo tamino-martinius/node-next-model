@@ -295,7 +295,14 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
-    throw new Error('Not yet implemented');
+    const model = instance.model;
+    const collection = this.collection(model);
+    for (const item of collection) {
+      if (item.id === instance.id) {
+        return Promise.resolve(new model(item));
+      }
+    }
+    return Promise.resolve(undefined);
   }
 
   create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
