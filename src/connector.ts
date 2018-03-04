@@ -2,7 +2,13 @@ import {
   ModelStatic,
   ModelConstructor,
   Filter,
+  FilterIn,
+  FilterBetween,
   FilterProperty,
+  Identifiable,
+  FilterCompare,
+  FilterRaw,
+  FilterSpecial,
 } from './types';
 
 export interface Storage {
