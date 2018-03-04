@@ -5,6 +5,10 @@ export function staticImplements<T>() {
 
 export type BaseType = number | string | boolean | null | undefined;
 
+export interface Identifiable {
+  id: any;
+}
+
 export interface Tuple<T> {
   [key: number]: T;
   length: 2;
