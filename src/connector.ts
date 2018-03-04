@@ -250,7 +250,29 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]> {
-    throw new Error('Not yet implemented');
+    const items = this.items(model);
+    items.forEach(item => {
+      for (const key in params) {
+        // @ts-ignore
+        item[key] = params[key];
+      }
+    });
+    return Promise.resolve(items.map(item => new model(item)));
+
+    // const exists: { [key: string]: boolean } = {};
+    // this.items(model).forEach(item => {
+    //   exists[item.id] = exists[item.id] || true;
+    // });
+
+    // const collection = this.collection(model);
+    // for (let i = 0; i < collection.length; i++) {
+    //   if (exists[collection[i].id]) {
+    //     for (const key in params) {
+    //       // @ts-ignore
+    //       collection[i][key] = params[key];
+    //     }
+    //   }
+    // }
   }
 
   deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
