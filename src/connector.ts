@@ -48,7 +48,19 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => counts[item.id] === filterCount);
   }
 
-  private andFilter(model: ModelStatic<S>, items: S[], filter: (Filter<S> | FilterProperty<S>)[]): S[] {
+  private andFilter(items: S[], filters: Filter<S>[]): S[] {
+    // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter))
+    const counts: { [key: string]: number } = {};
+    items.forEach(item => counts[item.id] = 0);
+    filters.map((filter) => {
+      this.filter(items, filter).forEach(item => {
+        counts[item.id] += 1;
+      });
+    });
+    const filterCount = filters.length;
+    return items.filter(item => counts[item.id] === filterCount);
+  }
+
 
   }
 
