@@ -18,27 +18,28 @@ export interface Dict<T> {
   [key: string]: T;
 };
 
-export type FilterProperty<S> = Partial<S>;
-export type FilterIn<S> = {
+export type FilterProperty<S extends Identifiable> = Partial<S>;
+export type FilterIn<S extends Identifiable> = {
   [K in keyof S]: Array<S[K]>;
 };
-export type FilterBetween<S> = {
+export type FilterBetween<S extends Identifiable> = {
   [K in keyof S]: Tuple<S[K]>;
 };
-export type FilterGreaterThen<S> = Partial<S>;
-export type FilterGreaterThenEquals<S> = Partial<S>;
-export type FilterLowerThen<S> = Partial<S>;
-export type FilterLowerThenEquals<S> = Partial<S>;
+export type FilterCompare<S extends Identifiable> = {
+  [K in keyof S]: S[K];
+};
 
 export interface FilterRaw {
   $bindings: BaseType[] | { [key: string]: BaseType };
   $query: string;
 };
 
-export type Filter<S> = {
-  $and?: (Filter<S> | FilterProperty<S>)[];
-  $not?: Filter<S> | FilterProperty<S>;
-  $or?: (Filter<S> | FilterProperty<S>)[];
+export type Filter<S extends Identifiable> = FilterProperty<S> | FilterSpecial<S>;
+
+export type FilterSpecial<S extends Identifiable> = {
+  $and?: Filter<S>[];
+  $not?: Filter<S>;
+  $or?: Filter<S>[];
 
   $in?: FilterIn<S>;
   $notIn?: FilterIn<S>;
