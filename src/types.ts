@@ -80,31 +80,31 @@ export interface StrictSchemaProperty<T> {
   defaultValue: undefined | T | ((model: ModelConstructor<any>) => T);
 };
 
-export type Schema<S> = {
+export type Schema<S extends Identifiable> = {
   [P in keyof S]: SchemaProperty<S[P]>;
 };
 
-export type StrictSchema<S> = {
+export type StrictSchema<S extends Identifiable> = {
   [P in keyof S]: StrictSchemaProperty<S[P]>;
 };
 
-export type QueryBy<S> = {
+export type QueryBy<S extends Identifiable> = {
   [P in keyof S]: (value: S[P] | S[P][]) => ModelStatic<S>;
 };
 
-export type Query<S> = (query: Filter<S>) => ModelStatic<S>;
+export type Query<S extends Identifiable> = (query: Filter<S>) => ModelStatic<S>;
 
-export type FindBy<S> = {
+export type FindBy<S extends Identifiable> = {
   [P in keyof S]: (value: S[P] | S[P][]) => Promise<undefined | ModelConstructor<S>>;
 };
 
-export type Find<S> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
+export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
 
-export interface ModelStatic<S> {
+export interface ModelStatic<S extends Identifiable> {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly schema: Schema<S>;
-  readonly filter: Filter<S> | FilterProperty<S>;
+  readonly filter: Filter<S>;
   readonly limit: number;
   readonly skip: number;
 
@@ -113,7 +113,7 @@ export interface ModelStatic<S> {
   readonly hasMany: HasMany;
 
   readonly strictSchema: StrictSchema<S>;
-  readonly strictFilter: Filter<S> | FilterProperty<S>;
+  readonly strictFilter: Filter<S>;
   readonly strictBelongsTo: StrictBelongsTo;
   readonly strictHasOne: StrictHasOne;
   readonly strictHasMany: StrictHasMany;
@@ -133,6 +133,6 @@ export interface ModelStatic<S> {
   // prototype: S;
 }
 
-export interface ModelConstructor<S> {
+export interface ModelConstructor<S extends Identifiable> {
   readonly model: ModelStatic<S>;
 }
