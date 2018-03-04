@@ -134,5 +134,6 @@ export interface ModelStatic<S extends Identifiable> {
 }
 
 export interface ModelConstructor<S extends Identifiable> {
+  id?: any;
   readonly model: ModelStatic<S>;
 }
