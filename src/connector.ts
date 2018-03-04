@@ -111,6 +111,16 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
+  private nullFilter(items: S[], key: keyof S): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    return items.filter(item => item[key] === null || item[key] === undefined);
+  }
+
+  private notNullFilter(items: S[], key: keyof S): S[] {
+    // Cost: (1, n, 1) => O(n) = n;
+    return items.filter(item => item[key] !== null && item[key] !== undefined);
+  }
+
 
   }
 
