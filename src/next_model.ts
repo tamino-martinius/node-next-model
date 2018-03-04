@@ -250,6 +250,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     get model(): typeof Model {
       return <typeof Model>this.constructor;
     }
+
+    get attributes(): S {
+      const attrs: S = {};
+      for (const key in this.model.schema) {
+        attrs[key] = this[key];
+      }
+      return attrs;
+    }
   };
 
   return Model;
