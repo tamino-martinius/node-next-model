@@ -61,6 +61,16 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => counts[item.id] === filterCount);
   }
 
+  private orFilter(items: S[], filters: Filter<S>[]): S[] {
+    // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter(n)))
+    const arrays: S[][] = filters.map((filter) => this.filter(items, filter));
+    const exists: { [key: string]: boolean } = {};
+    arrays.forEach(array => array.forEach(item => {
+      exists[item.id] = exists[item.id] || true;
+    }));
+    return items.filter(item => exists[item.id]);
+  }
+
 
   }
 
