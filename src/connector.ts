@@ -78,7 +78,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     array.forEach(item => {
       exists[item.id] = exists[item.id] || true;
     });
-    return items.filter(item => exists[item.id]);
+    return items.filter(item => !exists[item.id]);
   }
 
   private inFilter(items: S[], filter: FilterIn<S>): S[] {
