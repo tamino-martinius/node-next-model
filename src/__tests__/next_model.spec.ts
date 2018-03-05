@@ -36,7 +36,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('throws Error', () => {
+        it('throws Error', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -50,7 +50,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('returns the name of the model', () => {
+            it('returns the name of the model', () => {
               expect(subject()).toEqual(modelName);
             });
           },
@@ -71,7 +71,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('throws Error', () => {
+        it('throws Error', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -85,7 +85,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('returns the name of the model with starting lowercase', () => {
+            it('returns the name of the model with starting lowercase', () => {
               expect(subject()).toEqual(modelName.toLowerCase());
             });
           },
@@ -106,7 +106,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('throws Error', () => {
+        it('throws Error', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -120,7 +120,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('returns the schema of the model', () => {
+            it('returns the schema of the model', () => {
               expect(subject()).toEqual(schema);
             });
           },
@@ -141,7 +141,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('throws Error', () => {
+        it('throws Error', () => {
           expect(subject).toThrow(PropertyNotDefinedError);
         });
 
@@ -155,7 +155,7 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('returns the schema with filled properties', () => {
+            it('returns the schema with filled properties', () => {
               expect(subject()).toEqual(schema);
               for (const key in schema) {
                 expect('defaultValue' in subject()[key]).toBeTruthy();
@@ -173,7 +173,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.filter;
 
-    test('returns empty filter', () => {
+    it('returns empty filter', () => {
       expect(subject()).toEqual({});
     });
 
@@ -187,7 +187,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the filter of the model', () => {
+        it('returns the filter of the model', () => {
           expect(subject()).toEqual(filter);
         });
       },
@@ -200,7 +200,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.strictFilter;
 
-    test('returns empty filter', () => {
+    it('returns empty filter', () => {
       expect(subject()).toEqual({});
     });
 
@@ -214,7 +214,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict filter of the model', () => {
+        it('returns the strict filter of the model', () => {
           expect(subject()).toEqual(filter);
         });
       },
@@ -227,7 +227,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.limit;
 
-    test('returns maximum limit', () => {
+    it('returns maximum limit', () => {
       expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
     });
 
@@ -241,7 +241,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the limit of the model', () => {
+        it('returns the limit of the model', () => {
           expect(subject()).toEqual(limit);
         });
       },
@@ -254,7 +254,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.skip;
 
-    test('returns maximum skip', () => {
+    it('returns maximum skip', () => {
       expect(subject()).toEqual(0);
     });
 
@@ -268,7 +268,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the skip of the model', () => {
+        it('returns the skip of the model', () => {
           expect(subject()).toEqual(skip);
         });
       },
@@ -283,7 +283,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.belongsTo;
 
-    test('returns empty relation', () => {
+    it('returns empty relation', () => {
       expect(subject()).toEqual({});
     });
 
@@ -297,7 +297,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict relation of the model', () => {
+        it('returns the strict relation of the model', () => {
           expect(subject()).toEqual(belongsTo);
         });
       },
@@ -310,7 +310,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.strictBelongsTo;
 
-    test('returns empty relation', () => {
+    it('returns empty relation', () => {
       expect(subject()).toEqual({});
     });
 
@@ -324,7 +324,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict relation of the model', () => {
+        it('returns the strict relation of the model', () => {
           for (const key in belongsTo) {
             expect(subject()[key].model).toEqual(belongsTo[key].model);
             if (belongsTo[key].foreignKey === undefined) {
@@ -342,7 +342,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.hasOne;
 
-    test('returns empty relation', () => {
+    it('returns empty relation', () => {
       expect(subject()).toEqual({});
     });
 
@@ -356,7 +356,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict relation of the model', () => {
+        it('returns the strict relation of the model', () => {
           expect(subject()).toEqual(hasOne);
         });
       },
@@ -369,7 +369,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.strictHasOne;
 
-    test('returns empty relation', () => {
+    it('returns empty relation', () => {
       expect(subject()).toEqual({});
     });
 
@@ -383,7 +383,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict relation of the model', () => {
+        it('returns the strict relation of the model', () => {
           for (const key in hasOne) {
             expect(subject()[key].model).toEqual(hasOne[key].model);
             if (hasOne[key].foreignKey === undefined) {
@@ -401,7 +401,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.hasMany;
 
-    test('returns empty relation', () => {
+    it('returns empty relation', () => {
       expect(subject()).toEqual({});
     });
 
@@ -415,7 +415,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict relation of the model', () => {
+        it('returns the strict relation of the model', () => {
           expect(subject()).toEqual(hasMany);
         });
       },
@@ -428,7 +428,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.strictHasMany;
 
-    test('returns empty relation', () => {
+    it('returns empty relation', () => {
       expect(subject()).toEqual({});
     });
 
@@ -442,7 +442,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('returns the strict relation of the model', () => {
+        it('returns the strict relation of the model', () => {
           for (const key in hasMany) {
             expect(subject()[key].model).toEqual(hasMany[key].model);
             if (hasMany[key].foreignKey === undefined) {
@@ -462,7 +462,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.limitBy(limit);
 
-    test('changes limit for new scope and keeps old scope unchanged', () => {
+    it('changes limit for new scope and keeps old scope unchanged', () => {
       expect(subject().limit).toEqual(limit);
       expect(Klass.limit).toEqual(Number.MAX_SAFE_INTEGER);
     });
@@ -474,7 +474,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.unlimited;
 
-    test('changes limit to default', () => {
+    it('changes limit to default', () => {
       expect(subject().limit).toEqual(Number.MAX_SAFE_INTEGER);
       expect(Klass.limit).toEqual(Number.MAX_SAFE_INTEGER);
     });
@@ -489,7 +489,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('changes limit for new scope and keeps old scope unchanged', () => {
+        it('changes limit for new scope and keeps old scope unchanged', () => {
           expect(subject().limit).toEqual(Number.MAX_SAFE_INTEGER);
           expect(Klass.limit).toEqual(limit);
         });
@@ -503,7 +503,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.skipBy(skip);
 
-    test('changes skip for new scope and keeps old scope unchanged', () => {
+    it('changes skip for new scope and keeps old scope unchanged', () => {
       expect(subject().skip).toEqual(skip);
       expect(Klass.skip).toEqual(0);
     });
@@ -515,7 +515,7 @@ describe('NextModel', () => {
 
     const subject = () => Klass.unskipped;
 
-    test('changes skip to default', () => {
+    it('changes skip to default', () => {
       expect(subject().skip).toEqual(0);
       expect(Klass.skip).toEqual(0);
     });
@@ -530,7 +530,7 @@ describe('NextModel', () => {
         Klass = NewKlass;
       },
       tests() {
-        test('changes skip for new scope and keeps old scope unchanged', () => {
+        it('changes skip for new scope and keeps old scope unchanged', () => {
           expect(subject().skip).toEqual(0);
           expect(Klass.skip).toEqual(skip);
         });
