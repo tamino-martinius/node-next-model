@@ -75,5 +75,47 @@ describe('DefaultConnector', () => {
             new Klass({ id: 3 }),
           ]);
         });
+
+        describe('property filter', () => {
+          context('with filter for existing id', {
+            definitions() {
+              id = Faker.randomId(3);
+              class NewKlass extends Klass {
+                static get filter(): FilterProperty<Identifiable> {
+                  return {
+                    id,
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id }),
+                ]);
+              });
+            },
+          });
+
+          context('with filter for non existing id', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): FilterProperty<Identifiable> {
+                  return {
+                    id: Faker.randomNumber(4, Number.MAX_SAFE_INTEGER),
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+        });
+
   });
 });
