@@ -60,7 +60,7 @@ describe('DefaultConnector', () => {
     context('with multiple items prefilled storage', {
       definitions() {
         storage = {
-          Foo: [
+          [Klass.modelName]: [
             { id: 1 },
             { id: 2 },
             { id: 3 },
@@ -170,9 +170,7 @@ describe('DefaultConnector', () => {
               class NewKlass extends Klass {
                 static get filter(): Filter<Identifiable> {
                   return {
-                    $not: {
-                      id: 2,
-                    },
+                    $not: {},
                   };
                 }
               };
