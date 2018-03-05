@@ -16,10 +16,10 @@ import {
   NextModel,
 } from '../next_model';
 
-function positiveInteger(): number {
+function positiveInteger(min: number = 1, max: number = Number.MAX_SAFE_INTEGER - 1): number {
   return faker.random.number({
     min: 1,
-    max: Number.MAX_SAFE_INTEGER - 1,
+    max,
   });
 }
 
@@ -121,6 +121,10 @@ export class Faker {
       if (faker.random.boolean()) belongsTo[name].foreignKey = propertyName();
     }
     return belongsTo;
+  }
+
+  static randomNumber(min: number, max: number) {
+    return positiveInteger(min, max);
   }
 
   static get belongsTo(): BelongsTo {
