@@ -123,6 +123,10 @@ export class Faker {
     return belongsTo;
   }
 
+  static randomId(max: number) {
+    return positiveInteger(1, max);
+  }
+
   static randomNumber(min: number, max: number) {
     return positiveInteger(min, max);
   }
