@@ -117,5 +117,74 @@ describe('DefaultConnector', () => {
           });
         });
 
+        describe('$not special filter', () => {
+          context('with filter for existing id', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $not: {
+                      id: 2,
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with filter for non existing id', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $not: {
+                      id: Faker.randomNumber(4, Number.MAX_SAFE_INTEGER),
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 2 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with empty filter', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $not: {
+                      id: 2,
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+        });
+
   });
 });
