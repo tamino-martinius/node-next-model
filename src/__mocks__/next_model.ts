@@ -50,7 +50,7 @@ function filterItem(): any {
 }
 
 const seed = positiveInteger();
-console.log(`Running with seed ${seed}`)
+// console.log(`Running with seed ${seed}`)
 faker.seed(seed);
 
 export class Faker {
