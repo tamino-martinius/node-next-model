@@ -31,3 +31,49 @@ beforeEach(() => {
   storage = undefined;
 });
 
+describe('DefaultConnector', () => {
+  describe('#all(model)', () => {
+    let Klass: typeof Model = Faker.model;
+    const subject = () => connector().all(Klass);
+
+    it('promises empty array', () => {
+      return expect(subject()).resolves.toEqual([]);
+    });
+
+    context('with single item prefilled storage', {
+      definitions() {
+        storage = {
+          [Klass.modelName]: [
+            { id: 1 },
+          ],
+        };
+      },
+      tests() {
+        it('promises all items as model instances', () => {
+          return expect(subject()).resolves.toEqual([
+            new Klass({ id: 1 }),
+          ]);
+        });
+      },
+    });
+
+    context('with multiple items prefilled storage', {
+      definitions() {
+        storage = {
+          Foo: [
+            { id: 1 },
+            { id: 2 },
+            { id: 3 },
+          ],
+        };
+      },
+      tests() {
+        it('promises all items as model instances', () => {
+          return expect(subject()).resolves.toEqual([
+            new Klass({ id: 1 }),
+            new Klass({ id: 2 }),
+            new Klass({ id: 3 }),
+          ]);
+        });
+  });
+});
