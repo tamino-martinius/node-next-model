@@ -4,6 +4,8 @@ export interface Context {
   reset?: () => void,
 };
 
+export const it = test;
+
 export const context = (description: string, {definitions, tests, reset}: Context) => {
   describe(description, () => {
     beforeEach(definitions);
