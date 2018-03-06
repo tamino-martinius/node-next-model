@@ -335,25 +335,21 @@ describe('DefaultConnector', () => {
           });
         });
 
-        describe('$and special filter', () => {
+        describe('$or special filter', () => {
           context('with empty filter', {
             definitions() {
               class NewKlass extends Klass {
                 static get filter(): Filter<Identifiable> {
                   return {
-                    $and: [],
+                    $or: [],
                   };
                 }
               };
               Klass = NewKlass;
             },
             tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
               });
             },
           });
@@ -363,7 +359,7 @@ describe('DefaultConnector', () => {
               class NewKlass extends Klass {
                 static get filter(): Filter<Identifiable> {
                   return {
-                    $and: [
+                    $or: [
                       { id: 2 },
                     ],
                   };
@@ -385,7 +381,7 @@ describe('DefaultConnector', () => {
               class NewKlass extends Klass {
                 static get filter(): Filter<Identifiable> {
                   return {
-                    $and: [
+                    $or: [
                       { id: 2 },
                       { id: 3 },
                     ],
@@ -395,8 +391,11 @@ describe('DefaultConnector', () => {
               Klass = NewKlass;
             },
             tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 2 }),
+                  new Klass({ id: 3 }),
+                ]);
               });
             },
           });
@@ -406,7 +405,7 @@ describe('DefaultConnector', () => {
               class NewKlass extends Klass {
                 static get filter(): Filter<Identifiable> {
                   return {
-                    $and: [
+                    $or: [
                       { id: 2 },
                       { id: 2 }, // [TODO] add better example
                     ],
