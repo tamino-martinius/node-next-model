@@ -9,13 +9,13 @@ export interface Identifiable {
   id: any;
 }
 
-export interface Tuple<T> {
-  [key: number]: T;
-  length: 2;
-};
-
 export interface Dict<T> {
   [key: string]: T;
+};
+
+export interface Range<T> {
+  from: T;
+  to: T;
 };
 
 export type FilterProperty<S extends Identifiable> = Partial<S>;
@@ -23,7 +23,7 @@ export type FilterIn<S extends Identifiable> = {
   [K in keyof S]: Array<S[K]>;
 };
 export type FilterBetween<S extends Identifiable> = {
-  [K in keyof S]: Tuple<S[K]>;
+  [K in keyof S]: Range<S[K]>;
 };
 export type FilterCompare<S extends Identifiable> = {
   [K in keyof S]: S[K];
