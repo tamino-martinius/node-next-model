@@ -61,9 +61,9 @@ describe('DefaultConnector', () => {
       definitions() {
         storage = {
           [Klass.modelName]: [
-            { id: 1, foo: 'a' },
+            { id: 1, foo: 'bar' },
             { id: 2, foo: null},
-            { id: 3, foo: 'a' },
+            { id: 3, foo: 'bar' },
           ],
         };
       },
@@ -104,7 +104,7 @@ describe('DefaultConnector', () => {
                 static get filter(): FilterProperty<any> {
                   return {
                     id: 1,
-                    foo: 'a',
+                    foo: 'bar',
                   };
                 }
               };
@@ -143,7 +143,7 @@ describe('DefaultConnector', () => {
               class NewKlass extends Klass {
                 static get filter(): FilterProperty<any> {
                   return {
-                    foo: 'a',
+                    foo: 'bar',
                   };
                 }
               };
