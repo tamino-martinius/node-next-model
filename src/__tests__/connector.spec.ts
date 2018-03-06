@@ -423,6 +423,95 @@ describe('DefaultConnector', () => {
             },
           });
         });
+
+
+        describe('$in special filter', () => {
+          context('with empty filter', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $in: {},
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('rejects filter and returns error', () => {
+                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
+              });
+            },
+          });
+
+          context('with single filter for existing id', {
+            definitions() {
+              id = Faker.randomId(3);
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $in: {
+                      id: [id],
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id }),
+                ]);
+              });
+            },
+          });
+
+          context('with multiple filters for non overlapping ids', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $in: {
+                      id: [2, 3],
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 2 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with multiple filters', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $in: {
+                      id: [Faker.randomId(3)],
+                      foo: [Faker.randomId(3)],
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('rejects filter and returns error', () => {
+                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
+              });
+            },
+          });
+        });
+
       },
     });
   });
