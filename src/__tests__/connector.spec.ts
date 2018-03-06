@@ -599,6 +599,68 @@ describe('DefaultConnector', () => {
         });
 
 
+        describe('$null special filter', () => {
+          context('with filter for nullable property', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $null: 'foo',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 2 }),
+                ]);
+              });
+            },
+          });
+
+          context('with filter for non nullable property', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $null: 'id',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+
+          context('with filter for non present property', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $null: 'bar',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 2 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+        });
+
       },
     });
   });
