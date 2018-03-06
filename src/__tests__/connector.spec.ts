@@ -62,7 +62,7 @@ describe('DefaultConnector', () => {
         storage = {
           [Klass.modelName]: [
             { id: 1, foo: 'a' },
-            { id: 2 },
+            { id: 2, foo: null},
             { id: 3, foo: 'a' },
           ],
         };
@@ -661,6 +661,68 @@ describe('DefaultConnector', () => {
           });
         });
 
+        describe('$notNull special filter', () => {
+          context('with filter for nullable property', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $notNull: 'foo',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with filter for non nullable property', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $notNull: 'id',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 2 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with filter for non present property', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $notNull: 'bar',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+        });
       },
     });
   });
