@@ -723,6 +723,222 @@ describe('DefaultConnector', () => {
             },
           });
         });
+
+
+        describe('$between special filter', () => {
+          context('with empty filter', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $between: {},
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('rejects filter and returns error', () => {
+                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
+              });
+            },
+          });
+
+          context('with single filter within values', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $between: {
+                      id: {
+                        from: 1,
+                        to: 2,
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 2 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter with string attributes', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $between: {
+                      foo: {
+                        from: 'a',
+                        to: 'z',
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter going into range', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $between: {
+                      id: {
+                        from: 0,
+                        to: 1,
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter going outside range', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $between: {
+                      id: {
+                        from: 3,
+                        to: 4,
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter with start equals end', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $between: {
+                      id: {
+                        from: 2,
+                        to: 2,
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 2 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter outside', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $between: {
+                      id: {
+                        from: 4,
+                        to: 5,
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+
+          context('with single filter with start greater then end', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $between: {
+                      id: {
+                        from: 3,
+                        to: 1,
+                      },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+
+          context('with multiple filters', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $between: {
+                      id: { from: 1, to: 2 },
+                      foo: { from: 'bar', to: 'foo' },
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('rejects filter and returns error', () => {
+                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
+              });
+            },
+          });
+        });
+
       },
     });
   });
