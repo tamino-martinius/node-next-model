@@ -235,29 +235,45 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
-    const items = this.items(model);
-    return Promise.resolve(items.map(item => new model(item)));
+    try {
+      const items = this.items(model);
+      return Promise.resolve(items.map(item => new model(item)));
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   first(model: ModelStatic<S>): Promise<ModelConstructor<S> | undefined> {
-    const items = this.items(model);
-    return Promise.resolve(items.length > 0 ? new model(items[0]) : undefined);
+    try {
+      const items = this.items(model);
+      return Promise.resolve(items.length > 0 ? new model(items[0]) : undefined);
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   count(model: ModelStatic<S>): Promise<number> {
-    const items = this.items(model);
-    return Promise.resolve(items.length);
+    try {
+      const items = this.items(model);
+      return Promise.resolve(items.length);
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]> {
-    const items = this.items(model);
-    items.forEach(item => {
-      for (const key in params) {
-        // @ts-ignore
-        item[key] = params[key];
-      }
-    });
-    return Promise.resolve(items.map(item => new model(item)));
+    try {
+      const items = this.items(model);
+      items.forEach(item => {
+        for (const key in params) {
+          // @ts-ignore
+          item[key] = params[key];
+        }
+      });
+      return Promise.resolve(items.map(item => new model(item)));
+    } catch (e) {
+      return Promise.reject(e);
+    }
 
     // const exists: { [key: string]: boolean } = {};
     // this.items(model).forEach(item => {
@@ -276,67 +292,87 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
-    const items = this.items(model);
-    const exists: { [key: string]: boolean } = {};
-    items.forEach(item => {
-      exists[item.id] = exists[item.id] || true;
-    });
+    try {
+      const items = this.items(model);
+      const exists: { [key: string]: boolean } = {};
+      items.forEach(item => {
+        exists[item.id] = exists[item.id] || true;
+      });
 
-    const collection = this.collection(model);
-    for (let i = collection.length - 1; i >= 0; i--) {
-      if (exists[collection[i].id]) {
-        collection.splice(i, 1);
+      const collection = this.collection(model);
+      for (let i = collection.length - 1; i >= 0; i--) {
+        if (exists[collection[i].id]) {
+          collection.splice(i, 1);
+        }
       }
+      return Promise.resolve(items.map(item => {
+        delete item.id;
+        return new model(item);
+      }));
+    } catch (e) {
+      return Promise.reject(e);
     }
-    return Promise.resolve(items.map(item => {
-      delete item.id;
-      return new model(item);
-    }));
   }
 
   reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
-    const model = instance.model;
-    const collection = this.collection(model);
-    for (const item of collection) {
-      if (item.id === instance.id) {
-        return Promise.resolve(new model(item));
+    try {
+      const model = instance.model;
+      const collection = this.collection(model);
+      for (const item of collection) {
+        if (item.id === instance.id) {
+          return Promise.resolve(new model(item));
+        }
       }
+      return Promise.resolve(undefined);
+    } catch (e) {
+      return Promise.reject(e);
     }
-    return Promise.resolve(undefined);
   }
 
   create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
-    instance.id = ++uuid;
-    this.collection(instance.model).push(instance.attributes);
-    return Promise.resolve(instance);
+    try {
+      instance.id = ++uuid;
+      this.collection(instance.model).push(instance.attributes);
+      return Promise.resolve(instance);
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
-    const model = instance.model;
-    const collection = this.collection(model);
-    for (const item of collection) {
-      if (item.id === instance.id) {
-        const attrs = instance.attributes;
-        for (const key in attrs) {
-          item[key] = attrs[key];
+    try {
+      const model = instance.model;
+      const collection = this.collection(model);
+      for (const item of collection) {
+        if (item.id === instance.id) {
+          const attrs = instance.attributes;
+          for (const key in attrs) {
+            item[key] = attrs[key];
+          }
+          return Promise.resolve(instance);
         }
-        return Promise.resolve(instance);
       }
+      return Promise.reject('[TODO] Cant find error');
+    } catch (e) {
+      return Promise.reject(e);
     }
-    return Promise.reject('[TODO] Cant find error');
   }
 
   delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
-    const model = instance.model;
-    const collection = this.collection(model);
-    for (let i = 0; i < collection.length; i++) {
-      if (collection[i].id === instance.id) {
-        collection.splice(i, 1);
-        instance.id = undefined;
-        return Promise.resolve(instance);
+    try {
+      const model = instance.model;
+      const collection = this.collection(model);
+      for (let i = 0; i < collection.length; i++) {
+        if (collection[i].id === instance.id) {
+          collection.splice(i, 1);
+          instance.id = undefined;
+          return Promise.resolve(instance);
+        }
       }
+      return Promise.reject('[TODO] Cant find error');
+    } catch (e) {
+      return Promise.reject(e);
     }
-    return Promise.reject('[TODO] Cant find error');
   }
 }
 
