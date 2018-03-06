@@ -1462,6 +1462,156 @@ describe('DefaultConnector', () => {
           });
         });
 
+        describe('$lt special filter', () => {
+          context('with empty filter', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $lt: {},
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('rejects filter and returns error', () => {
+                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
+              });
+            },
+          });
+
+          context('with single filter within values', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $lt: {
+                      id: 2,
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter with string attributes', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $lt: {
+                      foo: 'bar',
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+
+          context('with single filter with matching string attributes', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $lt: {
+                      foo: 'z',
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter going into range', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $lt: {
+                      id: 4,
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 2 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
+          context('with single filter outside', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<Identifiable> {
+                  return {
+                    $lt: {
+                      id: 0,
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+
+          context('with multiple filters', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): Filter<any> {
+                  return {
+                    $lt: {
+                      id: 2,
+                      foo: 'bar',
+                    },
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('rejects filter and returns error', () => {
+                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
+              });
+            },
+          });
+        });
+
       },
     });
   });
