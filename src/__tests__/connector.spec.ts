@@ -98,6 +98,67 @@ describe('DefaultConnector', () => {
             },
           });
 
+          context('with filter for multiple attributes where both matches', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): FilterProperty<any> {
+                  return {
+                    id: 1,
+                    foo: 'a',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                ]);
+              });
+            },
+          });
+
+          context('with filter for multiple attributes where only one matches', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): FilterProperty<any> {
+                  return {
+                    id: 1,
+                    foo: 'c',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises empty array', () => {
+                return expect(subject()).resolves.toEqual([]);
+              });
+            },
+          });
+
+          context('with filter for multiple for one attribute', {
+            definitions() {
+              class NewKlass extends Klass {
+                static get filter(): FilterProperty<any> {
+                  return {
+                    foo: 'a',
+                  };
+                }
+              };
+              Klass = NewKlass;
+            },
+            tests() {
+              it('promises all matching items as model instances', () => {
+                return expect(subject()).resolves.toEqual([
+                  new Klass({ id: 1 }),
+                  new Klass({ id: 3 }),
+                ]);
+              });
+            },
+          });
+
           context('with filter for non existing id', {
             definitions() {
               class NewKlass extends Klass {
