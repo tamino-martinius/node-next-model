@@ -71,6 +71,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
     id: any;
 
+    static get identifier(): string {
+      return 'id';
+    }
+
     static get modelName(): string {
       throw new PropertyNotDefinedError('modelName');
     }
