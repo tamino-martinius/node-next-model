@@ -18,6 +18,17 @@ export interface Storage {
 const globalStorage: Storage = {};
 let uuid: number = 0;
 
+export interface ConnectorConstructor<S extends Identifiable> {
+  query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
+  count(model: ModelStatic<S>): Promise<number>;
+  updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]>;
+  deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
+  reload(model: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
+  create(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  update(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  delete(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+};
+
 export class Connector<S extends Identifiable> implements ConnectorConstructor<S> {
   private storage: Storage;
 
@@ -234,19 +245,10 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return this.propertyFilter(items, <FilterProperty<S>>filter);
   }
 
-  all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
+  query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
     try {
       const items = this.items(model);
       return Promise.resolve(items.map(item => new model(item)));
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  first(model: ModelStatic<S>): Promise<ModelConstructor<S> | undefined> {
-    try {
-      const items = this.items(model);
-      return Promise.resolve(items.length > 0 ? new model(items[0]) : undefined);
     } catch (e) {
       return Promise.reject(e);
     }
@@ -375,15 +377,3 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 }
-
-export interface ConnectorConstructor<S extends Identifiable> {
-  all(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-  first(model: ModelStatic<S>): Promise<ModelConstructor<S> | undefined>;
-  count(model: ModelStatic<S>): Promise<number>;
-  updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]>;
-  deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-  reload(model: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
-  create(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  update(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  delete(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-};
