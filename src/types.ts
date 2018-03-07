@@ -135,7 +135,7 @@ export interface ModelStatic<S extends Identifiable> {
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
   readonly findBy: FindBy<S>;
 
-  new(params: Partial<S>): ModelConstructor<S>;
+  new(attrs: Partial<S> | undefined): ModelConstructor<S>;
   // prototype: S;
 }
 
