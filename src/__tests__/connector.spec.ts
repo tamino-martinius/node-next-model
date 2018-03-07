@@ -22,18 +22,150 @@ import {
   Faker,
 } from '../__mocks__/next_model';
 
-let storage: Storage | undefined = undefined;
-let connector = () => new Connector(storage);
-let id: number;
 const Model = NextModel<any>();
+let storage: Storage | undefined = undefined;
+let Klass: typeof Model;
+let validId: number = Faker.randomId(3);
+let invalidId: number = Faker.randomNumber(4, Number.MAX_SAFE_INTEGER);
+let anyId: number = Faker.randomNumber(1, Number.MAX_SAFE_INTEGER);
+let singleSeed: Storage;
+let multiSeed: Storage;
+
+let connector = () => new Connector(storage);
+
 
 beforeEach(() => {
   storage = undefined;
+  Klass = Faker.model;
+  singleSeed = {
+    [Klass.modelName]: [
+      { id: anyId },
+    ],
+  };
+  multiSeed = {
+    [Klass.modelName]: [
+      { id: 1, foo: 'bar' },
+      { id: 2, foo: null },
+      { id: 3, foo: 'bar' },
+    ],
+  };
 });
+
+interface FilterSpecs {
+  filter: Filter<any>;
+  results: number[] | string
+};
+
+interface FilterSpecGroup {
+  [key: string]: FilterSpecs[];
+};
+
+const filterSpecGroups: FilterSpecGroup = {
+  'none': [
+    { filter: undefined, results: [1, 2, 3] },
+    { filter: {}, results: [1, 2, 3] },
+  ],
+  'property': [
+    { filter: { id: validId }, results: [validId] },
+    { filter: { id: 1, foo: 'bar' }, results: [1] },
+    { filter: { id: 1, foo: 'baz' }, results: [] },
+    { filter: { foo: 'bar' }, results: [1, 3] },
+    { filter: { id: invalidId }, results: [] },
+  ],
+  '$and': [
+    { filter: { $and: [] }, results: [1, 2, 3] },
+    { filter: { $and: [{ id: validId}] }, results: [validId] },
+    { filter: { $and: [{ id: 2 }, { id: 3 }] }, results: [] },
+    { filter: { $and: [{ id: 2 }, { id: 2 }] }, results: [2] },
+  ],
+  '$not': [
+    { filter: { $not: {} }, results: [] },
+    { filter: { $not: { id: 2 } }, results: [1, 3] },
+    { filter: { $not: { id: invalidId } }, results: [1, 2, 3] },
+  ],
+  '$or': [
+    { filter: { $or: [] }, results: [] },
+    { filter: { $or: [{ id: validId }] }, results: [validId] },
+    { filter: { $or: [{ id: 2 }, { id: 3 }] }, results: [2, 3] },
+    { filter: { $or: [{ id: 2 }, { id: 2 }] }, results: [2] },
+  ],
+  '$in': [
+    { filter: { $in: {} }, results: '[TODO] Return proper error' },
+    { filter: { $in: { id: [validId] } }, results: [validId] },
+    { filter: { $in: { id: [2, 3] } }, results: [2, 3] },
+    { filter: { $in: { id: [2, 2] } }, results: [2] },
+    { filter: { $in: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
+  ],
+  '$notIn': [
+    { filter: { $notIn: {} }, results: '[TODO] Return proper error' },
+    { filter: { $notIn: { id: [2] } }, results: [1, 3] },
+    { filter: { $notIn: { id: [2, 3] } }, results: [1] },
+    { filter: { $notIn: { id: [2, 2] } }, results: [1, 3] },
+    { filter: { $notIn: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
+  ],
+  '$null': [
+    { filter: { $null: 'foo' }, results: [2] },
+    { filter: { $null: 'id' }, results: [] },
+    { filter: { $null: 'bar' }, results: [1, 2, 3] },
+  ],
+  '$notNull': [
+    { filter: { $notNull: 'foo' }, results: [1, 3] },
+    { filter: { $notNull: 'id' }, results: [1, 2, 3] },
+    { filter: { $notNull: 'bar' }, results: [] },
+  ],
+  '$between': [
+    { filter: { $between: {} }, results: '[TODO] Return proper error' },
+    { filter: { $between: { id: { from: 1, to: 2 } } }, results: [1, 2] },
+    { filter: { $between: { foo: { from: 'a', to: 'z' } } }, results: [1, 3] },
+    { filter: { $between: { id: { from: 0, to: 1 } } }, results: [1] },
+    { filter: { $between: { id: { from: 3, to: 4 } } }, results: [3] },
+    { filter: { $between: { id: { from: validId, to: validId } } }, results: [validId] },
+    { filter: { $between: { id: { from: 4, to: 5 } } }, results: [] },
+    { filter: { $between: { id: { from: 3, to: 1 } } }, results: [] },
+    { filter: { $between: { id: { from: 1, to: 3 }, foo: { from: 'a', to: 'z' } } }, results: '[TODO] Return proper error' },
+  ],
+  '$gt': [
+    { filter: { $gt: {} }, results: '[TODO] Return proper error' },
+    { filter: { $gt: { id: 2 } }, results: [3] },
+    { filter: { $gt: { foo: 'bar' } }, results: [] },
+    { filter: { $gt: { foo: 'a' } }, results: [1, 3] },
+    { filter: { $gt: { id: 0 } }, results: [1, 2, 3] },
+    { filter: { $gt: { id: invalidId } }, results: [] },
+    { filter: { $gt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+  '$gte': [
+    { filter: { $gte: {} }, results: '[TODO] Return proper error' },
+    { filter: { $gte: { id: 2 } }, results: [2, 3] },
+    { filter: { $gte: { foo: 'z' } }, results: [] },
+    { filter: { $gte: { foo: 'bar' } }, results: [1, 3] },
+    { filter: { $gte: { foo: 'a' } }, results: [1, 3] },
+    { filter: { $gte: { id: 0 } }, results: [1, 2, 3] },
+    { filter: { $gte: { id: invalidId } }, results: [] },
+    { filter: { $gte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+  '$lt': [
+    { filter: { $lt: {} }, results: '[TODO] Return proper error' },
+    { filter: { $lt: { id: 2 } }, results: [1] },
+    { filter: { $lt: { foo: 'bar' } }, results: [] },
+    { filter: { $lt: { foo: 'z' } }, results: [1, 3] },
+    { filter: { $lt: { id: 4 } }, results: [1, 2, 3] },
+    { filter: { $lt: { id: 0 } }, results: [] },
+    { filter: { $lt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+  '$lte': [
+    { filter: { $lte: {} }, results: '[TODO] Return proper error' },
+    { filter: { $lte: { id: 2 } }, results: [1, 2] },
+    { filter: { $lte: { foo: 'a' } }, results: [] },
+    { filter: { $lte: { foo: 'bar' } }, results: [1, 3] },
+    { filter: { $lte: { foo: 'z' } }, results: [1, 3] },
+    { filter: { $lte: { id: 4 } }, results: [1, 2, 3] },
+    { filter: { $lte: { id: 0 } }, results: [] },
+    { filter: { $lte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+};
 
 describe('DefaultConnector', () => {
   describe('#all(model)', () => {
-    let Klass: typeof Model = Faker.model;
     const subject = () => connector().all(Klass);
 
     it('promises empty array', () => {
@@ -42,17 +174,16 @@ describe('DefaultConnector', () => {
 
     context('with single item prefilled storage', {
       definitions() {
-        id = Faker.randomId(Number.MAX_SAFE_INTEGER);
         storage = {
           [Klass.modelName]: [
-            { id },
+            { id: anyId },
           ],
         };
       },
       tests() {
         it('promises all items as model instances', () => {
           return expect(subject()).resolves.toEqual([
-            new Klass({ id }),
+            new Klass({ id: anyId }),
           ]);
         });
       },
@@ -69,1700 +200,48 @@ describe('DefaultConnector', () => {
         };
       },
       tests() {
-        it('promises all items as model instances', () => {
-          return expect(subject()).resolves.toEqual([
-            new Klass({ id: 1 }),
-            new Klass({ id: 2 }),
-            new Klass({ id: 3 }),
-          ]);
-        });
-
-        describe('property filter', () => {
-          context('with filter for existing id', {
-            definitions() {
-              id = Faker.randomId(3);
-              class NewKlass extends Klass {
-                static get filter(): FilterProperty<Identifiable> {
-                  return {
-                    id,
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for multiple attributes where both matches', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): FilterProperty<any> {
-                  return {
-                    id: 1,
-                    foo: 'bar',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for multiple attributes where only one matches', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): FilterProperty<any> {
-                  return {
-                    id: 1,
-                    foo: 'c',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with filter for multiple for one attribute', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): FilterProperty<any> {
-                  return {
-                    foo: 'bar',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for non existing id', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): FilterProperty<Identifiable> {
-                  return {
-                    id: Faker.randomNumber(4, Number.MAX_SAFE_INTEGER),
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-        });
-
-        describe('$and special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $and: [],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter for existing id', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $and: [
-                      { id: 2 },
-                    ],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters for non overlapping ids', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $and: [
-                      { id: 2 },
-                      { id: 3 },
-                    ],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with multiple overlapping filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $and: [
-                      { id: 2 },
-                      { id: 2 }, // [TODO] add better example
-                    ],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-        });
-
-        describe('$not special filter', () => {
-          context('with filter for existing id', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $not: {
-                      id: 2,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for non existing id', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $not: {
-                      id: Faker.randomNumber(4, Number.MAX_SAFE_INTEGER),
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $not: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-        });
-
-        describe('$or special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $or: [],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter for existing id', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $or: [
-                      { id: 2 },
-                    ],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters for non overlapping ids', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $or: [
-                      { id: 2 },
-                      { id: 3 },
-                    ],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple overlapping filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $or: [
-                      { id: 2 },
-                      { id: 2 }, // [TODO] add better example
-                    ],
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-        });
-
-
-        describe('$in special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $in: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter for existing id', {
-            definitions() {
-              id = Faker.randomId(3);
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $in: {
-                      id: [id],
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters for non overlapping ids', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $in: {
-                      id: [2, 3],
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $in: {
-                      id: [Faker.randomId(3)],
-                      foo: [Faker.randomId(3)],
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-        describe('$notIn special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notIn: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter for existing id', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notIn: {
-                      id: [2],
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters for non overlapping ids', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notIn: {
-                      id: [2, 3],
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notIn: {
-                      id: [Faker.randomId(3)],
-                      foo: [Faker.randomId(3)],
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-
-        describe('$null special filter', () => {
-          context('with filter for nullable property', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $null: 'foo',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for non nullable property', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $null: 'id',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with filter for non present property', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $null: 'bar',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-        });
-
-        describe('$notNull special filter', () => {
-          context('with filter for nullable property', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notNull: 'foo',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for non nullable property', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notNull: 'id',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with filter for non present property', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notNull: 'bar',
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-        });
-
-
-        describe('$between special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $between: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter within values', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $between: {
-                      id: {
-                        from: 1,
-                        to: 2,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $between: {
-                      foo: {
-                        from: 'a',
-                        to: 'z',
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going into range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $between: {
-                      id: {
-                        from: 0,
-                        to: 1,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going outside range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $between: {
-                      id: {
-                        from: 3,
-                        to: 4,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with start equals end', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $between: {
-                      id: {
-                        from: 2,
-                        to: 2,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter outside', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $between: {
-                      id: {
-                        from: 4,
-                        to: 5,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter with start greater then end', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $between: {
-                      id: {
-                        from: 3,
-                        to: 1,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $between: {
-                      id: { from: 1, to: 2 },
-                      foo: { from: 'bar', to: 'foo' },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-        describe('$notBetween special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notBetween: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter within values', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notBetween: {
-                      id: {
-                        from: 1,
-                        to: 2,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notBetween: {
-                      foo: {
-                        from: 'a',
-                        to: 'z',
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter going into range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notBetween: {
-                      id: {
-                        from: 0,
-                        to: 1,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going outside range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notBetween: {
-                      id: {
-                        from: 3,
-                        to: 4,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with start equals end', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notBetween: {
-                      id: {
-                        from: 2,
-                        to: 2,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter outside', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notBetween: {
-                      id: {
-                        from: 4,
-                        to: 5,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with start greater then end', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $notBetween: {
-                      id: {
-                        from: 3,
-                        to: 1,
-                      },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $notBetween: {
-                      id: { from: 1, to: 2 },
-                      foo: { from: 'bar', to: 'foo' },
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-
-        describe('$gt special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gt: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter within values', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $gt: {
-                      id: 2,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gt: {
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter with matching string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gt: {
-                      foo: 'a',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going into range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $gt: {
-                      id: 0,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter outside', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $gt: {
-                      id: 4,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gt: {
-                      id: 2,
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-        describe('$gte special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gte: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter within values', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $gte: {
-                      id: 2,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gte: {
-                      foo: 'z',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter with matching string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gte: {
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going into range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $gte: {
-                      id: 0,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter outside', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $gte: {
-                      id: 4,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $gte: {
-                      id: 2,
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-        describe('$lt special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lt: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter within values', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $lt: {
-                      id: 2,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lt: {
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter with matching string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lt: {
-                      foo: 'z',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going into range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $lt: {
-                      id: 4,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter outside', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $lt: {
-                      id: 0,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lt: {
-                      id: 2,
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
-
-        describe('$lte special filter', () => {
-          context('with empty filter', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lte: {},
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-
-          context('with single filter within values', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $lte: {
-                      id: 2,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter with string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lte: {
-                      foo: 'a',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with single filter with matching string attributes', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lte: {
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all matching items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter going into range', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $lte: {
-                      id: 4,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises all items as model instances', () => {
-                return expect(subject()).resolves.toEqual([
-                  new Klass({ id: 1 }),
-                  new Klass({ id: 2 }),
-                  new Klass({ id: 3 }),
-                ]);
-              });
-            },
-          });
-
-          context('with single filter outside', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<Identifiable> {
-                  return {
-                    $lte: {
-                      id: 0,
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('promises empty array', () => {
-                return expect(subject()).resolves.toEqual([]);
-              });
-            },
-          });
-
-          context('with multiple filters', {
-            definitions() {
-              class NewKlass extends Klass {
-                static get filter(): Filter<any> {
-                  return {
-                    $lte: {
-                      id: 2,
-                      foo: 'bar',
-                    },
-                  };
-                }
-              };
-              Klass = NewKlass;
-            },
-            tests() {
-              it('rejects filter and returns error', () => {
-                return expect(subject()).rejects.toEqual('[TODO] Return proper error');
-              });
-            },
-          });
-        });
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions() {
+                  class NewKlass extends Klass {
+                    static get filter(): Filter<any> {
+                      return filterSpec.filter;
+                    }
+                  };
+                  Klass = NewKlass;
+                },
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    if (results.length === 0) {
+                      it('promises empty array', () => {
+                        return expect(subject()).resolves.toEqual([]);
+                      });
+                    } else if (results.length === 3) {
+                      it('promises all items as model instances', () => {
+                        return expect(subject()).resolves.toEqual(
+                          results.map(id => new Klass({ id }))
+                        );
+                      });
+                    } else {
+                      it('promises all matching items as model instances', () => {
+                        return expect(subject()).resolves.toEqual(
+                          results.map(id => new Klass({ id }))
+                        );
+                      });
+                    }
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(filterSpec.results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
       },
     });
   });
