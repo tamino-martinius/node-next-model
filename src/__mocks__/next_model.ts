@@ -74,10 +74,12 @@ export class Faker {
   }
 
   static get schema() {
-    return this.schemaByPropertyCount(faker.random.number({
+    const schema = this.schemaByPropertyCount(faker.random.number({
       min: 1,
       max: 5,
     }));
+    schema.id = { type: 'number' };
+    return schema;
   }
 
   static schemaByPropertyCount(count: number): Schema<any> {
