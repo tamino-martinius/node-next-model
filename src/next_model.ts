@@ -247,8 +247,13 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return findBy;
     }
 
-    constructor(_props: Partial<S>) {
-
+    constructor(attrs: Partial<S> | undefined) {
+      if (attrs !== undefined) {
+        for (const key in attrs) {
+          // @ts-ignore
+          this[key] = attrs[key];
+        }
+      }
     }
 
     get model(): typeof Model {
