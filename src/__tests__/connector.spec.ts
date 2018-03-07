@@ -35,11 +35,10 @@ let connector = () => new Connector(storage);
 
 
 beforeEach(() => {
-  storage = undefined;
   Klass = Faker.model;
   singleSeed = {
     [Klass.modelName]: [
-      { id: anyId },
+      { id: validId },
     ],
   };
   multiSeed = {
@@ -49,6 +48,7 @@ beforeEach(() => {
       { id: 3, foo: 'bar' },
     ],
   };
+  storage = undefined;
 });
 
 interface FilterSpecs {
