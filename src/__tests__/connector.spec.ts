@@ -178,9 +178,11 @@ describe('DefaultConnector', () => {
       },
       tests() {
         it('promises all items as model instances', () => {
-          return expect(subject()).resolves.toEqual([
-            new Klass({ id: anyId }),
-          ]);
+          return subject().then(instances => {
+            expect(instances.length).toEqual(1);
+            expect(instances[0] instanceof Klass).toBeTruthy();
+            expect(instances[0].attributes).toEqual({ id: validId });
+          });
         });
       },
     });
@@ -211,15 +213,21 @@ describe('DefaultConnector', () => {
                       });
                     } else if (results.length === 3) {
                       it('promises all items as model instances', () => {
-                        return expect(subject()).resolves.toEqual(
-                          results.map(id => new Klass({ id }))
-                        );
+                        return subject().then(instances => {
+                          expect(instances.length).toEqual(results.length);
+                          expect(instances[0] instanceof Klass).toBeTruthy();
+                          expect(instances.map(instance => instance.id))
+                            .toEqual(results);
+                        });
                       });
                     } else {
                       it('promises all matching items as model instances', () => {
-                        return expect(subject()).resolves.toEqual(
-                          results.map(id => new Klass({ id }))
-                        );
+                        return subject().then(instances => {
+                          expect(instances.length).toEqual(results.length);
+                          expect(instances[0] instanceof Klass).toBeTruthy();
+                          expect(instances.map(instance => instance.id))
+                            .toEqual(results);
+                        });
                       });
                     }
                   } else {
