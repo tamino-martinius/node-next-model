@@ -42,16 +42,17 @@ describe('DefaultConnector', () => {
 
     context('with single item prefilled storage', {
       definitions() {
+        id = Faker.randomId(Number.MAX_SAFE_INTEGER);
         storage = {
           [Klass.modelName]: [
-            { id: 1 },
+            { id },
           ],
         };
       },
       tests() {
         it('promises all items as model instances', () => {
           return expect(subject()).resolves.toEqual([
-            new Klass({ id: 1 }),
+            new Klass({ id }),
           ]);
         });
       },
