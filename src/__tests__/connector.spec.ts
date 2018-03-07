@@ -298,4 +298,154 @@ describe('DefaultConnector', () => {
       },
     });
   });
+
+  describe('#updateAll(model, attrs)', () => {
+    let items: () => any[] = () => storage[Klass.modelName];
+    const attrs = {
+      id: 1,
+      foo: 'baz',
+    };
+    const subject = () => {
+      return connector().updateAll(Klass, attrs);
+    }
+
+    context('with single item prefilled storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+
+        storage = singleSeed;
+      },
+      tests() {
+        test('updates item within storage storage', () => {
+          return subject().then(instances => {
+            expect(instances.length).toEqual(1);
+            expect(instances[0] instanceof Klass).toBeTruthy();
+            expect(instances.map(instance => instance.attributes)).toEqual([
+              { id: validId, foo: 'baz' },
+            ]);
+            expect(items()).toEqual([
+              { id: validId, foo: 'baz' },
+            ]);
+          });
+        });
+
+        context('when item is not in storage', {
+          definitions() {
+            class NewKlass extends Klass {
+              static get filter(): Filter<any> {
+                return {
+                  id: invalidId,
+                };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('does not change storage', () => {
+              return subject().then(instances => {
+                expect(instances).toEqual([]);
+                expect(items()).toEqual([
+                  { id: validId },
+                ]);
+              });
+            });
+          },
+        });
+      },
+    });
+
+    context('with multiple items prefilled storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+
+        storage = multiSeed;
+      },
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions() {
+                  class NewKlass extends Klass {
+                    static get filter(): Filter<any> {
+                      return filterSpec.filter;
+                    }
+                  };
+                  Klass = NewKlass;
+                },
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    if (results.length === 0) {
+                      it('does not change storage', () => {
+                        return subject().then(instances => {
+                          expect(instances).toEqual([]);
+                          expect(items()).toEqual([
+                            { id: 1, foo: 'bar' },
+                            { id: 2, foo: null },
+                            { id: 3, foo: 'bar' },
+                          ]);
+                        });
+                      });
+                    } else if (results.length === 3) {
+                      it('changes storage all items', () => {
+                        return subject().then(instances => {
+                          expect(instances.length).toEqual(results.length);
+                          expect(instances[0] instanceof Klass).toBeTruthy();
+                          expect(instances.map(instance => instance.attributes)).toEqual([
+                            { id: 1, foo: 'baz' },
+                            { id: 2, foo: 'baz' },
+                            { id: 3, foo: 'baz' },
+                          ]);
+                          expect(items()).toEqual([
+                            { id: 1, foo: 'baz' },
+                            { id: 2, foo: 'baz' },
+                            { id: 3, foo: 'baz' },
+                          ]);
+                        });
+                      });
+                    } else {
+                      it('changes storage for matching items', () => {
+                        return subject().then(instances => {
+                          expect(instances.length).toEqual(results.length);
+                          expect(instances[0] instanceof Klass).toBeTruthy();
+                          expect(instances.map(instance => instance.attributes))
+                            .toEqual(results.map(id => ({ id, foo: 'baz' })));
+                          expect(items()).toEqual([
+                            { id: 1, foo: results.includes(1) ? 'baz' : 'bar' },
+                            { id: 2, foo: results.includes(2) ? 'baz' : null },
+                            { id: 3, foo: results.includes(3) ? 'baz' : 'bar' },
+                          ]);
+                        });
+                      });
+                    }
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
+  });
 });
