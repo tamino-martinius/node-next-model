@@ -448,4 +448,155 @@ describe('DefaultConnector', () => {
       },
     });
   });
+
+  describe('#deleteAll(model, attrs)', () => {
+    let items: () => any[] = () => storage[Klass.modelName];
+    const subject = () => {
+      return connector().deleteAll(Klass);
+    }
+
+    context('with single item prefilled storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+
+        storage = singleSeed;
+      },
+      tests() {
+        test('updates item within storage storage', () => {
+          return subject().then(instances => {
+            expect(instances.length).toEqual(1);
+            expect(instances[0] instanceof Klass).toBeTruthy();
+            expect(instances.map(instance => instance.attributes)).toEqual([
+              { id: undefined },
+            ]);
+            expect(items()).toEqual([]);
+          });
+        });
+
+        context('when item is not in storage', {
+          definitions() {
+            class NewKlass extends Klass {
+              static get filter(): Filter<any> {
+                return {
+                  id: invalidId,
+                };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            test('does not change storage', () => {
+              return subject().then(instances => {
+                expect(instances).toEqual([]);
+                expect(items()).toEqual([
+                  { id: validId },
+                ]);
+              });
+            });
+          },
+        });
+      },
+    });
+
+    context('with multiple items prefilled storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+
+        storage = multiSeed;
+      },
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions() {
+                  class NewKlass extends Klass {
+                    static get filter(): Filter<any> {
+                      return filterSpec.filter;
+                    }
+                  };
+                  Klass = NewKlass;
+                },
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    if (results.length === 0) {
+                      it('does not change storage', () => {
+                        return subject().then(instances => {
+                          expect(instances).toEqual([]);
+                          expect(items()).toEqual([
+                            { id: 1, foo: 'bar' },
+                            { id: 2, foo: null },
+                            { id: 3, foo: 'bar' },
+                          ]);
+                        });
+                      });
+                    } else if (results.length === 3) {
+                      it('changes storage all items', () => {
+                        return subject().then(instances => {
+                          expect(instances.length).toEqual(results.length);
+                          expect(instances[0] instanceof Klass).toBeTruthy();
+                          expect(instances.map(instance => instance.attributes)).toEqual([
+                            { id: undefined, foo: 'bar' },
+                            { id: undefined, foo: null },
+                            { id: undefined, foo: 'bar' },
+                          ]);
+                          expect(items()).toEqual([]);
+                        });
+                      });
+                    } else {
+                      // it('changes storage for matching items', () => {
+                      //   return subject().then(instances => {
+                      //     expect(instances.length).toEqual(results.length);
+                      //     expect(instances[0] instanceof Klass).toBeTruthy();
+                      //     const leftoverItems = [];
+                      //     const deletedItems = [];
+                      //     [
+                      //       { id: undefined, foo: 'bar' },
+                      //       { id: undefined, foo: null },
+                      //       { id: undefined, foo: 'bar' },
+                      //     ].forEach(item => {
+                      //       if (results.includes(item.id)) {
+                      //         deletedItems.push(item);
+                      //       } else {
+                      //         leftoverItems.push(item);
+                      //       }
+                      //     });
+                      //     expect(instances.map(instance => instance.attributes))
+                      //       .toEqual(deletedItems.map(
+                      //         item => ({ id: undefined, foo: item.foo })
+                      //       ));
+                      //     expect(items()).toEqual(leftoverItems);
+                      //   });
+                      // });
+                    }
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
+  });
 });
