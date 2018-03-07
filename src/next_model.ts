@@ -256,8 +256,9 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     get attributes(): S {
-      const attrs: S = {};
+      const attrs: S = <S>{};
       for (const key in this.model.schema) {
+        // @ts-ignore
         attrs[key] = this[key];
       }
       return attrs;
