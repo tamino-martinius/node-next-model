@@ -109,6 +109,7 @@ export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefin
 export interface ModelStatic<S extends Identifiable> {
   readonly modelName: string;
   readonly lowerModelName: string;
+  readonly identifier: string;
   readonly schema: Schema<S>;
   readonly filter: Filter<S>;
   readonly limit: number;
