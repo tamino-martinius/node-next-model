@@ -235,4 +235,59 @@ describe('DefaultConnector', () => {
       },
     });
   });
+
+  describe('#count(model)', () => {
+    const subject = () => connector().count(Klass);
+
+    it('promises a count of 0', () => {
+      return expect(subject()).resolves.toEqual(0);
+    });
+
+    context('with single item prefilled storage', {
+      definitions() {
+        storage = singleSeed;
+      },
+      tests() {
+        it('promises a count of 1', () => {
+          return expect(subject()).resolves.toEqual(1);
+        });
+      },
+    });
+
+    context('with multiple items prefilled storage', {
+      definitions() {
+        storage = multiSeed;
+      },
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions() {
+                  class NewKlass extends Klass {
+                    static get filter(): Filter<any> {
+                      return filterSpec.filter;
+                    }
+                  };
+                  Klass = NewKlass;
+                },
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    it('promises a count of ' + results.length, () => {
+                      return expect(subject()).resolves.toEqual(results.length);
+                    });
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
+  });
 });
