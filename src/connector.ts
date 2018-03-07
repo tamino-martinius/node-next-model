@@ -268,8 +268,10 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
       const items = this.items(model);
       items.forEach(item => {
         for (const key in params) {
-          // @ts-ignore
-          item[key] = params[key];
+          if (key !== model.identifier) {
+            // @ts-ignore
+            item[key] = params[key];
+          }
         }
       });
       return Promise.resolve(items.map(item => new model(item)));
@@ -349,7 +351,9 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
         if (item.id === instance.id) {
           const attrs = instance.attributes;
           for (const key in attrs) {
-            item[key] = attrs[key];
+            if (key !== model.identifier) {
+              item[key] = attrs[key];
+            }
           }
           return Promise.resolve(instance);
         }
