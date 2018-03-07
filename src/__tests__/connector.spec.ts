@@ -165,8 +165,8 @@ const filterSpecGroups: FilterSpecGroup = {
 };
 
 describe('DefaultConnector', () => {
-  describe('#all(model)', () => {
-    const subject = () => connector().all(Klass);
+  describe('#query(model)', () => {
+    const subject = () => connector().query(Klass);
 
     it('promises empty array', () => {
       return expect(subject()).resolves.toEqual([]);
@@ -174,11 +174,7 @@ describe('DefaultConnector', () => {
 
     context('with single item prefilled storage', {
       definitions() {
-        storage = {
-          [Klass.modelName]: [
-            { id: anyId },
-          ],
-        };
+        storage = singleSeed;
       },
       tests() {
         it('promises all items as model instances', () => {
@@ -191,13 +187,7 @@ describe('DefaultConnector', () => {
 
     context('with multiple items prefilled storage', {
       definitions() {
-        storage = {
-          [Klass.modelName]: [
-            { id: 1, foo: 'bar' },
-            { id: 2, foo: null},
-            { id: 3, foo: 'bar' },
-          ],
-        };
+        storage = multiSeed;
       },
       tests() {
         for (const groupName in filterSpecGroups) {
@@ -234,7 +224,7 @@ describe('DefaultConnector', () => {
                     }
                   } else {
                     it('rejects filter and returns error', () => {
-                      return expect(subject()).rejects.toEqual(filterSpec.results);
+                      return expect(subject()).rejects.toEqual(results);
                     });
                   }
                 },
