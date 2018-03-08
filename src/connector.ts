@@ -9,6 +9,7 @@ import {
   FilterCompare,
   FilterRaw,
   FilterSpecial,
+  Bindings,
 } from './types';
 
 export interface Storage {
@@ -23,10 +24,11 @@ export interface ConnectorConstructor<S extends Identifiable> {
   count(model: ModelStatic<S>): Promise<number>;
   updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
   deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-  reload(model: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
-  create(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  update(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  delete(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
+  create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  execute(query: string, bindings: Bindings): Promise<any[]>;
 };
 
 export class Connector<S extends Identifiable> implements ConnectorConstructor<S> {
@@ -364,5 +366,9 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     } catch (e) {
       return Promise.reject(e);
     }
+  }
+
+  execute(_query: string, _bindings: Bindings): Promise<any[]> {
+    return Promise.reject('[TODO] Not yet implemented');
   }
 }
