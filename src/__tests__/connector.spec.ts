@@ -637,6 +637,40 @@ describe('DefaultConnector', () => {
       },
     });
   });
+
+
+  describe('#create(instance)', () => {
+    const attrs = {
+      foo: 'baz',
+    };
+    let instance: ModelConstructor<any>;
+    const subject = () => {
+      return connector().create(instance);
+    }
+
+    context('with empty storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+        instance = new Klass(attrs);
+        storage = emptySeed;
+      },
+      tests() {
+        test('creates new instance', async () => {
+          expect(items()).toEqual([]);
+          const instace = await subject();
+          expect(instance instanceof Klass).toBeTruthy();
+          expect(items().length).toEqual(1);
+          const id = items()[0].id;
+          expect(items()).toEqual([{ id: id, foo: 'baz' }]);
+          expect(instance.attributes).toEqual({ id: id, foo: 'baz' });
         });
       },
     });
