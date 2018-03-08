@@ -270,7 +270,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
         for (const key in attrs) {
           if (key !== model.identifier) {
             // @ts-ignore
-            item[key] = params[key];
+            item[key] = attrs[key];
           }
         }
       });
