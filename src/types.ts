@@ -18,6 +18,8 @@ export interface Range<T> {
   to: T;
 };
 
+export type Bindings = BaseType[] | { [key: string]: BaseType }
+
 export type FilterProperty<S extends Identifiable> = Partial<S>;
 export type FilterIn<S extends Identifiable> = {
   [K in keyof S]: Array<S[K]>;
@@ -30,7 +32,7 @@ export type FilterCompare<S extends Identifiable> = {
 };
 
 export interface FilterRaw {
-  $bindings: BaseType[] | { [key: string]: BaseType };
+  $bindings: Bindings;
   $query: string;
 };
 
