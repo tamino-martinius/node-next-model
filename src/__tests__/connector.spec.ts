@@ -7,6 +7,7 @@ import {
   FilterProperty,
   Filter,
   Identifiable,
+  ModelConstructor,
 } from '../types';
 
 import {
@@ -449,7 +450,7 @@ describe('DefaultConnector', () => {
     });
   });
 
-  describe('#deleteAll(model, attrs)', () => {
+  describe('#deleteAll(model)', () => {
     let items: () => any[] = () => storage[Klass.modelName];
     const subject = () => {
       return connector().deleteAll(Klass);
@@ -596,6 +597,56 @@ describe('DefaultConnector', () => {
             });
           });
         }
+      },
+    });
+  });
+
+  describe('#reload(instance)', () => {
+    const attrs = {
+      id: 1,
+      foo: 'baz',
+    };
+    let instance: ModelConstructor<any>;
+    const subject = () => {
+      return connector().reload(instance);
+    }
+
+    context('item in storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+        instance = new Klass(attrs);
+
+        storage = multiSeed;
+      },
+      tests() {
+        test('promises new instance from database', () => {
+          expect(instance.attributes).toEqual(attrs);
+          return subject().then(instance => {
+            expect(instance instanceof Klass).toBeTruthy();
+            expect(instance.attributes).toEqual({ id: 1, foo: 'bar' });
+          });
+        });
+      },
+    });
+
+    context('item not in storage', {
+      definitions() {
+        instance = new Klass(attrs);
+      },
+      tests() {
+        test('promises new instance from database', () => {
+          return subject().then(instance => {
+            expect(instance).toBeUndefined();
+          });
+        });
       },
     });
   });
