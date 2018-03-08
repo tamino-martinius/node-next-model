@@ -29,14 +29,18 @@ let Klass: typeof Model;
 let validId: number = Faker.randomId(3);
 let invalidId: number = Faker.randomNumber(4, Number.MAX_SAFE_INTEGER);
 let anyId: number = Faker.randomNumber(1, Number.MAX_SAFE_INTEGER);
+let emptySeed: Storage;
 let singleSeed: Storage;
 let multiSeed: Storage;
 
 let connector = () => new Connector(storage);
-
+let items: () => any[] = () => storage[Klass.modelName];
 
 beforeEach(() => {
   Klass = Faker.model;
+  emptySeed = {
+    [Klass.modelName]: [],
+  };
   singleSeed = {
     [Klass.modelName]: [
       { id: validId },
@@ -301,7 +305,6 @@ describe('DefaultConnector', () => {
   });
 
   describe('#updateAll(model, attrs)', () => {
-    let items: () => any[] = () => storage[Klass.modelName];
     const attrs = {
       id: 1,
       foo: 'baz',
@@ -451,7 +454,6 @@ describe('DefaultConnector', () => {
   });
 
   describe('#deleteAll(model)', () => {
-    let items: () => any[] = () => storage[Klass.modelName];
     const subject = () => {
       return connector().deleteAll(Klass);
     }
