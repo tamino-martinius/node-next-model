@@ -182,12 +182,11 @@ describe('DefaultConnector', () => {
         storage = singleSeed;
       },
       tests() {
-        it('promises all items as model instances', () => {
-          return subject().then(instances => {
-            expect(instances.length).toEqual(1);
-            expect(instances[0] instanceof Klass).toBeTruthy();
-            expect(instances[0].attributes).toEqual({ id: validId });
-          });
+        it('promises all items as model instances', async () => {
+          const instances = await subject()
+          expect(instances.length).toEqual(1);
+          expect(instances[0] instanceof Klass).toBeTruthy();
+          expect(instances[0].attributes).toEqual({ id: validId });
         });
       },
     });
@@ -217,22 +216,20 @@ describe('DefaultConnector', () => {
                         return expect(subject()).resolves.toEqual([]);
                       });
                     } else if (results.length === 3) {
-                      it('promises all items as model instances', () => {
-                        return subject().then(instances => {
-                          expect(instances.length).toEqual(results.length);
-                          expect(instances[0] instanceof Klass).toBeTruthy();
-                          expect(instances.map(instance => instance.id))
-                            .toEqual(results);
-                        });
+                      it('promises all items as model instances', async () => {
+                        const instances = await subject();
+                        expect(instances.length).toEqual(results.length);
+                        expect(instances[0] instanceof Klass).toBeTruthy();
+                        expect(instances.map(instance => instance.id))
+                          .toEqual(results);
                       });
                     } else {
-                      it('promises all matching items as model instances', () => {
-                        return subject().then(instances => {
-                          expect(instances.length).toEqual(results.length);
-                          expect(instances[0] instanceof Klass).toBeTruthy();
-                          expect(instances.map(instance => instance.id))
-                            .toEqual(results);
-                        });
+                      it('promises all matching items as model instances', async () => {
+                        const instances = await subject();
+                        expect(instances.length).toEqual(results.length);
+                        expect(instances[0] instanceof Klass).toBeTruthy();
+                        expect(instances.map(instance => instance.id))
+                          .toEqual(results);
                       });
                     }
                   } else {
@@ -328,17 +325,16 @@ describe('DefaultConnector', () => {
         storage = singleSeed;
       },
       tests() {
-        test('updates item within storage storage', () => {
-          return subject().then(instances => {
-            expect(instances.length).toEqual(1);
-            expect(instances[0] instanceof Klass).toBeTruthy();
-            expect(instances.map(instance => instance.attributes)).toEqual([
-              { id: validId, foo: 'baz' },
-            ]);
-            expect(items()).toEqual([
-              { id: validId, foo: 'baz' },
-            ]);
-          });
+        test('updates item within storage storage', async () => {
+          const instances = await subject();
+          expect(instances.length).toEqual(1);
+          expect(instances[0] instanceof Klass).toBeTruthy();
+          expect(instances.map(instance => instance.attributes)).toEqual([
+            { id: validId, foo: 'baz' },
+          ]);
+          expect(items()).toEqual([
+            { id: validId, foo: 'baz' },
+          ]);
         });
 
         context('when item is not in storage', {
@@ -353,13 +349,12 @@ describe('DefaultConnector', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('does not change storage', () => {
-              return subject().then(instances => {
-                expect(instances).toEqual([]);
-                expect(items()).toEqual([
-                  { id: validId },
-                ]);
-              });
+            test('does not change storage', async () => {
+              const instances = await subject();
+              expect(instances).toEqual([]);
+              expect(items()).toEqual([
+                { id: validId },
+              ]);
             });
           },
         });
@@ -397,46 +392,43 @@ describe('DefaultConnector', () => {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
                     if (results.length === 0) {
-                      it('does not change storage', () => {
-                        return subject().then(instances => {
-                          expect(instances).toEqual([]);
-                          expect(items()).toEqual([
-                            { id: 1, foo: 'bar' },
-                            { id: 2, foo: null },
-                            { id: 3, foo: 'bar' },
-                          ]);
-                        });
+                      it('does not change storage', async () => {
+                        const instances = await subject();
+                        expect(instances).toEqual([]);
+                        expect(items()).toEqual([
+                          { id: 1, foo: 'bar' },
+                          { id: 2, foo: null },
+                          { id: 3, foo: 'bar' },
+                        ]);
                       });
                     } else if (results.length === 3) {
-                      it('changes storage all items', () => {
-                        return subject().then(instances => {
-                          expect(instances.length).toEqual(results.length);
-                          expect(instances[0] instanceof Klass).toBeTruthy();
-                          expect(instances.map(instance => instance.attributes)).toEqual([
-                            { id: 1, foo: 'baz' },
-                            { id: 2, foo: 'baz' },
-                            { id: 3, foo: 'baz' },
-                          ]);
-                          expect(items()).toEqual([
-                            { id: 1, foo: 'baz' },
-                            { id: 2, foo: 'baz' },
-                            { id: 3, foo: 'baz' },
-                          ]);
-                        });
+                      it('changes storage all items', async () => {
+                        const instances = await subject();
+                        expect(instances.length).toEqual(results.length);
+                        expect(instances[0] instanceof Klass).toBeTruthy();
+                        expect(instances.map(instance => instance.attributes)).toEqual([
+                          { id: 1, foo: 'baz' },
+                          { id: 2, foo: 'baz' },
+                          { id: 3, foo: 'baz' },
+                        ]);
+                        expect(items()).toEqual([
+                          { id: 1, foo: 'baz' },
+                          { id: 2, foo: 'baz' },
+                          { id: 3, foo: 'baz' },
+                        ]);
                       });
                     } else {
-                      it('changes storage for matching items', () => {
-                        return subject().then(instances => {
-                          expect(instances.length).toEqual(results.length);
-                          expect(instances[0] instanceof Klass).toBeTruthy();
-                          expect(instances.map(instance => instance.attributes))
-                            .toEqual(results.map(id => ({ id, foo: 'baz' })));
-                          expect(items()).toEqual([
-                            { id: 1, foo: results.includes(1) ? 'baz' : 'bar' },
-                            { id: 2, foo: results.includes(2) ? 'baz' : null },
-                            { id: 3, foo: results.includes(3) ? 'baz' : 'bar' },
-                          ]);
-                        });
+                      it('changes storage for matching items', async () => {
+                        const instances = await subject();
+                        expect(instances.length).toEqual(results.length);
+                        expect(instances[0] instanceof Klass).toBeTruthy();
+                        expect(instances.map(instance => instance.attributes))
+                          .toEqual(results.map(id => ({ id, foo: 'baz' })));
+                        expect(items()).toEqual([
+                          { id: 1, foo: results.includes(1) ? 'baz' : 'bar' },
+                          { id: 2, foo: results.includes(2) ? 'baz' : null },
+                          { id: 3, foo: results.includes(3) ? 'baz' : 'bar' },
+                        ]);
                       });
                     }
                   } else {
@@ -473,15 +465,14 @@ describe('DefaultConnector', () => {
         storage = singleSeed;
       },
       tests() {
-        test('updates item within storage storage', () => {
-          return subject().then(instances => {
-            expect(instances.length).toEqual(1);
-            expect(instances[0] instanceof Klass).toBeTruthy();
-            expect(instances.map(instance => instance.attributes)).toEqual([
-              { id: undefined },
-            ]);
-            expect(items()).toEqual([]);
-          });
+        test('updates item within storage storage', async () => {
+          const instances = await subject();
+          expect(instances.length).toEqual(1);
+          expect(instances[0] instanceof Klass).toBeTruthy();
+          expect(instances.map(instance => instance.attributes)).toEqual([
+            { id: undefined },
+          ]);
+          expect(items()).toEqual([]);
         });
 
         context('when item is not in storage', {
@@ -496,13 +487,12 @@ describe('DefaultConnector', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('does not change storage', () => {
-              return subject().then(instances => {
-                expect(instances).toEqual([]);
-                expect(items()).toEqual([
-                  { id: validId },
-                ]);
-              });
+            test('does not change storage', async () => {
+              const instances = await subject();
+              expect(instances).toEqual([]);
+              expect(items()).toEqual([
+                { id: validId },
+              ]);
             });
           },
         });
@@ -540,53 +530,50 @@ describe('DefaultConnector', () => {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
                     if (results.length === 0) {
-                      it('does not change storage', () => {
-                        return subject().then(instances => {
-                          expect(instances).toEqual([]);
-                          expect(items()).toEqual([
-                            { id: 1, foo: 'bar' },
-                            { id: 2, foo: null },
-                            { id: 3, foo: 'bar' },
-                          ]);
-                        });
+                      it('does not change storage', async () => {
+                        const instances = await subject();
+                        expect(instances).toEqual([]);
+                        expect(items()).toEqual([
+                          { id: 1, foo: 'bar' },
+                          { id: 2, foo: null },
+                          { id: 3, foo: 'bar' },
+                        ]);
                       });
                     } else if (results.length === 3) {
-                      it('changes storage all items', () => {
-                        return subject().then(instances => {
-                          expect(instances.length).toEqual(results.length);
-                          expect(instances[0] instanceof Klass).toBeTruthy();
-                          expect(instances.map(instance => instance.attributes)).toEqual([
-                            { id: undefined, foo: 'bar' },
-                            { id: undefined, foo: null },
-                            { id: undefined, foo: 'bar' },
-                          ]);
-                          expect(items()).toEqual([]);
-                        });
+                      it('changes storage all items', async () => {
+                        const instances = await subject();
+                        expect(instances.length).toEqual(results.length);
+                        expect(instances[0] instanceof Klass).toBeTruthy();
+                        expect(instances.map(instance => instance.attributes)).toEqual([
+                          { id: undefined, foo: 'bar' },
+                          { id: undefined, foo: null },
+                          { id: undefined, foo: 'bar' },
+                        ]);
+                        expect(items()).toEqual([]);
                       });
                     } else {
-                      it('changes storage for matching items', () => {
-                        return subject().then(instances => {
-                          expect(instances.length).toEqual(results.length);
-                          expect(instances[0] instanceof Klass).toBeTruthy();
-                          const leftoverItems = [];
-                          const deletedItems = [];
-                          [
-                            { id: 1, foo: 'bar' },
-                            { id: 2, foo: null },
-                            { id: 3, foo: 'bar' },
-                          ].forEach(item => {
-                            if (results.includes(item.id)) {
-                              deletedItems.push(item);
-                            } else {
-                              leftoverItems.push(item);
-                            }
-                          });
-                          expect(instances.map(instance => instance.attributes))
-                            .toEqual(deletedItems.map(
-                              item => ({ id: undefined, foo: item.foo })
-                            ));
-                          expect(items()).toEqual(leftoverItems);
+                      it('changes storage for matching items', async () => {
+                        const instances = await subject();
+                        expect(instances.length).toEqual(results.length);
+                        expect(instances[0] instanceof Klass).toBeTruthy();
+                        const leftoverItems = [];
+                        const deletedItems = [];
+                        [
+                          { id: 1, foo: 'bar' },
+                          { id: 2, foo: null },
+                          { id: 3, foo: 'bar' },
+                        ].forEach(item => {
+                          if (results.includes(item.id)) {
+                            deletedItems.push(item);
+                          } else {
+                            leftoverItems.push(item);
+                          }
                         });
+                        expect(instances.map(instance => instance.attributes))
+                          .toEqual(deletedItems.map(
+                            item => ({ id: undefined, foo: item.foo })
+                          ));
+                        expect(items()).toEqual(leftoverItems);
                       });
                     }
                   } else {
@@ -629,12 +616,11 @@ describe('DefaultConnector', () => {
         storage = multiSeed;
       },
       tests() {
-        test('promises new instance from database', () => {
+        test('promises new instance from database', async () => {
           expect(instance.attributes).toEqual(attrs);
-          return subject().then(instance => {
-            expect(instance instanceof Klass).toBeTruthy();
-            expect(instance.attributes).toEqual({ id: 1, foo: 'bar' });
-          });
+          instance = await subject();
+          expect(instance instanceof Klass).toBeTruthy();
+          expect(instance.attributes).toEqual({ id: 1, foo: 'bar' });
         });
       },
     });
@@ -644,10 +630,13 @@ describe('DefaultConnector', () => {
         instance = new Klass(attrs);
       },
       tests() {
-        test('promises new instance from database', () => {
-          return subject().then(instance => {
-            expect(instance).toBeUndefined();
-          });
+        test('promises new instance from database', async () => {
+          instance = await subject();
+          expect(instance).toBeUndefined();
+        });
+      },
+    });
+  });
         });
       },
     });
