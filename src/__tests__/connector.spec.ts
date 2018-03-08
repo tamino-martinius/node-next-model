@@ -561,30 +561,30 @@ describe('DefaultConnector', () => {
                         });
                       });
                     } else {
-                      // it('changes storage for matching items', () => {
-                      //   return subject().then(instances => {
-                      //     expect(instances.length).toEqual(results.length);
-                      //     expect(instances[0] instanceof Klass).toBeTruthy();
-                      //     const leftoverItems = [];
-                      //     const deletedItems = [];
-                      //     [
-                      //       { id: undefined, foo: 'bar' },
-                      //       { id: undefined, foo: null },
-                      //       { id: undefined, foo: 'bar' },
-                      //     ].forEach(item => {
-                      //       if (results.includes(item.id)) {
-                      //         deletedItems.push(item);
-                      //       } else {
-                      //         leftoverItems.push(item);
-                      //       }
-                      //     });
-                      //     expect(instances.map(instance => instance.attributes))
-                      //       .toEqual(deletedItems.map(
-                      //         item => ({ id: undefined, foo: item.foo })
-                      //       ));
-                      //     expect(items()).toEqual(leftoverItems);
-                      //   });
-                      // });
+                      it('changes storage for matching items', () => {
+                        return subject().then(instances => {
+                          expect(instances.length).toEqual(results.length);
+                          expect(instances[0] instanceof Klass).toBeTruthy();
+                          const leftoverItems = [];
+                          const deletedItems = [];
+                          [
+                            { id: 1, foo: 'bar' },
+                            { id: 2, foo: null },
+                            { id: 3, foo: 'bar' },
+                          ].forEach(item => {
+                            if (results.includes(item.id)) {
+                              deletedItems.push(item);
+                            } else {
+                              leftoverItems.push(item);
+                            }
+                          });
+                          expect(instances.map(instance => instance.attributes))
+                            .toEqual(deletedItems.map(
+                              item => ({ id: undefined, foo: item.foo })
+                            ));
+                          expect(items()).toEqual(leftoverItems);
+                        });
+                      });
                     }
                   } else {
                     it('rejects filter and returns error', () => {
