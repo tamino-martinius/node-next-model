@@ -21,7 +21,7 @@ let uuid: number = 0;
 export interface ConnectorConstructor<S extends Identifiable> {
   query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
   count(model: ModelStatic<S>): Promise<number>;
-  updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]>;
+  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
   deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
   reload(model: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
   create(model: ModelConstructor<S>): Promise<ModelConstructor<S>>;
@@ -263,11 +263,11 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  updateAll(model: ModelStatic<S>, params: Partial<S>): Promise<ModelConstructor<S>[]> {
+  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]> {
     try {
       const items = this.items(model);
       items.forEach(item => {
-        for (const key in params) {
+        for (const key in attrs) {
           if (key !== model.identifier) {
             // @ts-ignore
             item[key] = params[key];
