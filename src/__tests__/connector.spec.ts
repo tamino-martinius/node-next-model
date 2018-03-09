@@ -169,7 +169,7 @@ const filterSpecGroups: FilterSpecGroup = {
   ],
 };
 
-describe('DefaultConnector', () => {
+describe('Connector', () => {
   describe('#query(model)', () => {
     const subject = () => connector().query(Klass);
 
@@ -425,9 +425,9 @@ describe('DefaultConnector', () => {
                         expect(instances.map(instance => instance.attributes))
                           .toEqual(results.map(id => ({ id, foo: 'baz' })));
                         expect(items()).toEqual([
-                          { id: 1, foo: results.includes(1) ? 'baz' : 'bar' },
-                          { id: 2, foo: results.includes(2) ? 'baz' : null },
-                          { id: 3, foo: results.includes(3) ? 'baz' : 'bar' },
+                          { id: 1, foo: results.indexOf(1) >= 0 ? 'baz' : 'bar' },
+                          { id: 2, foo: results.indexOf(2) >= 0 ? 'baz' : null },
+                          { id: 3, foo: results.indexOf(3) >= 0 ? 'baz' : 'bar' },
                         ]);
                       });
                     }
@@ -563,7 +563,7 @@ describe('DefaultConnector', () => {
                           { id: 2, foo: null },
                           { id: 3, foo: 'bar' },
                         ].forEach(item => {
-                          if (results.includes(item.id)) {
+                          if (results.indexOf(item.id) >= 0) {
                             deletedItems.push(item);
                           } else {
                             leftoverItems.push(item);
