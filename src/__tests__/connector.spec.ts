@@ -731,4 +731,41 @@ describe('Connector', () => {
       },
     });
   });
+
+
+  describe('#delete(instance)', () => {
+    let instance: ModelConstructor<any>;
+    const subject = () => {
+      return connector().delete(instance);
+    }
+
+    context('with item in storage', {
+      definitions() {
+        instance = new Klass({id: validId});
+        storage = multiSeed;
+      },
+      tests() {
+        test('updates item in storage', async () => {
+          const instace = await subject();
+          expect(instance instanceof Klass).toBeTruthy();
+          expect(instance.id).toBeUndefined();
+          expect(items().length).toEqual(2);
+          expect(items().map(item => item.id))
+            .toEqual([1, 2, 3].filter(id => id !== validId));
+        });
+      },
+    });
+
+    context('with item missing in storage', {
+      definitions() {
+        instance = new Klass({id: validId});
+        storage = emptySeed;
+      },
+      tests() {
+        test('rejects update with error', () => {
+          return expect(subject()).rejects.toEqual('[TODO] Cant find error');
+        });
+      },
+    });
+  });
 });
