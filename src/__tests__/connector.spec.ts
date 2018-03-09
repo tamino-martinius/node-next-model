@@ -638,7 +638,6 @@ describe('Connector', () => {
     });
   });
 
-
   describe('#create(instance)', () => {
     const attrs = {
       foo: 'baz',
@@ -671,6 +670,63 @@ describe('Connector', () => {
           const id = items()[0].id;
           expect(items()).toEqual([{ id: id, foo: 'baz' }]);
           expect(instance.attributes).toEqual({ id: id, foo: 'baz' });
+        });
+      },
+    });
+  });
+
+  describe('#update(instance)', () => {
+    const attrs = {
+      id: validId,
+      foo: 'baz',
+    };
+    let instance: ModelConstructor<any>;
+    const subject = () => {
+      return connector().update(instance);
+    }
+
+    context('with item in storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+        instance = new Klass(attrs);
+        storage = singleSeed;
+      },
+      tests() {
+        test('updates item in storage', async () => {
+          expect(items()).toEqual([{id: validId}]);
+          const instace = await subject();
+          expect(instance instanceof Klass).toBeTruthy();
+          expect(items()).toEqual([{ id: validId, foo: 'baz' }]);
+          expect(instance.attributes).toEqual({ id: validId, foo: 'baz' });
+        });
+      },
+    });
+
+    context('with item missing in storage', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get schema(): Schema<any> {
+            return {
+              id: { type: 'number' },
+              foo: { type: 'string' },
+            };
+          }
+        };
+        Klass = NewKlass;
+        instance = new Klass(attrs);
+        storage = emptySeed;
+      },
+      tests() {
+        test('rejects update with error', () => {
+          return expect(subject()).rejects.toEqual('[TODO] Cant find error');
         });
       },
     });
