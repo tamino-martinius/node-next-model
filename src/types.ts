@@ -108,6 +108,22 @@ export type FindBy<S extends Identifiable> = {
 
 export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
 
+export interface Storage {
+  [key: string]: any[],
+};
+
+export interface ConnectorConstructor<S extends Identifiable> {
+  query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
+  count(model: ModelStatic<S>): Promise<number>;
+  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
+  deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
+  reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
+  create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
+  execute(query: string, bindings: Bindings): Promise<any[]>;
+};
+
 export interface ModelStatic<S extends Identifiable> {
   readonly modelName: string;
   readonly lowerModelName: string;

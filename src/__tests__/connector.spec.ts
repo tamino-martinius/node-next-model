@@ -8,10 +8,10 @@ import {
   Filter,
   Identifiable,
   ModelConstructor,
+  Storage,
 } from '../types';
 
 import {
-  Storage,
   Connector,
 } from '../connector';
 

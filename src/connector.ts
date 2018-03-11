@@ -10,26 +10,12 @@ import {
   FilterRaw,
   FilterSpecial,
   Bindings,
+  Storage,
+  ConnectorConstructor,
 } from './types';
-
-export interface Storage {
-  [key: string]: any[],
-}
 
 const globalStorage: Storage = {};
 let uuid: number = 0;
-
-export interface ConnectorConstructor<S extends Identifiable> {
-  query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-  count(model: ModelStatic<S>): Promise<number>;
-  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
-  deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-  reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
-  create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-  execute(query: string, bindings: Bindings): Promise<any[]>;
-};
 
 export class Connector<S extends Identifiable> implements ConnectorConstructor<S> {
   private storage: Storage;
