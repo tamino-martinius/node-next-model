@@ -339,6 +339,11 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       }
       return attrs;
     }
+
+    get isNew(): boolean {
+      return this.id === undefined || this.id === null;
+    }
+
   };
 
   return Model;
