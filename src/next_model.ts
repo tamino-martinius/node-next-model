@@ -373,6 +373,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('revertChanges');
     }
 
+    save(): Promise<Model> {
+      if (this.isNew) {
+        return <Promise<Model>>this.model.connector.create(this);
+      } else {
+        return <Promise<Model>>this.model.connector.update(this);
+      }
+    }
+
   };
 
   return Model;

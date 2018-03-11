@@ -192,4 +192,5 @@ export interface ModelConstructor<S extends Identifiable> {
   revertChange(key: keyof S): ModelConstructor<S>;
   revertChanges(): ModelConstructor<S>;
 
+  save(): Promise<ModelConstructor<S>>;
 };
