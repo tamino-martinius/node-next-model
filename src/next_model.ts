@@ -269,6 +269,22 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return <Promise<Model[]>>this.connector.deleteAll(this);
     }
 
+    static async inBatchesOf(amount: number): Promise<Promise<Model[]>[]> {
+      const count = await this.count;
+      const batchCount = Math.ceil(count / amount);
+      if (batchCount > 0 && batchCount < Number.MAX_SAFE_INTEGER) {
+        const subqueries: Promise<Model[]>[] = [];
+        for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+          const skip = this.skip + batchIndex * amount;
+          const limit = batchIndex !== batchCount - 1 ? amount : batchCount * amount - count;
+          subqueries.push(this.skipBy(skip).limitBy(limit).all);
+        }
+        return subqueries;
+      } else {
+        return [];
+      }
+    }
+
     static get first(): Promise<Model | undefined> {
       return Promise.resolve(new Model({}));
     }
