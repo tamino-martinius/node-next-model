@@ -344,6 +344,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.id === undefined || this.id === null;
     }
 
+    get isPersistent(): boolean {
+      return !this.isNew;
+    }
+
   };
 
   return Model;
