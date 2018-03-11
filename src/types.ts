@@ -190,4 +190,6 @@ export interface ModelConstructor<S extends Identifiable> {
 
   assign(attrs: Partial<S>): ModelConstructor<S>;
   revertChange(key: keyof S): ModelConstructor<S>;
+  revertChanges(): ModelConstructor<S>;
+
 };

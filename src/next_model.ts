@@ -369,6 +369,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('revertChange');
     }
 
+    revertChanges(): Model {
+      throw new PropertyNotDefinedError('revertChanges');
+    }
+
   };
 
   return Model;
