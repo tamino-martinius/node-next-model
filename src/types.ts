@@ -194,4 +194,5 @@ export interface ModelConstructor<S extends Identifiable> {
 
   save(): Promise<ModelConstructor<S>>;
   delete(): Promise<ModelConstructor<S>>;
+  reload(): Promise<ModelConstructor<S> | undefined>;
 };

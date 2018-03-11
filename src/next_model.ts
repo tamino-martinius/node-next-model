@@ -384,6 +384,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     delete(): Promise<Model> {
       return <Promise<Model>>this.model.connector.delete(this);
     }
+
+    reload(): Promise<Model | undefined> {
+      return <Promise<Model>>this.model.connector.reload(this);
+    }
   };
 
   return Model;
