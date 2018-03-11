@@ -260,6 +260,11 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     static get all(): Promise<Model[]> {
       return <Promise<Model[]>>this.connector.query(this);
     }
+
+    static updateAll(attrs: Partial<S>): Promise<Model[]> {
+      return <Promise<Model[]>>this.connector.updateAll(this, attrs);
+    }
+
     static get first(): Promise<Model | undefined> {
       return Promise.resolve(new Model({}));
     }
