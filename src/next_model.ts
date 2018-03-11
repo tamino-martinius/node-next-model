@@ -357,6 +357,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('changes');
     }
 
+    assign(attrs: Partial<S>): Model {
+      for (const key in attrs) {
+        // @ts-ignore
+        this[key] = attrs[key];
+      }
+      return this;
+    }
+
   };
 
   return Model;

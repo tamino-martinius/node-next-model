@@ -187,4 +187,6 @@ export interface ModelConstructor<S extends Identifiable> {
   readonly isPersistent: boolean;
   readonly isChanged: boolean;
   readonly changes: Changes<S>;
+
+  assign(attrs: Partial<S>): ModelConstructor<S>;
 };
