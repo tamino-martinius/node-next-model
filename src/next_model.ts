@@ -265,6 +265,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return <Promise<Model[]>>this.connector.updateAll(this, attrs);
     }
 
+    static deleteAll(): Promise<Model[]> {
+      return <Promise<Model[]>>this.connector.deleteAll(this);
+    }
+
     static get first(): Promise<Model | undefined> {
       return Promise.resolve(new Model({}));
     }
