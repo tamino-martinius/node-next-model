@@ -175,6 +175,7 @@ export interface ModelStatic<S extends Identifiable> {
 
   new(attrs: Partial<S> | undefined): ModelConstructor<S>;
   build(attrs: Partial<S> | undefined): ModelConstructor<S>;
+  create(attrs: Partial<S> | undefined): Promise<ModelConstructor<S>>;
   // prototype: S;
 }
 

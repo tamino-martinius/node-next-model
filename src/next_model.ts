@@ -323,6 +323,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return new this(attrs);
     }
 
+    static create(attrs: Partial<S> | undefined): Promise<Model> {
+      return new this(attrs).save();
+    }
+
     get model(): typeof Model {
       return <typeof Model>this.constructor;
     }
