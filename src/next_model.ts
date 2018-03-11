@@ -348,6 +348,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return !this.isNew;
     }
 
+    get isChanged(): boolean {
+      throw new PropertyNotDefinedError('isChanged');
+    }
+
   };
 
   return Model;
