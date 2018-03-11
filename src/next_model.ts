@@ -128,6 +128,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.DEFAULT_SKIP;
     }
 
+    static get keys(): (keyof S)[] {
+      const keys: (keyof S)[] = [];
+      for (const key in this.strictSchema) {
+        keys.push(key);
+      }
+      return keys;
+    }
+
     static get belongsTo(): BelongsTo {
       return {};
     }
