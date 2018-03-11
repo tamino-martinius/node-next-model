@@ -145,11 +145,12 @@ export interface ModelStatic<S extends Identifiable> {
   readonly skip: number;
   readonly keys: (keyof S)[]
   // order
-  
+
   readonly belongsTo: BelongsTo;
   readonly hasOne: HasOne;
   readonly hasMany: HasMany;
-
+  readonly validators: Validator<S>[];
+  
   readonly strictSchema: StrictSchema<S>;
   readonly strictFilter: Filter<S>;
   readonly strictBelongsTo: StrictBelongsTo;

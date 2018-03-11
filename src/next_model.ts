@@ -14,6 +14,7 @@ import {
   HasMany,
   Identifiable,
   ConnectorConstructor,
+  Validator,
 } from './types';
 
 import {
@@ -101,23 +102,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('schema');
     }
 
-    static get strictSchema(): StrictSchema<S> {
-      const schema = <StrictSchema<S>>this.schema;
-
-      for (const key in schema) {
-        if (!('defaultValue' in schema[key])) {
-          schema[key].defaultValue = undefined;
-        }
-      }
-      return schema;
-    }
-
     static get filter(): Filter<S> {
       return {};
-    }
-
-    static get strictFilter(): Filter<S> {
-      return this.filter || {};
     }
 
     static get limit(): number {
@@ -136,8 +122,37 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return keys;
     }
 
+
     static get belongsTo(): BelongsTo {
       return {};
+    }
+
+    static get hasOne(): HasOne {
+      return {};
+    }
+
+    static get hasMany(): HasMany {
+      return {};
+    }
+
+    static get validators(): Validator<S>[] {
+      return [];
+    }
+
+
+    static get strictSchema(): StrictSchema<S> {
+      const schema = <StrictSchema<S>>this.schema;
+
+      for (const key in schema) {
+        if (!('defaultValue' in schema[key])) {
+          schema[key].defaultValue = undefined;
+        }
+      }
+      return schema;
+    }
+
+    static get strictFilter(): Filter<S> {
+      return this.filter || {};
     }
 
     static get strictBelongsTo(): StrictBelongsTo {
@@ -154,10 +169,6 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return belongsTo;
     }
 
-    static get hasOne(): HasOne {
-      return {};
-    }
-
     static get strictHasOne(): StrictHasOne {
       const hasOne: StrictHasOne = {};
       for (const name in this.hasOne) {
@@ -169,10 +180,6 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
         };
       }
       return hasOne;
-    }
-
-    static get hasMany(): HasMany {
-      return {};
     }
 
     static get strictHasMany(): StrictHasMany {
@@ -187,6 +194,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       }
       return hasMany;
     }
+
 
     static limitBy(amount: number): typeof Model {
       // [TODO] Validate input (!NaN && x >= 0  && x < Infinity)
