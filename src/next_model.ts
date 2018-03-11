@@ -13,7 +13,12 @@ import {
   HasOne,
   HasMany,
   Identifiable,
+  ConnectorConstructor,
 } from './types';
+
+import {
+  Connector,
+} from './connector'
 
 import {
 } from './util'
@@ -82,6 +87,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     static get lowerModelName(): string {
       const name = this.modelName;
       return name.substr(0, 1).toLowerCase() + name.substr(1);
+    }
+
+    static get collectionName(): string | undefined {
+      return undefined;
+    }
+
+    static get connector(): ConnectorConstructor<S> {
+      return new Connector<S>();
     }
 
     static get schema(): Schema<S> {

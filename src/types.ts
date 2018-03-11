@@ -21,12 +21,15 @@ export interface Range<T> {
 export type Bindings = BaseType[] | { [key: string]: BaseType }
 
 export type FilterProperty<S extends Identifiable> = Partial<S>;
+
 export type FilterIn<S extends Identifiable> = {
   [K in keyof S]: Array<S[K]>;
 };
+
 export type FilterBetween<S extends Identifiable> = {
   [K in keyof S]: Range<S[K]>;
 };
+
 export type FilterCompare<S extends Identifiable> = {
   [K in keyof S]: S[K];
 };
@@ -59,6 +62,8 @@ export type FilterSpecial<S extends Identifiable> = {
 
   $raw?: FilterRaw;
 };
+
+export type Validator<S extends Identifiable> = (instance: ModelConstructor<S>) => Promise<boolean>;
 
 export interface Relation {
   model: ModelStatic<any>;
@@ -108,6 +113,10 @@ export type FindBy<S extends Identifiable> = {
 
 export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
 
+export type Changes<S extends Identifiable> = {
+  [P in keyof S]: { from: S[P], to: S[P] };
+};
+
 export interface Storage {
   [key: string]: any[],
 };
@@ -128,6 +137,8 @@ export interface ModelStatic<S extends Identifiable> {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly identifier: string;
+  readonly collectionName: string | undefined;
+  readonly connector: ConnectorConstructor<S>;
   readonly schema: Schema<S>;
   readonly filter: Filter<S>;
   readonly limit: number;
