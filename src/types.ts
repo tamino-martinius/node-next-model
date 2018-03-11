@@ -171,6 +171,7 @@ export interface ModelStatic<S extends Identifiable> {
   readonly first: Promise<ModelConstructor<S> | undefined>;
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
   readonly findBy: FindBy<S>;
+  readonly count: Promise<number>;
 
   new(attrs: Partial<S> | undefined): ModelConstructor<S>;
   // prototype: S;

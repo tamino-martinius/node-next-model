@@ -305,6 +305,11 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return findBy;
     }
 
+    static get count(): Promise<number> {
+      return this.connector.count(this);
+    }
+
+
     constructor(attrs: Partial<S> | undefined) {
       if (attrs !== undefined) {
         for (const key in attrs) {
