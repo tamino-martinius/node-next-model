@@ -365,6 +365,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this;
     }
 
+    revertChange(_key: keyof S): Model {
+      throw new PropertyNotDefinedError('revertChange');
+    }
+
   };
 
   return Model;

@@ -189,4 +189,5 @@ export interface ModelConstructor<S extends Identifiable> {
   readonly changes: Changes<S>;
 
   assign(attrs: Partial<S>): ModelConstructor<S>;
+  revertChange(key: keyof S): ModelConstructor<S>;
 };
