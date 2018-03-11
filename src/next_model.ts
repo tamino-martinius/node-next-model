@@ -381,6 +381,9 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       }
     }
 
+    delete(): Promise<Model> {
+      return <Promise<Model>>this.model.connector.delete(this);
+    }
   };
 
   return Model;

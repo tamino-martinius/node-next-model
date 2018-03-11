@@ -193,4 +193,5 @@ export interface ModelConstructor<S extends Identifiable> {
   revertChanges(): ModelConstructor<S>;
 
   save(): Promise<ModelConstructor<S>>;
+  delete(): Promise<ModelConstructor<S>>;
 };
