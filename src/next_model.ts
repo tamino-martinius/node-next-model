@@ -256,6 +256,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return queryBy;
     }
 
+
+    static get all(): Promise<Model[]> {
+      return <Promise<Model[]>>this.connector.query(this);
+    }
     static get first(): Promise<Model | undefined> {
       return Promise.resolve(new Model({}));
     }

@@ -150,7 +150,7 @@ export interface ModelStatic<S extends Identifiable> {
   readonly hasOne: HasOne;
   readonly hasMany: HasMany;
   readonly validators: Validator<S>[];
-  
+
   readonly strictSchema: StrictSchema<S>;
   readonly strictFilter: Filter<S>;
   readonly strictBelongsTo: StrictBelongsTo;
@@ -164,6 +164,7 @@ export interface ModelStatic<S extends Identifiable> {
   query(query: Filter<S>): ModelStatic<S>;
   readonly queryBy: QueryBy<S>;
 
+  readonly all: Promise<ModelConstructor<S>[]>;
   readonly first: Promise<ModelConstructor<S> | undefined>;
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
   readonly findBy: FindBy<S>;
