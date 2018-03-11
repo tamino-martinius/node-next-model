@@ -15,6 +15,7 @@ import {
   Identifiable,
   ConnectorConstructor,
   Validator,
+  Changes,
 } from './types';
 
 import {
@@ -350,6 +351,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
     get isChanged(): boolean {
       throw new PropertyNotDefinedError('isChanged');
+    }
+
+    get changes(): Changes<S> {
+      throw new PropertyNotDefinedError('changes');
     }
 
   };
