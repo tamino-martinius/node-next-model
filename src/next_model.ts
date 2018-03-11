@@ -319,6 +319,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       }
     }
 
+    static build(attrs: Partial<S> | undefined): Model {
+      return new this(attrs);
+    }
+
     get model(): typeof Model {
       return <typeof Model>this.constructor;
     }

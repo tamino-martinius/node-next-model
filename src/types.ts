@@ -174,6 +174,7 @@ export interface ModelStatic<S extends Identifiable> {
   readonly count: Promise<number>;
 
   new(attrs: Partial<S> | undefined): ModelConstructor<S>;
+  build(attrs: Partial<S> | undefined): ModelConstructor<S>;
   // prototype: S;
 }
 
