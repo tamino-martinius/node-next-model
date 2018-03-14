@@ -322,8 +322,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       this.cachedPersistentAttributes = {};
       if (attrs !== undefined) {
         for (const key in attrs) {
-          // @ts-ignore
-          this[key] = attrs[key];
+          (<Partial<S>><any>this)[key] = attrs[key];
         }
       }
     }
@@ -340,11 +339,11 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return <typeof Model>this.constructor;
     }
 
-    get attributes(): S {
-      const attrs: S = <S>{};
+    get attributes(): Partial<S> {
+      const self = <Partial<S>><any>this;
+      const attrs: Partial<S> = {};
       for (const key in this.model.schema) {
-        // @ts-ignore
-        attrs[key] = this[key];
+        attrs[key] = self[key];
       }
       return attrs;
     }
@@ -369,24 +368,34 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('isChanged');
     }
 
-    get changes(): Changes<S> {
-      throw new PropertyNotDefinedError('changes');
+    get changes(): Partial<Changes<S>> {
+      const self = <Partial<S>><any>this;
+      const changes: Partial<Changes<S>> = {};
+      for (const key of this.model.keys) {
+        if (self[key] !== this.persistentAttributes[key]) {
+          changes[key] = { from: this.persistentAttributes[key], to: self[key] };
+        }
+      }
+      return changes;
     }
 
     assign(attrs: Partial<S>): Model {
       for (const key in attrs) {
-        // @ts-ignore
-        this[key] = attrs[key];
+        (<Partial<S>><any>this)[key] = attrs[key];
       }
       return this;
     }
 
-    revertChange(_key: keyof S): Model {
-      throw new PropertyNotDefinedError('revertChange');
+    revertChange(key: keyof S): Model {
+      (<Partial<S>><any>this)[key] = this.persistentAttributes[key];
+      return this;
     }
 
     revertChanges(): Model {
-      throw new PropertyNotDefinedError('revertChanges');
+      for (const key of this.model.keys) {
+        this.revertChange(key);
+      }
+      return this;
     }
 
     async save(): Promise<Model> {
