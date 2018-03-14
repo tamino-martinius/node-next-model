@@ -183,6 +183,7 @@ export interface ModelConstructor<S extends Identifiable> {
   id: any;
   readonly model: ModelStatic<S>;
   readonly attributes: S;
+  readonly persistentAttributes: Partial<S>;
   readonly isNew: boolean;
   readonly isPersistent: boolean;
   readonly isChanged: boolean;

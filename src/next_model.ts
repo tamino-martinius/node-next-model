@@ -75,6 +75,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
     private static readonly DEFAULT_SKIP = 0;
+    private cachedPersistentAttributes: Partial<S>;
 
     id: any;
 
@@ -259,15 +260,22 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
 
     static get all(): Promise<Model[]> {
-      return <Promise<Model[]>>this.connector.query(this);
+      return <Promise<Model[]>>this.connector.query(this).then(instances => {
+        instances.forEach(instance => (<Model>instance).setPersistentAttributes());
+        return instances;
+      });
     }
 
-    static updateAll(attrs: Partial<S>): Promise<Model[]> {
-      return <Promise<Model[]>>this.connector.updateAll(this, attrs);
+    static async updateAll(attrs: Partial<S>): Promise<Model[]> {
+      const instances = await  <Promise<Model[]>>this.connector.updateAll(this, attrs);
+      instances.forEach(instance => instance.setPersistentAttributes());
+      return instances;
     }
 
-    static deleteAll(): Promise<Model[]> {
-      return <Promise<Model[]>>this.connector.deleteAll(this);
+    static async deleteAll(): Promise<Model[]> {
+      const instances = await <Promise<Model[]>>this.connector.deleteAll(this);
+      instances.forEach(instance => instance.setPersistentAttributes());
+      return instances;
     }
 
     static async inBatchesOf(amount: number): Promise<Promise<Model[]>[]> {
@@ -287,7 +295,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     static get first(): Promise<Model | undefined> {
-      return Promise.resolve(new Model({}));
+      return this.limitBy(1).all.then(instances => instances[0]);
     }
 
     static find(filterBy: Filter<S>): Promise<Model | undefined> {
@@ -310,8 +318,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.connector.count(this);
     }
 
-
     constructor(attrs: Partial<S> | undefined) {
+      this.cachedPersistentAttributes = {};
       if (attrs !== undefined) {
         for (const key in attrs) {
           // @ts-ignore
@@ -339,6 +347,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
         attrs[key] = this[key];
       }
       return attrs;
+    }
+
+    setPersistentAttributes() {
+      this.cachedPersistentAttributes = this.attributes;
+    }
+
+    get persistentAttributes(): Partial<S> {
+      return this.cachedPersistentAttributes;
     }
 
     get isNew(): boolean {
@@ -373,20 +389,29 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       throw new PropertyNotDefinedError('revertChanges');
     }
 
-    save(): Promise<Model> {
+    async save(): Promise<Model> {
+      let instance: Model;
       if (this.isNew) {
-        return <Promise<Model>>this.model.connector.create(this);
+        instance = await <Promise<Model>>this.model.connector.create(this);
       } else {
-        return <Promise<Model>>this.model.connector.update(this);
+        instance = await <Promise<Model>>this.model.connector.update(this);
       }
+      instance.setPersistentAttributes();
+      return instance;
     }
 
-    delete(): Promise<Model> {
-      return <Promise<Model>>this.model.connector.delete(this);
+    async delete(): Promise<Model> {
+      const instance = await <Promise<Model>>this.model.connector.delete(this);
+      instance.setPersistentAttributes();
+      return instance;
     }
 
-    reload(): Promise<Model | undefined> {
-      return <Promise<Model>>this.model.connector.reload(this);
+    async reload(): Promise<Model | undefined> {
+      const instance = await <Promise<Model | undefined>>this.model.connector.reload(this);
+      if (instance !== undefined) {
+        instance.setPersistentAttributes();
+      }
+      return instance;
     }
   };
 
