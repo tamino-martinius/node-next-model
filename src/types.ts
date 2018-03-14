@@ -114,7 +114,7 @@ export type FindBy<S extends Identifiable> = {
 export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
 
 export type Changes<S extends Identifiable> = {
-  [P in keyof S]: { from: S[P], to: S[P] };
+  [P in keyof S]: { from: S[P] | undefined, to: S[P] | undefined };
 };
 
 export interface Storage {
@@ -187,7 +187,7 @@ export interface ModelConstructor<S extends Identifiable> {
   readonly isNew: boolean;
   readonly isPersistent: boolean;
   readonly isChanged: boolean;
-  readonly changes: Changes<S>;
+  readonly changes: Partial<Changes<S>>;
 
   assign(attrs: Partial<S>): ModelConstructor<S>;
   revertChange(key: keyof S): ModelConstructor<S>;
