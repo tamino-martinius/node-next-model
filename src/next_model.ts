@@ -400,6 +400,16 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return Object.keys(this.changes).length > 0;
     }
 
+    get isValid(): Promise<boolean> {
+      const promises = this.model.validators.map(validator => validator(this));
+      return Promise.all(promises).then(validations => {
+        for (const isValid of validations) {
+          if (!isValid) return false;
+        }
+        return true;
+      });
+    }
+
     get changes(): Partial<Changes<S>> {
       const self = <Partial<S>><any>this;
       const changes: Partial<Changes<S>> = {};
