@@ -290,6 +290,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return queryBy;
     }
 
+    static get unfiltered(): typeof Model {
+      return class extends this {
+        static get filter(): Filter<S> {
+          return {};
+        }
+      };
+    }
+
 
     static get all(): Promise<Model[]> {
       return <Promise<Model[]>>this.connector.query(this).then(instances => {
