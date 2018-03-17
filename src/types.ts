@@ -163,7 +163,6 @@ export interface ModelStatic<S extends Identifiable> {
   readonly unskipped: ModelStatic<S>;
   query(query: Filter<S>): ModelStatic<S>;
   readonly queryBy: QueryBy<S>;
-
   readonly all: Promise<ModelConstructor<S>[]>;
   updateAll(attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
   deleteAll(): Promise<ModelConstructor<S>[]>;

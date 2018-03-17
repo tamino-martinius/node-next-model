@@ -428,6 +428,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 };
 
 // interface UserSchema {
+//   id: number;
 //   firstName: string;
 //   lastName: string;
 // }
@@ -443,6 +444,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
 //   static get schema() {
 //     return {
+//       id: {type: 'number' },
 //       firstName: { type: 'string' },
 //       lastName: { type: 'string' },
 //     };
@@ -451,4 +453,4 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
 // const u = new User({firstName: 'test'});
 // console.log(u);
-// User.findBy('firstName', 1)
+// User.findBy.firstName('test');
