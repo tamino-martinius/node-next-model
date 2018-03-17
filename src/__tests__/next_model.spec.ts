@@ -223,6 +223,10 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.order', () => {
+    pending('[TODO]');
+  });
+
   describe('.keys', () => {
     pending('[TODO]');
   });
@@ -561,11 +565,27 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.orderBy(order)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.reorder(order)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.unordered', () => {
+    pending('[TODO]');
+  });
+
   describe('.query(query)', () => {
     pending('[TODO]');
   });
 
   describe('.queryBy', () => {
+    pending('[TODO]');
+  });
+
+  describe('.unfiltered', () => {
     pending('[TODO]');
   });
 
@@ -644,6 +664,10 @@ describe('NextModel', () => {
   });
 
   describe('#isChanged', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isValid', () => {
     pending('[TODO]');
   });
 
