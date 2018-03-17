@@ -397,7 +397,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     get isChanged(): boolean {
-      throw new PropertyNotDefinedError('isChanged');
+      return Object.keys(this.changes).length > 0;
     }
 
     get changes(): Partial<Changes<S>> {
