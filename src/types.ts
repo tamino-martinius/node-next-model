@@ -111,6 +111,12 @@ export type FindBy<S extends Identifiable> = {
   [P in keyof S]: (value: S[P] | S[P][]) => Promise<undefined | ModelConstructor<S>>;
 };
 
+export type OrderDirection = 'asc' | 'desc';
+
+export type Order<S extends Identifiable> = {
+  [P in keyof S]: OrderDirection;
+};
+
 export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
 
 export type Changes<S extends Identifiable> = {
@@ -143,8 +149,8 @@ export interface ModelStatic<S extends Identifiable> {
   readonly filter: Filter<S>;
   readonly limit: number;
   readonly skip: number;
+  readonly order: Partial<Order<S>>[]
   readonly keys: (keyof S)[]
-  // order
 
   readonly belongsTo: BelongsTo;
   readonly hasOne: HasOne;
@@ -161,6 +167,9 @@ export interface ModelStatic<S extends Identifiable> {
   readonly unlimited: ModelStatic<S>;
   skipBy(amount: number): ModelStatic<S>;
   readonly unskipped: ModelStatic<S>;
+  orderBy(order: Partial<Order<S>>): ModelStatic<S>;
+  reorder(order: Partial<Order<S>>): ModelStatic<S>;
+  readonly unordered: ModelStatic<S>;
   query(query: Filter<S>): ModelStatic<S>;
   readonly queryBy: QueryBy<S>;
   readonly all: Promise<ModelConstructor<S>[]>;
