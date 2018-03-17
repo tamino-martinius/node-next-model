@@ -23,7 +23,8 @@ import {
 const Model = NextModel<any>();
 
 describe('NextModel', () => {
-  //#region Static properties
+  //#region Static
+  //#region Properties
   describe('.modelName', () => {
     let Klass: typeof Model;
     let modelName: string = Faker.modelName;
@@ -94,6 +95,18 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.identifier', () => {
+    pending('[TODO]');
+  });
+
+  describe('.collectionName', () => {
+    pending('[TODO]');
+  });
+
+  describe('.connector', () => {
+    pending('[TODO]');
+  });
+
   describe('.schema', () => {
     let Klass: typeof Model;
     let schema: Schema<any> = Faker.schema;
@@ -129,44 +142,6 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.strictSchema', () => {
-    let Klass: typeof Model;
-    let schema: Schema<any> = Faker.schema;
-
-    const subject = () => Klass.strictSchema;
-
-    context('schema is not extended', {
-      definitions() {
-        class NewKlass extends NextModel<any>() { };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('throws Error', () => {
-          expect(subject).toThrow(PropertyNotDefinedError);
-        });
-
-        context('when schema is present', {
-          definitions() {
-            class NewKlass extends NextModel<any>() {
-              static get schema(): Schema<any> {
-                return schema;
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            it('returns the schema with filled properties', () => {
-              expect(subject()).toEqual(schema);
-              for (const key in schema) {
-                expect('defaultValue' in subject()[key]).toBeTruthy();
-              }
-            });
-          },
-        });
-      },
-    });
-  });
-
   describe('.filter', () => {
     let Klass: typeof Model = Faker.model;
     let filter: Filter<any> = Faker.filter;
@@ -188,33 +163,6 @@ describe('NextModel', () => {
       },
       tests() {
         it('returns the filter of the model', () => {
-          expect(subject()).toEqual(filter);
-        });
-      },
-    });
-  });
-
-  describe('.strictFilter', () => {
-    let Klass: typeof Model = Faker.model;
-    let filter: Filter<any> = Faker.filter;
-
-    const subject = () => Klass.strictFilter;
-
-    it('returns empty filter', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when filter is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get filter(): Filter<any> {
-            return filter;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict filter of the model', () => {
           expect(subject()).toEqual(filter);
         });
       },
@@ -274,6 +222,10 @@ describe('NextModel', () => {
       },
     });
   });
+
+  describe('.keys', () => {
+    pending('[TODO]');
+  });
   //#endregion
 
   //#region Relations
@@ -299,6 +251,131 @@ describe('NextModel', () => {
       tests() {
         it('returns the strict relation of the model', () => {
           expect(subject()).toEqual(belongsTo);
+        });
+      },
+    });
+  });
+
+  describe('.hasOne', () => {
+    let Klass: typeof Model = Faker.model;
+    let hasOne: HasOne = Faker.hasOne;
+
+    const subject = () => Klass.hasOne;
+
+    it('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasOne(): HasOne {
+            return hasOne;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(hasOne);
+        });
+      },
+    });
+  });
+
+  describe('.hasMany', () => {
+    let Klass: typeof Model = Faker.model;
+    let hasMany: HasMany = Faker.hasMany;
+
+    const subject = () => Klass.hasMany;
+
+    it('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasMany(): HasMany {
+            return hasMany;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(hasMany);
+        });
+      },
+    });
+  });
+
+  describe('.validators', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Strict
+  describe('.strictSchema', () => {
+    let Klass: typeof Model;
+    let schema: Schema<any> = Faker.schema;
+
+    const subject = () => Klass.strictSchema;
+
+    context('schema is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get schema(): Schema<any> {
+                return schema;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the schema with filled properties', () => {
+              expect(subject()).toEqual(schema);
+              for (const key in schema) {
+                expect('defaultValue' in subject()[key]).toBeTruthy();
+              }
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.strictFilter', () => {
+    let Klass: typeof Model = Faker.model;
+    let filter: Filter<any> = Faker.filter;
+
+    const subject = () => Klass.strictFilter;
+
+    it('returns empty filter', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when filter is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get filter(): Filter<any> {
+            return filter;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the strict filter of the model', () => {
+          expect(subject()).toEqual(filter);
         });
       },
     });
@@ -336,33 +413,6 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.hasOne', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasOne: HasOne = Faker.hasOne;
-
-    const subject = () => Klass.hasOne;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasOne(): HasOne {
-            return hasOne;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(hasOne);
-        });
-      },
-    });
-  });
-
   describe('.strictHasOne', () => {
     let Klass: typeof Model = Faker.model;
     let hasOne: HasOne = Faker.hasOne;
@@ -390,33 +440,6 @@ describe('NextModel', () => {
               expect('foreignKey' in subject()[key]).toBeTruthy();
             }
           }
-        });
-      },
-    });
-  });
-
-  describe('.hasMany', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasMany: HasMany = Faker.hasMany;
-
-    const subject = () => Klass.hasMany;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasMany(): HasMany {
-            return hasMany;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(hasMany);
         });
       },
     });
@@ -497,7 +520,7 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.skipBy', () => {
+  describe('.skipBy(amount)', () => {
     let Klass: typeof Model = Faker.model;
     let skip: number = Faker.skip;
 
@@ -538,7 +561,7 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.query', () => {
+  describe('.query(query)', () => {
     pending('[TODO]');
   });
 
@@ -546,17 +569,116 @@ describe('NextModel', () => {
     pending('[TODO]');
   });
 
+  describe('.all', () => {
+    pending('[TODO]');
+  });
+
+  describe('.updateAll(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.deleteAll()', () => {
+    pending('[TODO]');
+  });
+
+  describe('.inBatchesOf(amount)', () => {
+    pending('[TODO]');
+  });
+
   describe('.first', () => {
     pending('[TODO]');
   });
 
-  describe('.find', () => {
+  describe('.find(query)', () => {
     pending('[TODO]');
   });
 
   describe('.findBy', () => {
     pending('[TODO]');
   });
+
+  describe('.count', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Creating Instances
+  describe('.new(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.build(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.create(attrs)', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+  //#endregion
+
+  //#region Instance
+  //#region Properites
+  describe('#id', () => {
+    pending('[TODO]');
+  });
+
+  describe('#model', () => {
+    pending('[TODO]');
+  });
+
+  describe('#attributes', () => {
+    pending('[TODO]');
+  });
+
+  describe('#persistentAttributes', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isNew', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isPersistent', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isChanged', () => {
+    pending('[TODO]');
+  });
+
+  describe('#changes', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Manipulation
+  describe('#assign(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('#revertChange(key)', () => {
+    pending('[TODO]');
+  });
+
+  describe('#revertChanges()', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Storage
+  describe('#save()', () => {
+    pending('[TODO]');
+  });
+
+  describe('#delete()', () => {
+    pending('[TODO]');
+  });
+
+  describe('#reload()', () => {
+    pending('[TODO]');
+  });
+  //#endregion
   //#endregion
 });
 
