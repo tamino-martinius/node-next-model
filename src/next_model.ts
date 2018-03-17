@@ -16,6 +16,7 @@ import {
   ConnectorConstructor,
   Validator,
   Changes,
+  Order,
 } from './types';
 
 import {
@@ -114,6 +115,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
     static get skip(): number {
       return this.DEFAULT_SKIP;
+    }
+
+    static get order(): Partial<Order<S>>[] {
+      return [];
     }
 
     static get keys(): (keyof S)[] {
@@ -228,6 +233,33 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return class extends this {
         static get skip(): number {
           return this.DEFAULT_SKIP;
+        }
+      };
+    }
+
+    static orderBy(order: Partial<Order<S>>): typeof Model {
+      const newOrder: Partial<Order<S>>[] = []
+      newOrder.push(...this.order, order);
+
+      return class extends this {
+        static get order(): Partial<Order<S>>[] {
+          return newOrder;
+        }
+      };
+    }
+
+    static reorder(order: Partial<Order<S>>): typeof Model {
+      return class extends this {
+        static get order(): Partial<Order<S>>[] {
+          return [order];
+        }
+      };
+    }
+
+    static get unordered(): typeof Model {
+      return class extends this {
+        static get order(): Partial<Order<S>>[] {
+          return [];
         }
       };
     }
