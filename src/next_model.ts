@@ -477,6 +477,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   return Model;
 };
 
+export default NextModel;
+
 // interface UserSchema {
 //   id: number;
 //   firstName: string;
