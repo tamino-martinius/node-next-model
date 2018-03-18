@@ -304,7 +304,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     try {
       instance.id = ++uuid;
-      this.collection(instance.model).push(instance.attributes);
+      this.collection(instance.model).push(<S>instance.attributes);
       return Promise.resolve(instance);
     } catch (e) {
       return Promise.reject(e);
@@ -320,7 +320,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
           const attrs = instance.attributes;
           for (const key in attrs) {
             if (key !== model.identifier) {
-              item[key] = attrs[key];
+              item[key] = <S[keyof S]>attrs[key];
             }
           }
           return Promise.resolve(instance);
