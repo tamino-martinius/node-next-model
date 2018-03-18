@@ -358,3 +358,5 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return Promise.reject('[TODO] Not yet implemented');
   }
 }
+
+export default Connector;
