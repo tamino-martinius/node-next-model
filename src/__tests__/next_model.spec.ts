@@ -820,7 +820,38 @@ describe('NextModel', () => {
   });
 
   describe('.unordered', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+
+    const subject = () => Klass.unordered;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty order', () => {
+          expect(subject().order).toEqual([]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns empty order', () => {
+              expect(subject().order).toEqual([]);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.query(query)', () => {
