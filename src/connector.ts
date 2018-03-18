@@ -180,15 +180,10 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     const fn = eval(filter.$query);
     const params = filter.$bindings;
     if (Array.isArray(params)) {
-      for (const key in filter) {
-        return items.filter(item => fn(item, ...params));
-      }
+      return items.filter(item => fn(item, ...params));
     } else {
-      for (const key in filter) {
-        return items.filter(item => fn(item, params));
-      }
+      return items.filter(item => fn(item, params));
     }
-    throw '[TODO] Should not reach error';
   }
 
   private specialFilter(items: S[], filter: FilterSpecial<S>): S[] {
