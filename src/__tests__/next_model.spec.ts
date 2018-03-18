@@ -3,6 +3,8 @@ import {
   NextModel,
 } from '../next_model';
 
+import Connector from '../connector';
+
 import {
   BelongsTo,
   HasOne,
@@ -166,7 +168,38 @@ describe('NextModel', () => {
   });
 
   describe('.connector', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+
+    const subject = () => Klass.connector;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('is a connector by default', () => {
+          expect(subject()).toBeInstanceOf(Connector);
+        });
+
+        context('when connector is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get connector(): Connector<any> {
+                return connector;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(connector);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.schema', () => {
