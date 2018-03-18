@@ -12,6 +12,7 @@ import {
   Filter,
   Schema,
   ModelConstructor,
+  Order,
 } from '../types';
 
 import {
@@ -319,7 +320,38 @@ describe('NextModel', () => {
   });
 
   describe('.order', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+
+    const subject = () => Klass.order;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array by default', () => {
+          expect(subject()).toEqual([]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(order);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.keys', () => {
