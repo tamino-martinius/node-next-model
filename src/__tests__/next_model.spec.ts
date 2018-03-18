@@ -355,7 +355,38 @@ describe('NextModel', () => {
   });
 
   describe('.keys', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let schema: Schema<any> = Faker.schema;
+
+    const subject = () => Klass.keys;
+
+    context('schema is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get schema(): Schema<any> {
+                return schema;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the schema keys of the model', () => {
+              expect(subject()).toEqual(Object.keys(schema));
+            });
+          },
+        });
+      },
+    });
   });
   //#endregion
 
