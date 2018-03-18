@@ -13,6 +13,7 @@ import {
   Schema,
   ModelConstructor,
   Order,
+  Validator,
 } from '../types';
 
 import {
@@ -473,7 +474,30 @@ describe('NextModel', () => {
   });
 
   describe('.validators', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let validators: Validator<any>[] = Faker.validators;
+
+    const subject = () => Klass.validators;
+
+    it('returns empty validators', () => {
+      expect(subject()).toEqual([]);
+    });
+
+    context('when validators is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get validators(): Validator<any>[] {
+            return validators;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the validators of the model', () => {
+          expect(subject()).toEqual(validators);
+        });
+      },
+    });
   });
   //#endregion
 
