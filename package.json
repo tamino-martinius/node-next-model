@@ -1,6 +1,6 @@
 {
   "name": "@next-model/core",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "Rails like models using TypeScript/ES6 and Decorators.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "main": "./dist/index.js",
