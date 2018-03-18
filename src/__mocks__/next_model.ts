@@ -10,11 +10,12 @@ import {
   HasOne,
   HasMany,
   Relation,
+  OrderDirection,
+  Order,
 } from '../types';
 
 import {
-  NextModel,
-} from '../next_model';
+import NextModel from '../next_model';
 
 function positiveInteger(min: number = 1, max: number = Number.MAX_SAFE_INTEGER - 1): number {
   return faker.random.number({
@@ -40,6 +41,13 @@ function filterKey(): string {
     '$and',
     '$or',
     '$not',
+  ]);
+}
+
+function orderDirection(): OrderDirection {
+  return faker.helpers.randomize([
+    OrderDirection.asc,
+    OrderDirection.desc,
   ]);
 }
 
@@ -82,7 +90,7 @@ export class Faker {
     return schema;
   }
 
-  static schemaByPropertyCount(count: number): Schema<any> {
+  private static schemaByPropertyCount(count: number): Schema<any> {
     let schema = {};
     for (let i = 0; i < count; i++) {
       const name = propertyName();
@@ -99,7 +107,7 @@ export class Faker {
     }));
   }
 
-  static filterByItemCount(count: number): Filter<any> {
+  private static filterByItemCount(count: number): Filter<any> {
     const key = filterKey();
     const filter = { [key]: [] };
     for (let i = 0; i < count; i++) {
@@ -115,7 +123,27 @@ export class Faker {
     }));
   }
 
-  static relationByCount(count: number): Dict<Relation> {
+  static get order(): Partial<Order<any>>[] {
+    return this.orderByCount(faker.random.number({
+      min: 0,
+      max: 10,
+    }));
+  }
+
+  static get orderDirection(): OrderDirection {
+    return orderDirection();
+  }
+
+  private static orderByCount(count: number): Partial<Order<any>>[] {
+    const order: Partial<Order<any>>[] = [];
+    for (let i = 0; i < count; i++) {
+      const name = propertyName();
+      order.push({ [name]: orderDirection() });
+    }
+    return order;
+  }
+
+  private static relationByCount(count: number): Dict<Relation> {
     let belongsTo = {};
     for (let i = 0; i < count; i++) {
       const name = propertyName();
