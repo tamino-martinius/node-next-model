@@ -131,7 +131,38 @@ describe('NextModel', () => {
   });
 
   describe('.collectionName', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let collectionName: string = Faker.collectionName;
+
+    const subject = () => Klass.collectionName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('is undefined by default', () => {
+          expect(subject()).toBeUndefined();
+        });
+
+        context('when collectionName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get collectionName(): string {
+                return collectionName;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(collectionName);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.connector', () => {
