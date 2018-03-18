@@ -14,8 +14,8 @@ import {
   Order,
 } from '../types';
 
-import {
 import NextModel from '../next_model';
+import Connector from '../connector';
 
 function positiveInteger(min: number = 1, max: number = Number.MAX_SAFE_INTEGER - 1): number {
   return faker.random.number({
@@ -79,6 +79,10 @@ export class Faker {
 
   static get modelName(): string {
     return className();
+  }
+
+  static get connector(): Connector<any> {
+    return new Connector({});
   }
 
   static get schema() {
