@@ -748,7 +748,39 @@ describe('NextModel', () => {
   });
 
   describe('.orderBy(order)', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+    let orderItem: Order<any> = { [Faker.name]: Faker.orderDirection };
+
+    const subject = () => Klass.orderBy(orderItem);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns order item as array', () => {
+          expect(subject().order).toEqual([orderItem]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('adds order item to existing order', () => {
+              expect(subject().order).toEqual([...order, orderItem]);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.reorder(order)', () => {
