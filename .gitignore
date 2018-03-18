@@ -1,5 +1,4 @@
 coverage*
-dist
 .eslintcache
 node_modules
 npm-debug.log*
