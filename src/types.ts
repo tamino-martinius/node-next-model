@@ -111,7 +111,10 @@ export type FindBy<S extends Identifiable> = {
   [P in keyof S]: (value: S[P] | S[P][]) => Promise<undefined | ModelConstructor<S>>;
 };
 
-export type OrderDirection = 'asc' | 'desc';
+export enum OrderDirection {
+  'asc' = 1,
+  'desc' = -1,
+};
 
 export type Order<S extends Identifiable> = {
   [P in keyof S]: OrderDirection;
