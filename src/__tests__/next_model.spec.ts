@@ -96,7 +96,38 @@ describe('NextModel', () => {
   });
 
   describe('.identifier', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let identifier: string = Faker.identifier;
+
+    const subject = () => Klass.identifier;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns `id` as default', () => {
+          expect(subject()).toEqual('id');
+        });
+
+        context('when identifier is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get identifier(): string {
+                return identifier;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(identifier);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.collectionName', () => {
