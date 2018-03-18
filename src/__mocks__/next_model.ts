@@ -86,6 +86,14 @@ export class Faker {
     return className();
   }
 
+  static get identifier(): string {
+    return propertyName();
+  }
+
+  static get collectionName(): string {
+    return className();
+  }
+
   static get connector(): Connector<any> {
     return new Connector({});
   }
