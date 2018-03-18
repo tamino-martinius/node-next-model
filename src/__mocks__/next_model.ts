@@ -12,6 +12,7 @@ import {
   Relation,
   OrderDirection,
   Order,
+  Validator,
 } from '../types';
 
 import NextModel from '../next_model';
@@ -55,6 +56,10 @@ function filterItem(): any {
   return {
     [propertyName()]: faker.hacker.noun(),
   };
+}
+
+function validator(): Validator<any> {
+  return (_instance: any) => Promise.resolve(faker.random.boolean());
 }
 
 const seed = positiveInteger();
@@ -155,6 +160,21 @@ export class Faker {
       if (faker.random.boolean()) belongsTo[name].foreignKey = propertyName();
     }
     return belongsTo;
+  }
+
+  static get validators(): Validator<any>[] {
+    return this.validatorsByCount(faker.random.number({
+      min: 0,
+      max: 10,
+    }));
+  }
+
+  private static validatorsByCount(count: number): Validator<any>[] {
+    const validators: Validator<any>[] = [];
+    for (let i = 0; i < count; i++) {
+      validators.push(validator());
+    }
+    return validators;
   }
 
   static randomId(max: number) {
