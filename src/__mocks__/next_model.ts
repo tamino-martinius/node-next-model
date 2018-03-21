@@ -26,7 +26,8 @@ function positiveInteger(min: number = 1, max: number = Number.MAX_SAFE_INTEGER 
 }
 
 function className(): string {
-  return faker.lorem.word();
+  const name = faker.lorem.word();
+  return name.substr(0, 1).toUpperCase() + name.substr(1);
 }
 
 function propertyName(): string {
