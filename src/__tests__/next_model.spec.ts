@@ -150,6 +150,56 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.pluralModelName', () => {
+    let Klass: typeof Model;
+    let modelName: string = Faker.modelName;
+    const subject = () => Klass.pluralModelName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get modelName(): string {
+                return 'Foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the plural name of the model with starting lowercase', () => {
+              expect(subject()).toEqual('foos');
+            });
+
+            context('when modelName has multiple uppercase letters', {
+              definitions() {
+                class NewKlass extends NextModel<any>() {
+                  static get modelName(): string {
+                    return modelName + modelName;
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('seperates both parts with underscore', () => {
+                  expect(subject()).toMatch(modelName.toLowerCase() + '_');
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.identifier', () => {
     let Klass: typeof Model;
     let identifier: string = Faker.identifier;
