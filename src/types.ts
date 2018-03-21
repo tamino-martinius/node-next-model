@@ -1,8 +1,3 @@
-export function staticImplements<T>() {
-  return (_constructor: T) => {
-  };
-}
-
 export type BaseType = number | string | boolean | null | undefined;
 
 export interface Identifiable {

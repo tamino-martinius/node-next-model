@@ -4,7 +4,6 @@ import {
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
-  staticImplements,
   Schema,
   QueryBy,
   FindBy,
@@ -21,10 +20,12 @@ import {
 
 import {
   Connector,
-} from './connector'
+} from './connector';
 
 import {
-} from './util'
+  staticImplements,
+} from './util';
+
 
 export class PropertyNotDefinedError implements Error {
   name: string = 'PropertyNotDefinedError';

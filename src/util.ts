@@ -5,3 +5,8 @@ export function applyMixins(derivedCtor: any, baseCtors: any[]) {
     });
   });
 };
+
+export function staticImplements<T>() {
+  return (_constructor: T) => {
+  };
+}
