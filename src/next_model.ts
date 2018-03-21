@@ -476,12 +476,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return instance;
     }
 
-    async reload(): Promise<Model | undefined> {
-      const instance = await <Promise<Model | undefined>>this.model.connector.reload(this);
-      if (instance !== undefined) {
-        instance.setPersistentAttributes();
-      }
-      return instance;
+    reload(): Promise<Model | undefined> {
+      return this.model.unfiltered.limitBy(1).query({[this.model.identifier]: this.id}).first;
     }
   };
 

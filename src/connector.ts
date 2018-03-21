@@ -286,21 +286,6 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
-    try {
-      const model = instance.model;
-      const collection = this.collection(model);
-      for (const item of collection) {
-        if (item.id === instance.id) {
-          return Promise.resolve(new model(item));
-        }
-      }
-      return Promise.resolve(undefined);
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
   create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     try {
       instance.id = ++uuid;
