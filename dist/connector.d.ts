@@ -25,7 +25,6 @@ export declare class Connector<S extends Identifiable> implements ConnectorConst
     count(model: ModelStatic<S>): Promise<number>;
     updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
     deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-    reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;

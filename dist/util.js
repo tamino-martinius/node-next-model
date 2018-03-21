@@ -6,4 +6,8 @@ export function applyMixins(derivedCtor, baseCtors) {
     });
 }
 ;
+export function staticImplements() {
+    return function (_constructor) {
+    };
+}
 //# sourceMappingURL=util.js.map

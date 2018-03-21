@@ -1,4 +1,3 @@
-export declare function staticImplements<T>(): (_constructor: T) => void;
 export declare type BaseType = number | string | boolean | null | undefined;
 export interface Identifiable {
     id: any;
@@ -102,7 +101,6 @@ export interface ConnectorConstructor<S extends Identifiable> {
     count(model: ModelStatic<S>): Promise<number>;
     updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
     deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
-    reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined>;
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
@@ -111,6 +109,8 @@ export interface ConnectorConstructor<S extends Identifiable> {
 export interface ModelStatic<S extends Identifiable> {
     readonly modelName: string;
     readonly lowerModelName: string;
+    readonly underscoreModelName: string;
+    readonly pluralModelName: string;
     readonly identifier: string;
     readonly collectionName: string | undefined;
     readonly connector: ConnectorConstructor<S>;
@@ -137,6 +137,7 @@ export interface ModelStatic<S extends Identifiable> {
     reorder(order: Partial<Order<S>>): ModelStatic<S>;
     readonly unordered: ModelStatic<S>;
     query(query: Filter<S>): ModelStatic<S>;
+    onlyQuery(query: Filter<S>): ModelStatic<S>;
     readonly queryBy: QueryBy<S>;
     readonly unfiltered: ModelStatic<S>;
     readonly all: Promise<ModelConstructor<S>[]>;

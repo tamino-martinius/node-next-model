@@ -291,22 +291,6 @@ var Connector = (function () {
             return Promise.reject(e);
         }
     };
-    Connector.prototype.reload = function (instance) {
-        try {
-            var model = instance.model;
-            var collection = this.collection(model);
-            for (var _i = 0, collection_1 = collection; _i < collection_1.length; _i++) {
-                var item = collection_1[_i];
-                if (item.id === instance.id) {
-                    return Promise.resolve(new model(item));
-                }
-            }
-            return Promise.resolve(undefined);
-        }
-        catch (e) {
-            return Promise.reject(e);
-        }
-    };
     Connector.prototype.create = function (instance) {
         try {
             instance.id = ++uuid;
@@ -321,8 +305,8 @@ var Connector = (function () {
         try {
             var model = instance.model;
             var collection = this.collection(model);
-            for (var _i = 0, collection_2 = collection; _i < collection_2.length; _i++) {
-                var item = collection_2[_i];
+            for (var _i = 0, collection_1 = collection; _i < collection_1.length; _i++) {
+                var item = collection_1[_i];
                 if (item.id === instance.id) {
                     var attrs = instance.attributes;
                     for (var key in attrs) {

@@ -49,8 +49,9 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-import { staticImplements, } from './types';
 import { Connector, } from './connector';
+import { staticImplements, } from './util';
+import pluralize from 'pluralize';
 var PropertyNotDefinedError = (function () {
     function PropertyNotDefinedError(name, isStatic, isReadonly) {
         if (isStatic === void 0) { isStatic = true; }
@@ -123,6 +124,21 @@ export function NextModel() {
             get: function () {
                 var name = this.modelName;
                 return name.substr(0, 1).toLowerCase() + name.substr(1);
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Model, "underscoreModelName", {
+            get: function () {
+                var lowerName = this.lowerModelName;
+                return lowerName.replace(/([A-Z])/g, function (_x, y) { return '_' + y.toLowerCase(); });
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Model, "pluralModelName", {
+            get: function () {
+                return pluralize(this.underscoreModelName);
             },
             enumerable: true,
             configurable: true
@@ -432,6 +448,22 @@ export function NextModel() {
                 return class_8;
             }(this));
         };
+        Model.onlyQuery = function (filter) {
+            return (function (_super) {
+                __extends(class_9, _super);
+                function class_9() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                Object.defineProperty(class_9, "filter", {
+                    get: function () {
+                        return filter;
+                    },
+                    enumerable: true,
+                    configurable: true
+                });
+                return class_9;
+            }(this));
+        };
         Object.defineProperty(Model, "queryBy", {
             get: function () {
                 var _this = this;
@@ -455,18 +487,18 @@ export function NextModel() {
         Object.defineProperty(Model, "unfiltered", {
             get: function () {
                 return (function (_super) {
-                    __extends(class_9, _super);
-                    function class_9() {
+                    __extends(class_10, _super);
+                    function class_10() {
                         return _super !== null && _super.apply(this, arguments) || this;
                     }
-                    Object.defineProperty(class_9, "filter", {
+                    Object.defineProperty(class_10, "filter", {
                         get: function () {
                             return {};
                         },
                         enumerable: true,
                         configurable: true
                     });
-                    return class_9;
+                    return class_10;
                 }(this));
             },
             enumerable: true,
@@ -714,20 +746,8 @@ export function NextModel() {
             });
         };
         Model.prototype.reload = function () {
-            return __awaiter(this, void 0, void 0, function () {
-                var instance;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0: return [4, this.model.connector.reload(this)];
-                        case 1:
-                            instance = _a.sent();
-                            if (instance !== undefined) {
-                                instance.setPersistentAttributes();
-                            }
-                            return [2, instance];
-                    }
-                });
-            });
+            return this.model.limitBy(1).onlyQuery((_a = {}, _a[this.model.identifier] = this.id, _a)).first;
+            var _a;
         };
         Model.DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
         Model.DEFAULT_SKIP = 0;

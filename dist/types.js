@@ -1,7 +1,3 @@
-export function staticImplements() {
-    return function (_constructor) {
-    };
-}
 ;
 ;
 ;
