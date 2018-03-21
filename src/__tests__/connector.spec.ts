@@ -590,54 +590,6 @@ describe('Connector', () => {
     });
   });
 
-  describe('#reload(instance)', () => {
-    const attrs = {
-      id: 1,
-      foo: 'baz',
-    };
-    let instance: ModelConstructor<any>;
-    const subject = () => {
-      return connector().reload(instance);
-    }
-
-    context('item in storage', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get schema(): Schema<any> {
-            return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
-            };
-          }
-        };
-        Klass = NewKlass;
-        instance = new Klass(attrs);
-
-        storage = multiSeed;
-      },
-      tests() {
-        test('promises new instance from database', async () => {
-          expect(instance.attributes).toEqual(attrs);
-          instance = await subject();
-          expect(instance instanceof Klass).toBeTruthy();
-          expect(instance.attributes).toEqual({ id: 1, foo: 'bar' });
-        });
-      },
-    });
-
-    context('item not in storage', {
-      definitions() {
-        instance = new Klass(attrs);
-      },
-      tests() {
-        test('promises new instance from database', async () => {
-          instance = await subject();
-          expect(instance).toBeUndefined();
-        });
-      },
-    });
-  });
-
   describe('#create(instance)', () => {
     const attrs = {
       foo: 'baz',
