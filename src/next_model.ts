@@ -485,7 +485,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     reload(): Promise<Model | undefined> {
-      return this.model.unfiltered.limitBy(1).query({[this.model.identifier]: this.id}).first;
+      return this.model.limitBy(1).onlyQuery({[this.model.identifier]: this.id}).first;
     }
   };
 
