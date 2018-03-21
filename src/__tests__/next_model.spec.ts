@@ -99,6 +99,57 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.underscoreModelName', () => {
+    let Klass: typeof Model;
+    let modelName: string = Faker.modelName;
+    const subject = () => Klass.underscoreModelName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get modelName(): string {
+                return modelName;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model with starting lowercase', () => {
+              expect(subject()).toEqual(modelName.toLowerCase());
+            });
+
+            context('when modelName has multiple uppercase letters', {
+              definitions() {
+                class NewKlass extends NextModel<any>() {
+                  static get modelName(): string {
+                    return modelName + modelName;
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('seperates both parts with underscore', () => {
+                const name = modelName.toLowerCase() + '_' + modelName.toLowerCase();
+                  expect(subject()).toEqual(name);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.identifier', () => {
     let Klass: typeof Model;
     let identifier: string = Faker.identifier;
