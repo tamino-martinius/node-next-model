@@ -289,6 +289,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       };
     }
 
+    static onlyQuery(filter: Filter<S>): typeof Model {
+      return class extends this {
+        static get filter(): Filter<S> {
+          return filter;
+        }
+      };
+    }
+
     static get queryBy(): QueryBy<S> {
       const queryBy = <QueryBy<S>>{};
       for (const key in this.strictSchema) {

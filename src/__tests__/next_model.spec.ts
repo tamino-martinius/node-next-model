@@ -955,7 +955,11 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.query(query)', () => {
+  describe('.query(filter)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.onlyQuery(filter)', () => {
     pending('[TODO]');
   });
 
