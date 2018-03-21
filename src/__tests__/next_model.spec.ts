@@ -3,6 +3,8 @@ import {
   NextModel,
 } from '../next_model';
 
+import Connector from '../connector';
+
 import {
   BelongsTo,
   HasOne,
@@ -10,6 +12,8 @@ import {
   Filter,
   Schema,
   ModelConstructor,
+  Order,
+  Validator,
 } from '../types';
 
 import {
@@ -23,7 +27,8 @@ import {
 const Model = NextModel<any>();
 
 describe('NextModel', () => {
-  //#region Static properties
+  //#region Static
+  //#region Properties
   describe('.modelName', () => {
     let Klass: typeof Model;
     let modelName: string = Faker.modelName;
@@ -94,6 +99,212 @@ describe('NextModel', () => {
     });
   });
 
+  describe('.underscoreModelName', () => {
+    let Klass: typeof Model;
+    let modelName: string = Faker.modelName;
+    const subject = () => Klass.underscoreModelName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get modelName(): string {
+                return modelName;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model with starting lowercase', () => {
+              expect(subject()).toEqual(modelName.toLowerCase());
+            });
+
+            context('when modelName has multiple uppercase letters', {
+              definitions() {
+                class NewKlass extends NextModel<any>() {
+                  static get modelName(): string {
+                    return modelName + modelName;
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('seperates both parts with underscore', () => {
+                const name = modelName.toLowerCase() + '_' + modelName.toLowerCase();
+                  expect(subject()).toEqual(name);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.pluralModelName', () => {
+    let Klass: typeof Model;
+    let modelName: string = Faker.modelName;
+    const subject = () => Klass.pluralModelName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when modelName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get modelName(): string {
+                return 'Foo';
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the plural name of the model with starting lowercase', () => {
+              expect(subject()).toEqual('foos');
+            });
+
+            context('when modelName has multiple uppercase letters', {
+              definitions() {
+                class NewKlass extends NextModel<any>() {
+                  static get modelName(): string {
+                    return modelName + modelName;
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('seperates both parts with underscore', () => {
+                  expect(subject()).toMatch(modelName.toLowerCase() + '_');
+                });
+              },
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.identifier', () => {
+    let Klass: typeof Model;
+    let identifier: string = Faker.identifier;
+
+    const subject = () => Klass.identifier;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns `id` as default', () => {
+          expect(subject()).toEqual('id');
+        });
+
+        context('when identifier is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get identifier(): string {
+                return identifier;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(identifier);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.collectionName', () => {
+    let Klass: typeof Model;
+    let collectionName: string = Faker.collectionName;
+
+    const subject = () => Klass.collectionName;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('is undefined by default', () => {
+          expect(subject()).toBeUndefined();
+        });
+
+        context('when collectionName is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get collectionName(): string {
+                return collectionName;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(collectionName);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.connector', () => {
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+
+    const subject = () => Klass.connector;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('is a connector by default', () => {
+          expect(subject()).toBeInstanceOf(Connector);
+        });
+
+        context('when connector is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get connector(): Connector<any> {
+                return connector;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(connector);
+            });
+          },
+        });
+      },
+    });
+  });
+
   describe('.schema', () => {
     let Klass: typeof Model;
     let schema: Schema<any> = Faker.schema;
@@ -129,44 +340,6 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.strictSchema', () => {
-    let Klass: typeof Model;
-    let schema: Schema<any> = Faker.schema;
-
-    const subject = () => Klass.strictSchema;
-
-    context('schema is not extended', {
-      definitions() {
-        class NewKlass extends NextModel<any>() { };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('throws Error', () => {
-          expect(subject).toThrow(PropertyNotDefinedError);
-        });
-
-        context('when schema is present', {
-          definitions() {
-            class NewKlass extends NextModel<any>() {
-              static get schema(): Schema<any> {
-                return schema;
-              }
-            };
-            Klass = NewKlass;
-          },
-          tests() {
-            it('returns the schema with filled properties', () => {
-              expect(subject()).toEqual(schema);
-              for (const key in schema) {
-                expect('defaultValue' in subject()[key]).toBeTruthy();
-              }
-            });
-          },
-        });
-      },
-    });
-  });
-
   describe('.filter', () => {
     let Klass: typeof Model = Faker.model;
     let filter: Filter<any> = Faker.filter;
@@ -188,33 +361,6 @@ describe('NextModel', () => {
       },
       tests() {
         it('returns the filter of the model', () => {
-          expect(subject()).toEqual(filter);
-        });
-      },
-    });
-  });
-
-  describe('.strictFilter', () => {
-    let Klass: typeof Model = Faker.model;
-    let filter: Filter<any> = Faker.filter;
-
-    const subject = () => Klass.strictFilter;
-
-    it('returns empty filter', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when filter is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get filter(): Filter<any> {
-            return filter;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict filter of the model', () => {
           expect(subject()).toEqual(filter);
         });
       },
@@ -274,6 +420,76 @@ describe('NextModel', () => {
       },
     });
   });
+
+  describe('.order', () => {
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+
+    const subject = () => Klass.order;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array by default', () => {
+          expect(subject()).toEqual([]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the name of the model', () => {
+              expect(subject()).toEqual(order);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.keys', () => {
+    let Klass: typeof Model;
+    let schema: Schema<any> = Faker.schema;
+
+    const subject = () => Klass.keys;
+
+    context('schema is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get schema(): Schema<any> {
+                return schema;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the schema keys of the model', () => {
+              expect(subject()).toEqual(Object.keys(schema));
+            });
+          },
+        });
+      },
+    });
+  });
   //#endregion
 
   //#region Relations
@@ -299,6 +515,154 @@ describe('NextModel', () => {
       tests() {
         it('returns the strict relation of the model', () => {
           expect(subject()).toEqual(belongsTo);
+        });
+      },
+    });
+  });
+
+  describe('.hasOne', () => {
+    let Klass: typeof Model = Faker.model;
+    let hasOne: HasOne = Faker.hasOne;
+
+    const subject = () => Klass.hasOne;
+
+    it('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasOne(): HasOne {
+            return hasOne;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(hasOne);
+        });
+      },
+    });
+  });
+
+  describe('.hasMany', () => {
+    let Klass: typeof Model = Faker.model;
+    let hasMany: HasMany = Faker.hasMany;
+
+    const subject = () => Klass.hasMany;
+
+    it('returns empty relation', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when relation is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get hasMany(): HasMany {
+            return hasMany;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the strict relation of the model', () => {
+          expect(subject()).toEqual(hasMany);
+        });
+      },
+    });
+  });
+
+  describe('.validators', () => {
+    let Klass: typeof Model = Faker.model;
+    let validators: Validator<any>[] = Faker.validators;
+
+    const subject = () => Klass.validators;
+
+    it('returns empty validators', () => {
+      expect(subject()).toEqual([]);
+    });
+
+    context('when validators is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get validators(): Validator<any>[] {
+            return validators;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the validators of the model', () => {
+          expect(subject()).toEqual(validators);
+        });
+      },
+    });
+  });
+  //#endregion
+
+  //#region Strict
+  describe('.strictSchema', () => {
+    let Klass: typeof Model;
+    let schema: Schema<any> = Faker.schema;
+
+    const subject = () => Klass.strictSchema;
+
+    context('schema is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('throws Error', () => {
+          expect(subject).toThrow(PropertyNotDefinedError);
+        });
+
+        context('when schema is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get schema(): Schema<any> {
+                return schema;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns the schema with filled properties', () => {
+              expect(subject()).toEqual(schema);
+              for (const key in schema) {
+                expect('defaultValue' in subject()[key]).toBeTruthy();
+              }
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.strictFilter', () => {
+    let Klass: typeof Model = Faker.model;
+    let filter: Filter<any> = Faker.filter;
+
+    const subject = () => Klass.strictFilter;
+
+    it('returns empty filter', () => {
+      expect(subject()).toEqual({});
+    });
+
+    context('when filter is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get filter(): Filter<any> {
+            return filter;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns the strict filter of the model', () => {
+          expect(subject()).toEqual(filter);
         });
       },
     });
@@ -336,33 +700,6 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.hasOne', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasOne: HasOne = Faker.hasOne;
-
-    const subject = () => Klass.hasOne;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasOne(): HasOne {
-            return hasOne;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(hasOne);
-        });
-      },
-    });
-  });
-
   describe('.strictHasOne', () => {
     let Klass: typeof Model = Faker.model;
     let hasOne: HasOne = Faker.hasOne;
@@ -390,33 +727,6 @@ describe('NextModel', () => {
               expect('foreignKey' in subject()[key]).toBeTruthy();
             }
           }
-        });
-      },
-    });
-  });
-
-  describe('.hasMany', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasMany: HasMany = Faker.hasMany;
-
-    const subject = () => Klass.hasMany;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasMany(): HasMany {
-            return hasMany;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(hasMany);
         });
       },
     });
@@ -497,7 +807,7 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.skipBy', () => {
+  describe('.skipBy(amount)', () => {
     let Klass: typeof Model = Faker.model;
     let skip: number = Faker.skip;
 
@@ -538,7 +848,118 @@ describe('NextModel', () => {
     });
   });
 
-  describe('.query', () => {
+  describe('.orderBy(order)', () => {
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+    let orderItem: Order<any> = { [Faker.name]: Faker.orderDirection };
+
+    const subject = () => Klass.orderBy(orderItem);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns order item as array', () => {
+          expect(subject().order).toEqual([orderItem]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('adds order item to existing order', () => {
+              expect(subject().order).toEqual([...order, orderItem]);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.reorder(order)', () => {
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+    let orderItem: Order<any> = { [Faker.name]: Faker.orderDirection };
+
+    const subject = () => Klass.reorder(orderItem);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns order item as array', () => {
+          expect(subject().order).toEqual([orderItem]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('removes current order and returns order item as array', () => {
+              expect(subject().order).toEqual([orderItem]);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.unordered', () => {
+    let Klass: typeof Model;
+    let order: Partial<Order<any>>[] = Faker.order;
+
+    const subject = () => Klass.unordered;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty order', () => {
+          expect(subject().order).toEqual([]);
+        });
+
+        context('when order is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get order(): Partial<Order<any>>[] {
+                return order;
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('returns empty order', () => {
+              expect(subject().order).toEqual([]);
+            });
+          },
+        });
+      },
+    });
+  });
+
+  describe('.query(filter)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.onlyQuery(filter)', () => {
     pending('[TODO]');
   });
 
@@ -546,17 +967,124 @@ describe('NextModel', () => {
     pending('[TODO]');
   });
 
+  describe('.unfiltered', () => {
+    pending('[TODO]');
+  });
+
+  describe('.all', () => {
+    pending('[TODO]');
+  });
+
+  describe('.updateAll(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.deleteAll()', () => {
+    pending('[TODO]');
+  });
+
+  describe('.inBatchesOf(amount)', () => {
+    pending('[TODO]');
+  });
+
   describe('.first', () => {
     pending('[TODO]');
   });
 
-  describe('.find', () => {
+  describe('.find(query)', () => {
     pending('[TODO]');
   });
 
   describe('.findBy', () => {
     pending('[TODO]');
   });
+
+  describe('.count', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Creating Instances
+  describe('.new(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.build(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('.create(attrs)', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+  //#endregion
+
+  //#region Instance
+  //#region Properites
+  describe('#id', () => {
+    pending('[TODO]');
+  });
+
+  describe('#model', () => {
+    pending('[TODO]');
+  });
+
+  describe('#attributes', () => {
+    pending('[TODO]');
+  });
+
+  describe('#persistentAttributes', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isNew', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isPersistent', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isChanged', () => {
+    pending('[TODO]');
+  });
+
+  describe('#isValid', () => {
+    pending('[TODO]');
+  });
+
+  describe('#changes', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Manipulation
+  describe('#assign(attrs)', () => {
+    pending('[TODO]');
+  });
+
+  describe('#revertChange(key)', () => {
+    pending('[TODO]');
+  });
+
+  describe('#revertChanges()', () => {
+    pending('[TODO]');
+  });
+  //#endregion
+
+  //#region Storage
+  describe('#save()', () => {
+    pending('[TODO]');
+  });
+
+  describe('#delete()', () => {
+    pending('[TODO]');
+  });
+
+  describe('#reload()', () => {
+    pending('[TODO]');
+  });
+  //#endregion
   //#endregion
 });
 

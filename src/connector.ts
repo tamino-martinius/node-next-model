@@ -180,15 +180,10 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     const fn = eval(filter.$query);
     const params = filter.$bindings;
     if (Array.isArray(params)) {
-      for (const key in filter) {
-        return items.filter(item => fn(item, ...params));
-      }
+      return items.filter(item => fn(item, ...params));
     } else {
-      for (const key in filter) {
-        return items.filter(item => fn(item, params));
-      }
+      return items.filter(item => fn(item, params));
     }
-    throw '[TODO] Should not reach error';
   }
 
   private specialFilter(items: S[], filter: FilterSpecial<S>): S[] {
@@ -291,25 +286,10 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  reload(instance: ModelConstructor<S>): Promise<ModelConstructor<S> | undefined> {
-    try {
-      const model = instance.model;
-      const collection = this.collection(model);
-      for (const item of collection) {
-        if (item.id === instance.id) {
-          return Promise.resolve(new model(item));
-        }
-      }
-      return Promise.resolve(undefined);
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
   create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     try {
       instance.id = ++uuid;
-      this.collection(instance.model).push(instance.attributes);
+      this.collection(instance.model).push(<S>instance.attributes);
       return Promise.resolve(instance);
     } catch (e) {
       return Promise.reject(e);
@@ -325,7 +305,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
           const attrs = instance.attributes;
           for (const key in attrs) {
             if (key !== model.identifier) {
-              item[key] = attrs[key];
+              item[key] = <S[keyof S]>attrs[key];
             }
           }
           return Promise.resolve(instance);
@@ -358,3 +338,5 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return Promise.reject('[TODO] Not yet implemented');
   }
 }
+
+export default Connector;

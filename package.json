@@ -1,13 +1,16 @@
 {
-  "name": "next-model",
-  "version": "0.6.1",
+  "name": "@next-model/core",
+  "version": "1.0.0-alpha.4",
   "description": "Rails like models using TypeScript/ES6 and Decorators.",
   "author": "Tamino Martinius <dev@zaku.eu>",
-  "main": "./dist/next_model.js",
-  "module": "./dist/next_model.js",
-  "jsnext:main": "./dist/next_model.js",
-  "typings": "./dist/next_model.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "jsnext:main": "./dist/index.js",
+  "typings": "./dist/index.d.ts",
   "license": "MIT",
+  "files": [
+    "dist/*"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/tamino-martinius/node-next-model.git"
@@ -18,22 +21,26 @@
   "scripts": {
     "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
     "test": "jest",
-    "build": "rm -rf dist/* && tsc",
     "watch": "tsc -w",
-    "ci": "npm run coverage && codecov"
+    "ci": "npm run coverage && codecov",
+    "prepublish": "rm -rf dist/* && tsc"
+  },
+  "dependencies": {
+    "pluralize": "^7.0.0"
   },
   "devDependencies": {
     "@types/faker": "^4.1.2",
-    "@types/jest": "^22.1.3",
-    "@types/node": "^9.4.6",
+    "@types/jest": "^22.2.0",
+    "@types/node": "^9.4.7",
+    "@types/pluralize": "0.0.28",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.0",
     "codecov": "^3.0.0",
     "faker": "^4.1.0",
-    "jest": "^22.4.0",
+    "jest": "^22.4.2",
     "jest-set": "^2.0.0",
     "npm-watch": "^0.3.0",
-    "remap-istanbul": "^0.10.1",
-    "ts-jest": "^22.0.4",
+    "remap-istanbul": "^0.11.0",
+    "ts-jest": "^22.4.1",
     "typescript": "^2.7.2"
   },
   "jest": {

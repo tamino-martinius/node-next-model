@@ -10,11 +10,13 @@ import {
   HasOne,
   HasMany,
   Relation,
+  OrderDirection,
+  Order,
+  Validator,
 } from '../types';
 
-import {
-  NextModel,
-} from '../next_model';
+import NextModel from '../next_model';
+import Connector from '../connector';
 
 function positiveInteger(min: number = 1, max: number = Number.MAX_SAFE_INTEGER - 1): number {
   return faker.random.number({
@@ -24,7 +26,8 @@ function positiveInteger(min: number = 1, max: number = Number.MAX_SAFE_INTEGER 
 }
 
 function className(): string {
-  return faker.lorem.word();
+  const name = faker.lorem.word();
+  return name.substr(0, 1).toUpperCase() + name.substr(1);
 }
 
 function propertyName(): string {
@@ -43,10 +46,21 @@ function filterKey(): string {
   ]);
 }
 
+function orderDirection(): OrderDirection {
+  return faker.helpers.randomize([
+    OrderDirection.asc,
+    OrderDirection.desc,
+  ]);
+}
+
 function filterItem(): any {
   return {
     [propertyName()]: faker.hacker.noun(),
   };
+}
+
+function validator(): Validator<any> {
+  return (_instance: any) => Promise.resolve(faker.random.boolean());
 }
 
 const seed = positiveInteger();
@@ -73,6 +87,18 @@ export class Faker {
     return className();
   }
 
+  static get identifier(): string {
+    return propertyName();
+  }
+
+  static get collectionName(): string {
+    return className();
+  }
+
+  static get connector(): Connector<any> {
+    return new Connector({});
+  }
+
   static get schema() {
     const schema = this.schemaByPropertyCount(faker.random.number({
       min: 1,
@@ -82,7 +108,7 @@ export class Faker {
     return schema;
   }
 
-  static schemaByPropertyCount(count: number): Schema<any> {
+  private static schemaByPropertyCount(count: number): Schema<any> {
     let schema = {};
     for (let i = 0; i < count; i++) {
       const name = propertyName();
@@ -99,7 +125,7 @@ export class Faker {
     }));
   }
 
-  static filterByItemCount(count: number): Filter<any> {
+  private static filterByItemCount(count: number): Filter<any> {
     const key = filterKey();
     const filter = { [key]: [] };
     for (let i = 0; i < count; i++) {
@@ -115,7 +141,27 @@ export class Faker {
     }));
   }
 
-  static relationByCount(count: number): Dict<Relation> {
+  static get order(): Partial<Order<any>>[] {
+    return this.orderByCount(faker.random.number({
+      min: 0,
+      max: 10,
+    }));
+  }
+
+  static get orderDirection(): OrderDirection {
+    return orderDirection();
+  }
+
+  private static orderByCount(count: number): Partial<Order<any>>[] {
+    const order: Partial<Order<any>>[] = [];
+    for (let i = 0; i < count; i++) {
+      const name = propertyName();
+      order.push({ [name]: orderDirection() });
+    }
+    return order;
+  }
+
+  private static relationByCount(count: number): Dict<Relation> {
     let belongsTo = {};
     for (let i = 0; i < count; i++) {
       const name = propertyName();
@@ -123,6 +169,21 @@ export class Faker {
       if (faker.random.boolean()) belongsTo[name].foreignKey = propertyName();
     }
     return belongsTo;
+  }
+
+  static get validators(): Validator<any>[] {
+    return this.validatorsByCount(faker.random.number({
+      min: 0,
+      max: 10,
+    }));
+  }
+
+  private static validatorsByCount(count: number): Validator<any>[] {
+    const validators: Validator<any>[] = [];
+    for (let i = 0; i < count; i++) {
+      validators.push(validator());
+    }
+    return validators;
   }
 
   static randomId(max: number) {

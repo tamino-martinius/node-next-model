@@ -4,7 +4,6 @@ import {
   StrictBelongsTo,
   StrictHasOne,
   StrictHasMany,
-  staticImplements,
   Schema,
   QueryBy,
   FindBy,
@@ -13,10 +12,21 @@ import {
   HasOne,
   HasMany,
   Identifiable,
+  ConnectorConstructor,
+  Validator,
+  Changes,
+  Order,
 } from './types';
 
 import {
-} from './util'
+  Connector,
+} from './connector';
+
+import {
+  staticImplements,
+} from './util';
+
+import pluralize from 'pluralize';
 
 export class PropertyNotDefinedError implements Error {
   name: string = 'PropertyNotDefinedError';
@@ -68,6 +78,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
     private static readonly DEFAULT_SKIP = 0;
+    private cachedPersistentAttributes: Partial<S>;
 
     id: any;
 
@@ -84,9 +95,68 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return name.substr(0, 1).toLowerCase() + name.substr(1);
     }
 
+    static get underscoreModelName(): string {
+      const lowerName = this.lowerModelName;
+      return lowerName.replace(/([A-Z])/g, (_x, y) => '_' + y.toLowerCase());
+    }
+
+    static get pluralModelName(): string {
+      return pluralize(this.underscoreModelName);
+    }
+
+    static get collectionName(): string | undefined {
+      return undefined;
+    }
+
+    static get connector(): ConnectorConstructor<S> {
+      return new Connector<S>();
+    }
+
     static get schema(): Schema<S> {
       throw new PropertyNotDefinedError('schema');
     }
+
+    static get filter(): Filter<S> {
+      return {};
+    }
+
+    static get limit(): number {
+      return this.DEFAULT_LIMIT;
+    }
+
+    static get skip(): number {
+      return this.DEFAULT_SKIP;
+    }
+
+    static get order(): Partial<Order<S>>[] {
+      return [];
+    }
+
+    static get keys(): (keyof S)[] {
+      const keys: (keyof S)[] = [];
+      for (const key in this.strictSchema) {
+        keys.push(key);
+      }
+      return keys;
+    }
+
+
+    static get belongsTo(): BelongsTo {
+      return {};
+    }
+
+    static get hasOne(): HasOne {
+      return {};
+    }
+
+    static get hasMany(): HasMany {
+      return {};
+    }
+
+    static get validators(): Validator<S>[] {
+      return [];
+    }
+
 
     static get strictSchema(): StrictSchema<S> {
       const schema = <StrictSchema<S>>this.schema;
@@ -99,24 +169,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return schema;
     }
 
-    static get filter(): Filter<S> {
-      return {};
-    }
-
     static get strictFilter(): Filter<S> {
       return this.filter || {};
-    }
-
-    static get limit(): number {
-      return this.DEFAULT_LIMIT;
-    }
-
-    static get skip(): number {
-      return this.DEFAULT_SKIP;
-    }
-
-    static get belongsTo(): BelongsTo {
-      return {};
     }
 
     static get strictBelongsTo(): StrictBelongsTo {
@@ -133,10 +187,6 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return belongsTo;
     }
 
-    static get hasOne(): HasOne {
-      return {};
-    }
-
     static get strictHasOne(): StrictHasOne {
       const hasOne: StrictHasOne = {};
       for (const name in this.hasOne) {
@@ -148,10 +198,6 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
         };
       }
       return hasOne;
-    }
-
-    static get hasMany(): HasMany {
-      return {};
     }
 
     static get strictHasMany(): StrictHasMany {
@@ -166,6 +212,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       }
       return hasMany;
     }
+
 
     static limitBy(amount: number): typeof Model {
       // [TODO] Validate input (!NaN && x >= 0  && x < Infinity)
@@ -201,6 +248,33 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       };
     }
 
+    static orderBy(order: Partial<Order<S>>): typeof Model {
+      const newOrder: Partial<Order<S>>[] = []
+      newOrder.push(...this.order, order);
+
+      return class extends this {
+        static get order(): Partial<Order<S>>[] {
+          return newOrder;
+        }
+      };
+    }
+
+    static reorder(order: Partial<Order<S>>): typeof Model {
+      return class extends this {
+        static get order(): Partial<Order<S>>[] {
+          return [order];
+        }
+      };
+    }
+
+    static get unordered(): typeof Model {
+      return class extends this {
+        static get order(): Partial<Order<S>>[] {
+          return [];
+        }
+      };
+    }
+
     static query(filterBy: Filter<S>): typeof Model {
       let filter = filterBy;
       if (this.filter !== undefined) {
@@ -208,6 +282,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
           $and: [filterBy, this.filter],
         };
       }
+      return class extends this {
+        static get filter(): Filter<S> {
+          return filter;
+        }
+      };
+    }
+
+    static onlyQuery(filter: Filter<S>): typeof Model {
       return class extends this {
         static get filter(): Filter<S> {
           return filter;
@@ -227,8 +309,52 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return queryBy;
     }
 
+    static get unfiltered(): typeof Model {
+      return class extends this {
+        static get filter(): Filter<S> {
+          return {};
+        }
+      };
+    }
+
+
+    static get all(): Promise<Model[]> {
+      return <Promise<Model[]>>this.connector.query(this).then(instances => {
+        instances.forEach(instance => (<Model>instance).setPersistentAttributes());
+        return instances;
+      });
+    }
+
+    static async updateAll(attrs: Partial<S>): Promise<Model[]> {
+      const instances = await  <Promise<Model[]>>this.connector.updateAll(this, attrs);
+      instances.forEach(instance => instance.setPersistentAttributes());
+      return instances;
+    }
+
+    static async deleteAll(): Promise<Model[]> {
+      const instances = await <Promise<Model[]>>this.connector.deleteAll(this);
+      instances.forEach(instance => instance.setPersistentAttributes());
+      return instances;
+    }
+
+    static async inBatchesOf(amount: number): Promise<Promise<Model[]>[]> {
+      const count = await this.count;
+      const batchCount = Math.ceil(count / amount);
+      if (batchCount > 0 && batchCount < Number.MAX_SAFE_INTEGER) {
+        const subqueries: Promise<Model[]>[] = [];
+        for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+          const skip = this.skip + batchIndex * amount;
+          const limit = batchIndex !== batchCount - 1 ? amount : batchCount * amount - count;
+          subqueries.push(this.skipBy(skip).limitBy(limit).all);
+        }
+        return subqueries;
+      } else {
+        return [];
+      }
+    }
+
     static get first(): Promise<Model | undefined> {
-      return Promise.resolve(new Model({}));
+      return this.limitBy(1).all.then(instances => instances[0]);
     }
 
     static find(filterBy: Filter<S>): Promise<Model | undefined> {
@@ -247,33 +373,129 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return findBy;
     }
 
+    static get count(): Promise<number> {
+      return this.connector.count(this);
+    }
+
     constructor(attrs: Partial<S> | undefined) {
+      this.cachedPersistentAttributes = {};
       if (attrs !== undefined) {
         for (const key in attrs) {
-          // @ts-ignore
-          this[key] = attrs[key];
+          (<Partial<S>><any>this)[key] = attrs[key];
         }
       }
+    }
+
+    static build(attrs: Partial<S> | undefined): Model {
+      return new this(attrs);
+    }
+
+    static create(attrs: Partial<S> | undefined): Promise<Model> {
+      return new this(attrs).save();
     }
 
     get model(): typeof Model {
       return <typeof Model>this.constructor;
     }
 
-    get attributes(): S {
-      const attrs: S = <S>{};
+    get attributes(): Partial<S> {
+      const self = <Partial<S>><any>this;
+      const attrs: Partial<S> = {};
       for (const key in this.model.schema) {
-        // @ts-ignore
-        attrs[key] = this[key];
+        attrs[key] = self[key];
       }
       return attrs;
+    }
+
+    setPersistentAttributes() {
+      this.cachedPersistentAttributes = this.attributes;
+    }
+
+    get persistentAttributes(): Partial<S> {
+      return this.cachedPersistentAttributes;
+    }
+
+    get isNew(): boolean {
+      return this.id === undefined || this.id === null;
+    }
+
+    get isPersistent(): boolean {
+      return !this.isNew;
+    }
+
+    get isChanged(): boolean {
+      return Object.keys(this.changes).length > 0;
+    }
+
+    get isValid(): Promise<boolean> {
+      const promises = this.model.validators.map(validator => validator(this));
+      return Promise.all(promises).then(validations => {
+        for (const isValid of validations) {
+          if (!isValid) return false;
+        }
+        return true;
+      });
+    }
+
+    get changes(): Partial<Changes<S>> {
+      const self = <Partial<S>><any>this;
+      const changes: Partial<Changes<S>> = {};
+      for (const key of this.model.keys) {
+        if (self[key] !== this.persistentAttributes[key]) {
+          changes[key] = { from: this.persistentAttributes[key], to: self[key] };
+        }
+      }
+      return changes;
+    }
+
+    assign(attrs: Partial<S>): Model {
+      for (const key in attrs) {
+        (<Partial<S>><any>this)[key] = attrs[key];
+      }
+      return this;
+    }
+
+    revertChange(key: keyof S): Model {
+      (<Partial<S>><any>this)[key] = this.persistentAttributes[key];
+      return this;
+    }
+
+    revertChanges(): Model {
+      for (const key of this.model.keys) {
+        this.revertChange(key);
+      }
+      return this;
+    }
+
+    async save(): Promise<Model> {
+      let instance: Model;
+      if (this.isNew) {
+        instance = await <Promise<Model>>this.model.connector.create(this);
+      } else {
+        instance = await <Promise<Model>>this.model.connector.update(this);
+      }
+      instance.setPersistentAttributes();
+      return instance;
+    }
+
+    async delete(): Promise<Model> {
+      const instance = await <Promise<Model>>this.model.connector.delete(this);
+      instance.setPersistentAttributes();
+      return instance;
+    }
+
+    reload(): Promise<Model | undefined> {
+      return this.model.limitBy(1).onlyQuery({[this.model.identifier]: this.id}).first;
     }
   };
 
   return Model;
 };
 
+export default NextModel;
+
 // interface UserSchema {
+//   id: number;
 //   firstName: string;
 //   lastName: string;
 // }
@@ -289,6 +511,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
 //   static get schema() {
 //     return {
+//       id: {type: 'number' },
 //       firstName: { type: 'string' },
 //       lastName: { type: 'string' },
 //     };
@@ -297,4 +520,4 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
 // const u = new User({firstName: 'test'});
 // console.log(u);
-// User.findBy('firstName', 1)
+// User.findBy.firstName('test');
