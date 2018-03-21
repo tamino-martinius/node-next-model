@@ -140,6 +140,8 @@ export interface ConnectorConstructor<S extends Identifiable> {
 export interface ModelStatic<S extends Identifiable> {
   readonly modelName: string;
   readonly lowerModelName: string;
+  readonly underscoreModelName: string;
+  readonly pluralModelName: string;
   readonly identifier: string;
   readonly collectionName: string | undefined;
   readonly connector: ConnectorConstructor<S>;
