@@ -140,7 +140,7 @@ function NextModel() {
         });
         Object.defineProperty(Model, "pluralModelName", {
             get: function () {
-                return pluralize_1.default(this.underscoreModelName);
+                return pluralize_1.plural(this.underscoreModelName);
             },
             enumerable: true,
             configurable: true
