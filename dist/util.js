@@ -1,13 +1,17 @@
-export function applyMixins(derivedCtor, baseCtors) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+function applyMixins(derivedCtor, baseCtors) {
     baseCtors.forEach(function (baseCtor) {
         Object.getOwnPropertyNames(baseCtor.prototype).forEach(function (name) {
             derivedCtor.prototype[name] = baseCtor.prototype[name];
         });
     });
 }
+exports.applyMixins = applyMixins;
 ;
-export function staticImplements() {
+function staticImplements() {
     return function (_constructor) {
     };
 }
+exports.staticImplements = staticImplements;
 //# sourceMappingURL=util.js.map

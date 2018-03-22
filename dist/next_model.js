@@ -1,3 +1,4 @@
+"use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = Object.setPrototypeOf ||
         ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
@@ -49,9 +50,10 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-import { Connector, } from './connector';
-import { staticImplements, } from './util';
-import pluralize from 'pluralize';
+Object.defineProperty(exports, "__esModule", { value: true });
+var connector_1 = require("./connector");
+var util_1 = require("./util");
+var pluralize_1 = require("pluralize");
 var PropertyNotDefinedError = (function () {
     function PropertyNotDefinedError(name, isStatic, isReadonly) {
         if (isStatic === void 0) { isStatic = true; }
@@ -66,7 +68,7 @@ var PropertyNotDefinedError = (function () {
     }
     return PropertyNotDefinedError;
 }());
-export { PropertyNotDefinedError };
+exports.PropertyNotDefinedError = PropertyNotDefinedError;
 ;
 var LowerBoundsError = (function () {
     function LowerBoundsError(name, lowerBound) {
@@ -75,7 +77,7 @@ var LowerBoundsError = (function () {
     }
     return LowerBoundsError;
 }());
-export { LowerBoundsError };
+exports.LowerBoundsError = LowerBoundsError;
 ;
 var MinLengthError = (function () {
     function MinLengthError(name, minLength) {
@@ -84,7 +86,7 @@ var MinLengthError = (function () {
     }
     return MinLengthError;
 }());
-export { MinLengthError };
+exports.MinLengthError = MinLengthError;
 ;
 var TypeError = (function () {
     function TypeError(name, type) {
@@ -93,9 +95,9 @@ var TypeError = (function () {
     }
     return TypeError;
 }());
-export { TypeError };
+exports.TypeError = TypeError;
 ;
-export function NextModel() {
+function NextModel() {
     var Model = (function () {
         function Model(attrs) {
             this.cachedPersistentAttributes = {};
@@ -138,7 +140,7 @@ export function NextModel() {
         });
         Object.defineProperty(Model, "pluralModelName", {
             get: function () {
-                return pluralize(this.underscoreModelName);
+                return pluralize_1.default(this.underscoreModelName);
             },
             enumerable: true,
             configurable: true
@@ -152,7 +154,7 @@ export function NextModel() {
         });
         Object.defineProperty(Model, "connector", {
             get: function () {
-                return new Connector();
+                return new connector_1.Connector();
             },
             enumerable: true,
             configurable: true
@@ -752,7 +754,7 @@ export function NextModel() {
         Model.DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
         Model.DEFAULT_SKIP = 0;
         Model = Model_1 = __decorate([
-            staticImplements()
+            util_1.staticImplements()
         ], Model);
         return Model;
         var Model_1;
@@ -760,6 +762,7 @@ export function NextModel() {
     ;
     return Model;
 }
+exports.NextModel = NextModel;
 ;
-export default NextModel;
+exports.default = NextModel;
 //# sourceMappingURL=next_model.js.map

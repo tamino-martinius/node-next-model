@@ -1,3 +1,5 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var globalStorage = {};
 var uuid = 0;
 var Connector = (function () {
@@ -345,6 +347,6 @@ var Connector = (function () {
     };
     return Connector;
 }());
-export { Connector };
-export default Connector;
+exports.Connector = Connector;
+exports.default = Connector;
 //# sourceMappingURL=connector.js.map

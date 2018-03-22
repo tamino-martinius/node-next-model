@@ -1,3 +1,5 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 ;
 ;
 ;
@@ -5,11 +7,11 @@
 ;
 ;
 ;
-export var OrderDirection;
+var OrderDirection;
 (function (OrderDirection) {
     OrderDirection[OrderDirection["asc"] = 1] = "asc";
     OrderDirection[OrderDirection["desc"] = -1] = "desc";
-})(OrderDirection || (OrderDirection = {}));
+})(OrderDirection = exports.OrderDirection || (exports.OrderDirection = {}));
 ;
 ;
 ;
