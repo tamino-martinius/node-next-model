@@ -26,7 +26,7 @@ import {
   staticImplements,
 } from './util';
 
-import pluralize from 'pluralize';
+import { plural } from 'pluralize';
 
 export class PropertyNotDefinedError implements Error {
   name: string = 'PropertyNotDefinedError';
@@ -101,7 +101,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     static get pluralModelName(): string {
-      return pluralize(this.underscoreModelName);
+      return plural(this.underscoreModelName);
     }
 
     static get collectionName(): string | undefined {
