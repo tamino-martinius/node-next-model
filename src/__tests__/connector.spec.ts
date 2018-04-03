@@ -17,6 +17,7 @@ import {
 
 import {
   context,
+  it,
 } from './types';
 
 import {
@@ -325,7 +326,7 @@ describe('Connector', () => {
         storage = singleSeed;
       },
       tests() {
-        test('updates item within storage storage', async () => {
+        it('updates item within storage storage', async () => {
           const instances = await subject();
           expect(instances.length).toEqual(1);
           expect(instances[0] instanceof Klass).toBeTruthy();
@@ -349,7 +350,7 @@ describe('Connector', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('does not change storage', async () => {
+            it('does not change storage', async () => {
               const instances = await subject();
               expect(instances).toEqual([]);
               expect(items()).toEqual([
@@ -465,7 +466,7 @@ describe('Connector', () => {
         storage = singleSeed;
       },
       tests() {
-        test('updates item within storage storage', async () => {
+        it('updates item within storage storage', async () => {
           const instances = await subject();
           expect(instances.length).toEqual(1);
           expect(instances[0] instanceof Klass).toBeTruthy();
@@ -487,7 +488,7 @@ describe('Connector', () => {
             Klass = NewKlass;
           },
           tests() {
-            test('does not change storage', async () => {
+            it('does not change storage', async () => {
               const instances = await subject();
               expect(instances).toEqual([]);
               expect(items()).toEqual([
@@ -614,7 +615,7 @@ describe('Connector', () => {
         storage = emptySeed;
       },
       tests() {
-        test('creates new instance', async () => {
+        it('creates new instance', async () => {
           expect(items()).toEqual([]);
           const instace = await subject();
           expect(instance instanceof Klass).toBeTruthy();
@@ -652,7 +653,7 @@ describe('Connector', () => {
         storage = singleSeed;
       },
       tests() {
-        test('updates item in storage', async () => {
+        it('updates item in storage', async () => {
           expect(items()).toEqual([{id: validId}]);
           const instace = await subject();
           expect(instance instanceof Klass).toBeTruthy();
@@ -677,7 +678,7 @@ describe('Connector', () => {
         storage = emptySeed;
       },
       tests() {
-        test('rejects update with error', () => {
+        it('rejects update with error', () => {
           return expect(subject()).rejects.toEqual('[TODO] Cant find error');
         });
       },
@@ -697,7 +698,7 @@ describe('Connector', () => {
         storage = multiSeed;
       },
       tests() {
-        test('updates item in storage', async () => {
+        it('updates item in storage', async () => {
           const instace = await subject();
           expect(instance instanceof Klass).toBeTruthy();
           expect(instance.id).toBeUndefined();
@@ -714,7 +715,7 @@ describe('Connector', () => {
         storage = emptySeed;
       },
       tests() {
-        test('rejects update with error', () => {
+        it('rejects update with error', () => {
           return expect(subject()).rejects.toEqual('[TODO] Cant find error');
         });
       },
