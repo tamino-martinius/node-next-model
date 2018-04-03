@@ -246,7 +246,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]> {
+  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number> {
     try {
       const items = this.items(model);
       items.forEach(item => {
@@ -257,13 +257,13 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
           }
         }
       });
-      return Promise.resolve(items.map(item => new model(item)));
+      return Promise.resolve(items.length);
     } catch (e) {
       return Promise.reject(e);
     }
   }
 
-  deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
+  deleteAll(model: ModelStatic<S>): Promise<number> {
     try {
       const items = this.items(model);
       const exists: { [key: string]: boolean } = {};
@@ -277,10 +277,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
           collection.splice(i, 1);
         }
       }
-      return Promise.resolve(items.map(item => {
-        delete item.id;
-        return new model(item);
-      }));
+      return Promise.resolve(items.length);
     } catch (e) {
       return Promise.reject(e);
     }
