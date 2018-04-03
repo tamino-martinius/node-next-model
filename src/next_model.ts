@@ -326,12 +326,12 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     static async updateAll(attrs: Partial<S>): Promise<typeof Model> {
-      await  <Promise<Model[]>>this.connector.updateAll(this, attrs);
+      await this.connector.updateAll(this, attrs);
       return this;
     }
 
     static async deleteAll(): Promise<typeof Model> {
-      await <Promise<Model[]>>this.connector.deleteAll(this);
+      await this.connector.deleteAll(this);
       return this;
     }
 
