@@ -23,8 +23,8 @@ export declare class Connector<S extends Identifiable> implements ConnectorConst
     private filter(items, filter);
     query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
     count(model: ModelStatic<S>): Promise<number>;
-    updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
-    deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
+    updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number>;
+    deleteAll(model: ModelStatic<S>): Promise<number>;
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;

@@ -99,8 +99,8 @@ export interface Storage {
 export interface ConnectorConstructor<S extends Identifiable> {
     query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
     count(model: ModelStatic<S>): Promise<number>;
-    updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
-    deleteAll(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
+    updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number>;
+    deleteAll(model: ModelStatic<S>): Promise<number>;
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
@@ -141,8 +141,8 @@ export interface ModelStatic<S extends Identifiable> {
     readonly queryBy: QueryBy<S>;
     readonly unfiltered: ModelStatic<S>;
     readonly all: Promise<ModelConstructor<S>[]>;
-    updateAll(attrs: Partial<S>): Promise<ModelConstructor<S>[]>;
-    deleteAll(): Promise<ModelConstructor<S>[]>;
+    updateAll(attrs: Partial<S>): Promise<ModelStatic<S>>;
+    deleteAll(): Promise<ModelStatic<S>>;
     inBatchesOf(amount: number): Promise<Promise<ModelConstructor<S>[]>[]>;
     readonly first: Promise<ModelConstructor<S> | undefined>;
     find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;

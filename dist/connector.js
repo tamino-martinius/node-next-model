@@ -265,7 +265,7 @@ var Connector = (function () {
                     }
                 }
             });
-            return Promise.resolve(items.map(function (item) { return new model(item); }));
+            return Promise.resolve(items.length);
         }
         catch (e) {
             return Promise.reject(e);
@@ -284,10 +284,7 @@ var Connector = (function () {
                     collection.splice(i, 1);
                 }
             }
-            return Promise.resolve(items.map(function (item) {
-                delete item.id;
-                return new model(item);
-            }));
+            return Promise.resolve(items.length);
         }
         catch (e) {
             return Promise.reject(e);
