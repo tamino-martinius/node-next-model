@@ -325,16 +325,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       });
     }
 
-    static async updateAll(attrs: Partial<S>): Promise<Model[]> {
-      const instances = await  <Promise<Model[]>>this.connector.updateAll(this, attrs);
-      instances.forEach(instance => instance.setPersistentAttributes());
-      return instances;
+    static async updateAll(attrs: Partial<S>): Promise<typeof Model> {
+      await  <Promise<Model[]>>this.connector.updateAll(this, attrs);
+      return this;
     }
 
-    static async deleteAll(): Promise<Model[]> {
-      const instances = await <Promise<Model[]>>this.connector.deleteAll(this);
-      instances.forEach(instance => instance.setPersistentAttributes());
-      return instances;
+    static async deleteAll(): Promise<typeof Model> {
+      await <Promise<Model[]>>this.connector.deleteAll(this);
+      return this;
     }
 
     static async inBatchesOf(amount: number): Promise<Promise<Model[]>[]> {
