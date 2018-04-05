@@ -519,3 +519,11 @@ export default NextModel;
 // const u = new User({firstName: 'test'});
 // console.log(u);
 // User.findBy.firstName('test');
+
+// function BaseModel<T extends Identifiable>() {
+//   return class extends NextModel<T>() {
+//     static get connector() {
+//       return new Connector<T>();
+//     }
+//   }
+// }
