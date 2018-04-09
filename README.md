@@ -987,7 +987,7 @@ class User extends NextModel<UserSchema>() {
 
 See [history](HISTORY.md) for more details.
 
-* `1.0.0` **2017-11-xx** Complete rewrite in typescript
+* `1.0.0` **2018-xx-xx** Complete rewrite in typescript
 * `0.4.1` **2017-04-05** Bugfix: before and after callback
 * `0.4.0` **2017-02-28** Added platform specific callbacks
 * `0.3.0` **2017-02-27** Tracked property changes
