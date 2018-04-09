@@ -327,15 +327,8 @@ describe('Connector', () => {
       },
       tests() {
         it('updates item within storage storage', async () => {
-          const instances = await subject();
-          expect(instances.length).toEqual(1);
-          expect(instances[0] instanceof Klass).toBeTruthy();
-          expect(instances.map(instance => instance.attributes)).toEqual([
-            { id: validId, foo: 'baz' },
-          ]);
-          expect(items()).toEqual([
-            { id: validId, foo: 'baz' },
-          ]);
+          const count = await subject();
+          expect(count).toEqual(1);
         });
 
         context('when item is not in storage', {
@@ -351,8 +344,8 @@ describe('Connector', () => {
           },
           tests() {
             it('does not change storage', async () => {
-              const instances = await subject();
-              expect(instances).toEqual([]);
+              const count = await subject();
+              expect(count).toEqual(0);
               expect(items()).toEqual([
                 { id: validId },
               ]);
@@ -392,46 +385,10 @@ describe('Connector', () => {
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    if (results.length === 0) {
-                      it('does not change storage', async () => {
-                        const instances = await subject();
-                        expect(instances).toEqual([]);
-                        expect(items()).toEqual([
-                          { id: 1, foo: 'bar' },
-                          { id: 2, foo: null },
-                          { id: 3, foo: 'bar' },
-                        ]);
-                      });
-                    } else if (results.length === 3) {
-                      it('changes storage all items', async () => {
-                        const instances = await subject();
-                        expect(instances.length).toEqual(results.length);
-                        expect(instances[0] instanceof Klass).toBeTruthy();
-                        expect(instances.map(instance => instance.attributes)).toEqual([
-                          { id: 1, foo: 'baz' },
-                          { id: 2, foo: 'baz' },
-                          { id: 3, foo: 'baz' },
-                        ]);
-                        expect(items()).toEqual([
-                          { id: 1, foo: 'baz' },
-                          { id: 2, foo: 'baz' },
-                          { id: 3, foo: 'baz' },
-                        ]);
-                      });
-                    } else {
-                      it('changes storage for matching items', async () => {
-                        const instances = await subject();
-                        expect(instances.length).toEqual(results.length);
-                        expect(instances[0] instanceof Klass).toBeTruthy();
-                        expect(instances.map(instance => instance.attributes))
-                          .toEqual(results.map(id => ({ id, foo: 'baz' })));
-                        expect(items()).toEqual([
-                          { id: 1, foo: results.indexOf(1) >= 0 ? 'baz' : 'bar' },
-                          { id: 2, foo: results.indexOf(2) >= 0 ? 'baz' : null },
-                          { id: 3, foo: results.indexOf(3) >= 0 ? 'baz' : 'bar' },
-                        ]);
-                      });
-                    }
+                    it('updated matching count of records', async () => {
+                      const count = await subject();
+                      expect(count).toEqual(results.length);
+                    });
                   } else {
                     it('rejects filter and returns error', () => {
                       return expect(subject()).rejects.toEqual(results);
@@ -467,12 +424,8 @@ describe('Connector', () => {
       },
       tests() {
         it('updates item within storage storage', async () => {
-          const instances = await subject();
-          expect(instances.length).toEqual(1);
-          expect(instances[0] instanceof Klass).toBeTruthy();
-          expect(instances.map(instance => instance.attributes)).toEqual([
-            { id: undefined },
-          ]);
+          const count = await subject();
+          expect(count).toEqual(1);
           expect(items()).toEqual([]);
         });
 
@@ -489,8 +442,8 @@ describe('Connector', () => {
           },
           tests() {
             it('does not change storage', async () => {
-              const instances = await subject();
-              expect(instances).toEqual([]);
+              const count = await subject();
+              expect(count).toEqual(0);
               expect(items()).toEqual([
                 { id: validId },
               ]);
@@ -530,53 +483,10 @@ describe('Connector', () => {
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    if (results.length === 0) {
-                      it('does not change storage', async () => {
-                        const instances = await subject();
-                        expect(instances).toEqual([]);
-                        expect(items()).toEqual([
-                          { id: 1, foo: 'bar' },
-                          { id: 2, foo: null },
-                          { id: 3, foo: 'bar' },
-                        ]);
-                      });
-                    } else if (results.length === 3) {
-                      it('changes storage all items', async () => {
-                        const instances = await subject();
-                        expect(instances.length).toEqual(results.length);
-                        expect(instances[0] instanceof Klass).toBeTruthy();
-                        expect(instances.map(instance => instance.attributes)).toEqual([
-                          { id: undefined, foo: 'bar' },
-                          { id: undefined, foo: null },
-                          { id: undefined, foo: 'bar' },
-                        ]);
-                        expect(items()).toEqual([]);
-                      });
-                    } else {
-                      it('changes storage for matching items', async () => {
-                        const instances = await subject();
-                        expect(instances.length).toEqual(results.length);
-                        expect(instances[0] instanceof Klass).toBeTruthy();
-                        const leftoverItems = [];
-                        const deletedItems = [];
-                        [
-                          { id: 1, foo: 'bar' },
-                          { id: 2, foo: null },
-                          { id: 3, foo: 'bar' },
-                        ].forEach(item => {
-                          if (results.indexOf(item.id) >= 0) {
-                            deletedItems.push(item);
-                          } else {
-                            leftoverItems.push(item);
-                          }
-                        });
-                        expect(instances.map(instance => instance.attributes))
-                          .toEqual(deletedItems.map(
-                            item => ({ id: undefined, foo: item.foo })
-                          ));
-                        expect(items()).toEqual(leftoverItems);
-                      });
-                    }
+                    it('deletes matching amount of records', async () => {
+                      const instances = await subject();
+                      expect(instances).toEqual(results.length);
+                    });
                   } else {
                     it('rejects filter and returns error', () => {
                       return expect(subject()).rejects.toEqual(results);
