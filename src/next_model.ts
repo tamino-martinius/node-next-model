@@ -342,7 +342,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
         const subqueries: Promise<Model[]>[] = [];
         for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
           const skip = this.skip + batchIndex * amount;
-          const limit = batchIndex !== batchCount - 1 ? amount : batchCount * amount - count;
+          const limit = batchIndex !== batchCount - 1 ? amount : count - (batchCount - 1) * amount;
           subqueries.push(this.skipBy(skip).limitBy(limit).all);
         }
         return subqueries;
