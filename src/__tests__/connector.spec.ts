@@ -172,7 +172,9 @@ const filterSpecGroups: FilterSpecGroup = {
 
 describe('Connector', () => {
   describe('#query(model)', () => {
-    const subject = () => connector().query(Klass);
+    let skip = 0;
+    let limit = Number.MAX_SAFE_INTEGER;
+    const subject = () => connector().query(Klass.skipBy(skip).limitBy(limit));
 
     it('promises empty array', () => {
       return expect(subject()).resolves.toEqual([]);
@@ -233,6 +235,68 @@ describe('Connector', () => {
                           .toEqual(results);
                       });
                     }
+
+                    context('when skip is present', {
+                      definitions() {
+                        skip = 1;
+                      },
+                      reset() {
+                        skip = 0;
+                      },
+                      tests() {
+                        it('promises all matching items as model instances', async () => {
+                          const instances = await subject();
+                          expect(instances.length).toEqual(Math.max(0, results.length - 1));
+                          if (results.length > 1) {
+                            expect(instances[0] instanceof Klass).toBeTruthy();
+                          }
+                          expect(instances.map(instance => instance.id))
+                            .toEqual(results.slice(1));
+                        });
+                      },
+                    });
+
+                    context('when limit is present', {
+                      definitions() {
+                        limit = 1;
+                      },
+                      reset() {
+                        limit = Number.MAX_SAFE_INTEGER;
+                      },
+                      tests() {
+                        it('promises all matching items as model instances', async () => {
+                          const instances = await subject();
+                          expect(instances.length).toEqual(results.length > 0 ? 1 : 0);
+                          if (results.length > 0) {
+                            expect(instances[0] instanceof Klass).toBeTruthy();
+                          }
+                          expect(instances.map(instance => instance.id))
+                            .toEqual(results.slice(0, 1));
+                        });
+                      },
+                    });
+
+                    context('when skip and limit is present', {
+                      definitions() {
+                        skip = 1;
+                        limit = 1;
+                      },
+                      reset() {
+                        skip = 0;
+                        limit = Number.MAX_SAFE_INTEGER;
+                      },
+                      tests() {
+                        it('promises all matching items as model instances', async () => {
+                          const instances = await subject();
+                          expect(instances.length).toEqual(results.length - 1 > 0 ? 1 : 0);
+                          if (results.length > 1) {
+                            expect(instances[0] instanceof Klass).toBeTruthy();
+                          }
+                          expect(instances.map(instance => instance.id))
+                            .toEqual(results.slice(1, 2));
+                        });
+                      },
+                    });
                   } else {
                     it('rejects filter and returns error', () => {
                       return expect(subject()).rejects.toEqual(results);
