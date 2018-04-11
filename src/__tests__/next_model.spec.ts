@@ -1200,7 +1200,71 @@ describe('NextModel', () => {
   });
 
   describe('.updateAll(attrs)', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+    const attrs = { test: 1 };
+    let instance: ModelConstructor<any>;
+
+    const subject = () => Klass.updateAll(attrs);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model {
+          static get schema() {
+            const schema = super.schema;
+            schema.test = { type: 'number' };
+            return schema;
+          }
+
+          static get connector() {
+            return connector;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array', async () => {
+          const model = await subject();
+          const data = await model.all;
+          expect(data).toEqual([]);
+        });
+
+        context('when data is present', {
+          async definitions() {
+            instance = await Klass.create({});
+          },
+          tests() {
+            it('calls connector with model', async () => {
+              const model = await subject();
+              const data = await model.all;
+              const attrArr = data.map(instance => instance.attributes);
+              const attributes = instance.attributes;
+              attributes.test = 1;
+              expect(attrArr).toEqual([attributes]);
+              expect(data[0]).toBeInstanceOf(Klass);
+            });
+
+            context('when filter is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get filter(): Filter<any> {
+                    return { id: 0 };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('filters data', async () => {
+                  const model = await subject();
+                  const data = await model.all;
+                  expect(data).toEqual([]);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.deleteAll()', () => {
