@@ -277,7 +277,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
     static query(filterBy: Filter<S>): typeof Model {
       let filter = filterBy;
-      if (this.filter !== undefined) {
+      if (this.filter !== undefined && Object.keys(this.filter).length > 0)  {
         filter = {
           $and: [filterBy, this.filter],
         };
