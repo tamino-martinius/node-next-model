@@ -995,7 +995,38 @@ describe('NextModel', () => {
   });
 
   describe('.onlyQuery(filter)', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let filter: Filter<any> = Faker.filter;
+
+    const subject = () => Klass.onlyQuery(filter);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends NextModel<any>() { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('sets filter and returns model', () => {
+          expect(subject().filter).toEqual(filter);
+        });
+
+        context('when filter is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get filter(): Filter<any> {
+                return { id: 1 };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('sets filter and returns model', () => {
+              expect(subject().filter).toEqual(filter);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.queryBy', () => {
