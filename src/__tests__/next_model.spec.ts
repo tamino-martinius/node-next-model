@@ -1328,7 +1328,123 @@ describe('NextModel', () => {
   });
 
   describe('.inBatchesOf(amount)', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+    let instance1: ModelConstructor<any>;
+    let instance2: ModelConstructor<any>;
+    let amount = 1;
+
+    const subject = () => Klass.inBatchesOf(amount);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model {
+          static get connector() {
+            return connector;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array', async () => {
+          const dataPromises = await subject();
+          const datas = await Promise.all(dataPromises);
+          expect(datas).toEqual([]);
+        });
+
+        context('when data is present', {
+          async definitions() {
+            instance1 = await Klass.create({});
+          },
+          tests() {
+            it('calls connector with model', async () => {
+              const dataPromises = await subject();
+              const datas = await Promise.all(dataPromises);
+              expect(datas.length).toEqual(1);
+              const attrArr = datas[0].map(instance => instance.attributes);
+              expect(attrArr).toEqual([instance1.attributes]);
+              expect(datas[0][0]).toBeInstanceOf(Klass);
+            });
+
+            context('when filter is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get filter(): Filter<any> {
+                    return { id: 0 };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('filters data', async () => {
+                  const dataPromises = await subject();
+                  const datas = await Promise.all(dataPromises);
+                  expect(datas).toEqual([]);
+                });
+              },
+            });
+
+            context('when multiple data', {
+              async definitions() {
+                instance2 = await Klass.create({});
+              },
+              tests() {
+                it('calls connector with model', async () => {
+                  const dataPromises = await subject();
+                  const datas = await Promise.all(dataPromises);
+                  expect(datas.length).toEqual(2);
+                  const attrArr1 = datas[0].map(instance => instance.attributes);
+                  expect(attrArr1).toEqual([instance1.attributes]);
+                  const attrArr2 = datas[1].map(instance => instance.attributes);
+                  expect(attrArr2).toEqual([instance2.attributes]);
+                  expect(datas[0][0]).toBeInstanceOf(Klass);
+                  expect(datas[1][0]).toBeInstanceOf(Klass);
+                });
+
+                context('when amount is 2', {
+                  definitions() {
+                    amount = 2;
+                  },
+                  tests() {
+                    it('filters data', async () => {
+                      const dataPromises = await subject();
+                      const datas = await Promise.all(dataPromises);
+                      expect(datas.length).toEqual(1);
+                      expect(datas[0].length).toEqual(2);
+                      const attrArr = datas[0].map(instance => instance.attributes);
+                      expect(attrArr).toEqual([
+                        instance1.attributes,
+                        instance2.attributes,
+                      ]);
+                      expect(datas[0][0]).toBeInstanceOf(Klass);
+                      expect(datas[0][1]).toBeInstanceOf(Klass);
+                    });
+                  },
+                });
+
+                context('when filter is present', {
+                  definitions() {
+                    class NewKlass extends Klass {
+                      static get filter(): Filter<any> {
+                        return { id: 0 };
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('filters data', async () => {
+                      const dataPromises = await subject();
+                      const datas = await Promise.all(dataPromises);
+                      expect(datas).toEqual([]);
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.first', () => {
