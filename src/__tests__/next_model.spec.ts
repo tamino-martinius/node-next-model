@@ -1030,7 +1030,83 @@ describe('NextModel', () => {
   });
 
   describe('.queryBy', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let ids: number | number[] = 2;
+
+    const subject = () => Klass.queryBy.id(ids);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('sets filter and returns model', () => {
+          expect(subject().filter).toEqual({ id: 2 });
+        });
+
+        context('when filter is present', {
+          definitions() {
+            class NewKlass extends NextModel<any>() {
+              static get filter(): Filter<any> {
+                return { id: 1 };
+              }
+            };
+            Klass = NewKlass;
+          },
+          tests() {
+            it('adds filter to existing filter and returns model', () => {
+              expect(subject().filter).toEqual({
+                $and: [
+                  { id: 2 },
+                  { id: 1 },
+                ]
+              });
+            });
+          },
+        });
+      },
+    });
+
+    context('when passing array of values', {
+      definitions() {
+        ids = [1, 2]
+      },
+      tests() {
+        context('model is not extended', {
+          definitions() {
+            class NewKlass extends Faker.model { };
+            Klass = NewKlass;
+          },
+          tests() {
+            it.only('sets filter and returns model', () => {
+              expect(subject().filter).toEqual({ $in: { id: [1, 2] } });
+            });
+
+            context('when filter is present', {
+              definitions() {
+                class NewKlass extends NextModel<any>() {
+                  static get filter(): Filter<any> {
+                    return { id: 1 };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('adds filter to existing filter and returns model', () => {
+                  expect(subject().filter).toEqual({
+                    $and: [
+                      { $in: { id: [1, 2] } },
+                      { id: 1 },
+                    ]
+                  });
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.unfiltered', () => {
