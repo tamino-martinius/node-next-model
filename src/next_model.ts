@@ -300,11 +300,11 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     static get queryBy(): QueryBy<S> {
       const queryBy = <QueryBy<S>>{};
       for (const key in this.strictSchema) {
-        queryBy[key] = (value) => {
-          const filter = Array.isArray(value) ?
-            { [key]: value } : { $in: { [key]: value } };
-          return this.query(<Filter<S>>filter);
-        };
+        queryBy[key] = (value) => this.query(
+          Array.isArray(value)
+            ? <Filter<any>>{ $in: { [key]: value } }
+            : <Filter<any>>{ [key]: value }
+        );
       };
       return queryBy;
     }
