@@ -1144,7 +1144,59 @@ describe('NextModel', () => {
   });
 
   describe('.all', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => Klass.all;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model {
+          static get connector() {
+            return connector;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array', async () => {
+          const data = await subject();
+          expect(data).toEqual([]);
+        });
+
+        context('when data is present', {
+          async definitions() {
+            instance = await Klass.create({});
+          },
+          tests() {
+            it('calls connector with model', async () => {
+              const data = await subject();
+              const attrArr = data.map(instance => instance.attributes);
+              expect(attrArr).toEqual([instance.attributes]);
+              expect(data[0]).toBeInstanceOf(Klass);
+            });
+
+            context('when filter is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get filter(): Filter<any> {
+                    return { id: 0 };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('filters data', async () => {
+                  const data = await subject();
+                  expect(data).toEqual([]);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.updateAll(attrs)', () => {
