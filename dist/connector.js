@@ -11,7 +11,17 @@ var Connector = (function () {
         return this.storage[model.modelName] = this.storage[model.modelName] || [];
     };
     Connector.prototype.items = function (model) {
-        return this.filter(this.collection(model), model.strictFilter);
+        var items = this.filter(this.collection(model), model.strictFilter);
+        if (model.skip > 0 && model.limit < Number.MAX_SAFE_INTEGER) {
+            items = items.slice(model.skip, model.skip + model.limit);
+        }
+        else if (model.skip > 0) {
+            items = items.slice(model.skip);
+        }
+        else if (model.limit < Number.MAX_SAFE_INTEGER) {
+            items = items.slice(0, model.limit);
+        }
+        return items;
     };
     Connector.prototype.propertyFilter = function (items, filter) {
         var counts = {};

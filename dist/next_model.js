@@ -430,7 +430,7 @@ function NextModel() {
         });
         Model.query = function (filterBy) {
             var filter = filterBy;
-            if (this.filter !== undefined) {
+            if (this.filter !== undefined && Object.keys(this.filter).length > 0) {
                 filter = {
                     $and: [filterBy, this.filter],
                 };
@@ -472,8 +472,9 @@ function NextModel() {
                 var queryBy = {};
                 var _loop_1 = function (key) {
                     queryBy[key] = function (value) {
-                        var filter = Array.isArray(value) ? (_a = {}, _a[key] = value, _a) : { $in: (_b = {}, _b[key] = value, _b) };
-                        return _this.query(filter);
+                        return _this.query(Array.isArray(value)
+                            ? { $in: (_a = {}, _a[key] = value, _a) }
+                            : (_b = {}, _b[key] = value, _b));
                         var _a, _b;
                     };
                 };
@@ -553,7 +554,7 @@ function NextModel() {
                                 subqueries = [];
                                 for (batchIndex = 0; batchIndex < batchCount; batchIndex++) {
                                     skip = this.skip + batchIndex * amount;
-                                    limit = batchIndex !== batchCount - 1 ? amount : batchCount * amount - count;
+                                    limit = batchIndex !== batchCount - 1 ? amount : count - (batchCount - 1) * amount;
                                     subqueries.push(this.skipBy(skip).limitBy(limit).all);
                                 }
                                 return [2, subqueries];
