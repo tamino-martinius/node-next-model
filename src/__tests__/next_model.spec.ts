@@ -1047,7 +1047,7 @@ describe('NextModel', () => {
 
         context('when filter is present', {
           definitions() {
-            class NewKlass extends NextModel<any>() {
+            class NewKlass extends Klass {
               static get filter(): Filter<any> {
                 return { id: 1 };
               }
@@ -1079,13 +1079,13 @@ describe('NextModel', () => {
             Klass = NewKlass;
           },
           tests() {
-            it.only('sets filter and returns model', () => {
+            it('sets filter and returns model', () => {
               expect(subject().filter).toEqual({ $in: { id: [1, 2] } });
             });
 
             context('when filter is present', {
               definitions() {
-                class NewKlass extends NextModel<any>() {
+                class NewKlass extends Klass {
                   static get filter(): Filter<any> {
                     return { id: 1 };
                   }
