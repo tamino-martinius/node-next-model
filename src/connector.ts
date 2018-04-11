@@ -29,7 +29,15 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   private items(model: ModelStatic<S>): S[] {
-    return this.filter(this.collection(model), model.strictFilter);
+    let items = this.filter(this.collection(model), model.strictFilter);
+    if (model.skip > 0 && model.limit < Number.MAX_SAFE_INTEGER) {
+      items = items.slice(model.skip, model.skip + model.limit);
+    } else if (model.skip > 0) {
+      items = items.slice(model.skip);
+    } else if (model.limit < Number.MAX_SAFE_INTEGER) {
+      items = items.slice(0, model.limit);
+    }
+    return items;
   }
 
   private propertyFilter(items: S[], filter: FilterProperty<S>): S[] {
