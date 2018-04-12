@@ -1959,7 +1959,101 @@ describe('NextModel', () => {
   });
 
   describe('#attributes', () => {
-    pending('[TODO]');
+    let attrs: any = {};
+    let key: string = 'foo';
+    let Klass: typeof Model = class NewKlass extends Faker.model {
+      static get schema() {
+        const schema = super.schema;
+        schema[key] = { type: 'foo' };
+        return schema;
+      }
+    };
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.attributes;
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build(attrs);
+      },
+      tests() {
+        it('returns attributes of instance', async () => {
+          expect(subject()).toEqual(attrs);
+        });
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create(attrs);
+        attrs.id = instance.id;
+      },
+      tests() {
+        it('returns attributes of instance', async () => {
+          expect(subject()).toEqual(attrs);
+        });
+      },
+    });
+
+    context('when attributes have key which is not at schema', {
+      async definitions() {
+        attrs = { notInSchema: 'foo' };
+      },
+      tests() {
+        context('when instance is build', {
+          definitions() {
+            instance = Klass.build(attrs);
+          },
+          tests() {
+            it('does not set invalid key', async () => {
+              expect(subject().notInSchema).toBeUndefined();
+            });
+          },
+        });
+
+        context('when instance is created', {
+          async definitions() {
+            instance = await Klass.create(attrs);
+            attrs.id = instance.id;
+          },
+          tests() {
+            it('does not set invalid key', async () => {
+              expect(subject().notInSchema).toBeUndefined();
+            });
+          },
+        });
+      },
+    });
+
+    context('when attributes have key which is present at schema', {
+      async definitions() {
+        attrs = { [key]: 'foo' };
+      },
+      tests() {
+        context('when instance is build', {
+          definitions() {
+            instance = Klass.build(attrs);
+          },
+          tests() {
+            it('does not set invalid key', async () => {
+              expect(subject()[key]).toEqual('foo');
+            });
+          },
+        });
+
+        context('when instance is created', {
+          async definitions() {
+            instance = await Klass.create(attrs);
+            attrs.id = instance.id;
+          },
+          tests() {
+            it('does not set invalid key', async () => {
+              expect(subject()[key]).toEqual('foo');
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('#persistentAttributes', () => {
