@@ -362,11 +362,10 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     static get findBy(): FindBy<S>  {
       const findBy = <FindBy<S>>{};
       for (const key in this.strictSchema) {
-        findBy[key] = (value) => {
-          const filter = Array.isArray(value) ?
-            { [key]: value } : { $in: { [key]: value } };
-          return this.find(<Filter<S>>filter);
-        };
+        findBy[key] = (value) => this.find(Array.isArray(value)
+            ? <Filter<any>>{ $in: { [key]: value } }
+            : <Filter<any>>{ [key]: value }
+        );
       };
       return findBy;
     }
