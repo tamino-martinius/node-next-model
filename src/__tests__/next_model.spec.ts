@@ -1930,7 +1930,32 @@ describe('NextModel', () => {
   });
 
   describe('#model', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.model;
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build({});
+      },
+      tests() {
+        it('returns model of instance', async () => {
+          expect(subject()).toBe(Klass);
+        });
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create({});
+      },
+      tests() {
+        it('returns model of instance', async () => {
+          expect(subject()).toBe(Klass);
+        });
+      },
+    });
   });
 
   describe('#attributes', () => {
