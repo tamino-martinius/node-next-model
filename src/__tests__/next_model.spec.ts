@@ -1739,7 +1739,57 @@ describe('NextModel', () => {
   });
 
   describe('.count', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => Klass.count;
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model {
+          static get connector() {
+            return connector;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array', async () => {
+          const count = await subject();
+          expect(count).toEqual(0);
+        });
+
+        context('when data is present', {
+          async definitions() {
+            instance = await Klass.create({});
+          },
+          tests() {
+            it('calls connector with model', async () => {
+              const count = await subject();
+              expect(count).toEqual(1);
+            });
+
+            context('when filter is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get filter(): Filter<any> {
+                    return { id: 0 };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('filters data', async () => {
+                  const count = await subject();
+                  expect(count).toEqual(0);
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
   //#endregion
 
