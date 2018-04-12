@@ -1861,7 +1861,39 @@ describe('NextModel', () => {
   });
 
   describe('.create(attrs)', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let attrs = {};
+    const subject = () => Klass.create(attrs);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns instance', async () => {
+          const instance = await subject();
+          expect(instance.id).toBeDefined()
+          expect(instance).toBeInstanceOf(Klass);
+          expect(await Klass.count).toEqual(1);
+        });
+
+        context('when attributes are set', {
+          definitions() {
+            attrs = { [Object.keys(Klass.schema)[0]]: 'foo' };
+          },
+          tests() {
+            it('sets attributes', async () => {
+              const instance = await subject();
+              const key = Object.keys(Klass.schema)[0];
+              expect(instance.attributes[key]).toEqual('foo');
+              expect(instance).toBeInstanceOf(Klass);
+              expect(await Klass.count).toEqual(1);
+            });
+          },
+        });
+      },
+    });
   });
   //#endregion
   //#endregion
