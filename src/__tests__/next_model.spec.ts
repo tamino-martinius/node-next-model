@@ -2213,7 +2213,41 @@ describe('NextModel', () => {
   });
 
   describe('#isChanged', () => {
-    pending('[TODO]');
+    let key: string = 'foo';
+    let attrs: any = { [key]: 'bar' };
+    let Klass: typeof Model = class NewKlass extends Faker.model {
+      static get schema() {
+        const schema = super.schema;
+        schema[key] = { type: 'foo' };
+        return schema;
+      }
+    };
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.isChanged;
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build(attrs);
+      },
+      tests() {
+        it('returns attributes of instance', async () => {
+          expect(subject()).toBeTruthy();
+        });
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create(attrs);
+        attrs.id = instance.id;
+      },
+      tests() {
+        it('returns attributes of instance', async () => {
+          expect(subject()).toBeFalsy();
+        });
+      },
+    });
   });
 
   describe('#isValid', () => {
