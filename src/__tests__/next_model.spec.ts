@@ -2533,7 +2533,34 @@ describe('NextModel', () => {
   });
 
   describe('#delete()', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.delete();
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build({});
+      },
+      tests() {
+        pending('[TODO]');
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create({});
+      },
+      tests() {
+        it('deletes instance', async () => {
+          const count = await Klass.count;
+          const deletedInstance = await subject();
+          expect(deletedInstance).toBeInstanceOf(Klass);
+          expect(deletedInstance.attributes).toEqual(instance.attributes);
+          expect(await Klass.count).toEqual(count - 1);
+        });
+      },
+    });
   });
 
   describe('#reload()', () => {
