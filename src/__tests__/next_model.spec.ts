@@ -2492,7 +2492,44 @@ describe('NextModel', () => {
 
   //#region Storage
   describe('#save()', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.save();
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build({});
+      },
+      tests() {
+        it('saves instance', async () => {
+          expect(await Klass.all).toEqual([]);
+          expect(instance.isNew).toBeTruthy();
+          expect((await subject()).isNew).toBeFalsy();
+          const data = (await Klass.all).map(instance => instance.attributes);
+          expect(data).toEqual([instance.attributes]);
+        });
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create({});
+      },
+      tests() {
+        it('saves changes', async () => {
+          const count = await Klass.count;
+          const keys = Object.keys(Klass.schema);
+          instance.assign({
+            [keys[0]]: 'foo',
+            [keys[1]]: 'bar',
+          });
+          expect(instance.isChanged).toBeTruthy();
+          expect((await subject()).isChanged).toBeFalsy();
+          expect(await Klass.count).toEqual(count);
+        });
+      },
+    });
   });
 
   describe('#delete()', () => {
