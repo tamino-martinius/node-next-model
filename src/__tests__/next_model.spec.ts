@@ -2155,7 +2155,32 @@ describe('NextModel', () => {
   });
 
   describe('#isNew', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.isNew;
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build({});
+      },
+      tests() {
+        it('returns undefined', async () => {
+          expect(subject()).toBeTruthy();
+        });
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create({});
+      },
+      tests() {
+        it('returns identifier', async () => {
+          expect(subject()).toBeFalsy();
+        });
+      },
+    });
   });
 
   describe('#isPersistent', () => {
