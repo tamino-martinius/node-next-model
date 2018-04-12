@@ -1828,7 +1828,36 @@ describe('NextModel', () => {
   });
 
   describe('.build(attrs)', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let attrs = {};
+    const subject = () => Klass.build(attrs);
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model { };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns instance', () => {
+          const instance = subject();
+          expect(instance.attributes).toEqual(attrs);
+          expect(instance).toBeInstanceOf(Klass);
+        });
+
+        context('when attributes are set', {
+          definitions() {
+            attrs = { id: 1 };
+          },
+          tests() {
+            it('sets attributes', () => {
+              const instance = subject();
+              expect(instance.attributes).toEqual(attrs);
+              expect(instance).toBeInstanceOf(Klass);
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.create(attrs)', () => {
