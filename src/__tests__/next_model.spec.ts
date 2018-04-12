@@ -1652,7 +1652,90 @@ describe('NextModel', () => {
   });
 
   describe('.findBy', () => {
-    pending('[TODO]');
+    let Klass: typeof Model;
+    let connector: Connector<any> = Faker.connector;
+    let instance1: ModelConstructor<any>;
+    let instance2: ModelConstructor<any>;
+    let query = () => instance1 ? instance1.id : 0;
+
+    const subject = () => Klass.findBy.id(query());
+
+    context('model is not extended', {
+      definitions() {
+        class NewKlass extends Faker.model {
+          static get connector() {
+            return connector;
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns empty array', async () => {
+          const instance = await subject();
+          expect(instance).toBeUndefined();
+        });
+
+        context('when data is present', {
+          async definitions() {
+            instance1 = await Klass.create({});
+          },
+          tests() {
+            it('calls connector with model', async () => {
+              const instance = await subject();
+              expect(instance.attributes).toEqual(instance1.attributes);
+              expect(instance).toBeInstanceOf(Klass);
+            });
+
+            context('when filter is present', {
+              definitions() {
+                class NewKlass extends Klass {
+                  static get filter(): Filter<any> {
+                    return { id: 0 };
+                  }
+                };
+                Klass = NewKlass;
+              },
+              tests() {
+                it('filters data', async () => {
+                  const instance = await subject();
+                  expect(instance).toBeUndefined();
+                });
+              },
+            });
+
+            context('when multiple data', {
+              async definitions() {
+                instance2 = await Klass.create({});
+              },
+              tests() {
+                it('calls connector with model', async () => {
+                  const instance = await subject();
+                  expect(instance.attributes).toEqual(instance1.attributes);
+                  expect(instance).toBeInstanceOf(Klass);
+                });
+
+                context('when filter is present', {
+                  definitions() {
+                    class NewKlass extends Klass {
+                      static get filter(): Filter<any> {
+                        return { id: instance2.id };
+                      }
+                    };
+                    Klass = NewKlass;
+                  },
+                  tests() {
+                    it('filters data', async () => {
+                      const instance = await subject();
+                      expect(instance).toBeUndefined();
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      },
+    });
   });
 
   describe('.count', () => {
