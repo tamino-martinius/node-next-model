@@ -2564,7 +2564,38 @@ describe('NextModel', () => {
   });
 
   describe('#reload()', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let instance: ModelConstructor<any>;
+
+    const subject = () => instance.reload();
+
+    context('when instance is build', {
+      definitions() {
+        instance = Klass.build({});
+      },
+      tests() {
+        pending('[TODO]');
+      },
+    });
+
+    context('when instance is created', {
+      async definitions() {
+        instance = await Klass.create({});
+      },
+      tests() {
+        it('reloads from storage', async () => {
+          const keys = Object.keys(Klass.schema).filter(key => key != 'id');
+          const attributes = instance.attributes;
+          instance.assign({
+            [keys[0]]: 'foo',
+          });
+          expect(instance.isChanged).toBeTruthy();
+          const reloadedInstance = await subject();
+          expect(reloadedInstance.isChanged).toBeFalsy();
+          expect(reloadedInstance.attributes).toEqual(attributes);
+        });
+      },
+    });
   });
   //#endregion
   //#endregion
