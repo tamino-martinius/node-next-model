@@ -2598,7 +2598,9 @@ describe('NextModel', () => {
         instance = Klass.build({});
       },
       tests() {
-        pending('[TODO]');
+        it('returns error', () => {
+          return expect(subject()).rejects.toEqual('[TODO] Cant find error');
+        });
       },
     });
 
@@ -2629,7 +2631,9 @@ describe('NextModel', () => {
         instance = Klass.build({});
       },
       tests() {
-        pending('[TODO]');
+        it('returns error', async () => {
+          expect(await subject()).toBeUndefined();
+        });
       },
     });
 
