@@ -465,20 +465,28 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     async save(): Promise<Model> {
-      let instance: Model;
-      if (this.isNew) {
-        instance = await <Promise<Model>>this.model.connector.create(this);
-      } else {
-        instance = await <Promise<Model>>this.model.connector.update(this);
+      try {
+        let instance: Model;
+        if (this.isNew) {
+          instance = await <Promise<Model>>this.model.connector.create(this);
+        } else {
+          instance = await <Promise<Model>>this.model.connector.update(this);
+        }
+        instance.setPersistentAttributes();
+        return instance;
+      } catch (error) {
+        throw error;
       }
-      instance.setPersistentAttributes();
-      return instance;
     }
 
     async delete(): Promise<Model> {
-      const instance = await <Promise<Model>>this.model.connector.delete(this);
-      instance.setPersistentAttributes();
-      return instance;
+      try {
+        const instance = await <Promise<Model>>this.model.connector.delete(this);
+        instance.setPersistentAttributes();
+        return instance;
+      } catch (error) {
+        throw error;
+      }
     }
 
     reload(): Promise<Model | undefined> {
