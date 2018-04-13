@@ -2251,7 +2251,62 @@ describe('NextModel', () => {
   });
 
   describe('#isValid', () => {
-    pending('[TODO]');
+    let Klass: typeof Model = Faker.model;
+    let trueValidator: Validator<any> = (instance) => Promise.resolve(true);
+    let falseValidator: Validator<any> = (instance) => Promise.resolve(false;
+    const subject = () => Klass.build({}).isValid;
+
+    it('returns true', async () => {
+      expect(await subject()).toBeTruthy();
+    });
+
+    context('when true validators is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get validators(): Validator<any>[] {
+            return [trueValidator];
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns true', async () => {
+          expect(await subject()).toBeTruthy();
+        });
+      },
+    });
+
+    context('when false validators is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get validators(): Validator<any>[] {
+            return [falseValidator];
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns false', async () => {
+          expect(await subject()).toBeFalsy();
+        });
+      },
+    });
+
+    context('when mixed validators is present', {
+      definitions() {
+        class NewKlass extends Klass {
+          static get validators(): Validator<any>[] {
+            return [trueValidator, falseValidator];
+          }
+        };
+        Klass = NewKlass;
+      },
+      tests() {
+        it('returns false', async () => {
+          expect(await subject()).toBeFalsy();
+        });
+      },
+    });
   });
 
   describe('#changes', () => {
