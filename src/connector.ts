@@ -184,7 +184,6 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
 
   private rawFilter(items: S[], filter: FilterRaw): S[] {
     // Cost: (1, n, 1) => O(n) = n;
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     const fn = eval(filter.$query);
     const params = filter.$bindings;
     if (Array.isArray(params)) {
