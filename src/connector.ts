@@ -338,8 +338,13 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  execute(_query: string, _bindings: Bindings): Promise<any[]> {
-    return Promise.reject('[TODO] Not yet implemented');
+  execute(query: string, bindings: Bindings): Promise<any[]> {
+    const fn = eval(query);
+    if (Array.isArray(bindings)) {
+      return fn(this.storage, ...bindings);
+    } else {
+      return fn(this.storage, bindings);
+    }
   }
 }
 
