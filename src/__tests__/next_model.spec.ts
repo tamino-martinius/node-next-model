@@ -2643,7 +2643,7 @@ describe('NextModel', () => {
       },
       tests() {
         it('reloads from storage', async () => {
-          const keys = Object.keys(Klass.schema).filter(key => key != 'id');
+          const keys = Object.keys(Klass.schema).filter(key => key !== 'id');
           const attributes = instance.attributes;
           instance.assign({
             [keys[0]]: 'foo',
