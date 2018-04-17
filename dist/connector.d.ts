@@ -28,6 +28,6 @@ export declare class Connector<S extends Identifiable> implements ConnectorConst
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
-    execute(_query: string, _bindings: Bindings): Promise<any[]>;
+    execute(query: string, bindings: Bindings): Promise<any[]>;
 }
 export default Connector;

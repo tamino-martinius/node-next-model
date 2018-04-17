@@ -195,8 +195,6 @@ var Connector = (function () {
         throw '[TODO] Should not reach error';
     };
     Connector.prototype.rawFilter = function (items, filter) {
-        if (Object.keys(filter).length !== 1)
-            throw '[TODO] Return proper error';
         var fn = eval(filter.$query);
         var params = filter.$bindings;
         if (Array.isArray(params)) {
@@ -349,8 +347,14 @@ var Connector = (function () {
             return Promise.reject(e);
         }
     };
-    Connector.prototype.execute = function (_query, _bindings) {
-        return Promise.reject('[TODO] Not yet implemented');
+    Connector.prototype.execute = function (query, bindings) {
+        var fn = eval(query);
+        if (Array.isArray(bindings)) {
+            return fn.apply(void 0, [this.storage].concat(bindings));
+        }
+        else {
+            return fn(this.storage, bindings);
+        }
     };
     return Connector;
 }());

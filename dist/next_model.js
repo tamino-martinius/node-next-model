@@ -583,8 +583,9 @@ function NextModel() {
                 var findBy = {};
                 var _loop_2 = function (key) {
                     findBy[key] = function (value) {
-                        var filter = Array.isArray(value) ? (_a = {}, _a[key] = value, _a) : { $in: (_b = {}, _b[key] = value, _b) };
-                        return _this.find(filter);
+                        return _this.find(Array.isArray(value)
+                            ? { $in: (_a = {}, _a[key] = value, _a) }
+                            : (_b = {}, _b[key] = value, _b));
                         var _a, _b;
                     };
                 };
@@ -710,10 +711,12 @@ function NextModel() {
         };
         Model.prototype.save = function () {
             return __awaiter(this, void 0, void 0, function () {
-                var instance;
+                var instance, error_1;
                 return __generator(this, function (_a) {
                     switch (_a.label) {
                         case 0:
+                            _a.trys.push([0, 5, , 6]);
+                            instance = void 0;
                             if (!this.isNew) return [3, 2];
                             return [4, this.model.connector.create(this)];
                         case 1:
@@ -726,20 +729,30 @@ function NextModel() {
                         case 4:
                             instance.setPersistentAttributes();
                             return [2, instance];
+                        case 5:
+                            error_1 = _a.sent();
+                            throw error_1;
+                        case 6: return [2];
                     }
                 });
             });
         };
         Model.prototype.delete = function () {
             return __awaiter(this, void 0, void 0, function () {
-                var instance;
+                var instance, error_2;
                 return __generator(this, function (_a) {
                     switch (_a.label) {
-                        case 0: return [4, this.model.connector.delete(this)];
+                        case 0:
+                            _a.trys.push([0, 2, , 3]);
+                            return [4, this.model.connector.delete(this)];
                         case 1:
                             instance = _a.sent();
                             instance.setPersistentAttributes();
                             return [2, instance];
+                        case 2:
+                            error_2 = _a.sent();
+                            throw error_2;
+                        case 3: return [2];
                     }
                 });
             });
