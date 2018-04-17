@@ -78,13 +78,31 @@ export type StrictBelongsTo = Dict<StrictRelation>;
 export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
+export enum DataType {
+  integer,
+  bigInteger,
+  text,
+  string,
+  float,
+  decimal,
+  boolean,
+  date,
+  dateTime,
+  time,
+  binary,
+  enum,
+  json,
+  jsonb,
+  uuid,
+};
+
 export interface SchemaProperty<T> {
-  type: string;
+  type: DataType;
   defaultValue?: T | ((model: ModelConstructor<any>) => T);
 };
 
 export interface StrictSchemaProperty<T> {
-  type: string;
+  type: DataType;
   defaultValue: undefined | T | ((model: ModelConstructor<any>) => T);
 };
 
