@@ -59,20 +59,20 @@ export declare type StrictBelongsTo = Dict<StrictRelation>;
 export declare type StrictHasOne = Dict<StrictRelation>;
 export declare type StrictHasMany = Dict<StrictRelation>;
 export declare enum DataType {
-    integer = 0,
-    bigInteger = 1,
-    text = 2,
-    string = 3,
-    float = 4,
+    bigInteger = 0,
+    binary = 1,
+    boolean = 2,
+    date = 3,
+    dateTime = 4,
     decimal = 5,
-    boolean = 6,
-    date = 7,
-    dateTime = 8,
-    time = 9,
-    binary = 10,
-    enum = 11,
-    json = 12,
-    jsonb = 13,
+    enum = 6,
+    float = 7,
+    integer = 8,
+    json = 9,
+    jsonb = 10,
+    string = 11,
+    text = 12,
+    time = 13,
     uuid = 14,
 }
 export interface SchemaProperty<T> {
