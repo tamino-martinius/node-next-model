@@ -9,6 +9,7 @@ import {
   Identifiable,
   ModelConstructor,
   Storage,
+  DataType,
 } from '../types';
 
 import {
@@ -380,8 +381,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };
@@ -424,8 +425,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };
@@ -477,8 +478,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };
@@ -522,8 +523,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };
@@ -579,8 +580,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };
@@ -617,8 +618,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };
@@ -642,8 +643,8 @@ describe('Connector', () => {
         class NewKlass extends Klass {
           static get schema(): Schema<any> {
             return {
-              id: { type: 'number' },
-              foo: { type: 'string' },
+              id: { type: DataType.integer },
+              foo: { type: DataType.string },
             };
           }
         };

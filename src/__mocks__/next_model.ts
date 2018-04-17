@@ -13,6 +13,7 @@ import {
   OrderDirection,
   Order,
   Validator,
+  DataType,
 } from '../types';
 
 import NextModel from '../next_model';
@@ -104,7 +105,9 @@ export class Faker {
       min: 1,
       max: 5,
     }));
-    schema.id = { type: 'number' };
+    schema.id = {
+      type: faker.random.number({ min: 0, max: 14 }),
+    };
     return schema;
   }
 

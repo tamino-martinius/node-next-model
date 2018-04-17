@@ -14,6 +14,7 @@ import {
   ModelConstructor,
   Order,
   Validator,
+  DataType,
 } from '../types';
 
 import {
@@ -1212,7 +1213,7 @@ describe('NextModel', () => {
         class NewKlass extends Faker.model {
           static get schema() {
             const schema = super.schema;
-            schema.test = { type: 'number' };
+            schema.test = { type: DataType.string };
             return schema;
           }
 
@@ -1964,7 +1965,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
@@ -2062,7 +2063,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
@@ -2218,7 +2219,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
@@ -2253,7 +2254,7 @@ describe('NextModel', () => {
   describe('#isValid', () => {
     let Klass: typeof Model = Faker.model;
     let trueValidator: Validator<any> = (instance) => Promise.resolve(true);
-    let falseValidator: Validator<any> = (instance) => Promise.resolve(false;
+    let falseValidator: Validator<any> = (instance) => Promise.resolve(false);
     const subject = () => Klass.build({}).isValid;
 
     it('returns true', async () => {
@@ -2315,7 +2316,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
@@ -2360,7 +2361,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
@@ -2458,7 +2459,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
@@ -2512,7 +2513,7 @@ describe('NextModel', () => {
     let Klass: typeof Model = class NewKlass extends Faker.model {
       static get schema() {
         const schema = super.schema;
-        schema[key] = { type: 'foo' };
+        schema[key] = { type: DataType.string };
         return schema;
       }
     };
