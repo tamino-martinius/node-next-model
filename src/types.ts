@@ -79,20 +79,20 @@ export type StrictHasOne = Dict<StrictRelation>;
 export type StrictHasMany = Dict<StrictRelation>;
 
 export enum DataType {
-  integer,
   bigInteger,
-  text,
-  string,
-  float,
-  decimal,
+  binary,
   boolean,
   date,
   dateTime,
-  time,
-  binary,
+  decimal,
   enum,
+  float,
+  integer,
   json,
   jsonb,
+  string,
+  text,
+  time,
   uuid,
 };
 
