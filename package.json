@@ -19,7 +19,7 @@
     "node": ">=6.10"
   },
   "scripts": {
-    "coverage": "rm -rf coverage* && jest --coverage && node remap_coverage.js && rm -rf coverage_jest_raw*",
+    "coverage": "rm -rf coverage* && jest --coverage",
     "test": "jest",
     "watch": "tsc -w",
     "ci": "npm run coverage && codecov",
@@ -54,7 +54,6 @@
       "tsx",
       "js",
       "json"
-    ],
-    "coverageDirectory": "coverage_jest_raw"
+    ]
   }
 }
