@@ -31,18 +31,15 @@
   },
   "devDependencies": {
     "@types/faker": "^4.1.2",
-    "@types/jest": "^22.2.2",
-    "@types/node": "^9.6.4",
+    "@types/jest": "^22.2.3",
+    "@types/node": "^9.6.6",
     "@types/pluralize": "0.0.28",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.0",
     "codecov": "^3.0.0",
     "faker": "^4.1.0",
     "jest": "^22.4.3",
-    "jest-set": "^2.0.0",
-    "npm-watch": "^0.3.0",
-    "remap-istanbul": "^0.11.0",
-    "ts-jest": "^22.4.2",
-    "typescript": "^2.8.1"
+    "ts-jest": "^22.4.4",
+    "typescript": "^2.8.3"
   },
   "jest": {
     "transform": {
