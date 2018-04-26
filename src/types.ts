@@ -70,13 +70,6 @@ export interface StrictRelation {
   foreignKey: string;
 };
 
-export type BelongsTo = Dict<Relation>;
-export type HasOne = Dict<Relation>;
-export type HasMany = Dict<Relation>;
-
-export type StrictBelongsTo = Dict<StrictRelation>;
-export type StrictHasOne = Dict<StrictRelation>;
-export type StrictHasMany = Dict<StrictRelation>;
 
 export enum DataType {
   bigInteger,
