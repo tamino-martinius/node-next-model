@@ -492,6 +492,8 @@ describe('NextModel', () => {
   //#endregion
 
   //#region Relations
+  pending('.relations');
+
   describe('.validators', () => {
     let Klass: typeof Model = Faker.model;
     let validators: Validator<any>[] = Faker.validators;
@@ -558,6 +560,8 @@ describe('NextModel', () => {
       },
     });
   });
+
+  pending('.strictRelations');
 
   describe('.strictFilter', () => {
     let Klass: typeof Model = Faker.model;
@@ -1019,6 +1023,10 @@ describe('NextModel', () => {
       },
     });
   });
+
+  pending('.pluck');
+
+  pending('.select');
 
   describe('.updateAll(attrs)', () => {
     let Klass: typeof Model;

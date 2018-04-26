@@ -210,6 +210,8 @@ export interface ModelStatic<S extends Identifiable, R extends Dict<Identifiable
   readonly queryBy: QueryBy<S>;
   readonly unfiltered: ModelStatic<S, R>;
   readonly all: Promise<ModelConstructor<S, R>[]>;
+  pluck(key: keyof S): Promise<S[keyof S][]>
+  select(...keys: (keyof S)[]): Promise<S[keyof S][][]>
   updateAll(attrs: Partial<S>): Promise<ModelStatic<S, R>>;
   deleteAll(): Promise<ModelStatic<S, R>>;
   inBatchesOf(amount: number): Promise<Promise<ModelConstructor<S, R>[]>[]>;
@@ -217,8 +219,6 @@ export interface ModelStatic<S extends Identifiable, R extends Dict<Identifiable
   find(query: Filter<S>): Promise<undefined | ModelConstructor<S, R>>;
   readonly findBy: FindBy<S>;
   readonly count: Promise<number>;
-  pluck(key: keyof S): Promise<S[keyof S][]>
-  select(...keys: (keyof S)[]): Promise<S[keyof S][][]>
 
   new(attrs: Partial<S> | undefined): ModelConstructor<S, R>;
   build(attrs: Partial<S> | undefined): ModelConstructor<S, R>;
