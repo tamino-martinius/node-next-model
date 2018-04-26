@@ -6,14 +6,20 @@ export interface Identifiable {
 
 export interface Dict<T> {
   [key: string]: T;
-};
+}
 
 export type Tuple<T, U> = [T, U];
 
 export interface Range<T> {
   from: T;
   to: T;
-};
+}
+
+// "{ new(): T }"
+// is from https://www.typescriptlang.org/docs/handbook/generics.html#using-class-types-in-generics
+export interface Constructor<M> {
+  new(...args: any[]): M;
+}
 
 export type Bindings = BaseType[] | { [key: string]: BaseType }
 
@@ -21,27 +27,26 @@ export type FilterProperty<S extends Identifiable> = Partial<S>;
 
 export type FilterIn<S extends Identifiable> = {
   [K in keyof S]: Array<S[K]>;
-};
+}
 
 export type FilterBetween<S extends Identifiable> = {
   [K in keyof S]: Range<S[K]>;
-};
+}
 
 export type FilterCompare<S extends Identifiable> = {
   [K in keyof S]: S[K];
-};
+}
 
 export interface FilterRaw {
   $bindings: Bindings;
   $query: string;
-};
+}
 
 export type Filter<S extends Identifiable> =
   FilterProperty<S> |
   FilterSpecial<S> |
   Promise<FilterProperty<S>> |
   Promise<FilterSpecial<S>>
-;
 
 export type FilterSpecial<S extends Identifiable> = {
   $and?: Filter<S>[];
@@ -63,11 +68,10 @@ export type FilterSpecial<S extends Identifiable> = {
   $lte?: FilterCompare<S>;
 
   $raw?: FilterRaw;
-};
+}
 
 export type Validator<S extends Identifiable> =
   (instance: ModelConstructor<S>) => Promise<boolean>
-;
 
 export enum DataType {
   bigInteger,
@@ -85,54 +89,54 @@ export enum DataType {
   text,
   time,
   uuid,
-};
+}
 
 export interface SchemaProperty<T> {
   type: DataType;
   defaultValue?: T | ((model: ModelConstructor<Identifiable>) => T);
-};
+}
 
 export interface StrictSchemaProperty<T> {
   type: DataType;
   defaultValue: undefined | T | ((model: ModelConstructor<Identifiable>) => T);
-};
+}
 
 export type Schema<S extends Identifiable> = {
   [P in keyof S]: SchemaProperty<S[P]>;
-};
+}
 
 export type StrictSchema<S extends Identifiable> = {
   [P in keyof S]: StrictSchemaProperty<S[P]>;
-};
+}
 
 export type QueryBy<S extends Identifiable> = {
   [P in keyof S]: (value: S[P] | S[P][]) => ModelStatic<S>;
-};
+}
 
 export type Query<S extends Identifiable> = (query: Filter<S>) => ModelStatic<S>;
 
 export type FindBy<S extends Identifiable> = {
   [P in keyof S]: (value: S[P] | S[P][]) => Promise<undefined | ModelConstructor<S>>;
-};
+}
 
 export enum OrderDirection {
   'asc' = 1,
   'desc' = -1,
-};
+}
 
 export type Order<S extends Identifiable> = {
   [P in keyof S]: OrderDirection;
-};
+}
 
 export type Find<S extends Identifiable> = (query: Filter<S>) => Promise<undefined | ModelConstructor<S>>;
 
 export type Changes<S extends Identifiable> = {
-  [P in keyof S]: { from: S[P] | undefined, to: S[P] | undefined };
-};
+  [P in keyof S]: { from: S[P] | undefined, to: S[P] | undefined }
+}
 
 export interface Storage {
   [key: string]: any[],
-};
+}
 
 export interface ConnectorConstructor<S extends Identifiable> {
   query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
@@ -144,7 +148,7 @@ export interface ConnectorConstructor<S extends Identifiable> {
   update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
   delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
   execute(query: string, bindings: Bindings): Promise<any[]>;
-};
+}
 
 export interface RelationOptions {
   readonly filter?: Filter<any>;
@@ -197,7 +201,7 @@ export interface ModelStatic<S extends Identifiable> {
   readonly findBy: FindBy<S>;
   readonly count: Promise<number>;
 
-  new(attrs: Partial<S> | undefined): ModelConstructor<S>;
+  // new(attrs: Partial<S> | undefined): ModelConstructor<S>;
   build(attrs: Partial<S> | undefined): ModelConstructor<S>;
   create(attrs: Partial<S> | undefined): Promise<ModelConstructor<S>>;
   // prototype: S;
@@ -221,4 +225,4 @@ export interface ModelConstructor<S extends Identifiable> {
   save(): Promise<ModelConstructor<S>>;
   delete(): Promise<ModelConstructor<S>>;
   reload(): Promise<ModelConstructor<S> | undefined>;
-};
+}
