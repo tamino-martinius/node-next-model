@@ -62,6 +62,12 @@ export type Validator<S extends Identifiable> = (instance: ModelConstructor<S>) 
 
 export interface Relation {
   model: ModelStatic<any>;
+export enum RelationType {
+  BelongsTo,
+  HasOne,
+  HasMany,
+};
+
   foreignKey?: string;
 };
 
