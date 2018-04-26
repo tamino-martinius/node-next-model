@@ -68,14 +68,30 @@ export enum RelationType {
   HasMany,
 };
 
+export interface Relation<S extends Identifiable> {
+  type: RelationType;
+  model: ModelStatic<S, Dict<Identifiable>>;
+  through?: string;
+  filter?: Filter<S>;
   foreignKey?: string;
 };
 
-export interface StrictRelation {
-  model: ModelStatic<any>;
+export interface StrictRelation<S extends Identifiable> {
+  type: RelationType;
+  model: ModelStatic<S, Dict<Identifiable>>;
+  through?: string;
   foreignKey: string;
 };
 
+export type Relations<D extends Dict<Identifiable>> = {
+  [K in keyof D]: Relation<D[K]>;
+};
+export type StrictRelations<D extends Dict<Identifiable>> = {
+  [K in keyof D]: StrictRelation<D[K]>;
+};
+export type Related<D extends Dict<Identifiable>> = {
+  [K in keyof D]: ModelStatic<D[K], {}>;
+};
 
 export enum DataType {
   bigInteger,
