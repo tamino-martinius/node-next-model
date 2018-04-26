@@ -412,6 +412,39 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return changes;
     }
 
+    get related(): Related<R> {
+      const related: Related<R> = <any>{};
+      const relations = this.model.strictRelations;
+      for (const name in relations) {
+        const relation = relations[name];
+        if (relation.through) {
+          const through = relations[relation.through];
+          let model = through.model;
+          if (relation.type = RelationType.BelongsTo) {
+            related[name] = model.query({
+              [model.identifier]: (<any>this)[relation.foreignKey],
+            });
+          } else {
+            related[name] = model.query({
+              [relation.foreignKey]: this.id,
+            });
+          }
+        } else {
+          let model = relation.model;
+          if (relation.type = RelationType.BelongsTo) {
+            related[name] = model.query({
+              [model.identifier]: (<any>this)[relation.foreignKey],
+            });
+          } else {
+            related[name] = model.query({
+              [relation.foreignKey]: this.id,
+            });
+          }
+        }
+      }
+      return related;
+    }
+
     assign(attrs: Partial<S>): Model {
       for (const key in attrs) {
         (<Partial<S>><any>this)[key] = attrs[key];
