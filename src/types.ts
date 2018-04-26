@@ -8,6 +8,10 @@ export interface Dict<T> {
   [key: string]: T;
 };
 
+export interface TupleDict<T, U> {
+  [key: string]: [T, U];
+};
+
 export interface Range<T> {
   from: T;
   to: T;
