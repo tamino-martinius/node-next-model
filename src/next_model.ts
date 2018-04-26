@@ -1,21 +1,20 @@
 import {
   ModelStatic,
   StrictSchema,
-  StrictBelongsTo,
-  StrictHasOne,
-  StrictHasMany,
   Schema,
   QueryBy,
   FindBy,
   Filter,
-  BelongsTo,
-  HasOne,
-  HasMany,
   Identifiable,
   ConnectorConstructor,
   Validator,
   Changes,
   Order,
+  Relations,
+  StrictRelations,
+  Related,
+  RelationType,
+  Dict,
 } from './types';
 
 import {
