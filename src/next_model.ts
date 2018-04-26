@@ -341,6 +341,15 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.connector.count(this);
     }
 
+    static async pluck(key: keyof S): Promise<S[keyof S][]> {
+      const arr: any[][] = await this.connector.select(this, key);
+      return arr.map(items => items[0]);
+    }
+
+    static select(key: keyof S): Promise<S[keyof S][][]> {
+      return this.connector.select(this, key);
+    }
+
     constructor(attrs: Partial<S> | undefined) {
       this.cachedPersistentAttributes = {};
       if (attrs !== undefined) {
