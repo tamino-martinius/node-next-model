@@ -80,6 +80,7 @@ export interface StrictRelation<S extends Identifiable> {
   type: RelationType;
   model: ModelStatic<S, Dict<Identifiable>>;
   through?: string;
+  filter: Filter<S>;
   foreignKey: string;
 };
 
