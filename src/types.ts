@@ -69,29 +69,6 @@ export type Validator<S extends Identifiable> =
   (instance: ModelConstructor<S>) => Promise<boolean>
 ;
 
-export enum RelationType {
-  BelongsTo,
-  HasOne,
-  HasMany,
-};
-
-export interface Relation<S extends Identifiable> {
-  type: RelationType;
-  model: ModelStatic<S>;
-  through?: string;
-  filter?: Filter<S>;
-  foreignKey?: string;
-};
-
-export interface StrictRelation<S extends Identifiable> {
-  type: RelationType;
-  model: ModelStatic<S>;
-  through?: string;
-  filter: Filter<S>;
-  foreignKey: string;
-};
-
-
 export enum DataType {
   bigInteger,
   binary,
@@ -169,8 +146,10 @@ export interface ConnectorConstructor<S extends Identifiable> {
   execute(query: string, bindings: Bindings): Promise<any[]>;
 };
 
-export interface RelationConstructor {
-
+export interface RelationOptions {
+  readonly filter?: Filter<any>;
+  readonly through?: ModelStatic<any>;
+  readonly foreignKey?: string;
 }
 
 export interface ModelStatic<S extends Identifiable> {
@@ -187,12 +166,15 @@ export interface ModelStatic<S extends Identifiable> {
   readonly skip: number;
   readonly order: Partial<Order<S>>[]
   readonly keys: (keyof S)[]
-
+  
   readonly validators: Validator<S>[];
-
+  
   readonly strictSchema: StrictSchema<S>;
   readonly strictFilter: Filter<S>;
-
+  
+  belongsTo<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
+  hasMany<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
+  hasOne<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
   limitBy(amount: number): ModelStatic<S>;
   readonly unlimited: ModelStatic<S>;
   skipBy(amount: number): ModelStatic<S>;
