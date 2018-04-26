@@ -507,13 +507,17 @@ export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(
 
 export default NextModel;
 
+// import {
+//   DataType,
+// } from './types';
+
 // interface UserSchema {
 //   id: number;
 //   firstName: string;
 //   lastName: string;
 // }
 
-// class User extends NextModel<UserSchema>() {;
+// class User extends NextModel<UserSchema, {}>() implements UserSchema {
 //   firstName: string;
 //   lastName: string;
 //   // [key: string]: any;
@@ -524,21 +528,49 @@ export default NextModel;
 
 //   static get schema() {
 //     return {
-//       id: {type: 'number' },
-//       firstName: { type: 'string' },
-//       lastName: { type: 'string' },
+//       id: { type: DataType.integer },
+//       firstName: { type: DataType.string },
+//       lastName: { type: DataType.string },
 //     };
 //   }
 // }
 
-// const u = new User({firstName: 'test'});
-// console.log(u);
-// User.findBy.firstName('test');
+// interface AddressSchema {
+//   id: number;
+//   userId: number;
+//   street: string;
+//   city: string;
+// }
 
-// function BaseModel<T extends Identifiable>() {
-//   return class extends NextModel<T>() {
-//     static get connector() {
-//       return new Connector<T>();
-//     }
+// interface AddressRelations extends Dict<Identifiable> {
+//   user: UserSchema,
+// };
+
+// class Address extends NextModel<AddressSchema, AddressRelations>() implements AddressSchema {
+//   userId: number;
+//   street: string;
+//   city: string;
+//   // [key: string]: any;
+
+//   static get modelName() {
+//     return 'Addresss';
+//   }
+
+//   static get schema() {
+//     return {
+//       id: { type: DataType.integer },
+//       userId: { type: DataType.integer },
+//       firstName: { type: DataType.string },
+//       lastName: { type: DataType.string },
+//     };
+//   }
+
+//   static get relations(): Relations<AddressRelations> {
+//     return {
+//       user: {
+//         model: User,
+//         type: RelationType.BelongsTo,
+//       }
+//     };
 //   }
 // }
