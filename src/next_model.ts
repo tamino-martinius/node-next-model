@@ -140,6 +140,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
 
+    static get relations(): Relations<R> {
+      return <any>{};
     }
 
     static get validators(): Validator<S>[] {
@@ -162,46 +164,22 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.filter || {};
     }
 
-    static get strictBelongsTo(): StrictBelongsTo {
-      const belongsTo: StrictBelongsTo = {};
-      for (const name in this.belongsTo) {
-        const relation = this.belongsTo[name];
+    static get strictRelations(): StrictRelations<R> {
+      const relations: StrictRelations<R> = <any>{};
+      for (const name in this.relations) {
+        const relation = this.relations[name];
         const model = relation.model;
         const foreignKey = relation.foreignKey || model.lowerModelName + 'Id';
-        belongsTo[name] = {
-          foreignKey,
+        relations[name] = {
+          type: relation.type,
           model: relation.model,
+          foreignKey,
+          through: relation.through,
+          filter: relation.filter || {},
         };
       }
-      return belongsTo;
+      return relations;
     }
-
-    static get strictHasOne(): StrictHasOne {
-      const hasOne: StrictHasOne = {};
-      for (const name in this.hasOne) {
-        const relation = this.hasOne[name];
-        const foreignKey = relation.foreignKey || this.lowerModelName + 'Id';
-        hasOne[name] = {
-          foreignKey,
-          model: relation.model,
-        };
-      }
-      return hasOne;
-    }
-
-    static get strictHasMany(): StrictHasMany {
-      const hasMany: StrictHasMany = {};
-      for (const name in this.hasMany) {
-        const relation = this.hasMany[name];
-        const foreignKey = relation.foreignKey || this.lowerModelName + 'Id';
-        hasMany[name] = {
-          foreignKey,
-          model: relation.model,
-        };
-      }
-      return hasMany;
-    }
-
 
     static limitBy(amount: number): typeof Model {
       // [TODO] Validate input (!NaN && x >= 0  && x < Infinity)
