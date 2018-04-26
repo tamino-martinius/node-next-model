@@ -140,16 +140,6 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
 
-    static get belongsTo(): BelongsTo {
-      return {};
-    }
-
-    static get hasOne(): HasOne {
-      return {};
-    }
-
-    static get hasMany(): HasMany {
-      return {};
     }
 
     static get validators(): Validator<S>[] {
