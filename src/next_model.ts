@@ -10,11 +10,6 @@ import {
   Validator,
   Changes,
   Order,
-  Relations,
-  StrictRelations,
-  Related,
-  RelationType,
-  Dict,
 } from './types';
 
 import {
@@ -72,8 +67,8 @@ export class TypeError implements Error {
   }
 };
 
-export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(): ModelStatic<S, R> {
-  @staticImplements<ModelStatic<S, R>>()
+export function NextModel<S extends Identifiable>(): ModelStatic<S> {
+  @staticImplements<ModelStatic<S>>()
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
     private static readonly DEFAULT_SKIP = 0;
@@ -107,8 +102,8 @@ export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(
       return undefined;
     }
 
-    static get connector(): ConnectorConstructor<S, R> {
-      return new Connector<S, R>();
+    static get connector(): ConnectorConstructor<S> {
+      return new Connector<S>();
     }
 
     static get schema(): Schema<S> {
@@ -139,12 +134,7 @@ export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(
       return keys;
     }
 
-
-    static get relations(): Relations<R> {
-      return <any>{};
-    }
-
-    static get validators(): Validator<S, R>[] {
+    static get validators(): Validator<S>[] {
       return [];
     }
 
@@ -161,23 +151,6 @@ export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(
 
     static get strictFilter(): Filter<S> {
       return this.filter || {};
-    }
-
-    static get strictRelations(): StrictRelations<R> {
-      const relations: StrictRelations<R> = <any>{};
-      for (const name in this.relations) {
-        const relation = this.relations[name];
-        const model = relation.model;
-        const foreignKey = relation.foreignKey || model.lowerModelName + 'Id';
-        relations[name] = {
-          type: relation.type,
-          model: relation.model,
-          foreignKey,
-          through: relation.through,
-          filter: relation.filter || {},
-        };
-      }
-      return relations;
     }
 
     static limitBy(amount: number): typeof Model {
@@ -420,39 +393,6 @@ export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(
       return changes;
     }
 
-    get related(): Related<R> {
-      const related: Related<R> = <any>{};
-      const relations = this.model.strictRelations;
-      for (const name in relations) {
-        const relation = relations[name];
-        if (relation.through) {
-          const through = relations[relation.through];
-          let model = through.model;
-          if (relation.type = RelationType.BelongsTo) {
-            related[name] = model.query({
-              [model.identifier]: (<any>this)[relation.foreignKey],
-            });
-          } else {
-            related[name] = model.query({
-              [relation.foreignKey]: this.id,
-            });
-          }
-        } else {
-          let model = relation.model;
-          if (relation.type = RelationType.BelongsTo) {
-            related[name] = model.query({
-              [model.identifier]: (<any>this)[relation.foreignKey],
-            });
-          } else {
-            related[name] = model.query({
-              [relation.foreignKey]: this.id,
-            });
-          }
-        }
-      }
-      return related;
-    }
-
     assign(attrs: Partial<S>): Model {
       for (const key in attrs) {
         (<Partial<S>><any>this)[key] = attrs[key];
@@ -517,7 +457,7 @@ export default NextModel;
 //   lastName: string;
 // }
 
-// class User extends NextModel<UserSchema, {}>() implements UserSchema {
+// class User extends NextModel<UserSchema>() implements UserSchema {
 //   firstName: string;
 //   lastName: string;
 //   // [key: string]: any;
@@ -546,7 +486,7 @@ export default NextModel;
 //   user: UserSchema,
 // };
 
-// class Address extends NextModel<AddressSchema, AddressRelations>() implements AddressSchema {
+// class Address extends NextModel<AddressSchema>() implements AddressSchema {
 //   userId: number;
 //   street: string;
 //   city: string;

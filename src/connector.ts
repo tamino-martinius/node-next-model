@@ -12,24 +12,23 @@ import {
   Bindings,
   Storage,
   ConnectorConstructor,
-  Dict,
 } from './types';
 
 const globalStorage: Storage = {};
 let uuid: number = 0;
 
-export class Connector<S extends Identifiable, R extends Dict<Identifiable>> implements ConnectorConstructor<S, R> {
+export class Connector<S extends Identifiable> implements ConnectorConstructor<S> {
   private storage: Storage;
 
   constructor(storage: Storage = globalStorage) {
     this.storage = storage;
   }
 
-  private collection(model: ModelStatic<S, R>): S[] {
+  private collection(model: ModelStatic<S>): S[] {
     return this.storage[model.modelName] = this.storage[model.modelName] || [];
   }
 
-  private items(model: ModelStatic<S, R>): S[] {
+  private items(model: ModelStatic<S>): S[] {
     let items = this.filter(this.collection(model), model.strictFilter);
     if (model.skip > 0 && model.limit < Number.MAX_SAFE_INTEGER) {
       items = items.slice(model.skip, model.skip + model.limit);
@@ -236,7 +235,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     return this.propertyFilter(items, <FilterProperty<S>>filter);
   }
 
-  query(model: ModelStatic<S, R>): Promise<ModelConstructor<S, R>[]> {
+  query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
     try {
       const items = this.items(model);
       return Promise.resolve(items.map(item => new model(item)));
@@ -245,7 +244,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  count(model: ModelStatic<S, R>): Promise<number> {
+  count(model: ModelStatic<S>): Promise<number> {
     try {
       const items = this.items(model);
       return Promise.resolve(items.length);
@@ -254,7 +253,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  select(model: ModelStatic<S, R>, ...keys: (keyof S)[]): Promise<S[keyof S][][]> {
+  select(model: ModelStatic<S>, ...keys: (keyof S)[]): Promise<S[keyof S][][]> {
     try {
       const items = this.items(model);
 
@@ -272,7 +271,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  updateAll(model: ModelStatic<S, R>, attrs: Partial<S>): Promise<number> {
+  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number> {
     try {
       const items = this.items(model);
       items.forEach(item => {
@@ -289,7 +288,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  deleteAll(model: ModelStatic<S, R>): Promise<number> {
+  deleteAll(model: ModelStatic<S>): Promise<number> {
     try {
       const items = this.items(model);
       const exists: { [key: string]: boolean } = {};
@@ -309,7 +308,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  create(instance: ModelConstructor<S, R>): Promise<ModelConstructor<S, R>> {
+  create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     try {
       instance.id = ++uuid;
       this.collection(instance.model).push(<S>instance.attributes);
@@ -319,7 +318,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  update(instance: ModelConstructor<S, R>): Promise<ModelConstructor<S, R>> {
+  update(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     try {
       const model = instance.model;
       const collection = this.collection(model);
@@ -340,7 +339,7 @@ export class Connector<S extends Identifiable, R extends Dict<Identifiable>> imp
     }
   }
 
-  delete(instance: ModelConstructor<S, R>): Promise<ModelConstructor<S, R>> {
+  delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>> {
     try {
       const model = instance.model;
       const collection = this.collection(model);
