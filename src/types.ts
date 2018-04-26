@@ -34,7 +34,12 @@ export interface FilterRaw {
   $query: string;
 };
 
-export type Filter<S extends Identifiable> = FilterProperty<S> | FilterSpecial<S>;
+export type Filter<S extends Identifiable> =
+  FilterProperty<S> |
+  FilterSpecial<S> |
+  Promise<FilterProperty<S>> |
+  Promise<FilterSpecial<S>>
+;
 
 export type FilterSpecial<S extends Identifiable> = {
   $and?: Filter<S>[];
