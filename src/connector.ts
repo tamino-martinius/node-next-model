@@ -254,6 +254,24 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   }
 
   updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number> {
+  select(model: ModelStatic<S, R>, ...keys: (keyof S)[]): Promise<S[keyof S][][]> {
+    try {
+      const items = this.items(model);
+
+      const result: S[keyof S][][] = [];
+      items.forEach(item => {
+        const arr = [];
+        for (const key of keys) {
+          arr.push((<any>item)[key]);
+        }
+        result.push(arr);
+      });
+      return Promise.resolve(result);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
     try {
       const items = this.items(model);
       items.forEach(item => {
