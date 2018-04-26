@@ -72,8 +72,8 @@ export class TypeError implements Error {
   }
 };
 
-export function NextModel<S extends Identifiable>(): ModelStatic<S> {
-  @staticImplements<ModelStatic<S>>()
+export function NextModel<S extends Identifiable, R extends Dict<Identifiable>>(): ModelStatic<S, R> {
+  @staticImplements<ModelStatic<S, R>>()
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
     private static readonly DEFAULT_SKIP = 0;
@@ -107,8 +107,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return undefined;
     }
 
-    static get connector(): ConnectorConstructor<S> {
-      return new Connector<S>();
+    static get connector(): ConnectorConstructor<S, R> {
+      return new Connector<S, R>();
     }
 
     static get schema(): Schema<S> {
@@ -144,10 +144,9 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return <any>{};
     }
 
-    static get validators(): Validator<S>[] {
+    static get validators(): Validator<S, R>[] {
       return [];
     }
-
 
     static get strictSchema(): StrictSchema<S> {
       const schema = <StrictSchema<S>>this.schema;
