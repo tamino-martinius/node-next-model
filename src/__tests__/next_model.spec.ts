@@ -6,9 +6,6 @@ import {
 import Connector from '../connector';
 
 import {
-  BelongsTo,
-  HasOne,
-  HasMany,
   Filter,
   Schema,
   ModelConstructor,
@@ -495,87 +492,6 @@ describe('NextModel', () => {
   //#endregion
 
   //#region Relations
-  describe('.belongsTo', () => {
-    let Klass: typeof Model = Faker.model;
-    let belongsTo: BelongsTo = Faker.belongsTo;
-
-    const subject = () => Klass.belongsTo;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get belongsTo(): BelongsTo {
-            return belongsTo;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(belongsTo);
-        });
-      },
-    });
-  });
-
-  describe('.hasOne', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasOne: HasOne = Faker.hasOne;
-
-    const subject = () => Klass.hasOne;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasOne(): HasOne {
-            return hasOne;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(hasOne);
-        });
-      },
-    });
-  });
-
-  describe('.hasMany', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasMany: HasMany = Faker.hasMany;
-
-    const subject = () => Klass.hasMany;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasMany(): HasMany {
-            return hasMany;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          expect(subject()).toEqual(hasMany);
-        });
-      },
-    });
-  });
-
   describe('.validators', () => {
     let Klass: typeof Model = Faker.model;
     let validators: Validator<any>[] = Faker.validators;
@@ -665,102 +581,6 @@ describe('NextModel', () => {
       tests() {
         it('returns the strict filter of the model', () => {
           expect(subject()).toEqual(filter);
-        });
-      },
-    });
-  });
-
-  describe('.strictBelongsTo', () => {
-    let Klass: typeof Model = Faker.model;
-    let belongsTo: BelongsTo = Faker.belongsTo;
-
-    const subject = () => Klass.strictBelongsTo;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get belongsTo(): BelongsTo {
-            return belongsTo;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          for (const key in belongsTo) {
-            expect(subject()[key].model).toEqual(belongsTo[key].model);
-            if (belongsTo[key].foreignKey === undefined) {
-              expect('foreignKey' in subject()[key]).toBeTruthy();
-            }
-          }
-        });
-      },
-    });
-  });
-
-  describe('.strictHasOne', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasOne: HasOne = Faker.hasOne;
-
-    const subject = () => Klass.strictHasOne;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasOne(): HasOne {
-            return hasOne;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          for (const key in hasOne) {
-            expect(subject()[key].model).toEqual(hasOne[key].model);
-            if (hasOne[key].foreignKey === undefined) {
-              expect('foreignKey' in subject()[key]).toBeTruthy();
-            }
-          }
-        });
-      },
-    });
-  });
-
-  describe('.strictHasMany', () => {
-    let Klass: typeof Model = Faker.model;
-    let hasMany: HasMany = Faker.hasMany;
-
-    const subject = () => Klass.strictHasMany;
-
-    it('returns empty relation', () => {
-      expect(subject()).toEqual({});
-    });
-
-    context('when relation is present', {
-      definitions() {
-        class NewKlass extends Klass {
-          static get hasMany(): HasMany {
-            return hasMany;
-          }
-        };
-        Klass = NewKlass;
-      },
-      tests() {
-        it('returns the strict relation of the model', () => {
-          for (const key in hasMany) {
-            expect(subject()[key].model).toEqual(hasMany[key].model);
-            if (hasMany[key].foreignKey === undefined) {
-              expect('foreignKey' in subject()[key]).toBeTruthy();
-            }
-          }
         });
       },
     });
