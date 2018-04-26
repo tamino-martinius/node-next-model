@@ -458,76 +458,75 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   return Model;
 };
 
-export default NextModel;
+// import {
+//   DataType,
+// } from './types';
 
-import {
-  DataType,
-} from './types';
+// interface UserSchema {
+//   id: number;
+//   firstName: string;
+//   lastName: string;
+// }
 
-interface UserSchema {
-  id: number;
-  firstName: string;
-  lastName: string;
-}
+// class User extends Model<UserSchema> implements UserSchema {
+//   firstName: string;
+//   lastName: string;
+//   // [key: string]: any;
 
-class User extends NextModel<UserSchema>() implements UserSchema {
-  firstName: string;
-  lastName: string;
-  // [key: string]: any;
+//   static get modelName() {
+//     return 'User';
+//   }
 
-  static get modelName() {
-    return 'User';
-  }
+//   static get schema() {
+//     return {
+//       id: { type: DataType.integer },
+//       firstName: { type: DataType.string },
+//       lastName: { type: DataType.string },
+//     };
+//   }
 
-  static get schema() {
-    return {
-      id: { type: DataType.integer },
-      firstName: { type: DataType.string },
-      lastName: { type: DataType.string },
-    };
-  }
+//   static get relations(): any {
+//     return User.first
+//   }
+// }
 
-  static get relations(): any {
-    return User.first
-  }
-}
 
-interface AddressSchema {
-  id: number;
-  userId: number;
-  street: string;
-  city: string;
-}
+// interface AddressSchema {
+//   id: number;
+//   userId: number;
+//   street: string;
+//   city: string;
+// }
 
-class Address extends NextModel<AddressSchema>() implements AddressSchema {
-  userId: number;
-  street: string;
-  city: string;
-  // [key: string]: any;
+// class Address extends NextModel<AddressSchema>() implements AddressSchema {
+//   userId: number;
+//   street: string;
+//   city: string;
+//   // [key: string]: any;
 
-  static get modelName() {
-    return 'Addresss';
-  }
+//   static get modelName() {
+//     return 'Addresss';
+//   }
 
-  static get schema() {
-    return {
-      id: { type: DataType.integer },
-      userId: { type: DataType.integer },
-      city: { type: DataType.string },
-      street: { type: DataType.string },
-    };
-  }
+//   static get schema() {
+//     return {
+//       id: { type: DataType.integer },
+//       userId: { type: DataType.integer },
+//       city: { type: DataType.string },
+//       street: { type: DataType.string },
+//     };
+//   }
 
-  get test(): boolean{
-    return true;
-  }
+//   get test(): boolean{
+//     return true;
+//   }
 
-  get related() {
-    return {
-      user: this.model.belongsTo(User, {}),
-    }
-  }
-}
+//   get related() {
+//     return {
+//       user: this.model.belongsTo(User, {}),
+//     }
+//   }
+// }
 
-// const address: Address = await Address.first
-// address.related.user
+// // const address: Address = await Address.first
+// // address.related.user
