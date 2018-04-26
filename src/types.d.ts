@@ -226,3 +226,73 @@ export interface ModelConstructor<S extends Identifiable> {
   delete(): Promise<ModelConstructor<S>>;
   reload(): Promise<ModelConstructor<S> | undefined>;
 }
+
+export class Model<S extends Identifiable> implements ModelStatic<S> {
+  readonly modelName: string;
+  readonly lowerModelName: string;
+  readonly underscoreModelName: string;
+  readonly pluralModelName: string;
+  readonly identifier: string;
+  readonly collectionName: string | undefined;
+  readonly connector: ConnectorConstructor<S>;
+  readonly schema: Schema<S>;
+  readonly filter: Filter<S>;
+  readonly limit: number;
+  readonly skip: number;
+  readonly order: Partial<Order<S>>[]
+  readonly keys: (keyof S)[]
+
+  readonly validators: Validator<S>[];
+
+  readonly strictSchema: StrictSchema<S>;
+  readonly strictFilter: Filter<S>;
+
+  belongsTo<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
+  hasMany<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
+  hasOne<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
+  limitBy(amount: number): ModelStatic<S>;
+  readonly unlimited: ModelStatic<S>;
+  skipBy(amount: number): ModelStatic<S>;
+  readonly unskipped: ModelStatic<S>;
+  orderBy(order: Partial<Order<S>>): ModelStatic<S>;
+  reorder(order: Partial<Order<S>>): ModelStatic<S>;
+  readonly unordered: ModelStatic<S>;
+  query(query: Filter<S>): ModelStatic<S>;
+  onlyQuery(query: Filter<S>): ModelStatic<S>;
+  readonly queryBy: QueryBy<S>;
+  readonly unfiltered: ModelStatic<S>;
+  readonly all: Promise<ModelConstructor<S>[]>;
+  pluck(key: keyof S): Promise<S[keyof S][]>
+  select(...keys: (keyof S)[]): Promise<S[keyof S][][]>
+  updateAll(attrs: Partial<S>): Promise<ModelStatic<S>>;
+  deleteAll(): Promise<ModelStatic<S>>;
+  inBatchesOf(amount: number): Promise<Promise<ModelConstructor<S>[]>[]>;
+  readonly first: Promise<ModelConstructor<S> | undefined>;
+  find(query: Filter<S>): Promise<undefined | ModelConstructor<S>>;
+  readonly findBy: FindBy<S>;
+  readonly count: Promise<number>;
+
+  // new(attrs: Partial<S> | undefined): ModelConstructor<S>;
+  build(attrs: Partial<S> | undefined): ModelConstructor<S>;
+  create(attrs: Partial<S> | undefined): Promise<ModelConstructor<S>>;
+  // prototype: S;
+
+  id: any;
+  readonly model: ModelStatic<S>;
+  readonly attributes: Partial<S>;
+  readonly persistentAttributes: Partial<S>;
+  readonly isNew: boolean;
+  readonly isPersistent: boolean;
+  readonly isChanged: boolean;
+  readonly isValid: Promise<boolean>;
+  readonly changes: Partial<Changes<S>>;
+
+  assign(attrs: Partial<S>): ModelConstructor<S>;
+  revertChange(key: keyof S): ModelConstructor<S>;
+  revertChanges(): ModelConstructor<S>;
+
+  save(): Promise<ModelConstructor<S>>;
+  delete(): Promise<ModelConstructor<S>>;
+  reload(): Promise<ModelConstructor<S> | undefined>;
+
+}
