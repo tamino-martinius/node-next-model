@@ -65,7 +65,7 @@ export class TypeError implements Error {
   }
 };
 
-export function NextModel<S extends Identifiable>() {
+export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   @staticImplements<ModelStatic<S>>()
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
@@ -468,8 +468,8 @@ interface UserSchema {
 }
 
 class User extends NextModel<UserSchema>() implements UserSchema {
-  // firstName: string;
-  // lastName: string;
+  firstName: string;
+  lastName: string;
   // [key: string]: any;
 
   static get modelName() {
