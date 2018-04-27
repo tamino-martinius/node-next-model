@@ -227,7 +227,7 @@ export interface ModelConstructor<S extends Identifiable> {
   reload(): Promise<ModelConstructor<S> | undefined>;
 }
 
-export class Model<S extends Identifiable> implements ModelStatic<S> {
+export class ModelClass<S extends Identifiable> implements ModelStatic<S> {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly underscoreModelName: string;
