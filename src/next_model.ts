@@ -17,11 +17,8 @@ import {
   Connector,
 } from './connector';
 
-import {
-  staticImplements,
-} from './util';
-
 import { plural } from 'pluralize';
+import { staticImplements } from '.';
 
 export class PropertyNotDefinedError implements Error {
   name: string = 'PropertyNotDefinedError';
@@ -68,7 +65,7 @@ export class TypeError implements Error {
   }
 };
 
-export function NextModel<S extends Identifiable>(): ModelStatic<S> {
+export function NextModel<S extends Identifiable>() {
   @staticImplements<ModelStatic<S>>()
   class Model {
     private static readonly DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
@@ -458,38 +455,39 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
   return Model;
 };
 
-// import {
-//   DataType,
-// } from './types';
+export default NextModel;
 
-// interface UserSchema {
-//   id: number;
-//   firstName: string;
-//   lastName: string;
-// }
+import {
+  DataType,
+} from './types';
 
-// class User extends Model<UserSchema> implements UserSchema {
-//   firstName: string;
-//   lastName: string;
-//   // [key: string]: any;
+interface UserSchema {
+  id: number;
+  firstName: string;
+  lastName: string;
+}
 
-//   static get modelName() {
-//     return 'User';
-//   }
+class User extends NextModel<UserSchema>() implements UserSchema {
+  // firstName: string;
+  // lastName: string;
+  // [key: string]: any;
 
-//   static get schema() {
-//     return {
-//       id: { type: DataType.integer },
-//       firstName: { type: DataType.string },
-//       lastName: { type: DataType.string },
-//     };
-//   }
+  static get modelName() {
+    return 'User';
+  }
 
-//   static get relations(): any {
-//     return User.first
-//   }
-// }
+  static get schema() {
+    return {
+      id: { type: DataType.integer },
+      firstName: { type: DataType.string },
+      lastName: { type: DataType.string },
+    };
+  }
 
+  static get relations(): any {
+    return User.first
+  }
+}
 
 // interface AddressSchema {
 //   id: number;
