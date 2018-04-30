@@ -1,5 +1,8 @@
 import {
+  ModelConstructor,
   ModelStatic,
+  ModelConstructorClass,
+  ModelStaticClass,
   StrictSchema,
   Schema,
   QueryBy,
@@ -63,6 +66,14 @@ export class TypeError implements Error {
       Property '${name}' is expected to an '${type}'
     `;
   }
+};
+
+export class NextModelStatic<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> extends ModelStaticClass<S, M, I> {
+
+};
+
+export class NextModelConstructor<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> extends ModelConstructorClass<S, M, I> {
+
 };
 
 export function NextModel<S extends Identifiable>(): ModelStatic<S> {
@@ -450,6 +461,14 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     reload(): Promise<Model | undefined> {
       return this.model.limitBy(1).onlyQuery({[this.model.identifier]: this.id}).first;
     }
+
+    static getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): NextModelStatic<S, M, I> {
+      return new NextModelStatic<S, M, I>();
+    }
+
+    getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): NextModelConstructor<S, M, I> {
+      return new NextModelConstructor<S, M, I>();
+    }
   };
 
   return Model;
@@ -484,10 +503,19 @@ class User extends NextModel<UserSchema>() implements UserSchema {
     };
   }
 
+  static get $(): NextModelStatic<UserSchema, typeof User, User> {
+    return this.getTyped();
+  }
+
+  get $(): NextModelConstructor<UserSchema, typeof User, User> {
+    return this.getTyped();
+  }
+
   static get relations(): any {
     return User.first
   }
 }
+
 
 // interface AddressSchema {
 //   id: number;
