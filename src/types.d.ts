@@ -175,10 +175,10 @@ export interface ModelStatic<S extends Identifiable> {
   
   readonly strictSchema: StrictSchema<S>;
   readonly strictFilter: Filter<S>;
-  
-  belongsTo<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
-  hasMany<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
-  hasOne<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M
+
+  belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+  hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+  hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
   limitBy(amount: number): ModelStatic<S>;
   readonly unlimited: ModelStatic<S>;
   skipBy(amount: number): ModelStatic<S>;
