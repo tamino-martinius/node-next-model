@@ -224,7 +224,7 @@ export interface ModelConstructor<S extends Identifiable> {
   readonly isValid: Promise<boolean>;
   readonly changes: Partial<Changes<S>>;
 
-  getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelStaticClass<S, M, I>;
+  getTyped<M extends ModelConstructor<S>, I extends ModelConstructor<S>>(): ModelConstructorClass<S, M, I>;
 
   assign(attrs: Partial<S>): ModelConstructor<S>;
   revertChange(key: keyof S): ModelConstructor<S>;
