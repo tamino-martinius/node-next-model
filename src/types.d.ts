@@ -176,6 +176,8 @@ export interface ModelStatic<S extends Identifiable> {
   readonly strictSchema: StrictSchema<S>;
   readonly strictFilter: Filter<S>;
 
+  getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelConstructorClass<S, M, I>;
+
   belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
   hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
   hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
@@ -221,6 +223,8 @@ export interface ModelConstructor<S extends Identifiable> {
   readonly isChanged: boolean;
   readonly isValid: Promise<boolean>;
   readonly changes: Partial<Changes<S>>;
+
+  getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelStaticClass<S, M, I>;
 
   assign(attrs: Partial<S>): ModelConstructor<S>;
   revertChange(key: keyof S): ModelConstructor<S>;
