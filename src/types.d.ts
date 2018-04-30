@@ -207,6 +207,10 @@ export interface ModelStatic<S extends Identifiable> {
   // prototype: S;
 }
 
+export class ModelStaticClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
+
+}
+
 export interface ModelConstructor<S extends Identifiable> {
   id: any;
   readonly model: ModelStatic<S>;
@@ -225,4 +229,8 @@ export interface ModelConstructor<S extends Identifiable> {
   save(): Promise<ModelConstructor<S>>;
   delete(): Promise<ModelConstructor<S>>;
   reload(): Promise<ModelConstructor<S> | undefined>;
+}
+
+export class ModelConstructorClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
+
 }
