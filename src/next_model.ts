@@ -14,6 +14,8 @@ import {
   Changes,
   Order,
   RelationOptions,
+  QueryByModel,
+  FindByModel,
 } from './types';
 
 import {
@@ -66,14 +68,6 @@ export class TypeError implements Error {
       Property '${name}' is expected to an '${type}'
     `;
   }
-};
-
-export class NextModelStatic<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> extends ModelStaticClass<S, M, I> {
-
-};
-
-export class NextModelConstructor<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> extends ModelConstructorClass<S, M, I> {
-
 };
 
 export function NextModel<S extends Identifiable>(): ModelStatic<S> {
@@ -162,16 +156,8 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.filter || {};
     }
 
-    static belongsTo<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
-      return model;
-    }
-
-    static hasMany<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
-      return model;
-    }
-
-    static hasOne<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
-      return model;
+    static getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): NextModelStatic<S, M, I> {
+      return new NextModelStatic<S, M, I>(<any>this);
     }
 
     static limitBy(amount: number): typeof Model {
@@ -414,6 +400,22 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return changes;
     }
 
+    belongsTo<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
+      return model;
+    }
+
+    hasMany<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
+      return model;
+    }
+
+    hasOne<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
+      return model;
+    }
+
+    getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): NextModelConstructor<S, M, I> {
+      return new NextModelConstructor<S, M, I>(<any>this);
+    }
+
     assign(attrs: Partial<S>): Model {
       for (const key in attrs) {
         (<Partial<S>><any>this)[key] = attrs[key];
@@ -461,17 +463,138 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     reload(): Promise<Model | undefined> {
       return this.model.limitBy(1).onlyQuery({[this.model.identifier]: this.id}).first;
     }
-
-    static getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): NextModelStatic<S, M, I> {
-      return new NextModelStatic<S, M, I>();
-    }
-
-    getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): NextModelConstructor<S, M, I> {
-      return new NextModelConstructor<S, M, I>();
-    }
   };
 
   return Model;
+};
+
+
+export class NextModelStatic<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> extends ModelStaticClass<S, M, I> {
+  constructor(public model: M) {
+    super();
+  }
+
+  limitBy(amount: number): M {
+    return <any>this.model.limitBy(amount);
+  }
+
+  get unlimited(): M {
+    return <any>this.model.unlimited;
+  }
+
+  skipBy(amount: number): M {
+    return <any>this.model.skipBy(amount);
+  }
+
+  get unskipped(): M {
+    return <any>this.model.unskipped;
+  }
+
+  orderBy(order: Partial<Order<S>>): M {
+    return <any>this.model.orderBy(order);
+  }
+
+  reorder(order: Partial<Order<S>>): M {
+    return <any>this.model.reorder(order);
+  }
+
+  get unordered(): M {
+    return <any>this.model.unordered;
+  }
+
+  query(query: Filter<S>): M {
+    return <any>this.model.query(query);
+  }
+
+  onlyQuery(query: Filter<S>): M {
+    return <any>this.model.onlyQuery(query);
+  };
+
+  get queryBy(): QueryByModel<S, M> {
+    return <any>this.model.queryBy;
+  }
+
+  get unfiltered(): M {
+    return <any>this.model.unfiltered;
+ }
+
+  get all(): Promise<I[]> {
+    return <any>this.model.all;
+  }
+
+  pluck(key: keyof S): Promise<S[keyof S][]> {
+    return this.model.pluck(key);
+  }
+
+  select(...keys: (keyof S)[]): Promise<S[keyof S][][]> {
+    return this.model.select(...keys);
+  }
+
+  updateAll(attrs: Partial<S>): Promise<M> {
+    return <any>this.model.updateAll(attrs);
+  }
+
+  deleteAll(): Promise<I> {
+    return <any>this.model.deleteAll();
+  }
+
+  inBatchesOf(amount: number): Promise<Promise<I[]>[]> {
+    return <any>this.model.inBatchesOf(amount);
+  }
+
+  get first(): Promise<I | undefined> {
+    return <any>this.model.first;
+  }
+
+  find(query: Filter<S>): Promise<I | undefined> {
+    return <any>this.model.find(query);
+  }
+
+  get findBy(): FindByModel<S, I> {
+    return <any>this.model.findBy;
+  }
+
+  get count(): Promise<number> {
+    return this.model.count;
+  }
+
+  build(attrs: Partial<S> | undefined): I {
+    return <any>this.model.build(attrs);
+  }
+
+  create(attrs: Partial<S> | undefined): Promise<I> {
+    return <any>this.model.create(attrs);
+  }
+};
+
+export class NextModelConstructor<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> extends ModelConstructorClass<S, M, I> {
+  constructor(public instance: I) {
+    super();
+  }
+
+  assign(attrs: Partial<S>): I {
+    return <any>this.instance.assign(attrs);
+  }
+
+  revertChange(key: keyof S): I {
+    return <any>this.instance.revertChange(key);
+  }
+
+  revertChanges(): I {
+    return <any>this.instance.revertChanges();
+  }
+
+  save(): Promise<I> {
+    return <any>this.instance.save();
+  }
+
+  delete(): Promise<I> {
+    return <any>this.instance.delete();
+  }
+
+  reload(): Promise<I | undefined> {
+    return <any>this.instance.reload();
+  }
 };
 
 export default NextModel;
@@ -504,55 +627,74 @@ class User extends NextModel<UserSchema>() implements UserSchema {
   }
 
   static get $(): NextModelStatic<UserSchema, typeof User, User> {
-    return this.getTyped();
+    return <any>this.getTyped();
   }
 
   get $(): NextModelConstructor<UserSchema, typeof User, User> {
-    return this.getTyped();
+    return <any>this.getTyped();
   }
 
-  static get relations(): any {
-    return User.first
+  get addresses() {
+    return this.hasMany(Address);
   }
 }
 
+interface AddressSchema {
+  id: number;
+  userId: number;
+  street: string;
+  city: string;
+}
 
-// interface AddressSchema {
-//   id: number;
-//   userId: number;
-//   street: string;
-//   city: string;
-// }
+class Address extends NextModel<AddressSchema>() implements AddressSchema {
+  userId: number;
+  street: string;
+  city: string;
+  // [key: string]: any;
 
-// class Address extends NextModel<AddressSchema>() implements AddressSchema {
-//   userId: number;
-//   street: string;
-//   city: string;
-//   // [key: string]: any;
+  static get modelName() {
+    return 'Addresss';
+  }
 
-//   static get modelName() {
-//     return 'Addresss';
-//   }
+  static get schema() {
+    return {
+      id: { type: DataType.integer },
+      userId: { type: DataType.integer },
+      city: { type: DataType.string },
+      street: { type: DataType.string },
+    };
+  }
 
-//   static get schema() {
-//     return {
-//       id: { type: DataType.integer },
-//       userId: { type: DataType.integer },
-//       city: { type: DataType.string },
-//       street: { type: DataType.string },
-//     };
-//   }
+  static get $(): NextModelStatic<AddressSchema, typeof Address, Address> {
+    return <any>this.getTyped();
+  }
 
-//   get test(): boolean{
-//     return true;
-//   }
+  get $(): NextModelConstructor<AddressSchema, typeof Address, Address> {
+    return <any>this.getTyped();
+  }
 
-//   get related() {
-//     return {
-//       user: this.model.belongsTo(User, {}),
-//     }
-//   }
-// }
+  get user() {
+    return this.belongsTo(User);
+  }
+}
 
-// // const address: Address = await Address.first
-// // address.related.user
+async () => {
+  const address1 = await Address.first
+  const address2 = await Address.$.first
+  const user1 = address1 ? address1.user : undefined;
+  const user2 = address2 ? address2.user : undefined;
+  const addresses1 = Address.query({
+    street: 'a',
+  });
+  const addresses2 = Address.query({
+    $async: Promise.resolve({
+      street: 'a',
+    }),
+  });
+  const addresses3 = Address.query({
+    $gt: { street: 'a' },
+  })
+  const addresses4 = Address.query({
+    $in: { street: ['a'] },
+  })
+}
