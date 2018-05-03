@@ -158,7 +158,7 @@ export interface RelationOptions {
   readonly foreignKey?: string;
 }
 
-export interface ModelStatic<S extends Identifiable> {
+export interface ModelStatic<S extends Identifiable> extends Function {
   readonly modelName: string;
   readonly lowerModelName: string;
   readonly underscoreModelName: string;
