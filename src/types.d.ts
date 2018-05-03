@@ -24,11 +24,11 @@ export interface Constructor<M> {
 export type Bindings = BaseType[] | { [key: string]: BaseType }
 
 export type FilterIn<S extends Identifiable> = {
-  [K in keyof S]?: Array<S[K]>;
+  [K in keyof S]: Array<S[K]>;
 }
 
 export type FilterBetween<S extends Identifiable> = {
-  [K in keyof S]?: Range<S[K]>;
+  [K in keyof S]: Range<S[K]>;
 }
 
 export interface FilterRaw {
@@ -45,14 +45,14 @@ export type Filter<S extends Identifiable> =
   $not?: Filter<S>;
   $or?: Filter<S>[];
 
-  $in?: FilterIn<S>;
-  $notIn?: FilterIn<S>;
+  $in?: Partial<FilterIn<S>>;
+  $notIn?: Partial<FilterIn<S>>;
 
   $null?: keyof S;
   $notNull?: keyof S;
 
-  $between?: FilterBetween<S>;
-  $notBetween?: FilterBetween<S>;
+  $between?: Partial<FilterBetween<S>>;
+  $notBetween?: Partial<FilterBetween<S>>;
 
   $gt?: Partial<S>;
   $gte?: Partial<S>;
