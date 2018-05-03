@@ -7,7 +7,6 @@ export interface Identifiable {
 export interface Dict<T> {
   [key: string]: T;
 }
-
 export type Tuple<T, U> = [T, U];
 
 export interface Range<T> {
@@ -264,14 +263,14 @@ export interface ModelConstructor<S extends Identifiable> {
   reload(): Promise<ModelConstructor<S> | undefined>;
 }
 
-export class ModelConstructorClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
-  new(instance: I): ModelConstructorClass<S, M, I>;
+export abstract class ModelConstructorClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
+  abstract new(instance: I): ModelConstructorClass<S, M, I>;
 
-  assign(attrs: Partial<S>): I;
-  revertChange(key: keyof S): I;
-  revertChanges(): I;
+  abstract assign(attrs: Partial<S>): I;
+  abstract revertChange(key: keyof S): I;
+  abstract revertChanges(): I;
 
-  save(): Promise<I>;
-  delete(): Promise<I>;
-  reload(): Promise<I | undefined>;
+  abstract save(): Promise<I>;
+  abstract delete(): Promise<I>;
+  abstract reload(): Promise<I | undefined>;
 }
