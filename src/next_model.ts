@@ -599,102 +599,102 @@ export class NextModelConstructor<S extends Identifiable, M extends ModelStatic<
 
 export default NextModel;
 
-import {
-  DataType,
-} from './types';
+// import {
+//   DataType,
+// } from './types';
 
-interface UserSchema {
-  id: number;
-  firstName: string;
-  lastName: string;
-}
+// interface UserSchema {
+//   id: number;
+//   firstName: string;
+//   lastName: string;
+// }
 
-class User extends NextModel<UserSchema>() implements UserSchema {
-  firstName: string;
-  lastName: string;
-  // [key: string]: any;
+// class User extends NextModel<UserSchema>() implements UserSchema {
+//   firstName: string;
+//   lastName: string;
+//   // [key: string]: any;
 
-  static get modelName() {
-    return 'User';
-  }
+//   static get modelName() {
+//     return 'User';
+//   }
 
-  static get schema() {
-    return {
-      id: { type: DataType.integer },
-      firstName: { type: DataType.string },
-      lastName: { type: DataType.string },
-    };
-  }
+//   static get schema() {
+//     return {
+//       id: { type: DataType.integer },
+//       firstName: { type: DataType.string },
+//       lastName: { type: DataType.string },
+//     };
+//   }
 
-  static get $(): NextModelStatic<UserSchema, typeof User, User> {
-    return <any>this.getTyped();
-  }
+//   static get $(): NextModelStatic<UserSchema, typeof User, User> {
+//     return <any>this.getTyped();
+//   }
 
-  get $(): NextModelConstructor<UserSchema, typeof User, User> {
-    return <any>this.getTyped();
-  }
+//   get $(): NextModelConstructor<UserSchema, typeof User, User> {
+//     return <any>this.getTyped();
+//   }
 
-  get addresses() {
-    return this.hasMany(Address);
-  }
-}
+//   get addresses() {
+//     return this.hasMany(Address);
+//   }
+// }
 
-interface AddressSchema {
-  id: number;
-  userId: number;
-  street: string;
-  city: string;
-}
+// interface AddressSchema {
+//   id: number;
+//   userId: number;
+//   street: string;
+//   city: string;
+// }
 
-class Address extends NextModel<AddressSchema>() implements AddressSchema {
-  userId: number;
-  street: string;
-  city: string;
-  // [key: string]: any;
+// class Address extends NextModel<AddressSchema>() implements AddressSchema {
+//   userId: number;
+//   street: string;
+//   city: string;
+//   // [key: string]: any;
 
-  static get modelName() {
-    return 'Addresss';
-  }
+//   static get modelName() {
+//     return 'Addresss';
+//   }
 
-  static get schema() {
-    return {
-      id: { type: DataType.integer },
-      userId: { type: DataType.integer },
-      city: { type: DataType.string },
-      street: { type: DataType.string },
-    };
-  }
+//   static get schema() {
+//     return {
+//       id: { type: DataType.integer },
+//       userId: { type: DataType.integer },
+//       city: { type: DataType.string },
+//       street: { type: DataType.string },
+//     };
+//   }
 
-  static get $(): NextModelStatic<AddressSchema, typeof Address, Address> {
-    return <any>this.getTyped();
-  }
+//   static get $(): NextModelStatic<AddressSchema, typeof Address, Address> {
+//     return <any>this.getTyped();
+//   }
 
-  get $(): NextModelConstructor<AddressSchema, typeof Address, Address> {
-    return <any>this.getTyped();
-  }
+//   get $(): NextModelConstructor<AddressSchema, typeof Address, Address> {
+//     return <any>this.getTyped();
+//   }
 
-  get user() {
-    return this.belongsTo(User);
-  }
-}
+//   get user() {
+//     return this.belongsTo(User);
+//   }
+// }
 
-async () => {
-  const address1 = await Address.first
-  const address2 = await Address.$.first
-  const user1 = address1 ? address1.user : undefined;
-  const user2 = address2 ? address2.user : undefined;
-  const addresses1 = Address.query({
-    street: 'a',
-  });
-  const addresses2 = Address.query({
-    $async: Promise.resolve({
-      street: 'a',
-    }),
-  });
-  const addresses3 = Address.query({
-    $gt: { street: 'a' },
-  })
-  const addresses4 = Address.query({
-    $in: { street: ['a'] },
-  })
-}
+// async () => {
+//   const address1 = await Address.first
+//   const address2 = await Address.$.first
+//   const user1 = address1 ? address1.user : undefined;
+//   const user2 = address2 ? address2.user : undefined;
+//   const addresses1 = Address.query({
+//     street: 'a',
+//   });
+//   const addresses2 = Address.query({
+//     $async: Promise.resolve({
+//       street: 'a',
+//     }),
+//   });
+//   const addresses3 = Address.query({
+//     $gt: { street: 'a' },
+//   })
+//   const addresses4 = Address.query({
+//     $in: { street: ['a'] },
+//   })
+// }
