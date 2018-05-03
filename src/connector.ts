@@ -4,9 +4,7 @@ import {
   Filter,
   FilterIn,
   FilterBetween,
-  FilterProperty,
   Identifiable,
-  FilterCompare,
   FilterRaw,
   FilterSpecial,
   Bindings,
@@ -40,7 +38,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items;
   }
 
-  private propertyFilter(items: S[], filter: FilterProperty<S>): S[] {
+  private propertyFilter(items: S[], filter: Partial<S>): S[] {
     // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter))
     const counts: { [key: string]: number } = {};
     items.forEach(item => counts[item.id] = 0);
@@ -88,14 +86,16 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => exists[item.id]);
   }
 
-  private inFilter(items: S[], filter: FilterIn<S>): S[] {
+  private inFilter(items: S[], filter: Partial<FilterIn<S>>): S[] {
     // Cost: (1, n, m) => O(n, m) = n * m;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
       return items.filter(item => {
         const values = filter[key];
-        for (const value of values) {
-          if (item[key] === value) return true;
+        if (Array.isArray(values)) {
+          for (const value of values) {
+            if (item[key] === value) return true;
+          }
         }
         return false;
       });
@@ -103,14 +103,16 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private notInFilter(items: S[], filter: FilterIn<S>): S[] {
+  private notInFilter(items: S[], filter: Partial<FilterIn<S>>): S[] {
     // Cost: (1, n, m) => O(n, m) = n * m;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
       return items.filter(item => {
         const values = filter[key];
-        for (const value of values) {
-          if (item[key] === value) return false;
+        if (Array.isArray(values)) {
+          for (const value of values) {
+            if (item[key] === value) return false;
+          }
         }
         return true;
       });
@@ -128,25 +130,31 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => item[key] !== null && item[key] !== undefined);
   }
 
-  private betweenFilter(items: S[], filter: FilterBetween<S>): S[] {
+  private betweenFilter(items: S[], filter: Partial<FilterBetween<S>>): S[] {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
-      return items.filter(item => filter[key].to >= item[key] && item[key] >= filter[key].from);
+      const filterBetween = filter[key];
+      if (filterBetween !== undefined) {
+        return items.filter(item => filterBetween.to >= item[key] && item[key] >= filterBetween.from);
+      }
     }
     throw '[TODO] Should not reach error';
   }
 
-  private notBetweenFilter(items: S[], filter: FilterBetween<S>): S[] {
+  private notBetweenFilter(items: S[], filter: Partial<FilterBetween<S>>): S[] {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
-      return items.filter(item => filter[key].to < item[key] || item[key] < filter[key].from);
+      const filterBetween = filter[key];
+      if (filterBetween !== undefined) {
+        return items.filter(item => filterBetween.to < item[key] || item[key] < filterBetween.from);
+      }
     }
     throw '[TODO] Should not reach error';
   }
 
-  private gtFilter(items: S[], filter: FilterCompare<S>): S[] {
+  private gtFilter(items: S[], filter: Partial<S>): S[] {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -155,7 +163,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private gteFilter(items: S[], filter: FilterCompare<S>): S[] {
+  private gteFilter(items: S[], filter: Partial<S>): S[] {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -164,7 +172,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private ltFilter(items: S[], filter: FilterCompare<S>): S[] {
+  private ltFilter(items: S[], filter: Partial<S>): S[] {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -173,7 +181,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private lteFilter(items: S[], filter: FilterCompare<S>): S[] {
+  private lteFilter(items: S[], filter: Partial<S>): S[] {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -232,7 +240,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
         return this.specialFilter(items, <FilterSpecial<S>>filter);
       }
     }
-    return this.propertyFilter(items, <FilterProperty<S>>filter);
+    return this.propertyFilter(items, <Partial<S>>filter);
   }
 
   query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
