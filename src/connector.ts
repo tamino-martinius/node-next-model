@@ -26,8 +26,8 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return this.storage[model.modelName] = this.storage[model.modelName] || [];
   }
 
-  private items(model: ModelStatic<S>): S[] {
-    let items = this.filter(this.collection(model), model.strictFilter);
+  private async items(model: ModelStatic<S>): Promise<S[]> {
+    let items = await this.filter(this.collection(model), model.strictFilter);
     if (model.skip > 0 && model.limit < Number.MAX_SAFE_INTEGER) {
       items = items.slice(model.skip, model.skip + model.limit);
     } else if (model.skip > 0) {
@@ -38,7 +38,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items;
   }
 
-  private propertyFilter(items: S[], filter: Partial<S>): S[] {
+  private async propertyFilter(items: S[], filter: Partial<S>): Promise<S[]> {
     // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter))
     const counts: { [key: string]: number } = {};
     items.forEach(item => counts[item.id] = 0);
@@ -53,12 +53,13 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => counts[item.id] === filterCount);
   }
 
-  private andFilter(items: S[], filters: Filter<S>[]): S[] {
+  private async andFilter(items: S[], filters: Filter<S>[]): Promise<S[]> {
     // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter))
     const counts: { [key: string]: number } = {};
     items.forEach(item => counts[item.id] = 0);
-    filters.map((filter) => {
-      this.filter(items, filter).forEach(item => {
+    filters.map(async (filter) => {
+      const filterItems = await this.filter(items, filter)
+      filterItems.forEach(item => {
         counts[item.id] += 1;
       });
     });
@@ -66,19 +67,21 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => counts[item.id] === filterCount);
   }
 
-  private notFilter(items: S[], filter: Filter<S>): S[] {
+  private async notFilter(items: S[], filter: Filter<S>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = 2n + O(this.filter(n))
-    const array: S[] = this.filter(items, filter);
+    const array: S[] = await this.filter(items, filter);
     const exists: { [key: string]: boolean } = {};
     array.forEach(item => {
       exists[item.id] = exists[item.id] || true;
     });
-    return items.filter(item => !exists[item.id]);
+    return await items.filter(item => !exists[item.id]);
   }
 
-  private orFilter(items: S[], filters: Filter<S>[]): S[] {
+  private async orFilter(items: S[], filters: Filter<S>[]): Promise<S[]> {
     // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter(n)))
-    const arrays: S[][] = filters.map((filter) => this.filter(items, filter));
+    const arrays: S[][] = await Promise.all(filters.map(
+      async (filter) => await this.filter(items, filter)
+    ));
     const exists: { [key: string]: boolean } = {};
     arrays.forEach(array => array.forEach(item => {
       exists[item.id] = exists[item.id] || true;
@@ -86,7 +89,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     return items.filter(item => exists[item.id]);
   }
 
-  private inFilter(items: S[], filter: Partial<FilterIn<S>>): S[] {
+  private async inFilter(items: S[], filter: Partial<FilterIn<S>>): Promise<S[]> {
     // Cost: (1, n, m) => O(n, m) = n * m;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -103,7 +106,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private notInFilter(items: S[], filter: Partial<FilterIn<S>>): S[] {
+  private async notInFilter(items: S[], filter: Partial<FilterIn<S>>): Promise<S[]> {
     // Cost: (1, n, m) => O(n, m) = n * m;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -120,17 +123,17 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private nullFilter(items: S[], key: keyof S): S[] {
+  private async nullFilter(items: S[], key: keyof S): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     return items.filter(item => item[key] === null || item[key] === undefined);
   }
 
-  private notNullFilter(items: S[], key: keyof S): S[] {
+  private async notNullFilter(items: S[], key: keyof S): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     return items.filter(item => item[key] !== null && item[key] !== undefined);
   }
 
-  private betweenFilter(items: S[], filter: Partial<FilterBetween<S>>): S[] {
+  private async betweenFilter(items: S[], filter: Partial<FilterBetween<S>>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -142,7 +145,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private notBetweenFilter(items: S[], filter: Partial<FilterBetween<S>>): S[] {
+  private async notBetweenFilter(items: S[], filter: Partial<FilterBetween<S>>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -154,7 +157,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private gtFilter(items: S[], filter: Partial<S>): S[] {
+  private async gtFilter(items: S[], filter: Partial<S>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -163,7 +166,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private gteFilter(items: S[], filter: Partial<S>): S[] {
+  private async gteFilter(items: S[], filter: Partial<S>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -172,7 +175,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private ltFilter(items: S[], filter: Partial<S>): S[] {
+  private async ltFilter(items: S[], filter: Partial<S>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -181,7 +184,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private lteFilter(items: S[], filter: Partial<S>): S[] {
+  private async lteFilter(items: S[], filter: Partial<S>): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     for (const key in filter) {
@@ -190,7 +193,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     throw '[TODO] Should not reach error';
   }
 
-  private rawFilter(items: S[], filter: FilterRaw): S[] {
+  private async rawFilter(items: S[], filter: FilterRaw): Promise<S[]> {
     // Cost: (1, n, 1) => O(n) = n;
     const fn = eval(filter.$query);
     const params = filter.$bindings;
@@ -201,69 +204,76 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  private specialFilter(items: S[], filter: FilterSpecial<S>): S[] {
+  private async asyncFilter(items: S[], asyncFilter: Promise<Filter<S>>): Promise<S[]> {
+    const filter = await asyncFilter;
+    return this.filter(items, filter);
+  }
+
+  private async specialFilter(items: S[], filter: FilterSpecial<S>): Promise<S[]> {
     if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
     if (filter.$and !== undefined)
-      return this.andFilter(items, filter.$and);
+      return await this.andFilter(items, filter.$and);
     if (filter.$or !== undefined)
-      return this.orFilter(items, filter.$or);
+      return await  this.orFilter(items, filter.$or);
     if (filter.$not !== undefined)
-      return this.notFilter(items, filter.$not);
+      return await  this.notFilter(items, filter.$not);
     if (filter.$in !== undefined)
-      return this.inFilter(items, filter.$in);
+      return await  this.inFilter(items, filter.$in);
     if (filter.$notIn !== undefined)
-      return this.notInFilter(items, filter.$notIn);
+      return await  this.notInFilter(items, filter.$notIn);
     if (filter.$null !== undefined)
-      return this.nullFilter(items, filter.$null);
+      return await  this.nullFilter(items, filter.$null);
     if (filter.$notNull !== undefined)
-      return this.notNullFilter(items, filter.$notNull);
+      return await  this.notNullFilter(items, filter.$notNull);
     if (filter.$between !== undefined)
-      return this.betweenFilter(items, filter.$between);
+      return await  this.betweenFilter(items, filter.$between);
     if (filter.$notBetween !== undefined)
-      return this.notBetweenFilter(items, filter.$notBetween);
+      return await  this.notBetweenFilter(items, filter.$notBetween);
     if (filter.$gt !== undefined)
-      return this.gtFilter(items, filter.$gt);
+      return await  this.gtFilter(items, filter.$gt);
     if (filter.$gte !== undefined)
-      return this.gteFilter(items, filter.$gte);
+      return await  this.gteFilter(items, filter.$gte);
     if (filter.$lt !== undefined)
-      return this.ltFilter(items, filter.$lt);
+      return await  this.ltFilter(items, filter.$lt);
     if (filter.$lte !== undefined)
-      return this.lteFilter(items, filter.$lte);
+      return await  this.lteFilter(items, filter.$lte);
     if (filter.$raw !== undefined)
-      return this.rawFilter(items, filter.$raw);
+      return await  this.rawFilter(items, filter.$raw);
+    if (filter.$async !== undefined)
+      return await  this.asyncFilter(items, filter.$async);
     throw '[TODO] Should not reach error';
   }
 
-  private filter(items: S[], filter: Filter<S>): S[] {
+  private async filter(items: S[], filter: Filter<S>): Promise<S[]> {
     for (const key in filter) {
       if (key.startsWith('$')) {
-        return this.specialFilter(items, <FilterSpecial<S>>filter);
+        return await this.specialFilter(items, <FilterSpecial<S>>filter);
       }
     }
-    return this.propertyFilter(items, <Partial<S>>filter);
+    return await this.propertyFilter(items, <Partial<S>>filter);
   }
 
-  query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
+  async query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
     try {
-      const items = this.items(model);
-      return Promise.resolve(items.map(item => new model(item)));
+      const items = await  this.items(model);
+      return items.map(item => new model(item));
     } catch (e) {
       return Promise.reject(e);
     }
   }
 
-  count(model: ModelStatic<S>): Promise<number> {
+  async count(model: ModelStatic<S>): Promise<number> {
     try {
-      const items = this.items(model);
-      return Promise.resolve(items.length);
+      const items = await this.items(model);
+      return items.length;
     } catch (e) {
       return Promise.reject(e);
     }
   }
 
-  select(model: ModelStatic<S>, ...keys: (keyof S)[]): Promise<S[keyof S][][]> {
+  async select(model: ModelStatic<S>, ...keys: (keyof S)[]): Promise<S[keyof S][][]> {
     try {
-      const items = this.items(model);
+      const items = await this.items(model);
 
       const result: S[keyof S][][] = [];
       items.forEach(item => {
@@ -279,9 +289,9 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number> {
+  async updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number> {
     try {
-      const items = this.items(model);
+      const items = await this.items(model);
       items.forEach(item => {
         for (const key in attrs) {
           if (key !== model.identifier) {
@@ -296,9 +306,9 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }
   }
 
-  deleteAll(model: ModelStatic<S>): Promise<number> {
+  async deleteAll(model: ModelStatic<S>): Promise<number> {
     try {
-      const items = this.items(model);
+      const items = await this.items(model);
       const exists: { [key: string]: boolean } = {};
       items.forEach(item => {
         exists[item.id] = exists[item.id] || true;
