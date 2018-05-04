@@ -67,107 +67,107 @@ interface FilterSpecGroup {
 };
 
 const filterSpecGroups: FilterSpecGroup = {
-  // 'none': [
-  //   { filter: undefined, results: [1, 2, 3] },
-  //   { filter: {}, results: [1, 2, 3] },
-  // ],
-  // 'property': [
-  //   { filter: { id: validId }, results: [validId] },
-  //   { filter: { id: 1, foo: 'bar' }, results: [1] },
-  //   { filter: { id: 1, foo: 'baz' }, results: [] },
-  //   { filter: { foo: 'bar' }, results: [1, 3] },
-  //   { filter: { id: invalidId }, results: [] },
-  // ],
+  'none': [
+    { filter: undefined, results: [1, 2, 3] },
+    { filter: {}, results: [1, 2, 3] },
+  ],
+  'property': [
+    { filter: { id: validId }, results: [validId] },
+    { filter: { id: 1, foo: 'bar' }, results: [1] },
+    { filter: { id: 1, foo: 'baz' }, results: [] },
+    { filter: { foo: 'bar' }, results: [1, 3] },
+    { filter: { id: invalidId }, results: [] },
+  ],
   '$and': [
     { filter: { $and: [] }, results: [1, 2, 3] },
     { filter: { $and: [{ id: validId}] }, results: [validId] },
     { filter: { $and: [{ id: 2 }, { id: 3 }] }, results: [] },
     { filter: { $and: [{ id: 2 }, { id: 2 }] }, results: [2] },
   ],
-  // '$not': [
-  //   { filter: { $not: {} }, results: [] },
-  //   { filter: { $not: { id: 2 } }, results: [1, 3] },
-  //   { filter: { $not: { id: invalidId } }, results: [1, 2, 3] },
-  // ],
-  // '$or': [
-  //   { filter: { $or: [] }, results: [] },
-  //   { filter: { $or: [{ id: validId }] }, results: [validId] },
-  //   { filter: { $or: [{ id: 2 }, { id: 3 }] }, results: [2, 3] },
-  //   { filter: { $or: [{ id: 2 }, { id: 2 }] }, results: [2] },
-  // ],
-  // '$in': [
-  //   { filter: { $in: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $in: { id: [validId] } }, results: [validId] },
-  //   { filter: { $in: { id: [2, 3] } }, results: [2, 3] },
-  //   { filter: { $in: { id: [2, 2] } }, results: [2] },
-  //   { filter: { $in: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
-  // ],
-  // '$notIn': [
-  //   { filter: { $notIn: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $notIn: { id: [2] } }, results: [1, 3] },
-  //   { filter: { $notIn: { id: [2, 3] } }, results: [1] },
-  //   { filter: { $notIn: { id: [2, 2] } }, results: [1, 3] },
-  //   { filter: { $notIn: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
-  // ],
-  // '$null': [
-  //   { filter: { $null: 'foo' }, results: [2] },
-  //   { filter: { $null: 'id' }, results: [] },
-  //   { filter: { $null: 'bar' }, results: [1, 2, 3] },
-  // ],
-  // '$notNull': [
-  //   { filter: { $notNull: 'foo' }, results: [1, 3] },
-  //   { filter: { $notNull: 'id' }, results: [1, 2, 3] },
-  //   { filter: { $notNull: 'bar' }, results: [] },
-  // ],
-  // '$between': [
-  //   { filter: { $between: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $between: { id: { from: 1, to: 2 } } }, results: [1, 2] },
-  //   { filter: { $between: { foo: { from: 'a', to: 'z' } } }, results: [1, 3] },
-  //   { filter: { $between: { id: { from: 0, to: 1 } } }, results: [1] },
-  //   { filter: { $between: { id: { from: 3, to: 4 } } }, results: [3] },
-  //   { filter: { $between: { id: { from: validId, to: validId } } }, results: [validId] },
-  //   { filter: { $between: { id: { from: 4, to: 5 } } }, results: [] },
-  //   { filter: { $between: { id: { from: 3, to: 1 } } }, results: [] },
-  //   { filter: { $between: { id: { from: 1, to: 3 }, foo: { from: 'a', to: 'z' } } }, results: '[TODO] Return proper error' },
-  // ],
-  // '$gt': [
-  //   { filter: { $gt: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $gt: { id: 2 } }, results: [3] },
-  //   { filter: { $gt: { foo: 'bar' } }, results: [] },
-  //   { filter: { $gt: { foo: 'a' } }, results: [1, 3] },
-  //   { filter: { $gt: { id: 0 } }, results: [1, 2, 3] },
-  //   { filter: { $gt: { id: invalidId } }, results: [] },
-  //   { filter: { $gt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
-  // ],
-  // '$gte': [
-  //   { filter: { $gte: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $gte: { id: 2 } }, results: [2, 3] },
-  //   { filter: { $gte: { foo: 'z' } }, results: [] },
-  //   { filter: { $gte: { foo: 'bar' } }, results: [1, 3] },
-  //   { filter: { $gte: { foo: 'a' } }, results: [1, 3] },
-  //   { filter: { $gte: { id: 0 } }, results: [1, 2, 3] },
-  //   { filter: { $gte: { id: invalidId } }, results: [] },
-  //   { filter: { $gte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
-  // ],
-  // '$lt': [
-  //   { filter: { $lt: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $lt: { id: 2 } }, results: [1] },
-  //   { filter: { $lt: { foo: 'bar' } }, results: [] },
-  //   { filter: { $lt: { foo: 'z' } }, results: [1, 3] },
-  //   { filter: { $lt: { id: 4 } }, results: [1, 2, 3] },
-  //   { filter: { $lt: { id: 0 } }, results: [] },
-  //   { filter: { $lt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
-  // ],
-  // '$lte': [
-  //   { filter: { $lte: {} }, results: '[TODO] Return proper error' },
-  //   { filter: { $lte: { id: 2 } }, results: [1, 2] },
-  //   { filter: { $lte: { foo: 'a' } }, results: [] },
-  //   { filter: { $lte: { foo: 'bar' } }, results: [1, 3] },
-  //   { filter: { $lte: { foo: 'z' } }, results: [1, 3] },
-  //   { filter: { $lte: { id: 4 } }, results: [1, 2, 3] },
-  //   { filter: { $lte: { id: 0 } }, results: [] },
-  //   { filter: { $lte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
-  // ],
+  '$not': [
+    { filter: { $not: {} }, results: [] },
+    { filter: { $not: { id: 2 } }, results: [1, 3] },
+    { filter: { $not: { id: invalidId } }, results: [1, 2, 3] },
+  ],
+  '$or': [
+    { filter: { $or: [] }, results: [] },
+    { filter: { $or: [{ id: validId }] }, results: [validId] },
+    { filter: { $or: [{ id: 2 }, { id: 3 }] }, results: [2, 3] },
+    { filter: { $or: [{ id: 2 }, { id: 2 }] }, results: [2] },
+  ],
+  '$in': [
+    { filter: { $in: {} }, results: '[TODO] Return proper error' },
+    { filter: { $in: { id: [validId] } }, results: [validId] },
+    { filter: { $in: { id: [2, 3] } }, results: [2, 3] },
+    { filter: { $in: { id: [2, 2] } }, results: [2] },
+    { filter: { $in: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
+  ],
+  '$notIn': [
+    { filter: { $notIn: {} }, results: '[TODO] Return proper error' },
+    { filter: { $notIn: { id: [2] } }, results: [1, 3] },
+    { filter: { $notIn: { id: [2, 3] } }, results: [1] },
+    { filter: { $notIn: { id: [2, 2] } }, results: [1, 3] },
+    { filter: { $notIn: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
+  ],
+  '$null': [
+    { filter: { $null: 'foo' }, results: [2] },
+    { filter: { $null: 'id' }, results: [] },
+    { filter: { $null: 'bar' }, results: [1, 2, 3] },
+  ],
+  '$notNull': [
+    { filter: { $notNull: 'foo' }, results: [1, 3] },
+    { filter: { $notNull: 'id' }, results: [1, 2, 3] },
+    { filter: { $notNull: 'bar' }, results: [] },
+  ],
+  '$between': [
+    { filter: { $between: {} }, results: '[TODO] Return proper error' },
+    { filter: { $between: { id: { from: 1, to: 2 } } }, results: [1, 2] },
+    { filter: { $between: { foo: { from: 'a', to: 'z' } } }, results: [1, 3] },
+    { filter: { $between: { id: { from: 0, to: 1 } } }, results: [1] },
+    { filter: { $between: { id: { from: 3, to: 4 } } }, results: [3] },
+    { filter: { $between: { id: { from: validId, to: validId } } }, results: [validId] },
+    { filter: { $between: { id: { from: 4, to: 5 } } }, results: [] },
+    { filter: { $between: { id: { from: 3, to: 1 } } }, results: [] },
+    { filter: { $between: { id: { from: 1, to: 3 }, foo: { from: 'a', to: 'z' } } }, results: '[TODO] Return proper error' },
+  ],
+  '$gt': [
+    { filter: { $gt: {} }, results: '[TODO] Return proper error' },
+    { filter: { $gt: { id: 2 } }, results: [3] },
+    { filter: { $gt: { foo: 'bar' } }, results: [] },
+    { filter: { $gt: { foo: 'a' } }, results: [1, 3] },
+    { filter: { $gt: { id: 0 } }, results: [1, 2, 3] },
+    { filter: { $gt: { id: invalidId } }, results: [] },
+    { filter: { $gt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+  '$gte': [
+    { filter: { $gte: {} }, results: '[TODO] Return proper error' },
+    { filter: { $gte: { id: 2 } }, results: [2, 3] },
+    { filter: { $gte: { foo: 'z' } }, results: [] },
+    { filter: { $gte: { foo: 'bar' } }, results: [1, 3] },
+    { filter: { $gte: { foo: 'a' } }, results: [1, 3] },
+    { filter: { $gte: { id: 0 } }, results: [1, 2, 3] },
+    { filter: { $gte: { id: invalidId } }, results: [] },
+    { filter: { $gte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+  '$lt': [
+    { filter: { $lt: {} }, results: '[TODO] Return proper error' },
+    { filter: { $lt: { id: 2 } }, results: [1] },
+    { filter: { $lt: { foo: 'bar' } }, results: [] },
+    { filter: { $lt: { foo: 'z' } }, results: [1, 3] },
+    { filter: { $lt: { id: 4 } }, results: [1, 2, 3] },
+    { filter: { $lt: { id: 0 } }, results: [] },
+    { filter: { $lt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
+  '$lte': [
+    { filter: { $lte: {} }, results: '[TODO] Return proper error' },
+    { filter: { $lte: { id: 2 } }, results: [1, 2] },
+    { filter: { $lte: { foo: 'a' } }, results: [] },
+    { filter: { $lte: { foo: 'bar' } }, results: [1, 3] },
+    { filter: { $lte: { foo: 'z' } }, results: [1, 3] },
+    { filter: { $lte: { id: 4 } }, results: [1, 2, 3] },
+    { filter: { $lte: { id: 0 } }, results: [] },
+    { filter: { $lte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+  ],
 };
 
 describe('Connector', () => {
@@ -227,7 +227,7 @@ describe('Connector', () => {
                           .toEqual(results);
                       });
                     } else {
-                      it.only('promises all matching items as model instances', async () => {
+                      it('promises all matching items as model instances', async () => {
                         const instances = await subject();
                         expect(instances.length).toEqual(results.length);
                         expect(instances[0] instanceof Klass).toBeTruthy();
