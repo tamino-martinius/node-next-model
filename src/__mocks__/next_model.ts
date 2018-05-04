@@ -6,10 +6,6 @@ import {
   Schema,
   ModelConstructor,
   ModelStatic,
-  BelongsTo,
-  HasOne,
-  HasMany,
-  Relation,
   OrderDirection,
   Order,
   Validator,
@@ -137,13 +133,6 @@ export class Faker {
     return filter;
   }
 
-  static get relation(): Dict<Relation> {
-    return this.relationByCount(faker.random.number({
-      min: 1,
-      max: 3,
-    }));
-  }
-
   static get order(): Partial<Order<any>>[] {
     return this.orderByCount(faker.random.number({
       min: 0,
@@ -162,16 +151,6 @@ export class Faker {
       order.push({ [name]: orderDirection() });
     }
     return order;
-  }
-
-  private static relationByCount(count: number): Dict<Relation> {
-    let belongsTo = {};
-    for (let i = 0; i < count; i++) {
-      const name = propertyName();
-      belongsTo[name] = { model: this.model };
-      if (faker.random.boolean()) belongsTo[name].foreignKey = propertyName();
-    }
-    return belongsTo;
   }
 
   static get validators(): Validator<any>[] {
@@ -195,18 +174,6 @@ export class Faker {
 
   static randomNumber(min: number, max: number) {
     return positiveInteger(min, max);
-  }
-
-  static get belongsTo(): BelongsTo {
-    return this.relation;
-  }
-
-  static get hasOne(): HasOne {
-    return this.relation;
-  }
-
-  static get hasMany(): HasMany {
-    return this.relation;
   }
 
   static get limit(): number {

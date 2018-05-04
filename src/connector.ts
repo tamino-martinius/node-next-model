@@ -50,20 +50,25 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
       });
     }
     const filterCount = Object.keys(filter).length;
+    console.log(items, filter, counts);
     return items.filter(item => counts[item.id] === filterCount);
   }
 
   private async andFilter(items: S[], filters: Filter<S>[]): Promise<S[]> {
     // Cost: (1, n, m) => O(n,m) = (n) + (n * m) + (m * O(this.filter))
-    const counts: { [key: string]: number } = {};
-    items.forEach(item => counts[item.id] = 0);
+    const counts: { [key: string]: number } = items.reduce((obj, item) => {
+      obj[item.id] = 0;
+      return obj;
+    }, <{ [key: string]: number }>{});
     filters.map(async (filter) => {
-      const filterItems = await this.filter(items, filter)
+      const filterItems = await this.filter(items, filter);
+      console.log(filterItems);
       filterItems.forEach(item => {
         counts[item.id] += 1;
       });
     });
     const filterCount = filters.length;
+    console.log(items, filters, counts);
     return items.filter(item => counts[item.id] === filterCount);
   }
 
