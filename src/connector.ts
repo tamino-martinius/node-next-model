@@ -50,7 +50,6 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
       });
     }
     const filterCount = Object.keys(filter).length;
-    console.log(items, filter, counts);
     return items.filter(item => counts[item.id] === filterCount);
   }
 
@@ -62,13 +61,11 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
     }, <{ [key: string]: number }>{});
     filters.map(async (filter) => {
       const filterItems = await this.filter(items, filter);
-      console.log(filterItems);
       filterItems.forEach(item => {
         counts[item.id] += 1;
       });
     });
     const filterCount = filters.length;
-    console.log(items, filters, counts);
     return items.filter(item => counts[item.id] === filterCount);
   }
 
