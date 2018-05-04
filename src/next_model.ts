@@ -572,6 +572,22 @@ export class NextModelConstructor<S extends Identifiable, M extends ModelStatic<
     super();
   }
 
+  get model(): M {
+    return <any>this.instance.model;
+  }
+
+  belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R {
+    return this.belongsTo(model, options);
+  }
+
+  hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R {
+    return this.hasMany(model, options);
+  }
+
+  hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R {
+    return this.hasOne(model, options);
+  }
+
   assign(attrs: Partial<S>): I {
     return <any>this.instance.assign(attrs);
   }
