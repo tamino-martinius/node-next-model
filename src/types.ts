@@ -207,39 +207,38 @@ export interface ModelStatic<S extends Identifiable> extends Function {
   // prototype: S;
 }
 
-export class ModelStaticClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
-  new(model: M): ModelStaticClass<S, M, I>;
+export abstract class ModelStaticClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
+  // abstract new(model: M): ModelStaticClass<S, M, I>;
 
-  limitBy(amount: number): M;
-  readonly unlimited: M;
-  skipBy(amount: number): M;
-  readonly unskipped: M;
+  abstract limitBy(amount: number): M;
+  abstract readonly unlimited: M;
+  abstract skipBy(amount: number): M;
+  abstract readonly unskipped: M;
 
-  orderBy(order: Partial<Order<S>>): M;
-  reorder(order: Partial<Order<S>>): M;
-  readonly unordered: M;
-  query(query: Filter<S>): M;
-  onlyQuery(query: Filter<S>): M;
-  readonly queryBy: QueryByModel<S, M>;
-  readonly unfiltered: M;
-  readonly all: Promise<I[]>;
-  pluck(key: keyof S): Promise<S[keyof S][]>;
-  select(...keys: (keyof S)[]): Promise<S[keyof S][][]>;
-  updateAll(attrs: Partial<S>): Promise<M>;
-  deleteAll(): Promise<I>;
-  inBatchesOf(amount: number): Promise<Promise<I[]>[]>;
-  readonly first: Promise<I | undefined>;
-  find(query: Filter<S>): Promise<I | undefined>;
-  readonly findBy: FindByModel<S, I>;
-  readonly count: Promise<number>;
+  abstract orderBy(order: Partial<Order<S>>): M;
+  abstract reorder(order: Partial<Order<S>>): M;
+  abstract readonly unordered: M;
+  abstract query(query: Filter<S>): M;
+  abstract onlyQuery(query: Filter<S>): M;
+  abstract readonly queryBy: QueryByModel<S, M>;
+  abstract readonly unfiltered: M;
+  abstract readonly all: Promise<I[]>;
+  abstract pluck(key: keyof S): Promise<S[keyof S][]>;
+  abstract select(...keys: (keyof S)[]): Promise<S[keyof S][][]>;
+  abstract updateAll(attrs: Partial<S>): Promise<M>;
+  abstract deleteAll(): Promise<I>;
+  abstract inBatchesOf(amount: number): Promise<Promise<I[]>[]>;
+  abstract readonly first: Promise<I | undefined>;
+  abstract find(query: Filter<S>): Promise<I | undefined>;
+  abstract readonly findBy: FindByModel<S, I>;
+  abstract readonly count: Promise<number>;
 
-  build(attrs: Partial<S> | undefined): I;
-  create(attrs: Partial<S> | undefined): Promise<I>;
+  abstract build(attrs: Partial<S> | undefined): I;
+  abstract create(attrs: Partial<S> | undefined): Promise<I>;
 }
 
 export interface ModelConstructor<S extends Identifiable> {
   id: any;
-  readonly model: ModelStatic<S>;
   readonly attributes: Partial<S>;
   readonly persistentAttributes: Partial<S>;
   readonly isNew: boolean;
@@ -248,11 +247,13 @@ export interface ModelConstructor<S extends Identifiable> {
   readonly isValid: Promise<boolean>;
   readonly changes: Partial<Changes<S>>;
 
+  getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelConstructorClass<S, M, I>;
+
+  readonly model: ModelStatic<S>;
+
   belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
   hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
   hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
-
-  getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelConstructorClass<S, M, I>;
 
   assign(attrs: Partial<S>): ModelConstructor<S>;
   revertChange(key: keyof S): ModelConstructor<S>;
@@ -264,7 +265,13 @@ export interface ModelConstructor<S extends Identifiable> {
 }
 
 export abstract class ModelConstructorClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
-  abstract new(instance: I): ModelConstructorClass<S, M, I>;
+  // abstract new(instance: I): ModelConstructorClass<S, M, I>;
+
+  readonly model: M;
+
+  abstract belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+  abstract hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+  abstract hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
 
   abstract assign(attrs: Partial<S>): I;
   abstract revertChange(key: keyof S): I;
