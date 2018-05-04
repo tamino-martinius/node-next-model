@@ -59,12 +59,12 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
       obj[item.id] = 0;
       return obj;
     }, <{ [key: string]: number }>{});
-    filters.map(async (filter) => {
+    await Promise.all(filters.map(async (filter) => {
       const filterItems = await this.filter(items, filter);
       filterItems.forEach(item => {
         counts[item.id] += 1;
       });
-    });
+    }));
     const filterCount = filters.length;
     return items.filter(item => counts[item.id] === filterCount);
   }
