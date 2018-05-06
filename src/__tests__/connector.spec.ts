@@ -170,6 +170,17 @@ const filterSpecGroups: FilterSpecGroup = {
   ],
 };
 
+for (const key in filterSpecGroups) {
+  const groupName = '$async -> ' + key;
+  filterSpecGroups[groupName] = [];
+  filterSpecGroups[groupName].push(...filterSpecGroups[key].map(spec => ({
+    filter: {
+      $async: Promise.resolve(spec.filter),
+    },
+    results: spec.results,
+  })));
+}
+
 describe('Connector', () => {
   describe('#query(model)', () => {
     let skip = 0;
@@ -941,9 +952,9 @@ describe('Connector', () => {
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    it('deletes matching amount of records', async () => {
-                      const instances = await subject();
-                      expect(instances).toEqual(results.length);
+                    it.only('deletes matching amount of records', async () => {
+                      const count = await subject();
+                      expect(count).toEqual(results.length);
                     });
                   } else {
                     it('rejects filter and returns error', () => {
