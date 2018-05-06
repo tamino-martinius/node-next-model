@@ -208,7 +208,11 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
 
   private async asyncFilter(items: S[], asyncFilter: Promise<Filter<S>>): Promise<S[]> {
     const filter = await asyncFilter;
-    return this.filter(items, filter);
+    if (filter && Object.keys(filter).length > 0) {
+      return this.filter(items, filter);
+    } else {
+      return items;
+    }
   }
 
   private async specialFilter(items: S[], filter: FilterSpecial<S>): Promise<S[]> {
@@ -257,7 +261,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
 
   async query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]> {
     try {
-      const items = await  this.items(model);
+      const items = await this.items(model);
       return items.map(item => new model(item));
     } catch (e) {
       return Promise.reject(e);
@@ -311,6 +315,7 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
   async deleteAll(model: ModelStatic<S>): Promise<number> {
     try {
       const items = await this.items(model);
+      const count = items.length;
       const exists: { [key: string]: boolean } = {};
       items.forEach(item => {
         exists[item.id] = exists[item.id] || true;
@@ -322,7 +327,8 @@ export class Connector<S extends Identifiable> implements ConnectorConstructor<S
           collection.splice(i, 1);
         }
       }
-      return Promise.resolve(items.length);
+
+      return count;
     } catch (e) {
       return Promise.reject(e);
     }
