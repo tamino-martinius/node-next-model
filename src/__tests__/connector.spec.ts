@@ -952,7 +952,7 @@ describe('Connector', () => {
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    it.only('deletes matching amount of records', async () => {
+                    it('deletes matching amount of records', async () => {
                       const count = await subject();
                       expect(count).toEqual(results.length);
                     });
