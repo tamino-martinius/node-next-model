@@ -400,8 +400,24 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return changes;
     }
 
-    belongsTo<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
-      return model;
+    belongsTo<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M {
+      const relOptions: RelationOptions = options || {};
+      const foreignKey = relOptions.foreignKey || `${model.lowerModelName}Id}`;
+      const identifier = model.identifier;
+      const through = relOptions.through;
+      let filter: Filter<any>;
+      if (through) {
+        filter = {
+          $async: async () => ({
+            [identifier]: await through.pluck(foreignKey),
+          })
+        };
+      } else {
+        filter = {
+          [identifier]: (<any>this)[foreignKey],
+        };
+      }
+      return <any>model.query(filter).limitBy(1).unskipped;
     }
 
     hasMany<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
