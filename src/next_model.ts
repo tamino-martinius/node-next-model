@@ -420,8 +420,24 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return <any>model.query(filter).limitBy(1).unskipped;
     }
 
-    hasMany<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
-      return model;
+    hasMany<M extends ModelStatic<any>>(model: M, options?: RelationOptions): M {
+      const relOptions: RelationOptions = options || {};
+      const through = relOptions.through;
+      let filter: Filter<any>;
+      if (through) {
+        const foreignKey = relOptions.foreignKey || `${through.lowerModelName}Id`;
+        filter = {
+          $async: async () => ({
+            [foreignKey]: await through.pluck(through.identifier),
+          })
+        };
+      } else {
+        const foreignKey = relOptions.foreignKey || `${this.model.lowerModelName}Id`;
+        filter = {
+          [foreignKey]: this.id,
+        };
+      }
+      return <any>model.query(filter).unlimited.unskipped;
     }
 
     hasOne<M extends ModelStatic<any>>(model: M, _options?: RelationOptions): M {
