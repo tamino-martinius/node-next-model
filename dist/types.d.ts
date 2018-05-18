@@ -5,59 +5,46 @@ export interface Identifiable {
 export interface Dict<T> {
     [key: string]: T;
 }
+export declare type Tuple<T, U> = [T, U];
 export interface Range<T> {
     from: T;
     to: T;
 }
+export interface Constructor<M> {
+    new (...args: any[]): M;
+}
 export declare type Bindings = BaseType[] | {
     [key: string]: BaseType;
 };
-export declare type FilterProperty<S extends Identifiable> = Partial<S>;
 export declare type FilterIn<S extends Identifiable> = {
     [K in keyof S]: Array<S[K]>;
 };
 export declare type FilterBetween<S extends Identifiable> = {
     [K in keyof S]: Range<S[K]>;
 };
-export declare type FilterCompare<S extends Identifiable> = {
-    [K in keyof S]: S[K];
-};
 export interface FilterRaw {
     $bindings: Bindings;
     $query: string;
 }
-export declare type Filter<S extends Identifiable> = FilterProperty<S> | FilterSpecial<S>;
+export declare type Filter<S extends Identifiable> = Partial<S> | FilterSpecial<S>;
 export declare type FilterSpecial<S extends Identifiable> = {
     $and?: Filter<S>[];
     $not?: Filter<S>;
     $or?: Filter<S>[];
-    $in?: FilterIn<S>;
-    $notIn?: FilterIn<S>;
+    $in?: Partial<FilterIn<S>>;
+    $notIn?: Partial<FilterIn<S>>;
     $null?: keyof S;
     $notNull?: keyof S;
-    $between?: FilterBetween<S>;
-    $notBetween?: FilterBetween<S>;
-    $gt?: FilterCompare<S>;
-    $gte?: FilterCompare<S>;
-    $lt?: FilterCompare<S>;
-    $lte?: FilterCompare<S>;
+    $between?: Partial<FilterBetween<S>>;
+    $notBetween?: Partial<FilterBetween<S>>;
+    $gt?: Partial<S>;
+    $gte?: Partial<S>;
+    $lt?: Partial<S>;
+    $lte?: Partial<S>;
     $raw?: FilterRaw;
+    $async?: Promise<Filter<S>>;
 };
 export declare type Validator<S extends Identifiable> = (instance: ModelConstructor<S>) => Promise<boolean>;
-export interface Relation {
-    model: ModelStatic<any>;
-    foreignKey?: string;
-}
-export interface StrictRelation {
-    model: ModelStatic<any>;
-    foreignKey: string;
-}
-export declare type BelongsTo = Dict<Relation>;
-export declare type HasOne = Dict<Relation>;
-export declare type HasMany = Dict<Relation>;
-export declare type StrictBelongsTo = Dict<StrictRelation>;
-export declare type StrictHasOne = Dict<StrictRelation>;
-export declare type StrictHasMany = Dict<StrictRelation>;
 export declare enum DataType {
     bigInteger = 0,
     binary = 1,
@@ -77,11 +64,11 @@ export declare enum DataType {
 }
 export interface SchemaProperty<T> {
     type: DataType;
-    defaultValue?: T | ((model: ModelConstructor<any>) => T);
+    defaultValue?: T | ((model: ModelConstructor<Identifiable>) => T);
 }
 export interface StrictSchemaProperty<T> {
     type: DataType;
-    defaultValue: undefined | T | ((model: ModelConstructor<any>) => T);
+    defaultValue: undefined | T | ((model: ModelConstructor<Identifiable>) => T);
 }
 export declare type Schema<S extends Identifiable> = {
     [P in keyof S]: SchemaProperty<S[P]>;
@@ -92,9 +79,15 @@ export declare type StrictSchema<S extends Identifiable> = {
 export declare type QueryBy<S extends Identifiable> = {
     [P in keyof S]: (value: S[P] | S[P][]) => ModelStatic<S>;
 };
+export declare type QueryByModel<S extends Identifiable, M extends ModelStatic<S>> = {
+    [P in keyof S]: (value: S[P] | S[P][]) => M;
+};
 export declare type Query<S extends Identifiable> = (query: Filter<S>) => ModelStatic<S>;
 export declare type FindBy<S extends Identifiable> = {
     [P in keyof S]: (value: S[P] | S[P][]) => Promise<undefined | ModelConstructor<S>>;
+};
+export declare type FindByModel<S extends Identifiable, I extends ModelConstructor<S>> = {
+    [P in keyof S]: (value: S[P] | S[P][]) => Promise<I | undefined>;
 };
 export declare enum OrderDirection {
     'asc' = 1,
@@ -116,6 +109,7 @@ export interface Storage {
 export interface ConnectorConstructor<S extends Identifiable> {
     query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
     count(model: ModelStatic<S>): Promise<number>;
+    select(model: ModelStatic<S>, ...keys: (keyof S)[]): Promise<S[keyof S][][]>;
     updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number>;
     deleteAll(model: ModelStatic<S>): Promise<number>;
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
@@ -123,7 +117,12 @@ export interface ConnectorConstructor<S extends Identifiable> {
     delete(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;
     execute(query: string, bindings: Bindings): Promise<any[]>;
 }
-export interface ModelStatic<S extends Identifiable> {
+export interface RelationOptions {
+    readonly filter?: Filter<any>;
+    readonly through?: ModelStatic<any>;
+    readonly foreignKey?: string;
+}
+export interface ModelStatic<S extends Identifiable> extends Function {
     readonly modelName: string;
     readonly lowerModelName: string;
     readonly underscoreModelName: string;
@@ -137,15 +136,10 @@ export interface ModelStatic<S extends Identifiable> {
     readonly skip: number;
     readonly order: Partial<Order<S>>[];
     readonly keys: (keyof S)[];
-    readonly belongsTo: BelongsTo;
-    readonly hasOne: HasOne;
-    readonly hasMany: HasMany;
     readonly validators: Validator<S>[];
     readonly strictSchema: StrictSchema<S>;
     readonly strictFilter: Filter<S>;
-    readonly strictBelongsTo: StrictBelongsTo;
-    readonly strictHasOne: StrictHasOne;
-    readonly strictHasMany: StrictHasMany;
+    getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelStaticClass<S, M, I>;
     limitBy(amount: number): ModelStatic<S>;
     readonly unlimited: ModelStatic<S>;
     skipBy(amount: number): ModelStatic<S>;
@@ -158,6 +152,8 @@ export interface ModelStatic<S extends Identifiable> {
     readonly queryBy: QueryBy<S>;
     readonly unfiltered: ModelStatic<S>;
     readonly all: Promise<ModelConstructor<S>[]>;
+    pluck(key: keyof S): Promise<S[keyof S][]>;
+    select(...keys: (keyof S)[]): Promise<S[keyof S][][]>;
     updateAll(attrs: Partial<S>): Promise<ModelStatic<S>>;
     deleteAll(): Promise<ModelStatic<S>>;
     inBatchesOf(amount: number): Promise<Promise<ModelConstructor<S>[]>[]>;
@@ -169,9 +165,33 @@ export interface ModelStatic<S extends Identifiable> {
     build(attrs: Partial<S> | undefined): ModelConstructor<S>;
     create(attrs: Partial<S> | undefined): Promise<ModelConstructor<S>>;
 }
+export declare abstract class ModelStaticClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
+    abstract limitBy(amount: number): M;
+    readonly abstract unlimited: M;
+    abstract skipBy(amount: number): M;
+    readonly abstract unskipped: M;
+    abstract orderBy(order: Partial<Order<S>>): M;
+    abstract reorder(order: Partial<Order<S>>): M;
+    readonly abstract unordered: M;
+    abstract query(query: Filter<S>): M;
+    abstract onlyQuery(query: Filter<S>): M;
+    readonly abstract queryBy: QueryByModel<S, M>;
+    readonly abstract unfiltered: M;
+    readonly abstract all: Promise<I[]>;
+    abstract pluck(key: keyof S): Promise<S[keyof S][]>;
+    abstract select(...keys: (keyof S)[]): Promise<S[keyof S][][]>;
+    abstract updateAll(attrs: Partial<S>): Promise<M>;
+    abstract deleteAll(): Promise<I>;
+    abstract inBatchesOf(amount: number): Promise<Promise<I[]>[]>;
+    readonly abstract first: Promise<I | undefined>;
+    abstract find(query: Filter<S>): Promise<I | undefined>;
+    readonly abstract findBy: FindByModel<S, I>;
+    readonly abstract count: Promise<number>;
+    abstract build(attrs: Partial<S> | undefined): I;
+    abstract create(attrs: Partial<S> | undefined): Promise<I>;
+}
 export interface ModelConstructor<S extends Identifiable> {
     id: any;
-    readonly model: ModelStatic<S>;
     readonly attributes: Partial<S>;
     readonly persistentAttributes: Partial<S>;
     readonly isNew: boolean;
@@ -179,10 +199,27 @@ export interface ModelConstructor<S extends Identifiable> {
     readonly isChanged: boolean;
     readonly isValid: Promise<boolean>;
     readonly changes: Partial<Changes<S>>;
+    getTyped<M extends ModelStatic<S>, I extends ModelConstructor<S>>(): ModelConstructorClass<S, M, I>;
+    readonly model: ModelStatic<S>;
+    belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+    hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+    hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
     assign(attrs: Partial<S>): ModelConstructor<S>;
     revertChange(key: keyof S): ModelConstructor<S>;
     revertChanges(): ModelConstructor<S>;
     save(): Promise<ModelConstructor<S>>;
     delete(): Promise<ModelConstructor<S>>;
     reload(): Promise<ModelConstructor<S> | undefined>;
+}
+export declare abstract class ModelConstructorClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
+    readonly model: M;
+    abstract belongsTo<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+    abstract hasMany<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+    abstract hasOne<R extends ModelStatic<any>>(model: R, options?: RelationOptions): R;
+    abstract assign(attrs: Partial<S>): I;
+    abstract revertChange(key: keyof S): I;
+    abstract revertChanges(): I;
+    abstract save(): Promise<I>;
+    abstract delete(): Promise<I>;
+    abstract reload(): Promise<I | undefined>;
 }

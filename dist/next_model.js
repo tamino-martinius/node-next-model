@@ -51,9 +51,10 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+var types_1 = require("./types");
 var connector_1 = require("./connector");
-var util_1 = require("./util");
 var pluralize_1 = require("pluralize");
+var _1 = require(".");
 var PropertyNotDefinedError = (function () {
     function PropertyNotDefinedError(name, isStatic, isReadonly) {
         if (isStatic === void 0) { isStatic = true; }
@@ -205,27 +206,6 @@ function NextModel() {
             enumerable: true,
             configurable: true
         });
-        Object.defineProperty(Model, "belongsTo", {
-            get: function () {
-                return {};
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(Model, "hasOne", {
-            get: function () {
-                return {};
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(Model, "hasMany", {
-            get: function () {
-                return {};
-            },
-            enumerable: true,
-            configurable: true
-        });
         Object.defineProperty(Model, "validators", {
             get: function () {
                 return [];
@@ -253,55 +233,9 @@ function NextModel() {
             enumerable: true,
             configurable: true
         });
-        Object.defineProperty(Model, "strictBelongsTo", {
-            get: function () {
-                var belongsTo = {};
-                for (var name_1 in this.belongsTo) {
-                    var relation = this.belongsTo[name_1];
-                    var model = relation.model;
-                    var foreignKey = relation.foreignKey || model.lowerModelName + 'Id';
-                    belongsTo[name_1] = {
-                        foreignKey: foreignKey,
-                        model: relation.model,
-                    };
-                }
-                return belongsTo;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(Model, "strictHasOne", {
-            get: function () {
-                var hasOne = {};
-                for (var name_2 in this.hasOne) {
-                    var relation = this.hasOne[name_2];
-                    var foreignKey = relation.foreignKey || this.lowerModelName + 'Id';
-                    hasOne[name_2] = {
-                        foreignKey: foreignKey,
-                        model: relation.model,
-                    };
-                }
-                return hasOne;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(Model, "strictHasMany", {
-            get: function () {
-                var hasMany = {};
-                for (var name_3 in this.hasMany) {
-                    var relation = this.hasMany[name_3];
-                    var foreignKey = relation.foreignKey || this.lowerModelName + 'Id';
-                    hasMany[name_3] = {
-                        foreignKey: foreignKey,
-                        model: relation.model,
-                    };
-                }
-                return hasMany;
-            },
-            enumerable: true,
-            configurable: true
-        });
+        Model.getTyped = function () {
+            return new NextModelStatic(this);
+        };
         Model.limitBy = function (amount) {
             return (function (_super) {
                 __extends(class_1, _super);
@@ -605,6 +539,22 @@ function NextModel() {
             enumerable: true,
             configurable: true
         });
+        Model.pluck = function (key) {
+            return __awaiter(this, void 0, void 0, function () {
+                var arr;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0: return [4, this.connector.select(this, key)];
+                        case 1:
+                            arr = _a.sent();
+                            return [2, arr.map(function (items) { return items[0]; })];
+                    }
+                });
+            });
+        };
+        Model.select = function (key) {
+            return this.connector.select(this, key);
+        };
         Model.build = function (attrs) {
             return new this(attrs);
         };
@@ -692,6 +642,105 @@ function NextModel() {
             enumerable: true,
             configurable: true
         });
+        Model.prototype.belongsTo = function (model, options) {
+            var _this = this;
+            var relOptions = options || {};
+            var foreignKey = relOptions.foreignKey || model.lowerModelName + "Id}";
+            var identifier = model.identifier;
+            var through = relOptions.through;
+            var filter;
+            if (through) {
+                filter = {
+                    $async: function () { return __awaiter(_this, void 0, void 0, function () {
+                        var _a, _b;
+                        return __generator(this, function (_c) {
+                            switch (_c.label) {
+                                case 0:
+                                    _b = {};
+                                    _a = identifier;
+                                    return [4, through.pluck(foreignKey)];
+                                case 1: return [2, (_b[_a] = _c.sent(),
+                                        _b)];
+                            }
+                        });
+                    }); }
+                };
+            }
+            else {
+                filter = (_a = {},
+                    _a[identifier] = this[foreignKey],
+                    _a);
+            }
+            return model.query(filter).limitBy(1).unskipped;
+            var _a;
+        };
+        Model.prototype.hasMany = function (model, options) {
+            var _this = this;
+            var relOptions = options || {};
+            var through = relOptions.through;
+            var filter;
+            if (through) {
+                var foreignKey_1 = relOptions.foreignKey || through.lowerModelName + "Id";
+                filter = {
+                    $async: function () { return __awaiter(_this, void 0, void 0, function () {
+                        var _a, _b;
+                        return __generator(this, function (_c) {
+                            switch (_c.label) {
+                                case 0:
+                                    _b = {};
+                                    _a = foreignKey_1;
+                                    return [4, through.pluck(through.identifier)];
+                                case 1: return [2, (_b[_a] = _c.sent(),
+                                        _b)];
+                            }
+                        });
+                    }); }
+                };
+            }
+            else {
+                var foreignKey = relOptions.foreignKey || this.model.lowerModelName + "Id";
+                filter = (_a = {},
+                    _a[foreignKey] = this.id,
+                    _a);
+            }
+            return model.query(filter).unlimited.unskipped;
+            var _a;
+        };
+        Model.prototype.hasOne = function (model, options) {
+            var _this = this;
+            var relOptions = options || {};
+            var through = relOptions.through;
+            var filter;
+            if (through) {
+                var foreignKey_2 = relOptions.foreignKey || through.lowerModelName + "Id";
+                filter = {
+                    $async: function () { return __awaiter(_this, void 0, void 0, function () {
+                        var _a, _b;
+                        return __generator(this, function (_c) {
+                            switch (_c.label) {
+                                case 0:
+                                    _b = {};
+                                    _a = foreignKey_2;
+                                    return [4, through.pluck(through.identifier)];
+                                case 1: return [2, (_b[_a] = _c.sent(),
+                                        _b)];
+                            }
+                        });
+                    }); }
+                };
+            }
+            else {
+                var foreignKey = relOptions.foreignKey || this.model.lowerModelName + "Id";
+                filter = (_a = {},
+                    _a[foreignKey] = this.id,
+                    _a);
+            }
+            return model.query(filter).limitBy(1).unskipped;
+            var _a;
+        };
+        Model.prototype.getTyped = function () {
+            return new NextModelConstructor(this);
+        };
         Model.prototype.assign = function (attrs) {
             for (var key in attrs) {
                 this[key] = attrs[key];
@@ -764,7 +813,7 @@ function NextModel() {
         Model.DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
         Model.DEFAULT_SKIP = 0;
         Model = Model_1 = __decorate([
-            util_1.staticImplements()
+            _1.staticImplements()
         ], Model);
         return Model;
         var Model_1;
@@ -773,6 +822,173 @@ function NextModel() {
     return Model;
 }
 exports.NextModel = NextModel;
+;
+var NextModelStatic = (function (_super) {
+    __extends(NextModelStatic, _super);
+    function NextModelStatic(model) {
+        var _this = _super.call(this) || this;
+        _this.model = model;
+        return _this;
+    }
+    NextModelStatic.prototype.limitBy = function (amount) {
+        return this.model.limitBy(amount);
+    };
+    Object.defineProperty(NextModelStatic.prototype, "unlimited", {
+        get: function () {
+            return this.model.unlimited;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelStatic.prototype.skipBy = function (amount) {
+        return this.model.skipBy(amount);
+    };
+    Object.defineProperty(NextModelStatic.prototype, "unskipped", {
+        get: function () {
+            return this.model.unskipped;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelStatic.prototype.orderBy = function (order) {
+        return this.model.orderBy(order);
+    };
+    NextModelStatic.prototype.reorder = function (order) {
+        return this.model.reorder(order);
+    };
+    Object.defineProperty(NextModelStatic.prototype, "unordered", {
+        get: function () {
+            return this.model.unordered;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelStatic.prototype.query = function (query) {
+        return this.model.query(query);
+    };
+    NextModelStatic.prototype.onlyQuery = function (query) {
+        return this.model.onlyQuery(query);
+    };
+    ;
+    Object.defineProperty(NextModelStatic.prototype, "queryBy", {
+        get: function () {
+            return this.model.queryBy;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(NextModelStatic.prototype, "unfiltered", {
+        get: function () {
+            return this.model.unfiltered;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(NextModelStatic.prototype, "all", {
+        get: function () {
+            return this.model.all;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelStatic.prototype.pluck = function (key) {
+        return this.model.pluck(key);
+    };
+    NextModelStatic.prototype.select = function () {
+        var keys = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            keys[_i] = arguments[_i];
+        }
+        return (_a = this.model).select.apply(_a, keys);
+        var _a;
+    };
+    NextModelStatic.prototype.updateAll = function (attrs) {
+        return this.model.updateAll(attrs);
+    };
+    NextModelStatic.prototype.deleteAll = function () {
+        return this.model.deleteAll();
+    };
+    NextModelStatic.prototype.inBatchesOf = function (amount) {
+        return this.model.inBatchesOf(amount);
+    };
+    Object.defineProperty(NextModelStatic.prototype, "first", {
+        get: function () {
+            return this.model.first;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelStatic.prototype.find = function (query) {
+        return this.model.find(query);
+    };
+    Object.defineProperty(NextModelStatic.prototype, "findBy", {
+        get: function () {
+            return this.model.findBy;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(NextModelStatic.prototype, "count", {
+        get: function () {
+            return this.model.count;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelStatic.prototype.build = function (attrs) {
+        return this.model.build(attrs);
+    };
+    NextModelStatic.prototype.create = function (attrs) {
+        return this.model.create(attrs);
+    };
+    return NextModelStatic;
+}(types_1.ModelStaticClass));
+exports.NextModelStatic = NextModelStatic;
+;
+var NextModelConstructor = (function (_super) {
+    __extends(NextModelConstructor, _super);
+    function NextModelConstructor(instance) {
+        var _this = _super.call(this) || this;
+        _this.instance = instance;
+        return _this;
+    }
+    Object.defineProperty(NextModelConstructor.prototype, "model", {
+        get: function () {
+            return this.instance.model;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    NextModelConstructor.prototype.belongsTo = function (model, options) {
+        return this.belongsTo(model, options);
+    };
+    NextModelConstructor.prototype.hasMany = function (model, options) {
+        return this.hasMany(model, options);
+    };
+    NextModelConstructor.prototype.hasOne = function (model, options) {
+        return this.hasOne(model, options);
+    };
+    NextModelConstructor.prototype.assign = function (attrs) {
+        return this.instance.assign(attrs);
+    };
+    NextModelConstructor.prototype.revertChange = function (key) {
+        return this.instance.revertChange(key);
+    };
+    NextModelConstructor.prototype.revertChanges = function () {
+        return this.instance.revertChanges();
+    };
+    NextModelConstructor.prototype.save = function () {
+        return this.instance.save();
+    };
+    NextModelConstructor.prototype.delete = function () {
+        return this.instance.delete();
+    };
+    NextModelConstructor.prototype.reload = function () {
+        return this.instance.reload();
+    };
+    return NextModelConstructor;
+}(types_1.ModelConstructorClass));
+exports.NextModelConstructor = NextModelConstructor;
 ;
 exports.default = NextModel;
 //# sourceMappingURL=next_model.js.map

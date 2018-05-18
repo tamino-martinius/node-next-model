@@ -19,10 +19,12 @@ export declare class Connector<S extends Identifiable> implements ConnectorConst
     private ltFilter(items, filter);
     private lteFilter(items, filter);
     private rawFilter(items, filter);
+    private asyncFilter(items, asyncFilter);
     private specialFilter(items, filter);
     private filter(items, filter);
     query(model: ModelStatic<S>): Promise<ModelConstructor<S>[]>;
     count(model: ModelStatic<S>): Promise<number>;
+    select(model: ModelStatic<S>, ...keys: (keyof S)[]): Promise<S[keyof S][][]>;
     updateAll(model: ModelStatic<S>, attrs: Partial<S>): Promise<number>;
     deleteAll(model: ModelStatic<S>): Promise<number>;
     create(instance: ModelConstructor<S>): Promise<ModelConstructor<S>>;

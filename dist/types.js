@@ -1,10 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-;
-;
-;
-;
-;
 var DataType;
 (function (DataType) {
     DataType[DataType["bigInteger"] = 0] = "bigInteger";
@@ -23,16 +18,21 @@ var DataType;
     DataType[DataType["time"] = 13] = "time";
     DataType[DataType["uuid"] = 14] = "uuid";
 })(DataType = exports.DataType || (exports.DataType = {}));
-;
-;
-;
 var OrderDirection;
 (function (OrderDirection) {
     OrderDirection[OrderDirection["asc"] = 1] = "asc";
     OrderDirection[OrderDirection["desc"] = -1] = "desc";
 })(OrderDirection = exports.OrderDirection || (exports.OrderDirection = {}));
-;
-;
-;
-;
+var ModelStaticClass = (function () {
+    function ModelStaticClass() {
+    }
+    return ModelStaticClass;
+}());
+exports.ModelStaticClass = ModelStaticClass;
+var ModelConstructorClass = (function () {
+    function ModelConstructorClass() {
+    }
+    return ModelConstructorClass;
+}());
+exports.ModelConstructorClass = ModelConstructorClass;
 //# sourceMappingURL=types.js.map
