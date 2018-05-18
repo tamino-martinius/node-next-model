@@ -143,12 +143,6 @@ class User extends NextModel<UserSchema>() {
     };
   }
 
-  static get hasMany() {
-    return {
-      addresses: { model: Address },
-    };
-  }
-
   static get males(): typeof User {
     return this.queryBy.gender('male');
   }
@@ -159,6 +153,10 @@ class User extends NextModel<UserSchema>() {
 
   static withFirstName(firstName): typeof User {
     return this.query({ firstName });
+  }
+
+  get addresses() {
+    return this.hasMany(Address);
   }
 
   get name(): string {
@@ -177,10 +175,8 @@ class Address extends NextModel<AddressSchema>() {
     };
   }
 
-  static get belongsTo() {
-    return {
-      user: { model: User },
-    };
+  get user() {
+    return this.belongsTo(User);
   }
 };
 
@@ -264,10 +260,8 @@ For example, if your application includes users and addresses, and each user can
 
 ~~~js
 class User extends NextModel<UserSchema>() {
-  static get belongsTo() {
-    return {
-      address: { model: Address },
-    }
+  get address() {
+    return this.belongsTo(Address);
   }
 };
 
@@ -288,10 +282,8 @@ For example, in an application containing users and addresses, the author model 
 
 ~~~js
 class Address extends NextModel<AddressSchema>() {
-  static get hasMany() {
-    return {
-      users: { model: User },
-    }
+  get users() {
+    return this.hasMany(User);
   }
 };
 
@@ -307,18 +299,14 @@ For example, if each address in your application has only one user, you'd declar
 
 ~~~js
 class User extends NextModel<UserSchema>() {
-  static get hasOne() {
-    return {
-      address: { model: Address },
-    }
+  get address() {
+    return this.hasOne(Address);
   }
 };
 
 class Address extends NextModel<AddressSchema>() {
-  static get belongsTo() {
-    return {
-      user: { model: User },
-    }
+  get user() {
+    return this.belongsTo(User);
   }
 };
 
