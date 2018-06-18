@@ -468,7 +468,7 @@ describe('NextModel', () => {
       },
       tests() {
         it('throws Error', () => {
-          expect(subject).toThrow(PropertyNotDefinedError);
+          expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
         });
 
         context('when schema is present', {
@@ -536,7 +536,7 @@ describe('NextModel', () => {
       },
       tests() {
         it('throws Error', () => {
-          expect(subject).toThrow(PropertyNotDefinedError);
+          expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
         });
 
         context('when schema is present', {
