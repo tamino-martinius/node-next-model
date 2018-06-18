@@ -25,48 +25,43 @@ import {
 import { plural } from 'pluralize';
 import { staticImplements } from '.';
 
-export class PropertyNotDefinedError implements Error {
+export class PropertyNotDefinedError extends Error {
   name: string = 'PropertyNotDefinedError';
-  message: string;
 
   constructor(name: string, isStatic: boolean = true, isReadonly: boolean = true) {
-    this.message = 'Please define ';
-    if (isStatic) this.message += 'static ';
-    if (isReadonly) this.message += 'readonly ';
-    this.message += `property '${name}' on your model`;
+    super(
+      `Please define ${isStatic ? 'static ' : ''} ${isReadonly ? 'readonly ' : ''}property '${name}' on your model`);
+    );
   }
 };
 
-export class LowerBoundsError implements Error {
+export class LowerBoundsError extends Error {
   name: string = 'LowerBoundsError';
-  message: string;
 
   constructor(name: string, lowerBound: number) {
-    this.message = `
+    super(this.message = `
       Property '${name}' is expected to be greater or equal to '${lowerBound}'
-    `;
+    `);
   }
 };
 
-export class MinLengthError implements Error {
+export class MinLengthError extends Error {
   name: string = 'MinLengthError';
-  message: string;
 
   constructor(name: string, minLength: number) {
-    this.message = `
+    super(`
       Property '${name}' length is expected to be longer or equal to '${minLength}'
-    `;
+    `);
   }
 };
 
-export class TypeError implements Error {
+export class TypeError extends Error {
   name: string = 'TypeError';
-  message: string;
 
   constructor(name: string, type: string) {
-    this.message = `
+    super(`
       Property '${name}' is expected to an '${type}'
-    `;
+    `);
   }
 };
 
