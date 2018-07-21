@@ -31,17 +31,18 @@
   },
   "devDependencies": {
     "@types/faker": "^4.1.2",
-    "@types/jest": "^22.2.3",
-    "@types/node": "^10.1.1",
-    "@types/pluralize": "0.0.28",
+    "@types/jest": "^23.3.0",
+    "@types/node": "^10.5.2",
+    "@types/pluralize": "0.0.29",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
-    "codecov": "^3.0.2",
+    "codecov": "^3.0.4",
     "faker": "^4.1.0",
-    "jest": "^22.4.4",
-    "ts-jest": "^22.4.6",
-    "tslint": "^5.10.0",
+    "jest": "^23.4.1",
+    "request": "^2.87.0",
+    "ts-jest": "^23.0.1",
+    "tslint": "^5.11.0",
     "tslint-config-airbnb": "^5.9.2",
-    "typescript": "^2.8.3"
+    "typescript": "^2.9.2"
   },
   "jest": {
     "transform": {
