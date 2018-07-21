@@ -30,7 +30,7 @@ export class PropertyNotDefinedError extends Error {
 
   constructor(name: string, isStatic: boolean = true, isReadonly: boolean = true) {
     super(
-      `Please define ${isStatic ? 'static ' : ''} ${isReadonly ? 'readonly ' : ''}property '${name}' on your model`);
+      `Please define ${isStatic ? 'static ' : ''} ${isReadonly ? 'readonly ' : ''}property '${name}' on your model`,
     );
   }
 };
@@ -39,9 +39,9 @@ export class LowerBoundsError extends Error {
   name: string = 'LowerBoundsError';
 
   constructor(name: string, lowerBound: number) {
-    super(this.message = `
-      Property '${name}' is expected to be greater or equal to '${lowerBound}'
-    `);
+    super(
+      `Property '${name}' is expected to be greater or equal to '${lowerBound}'`,
+    );
   }
 };
 
@@ -49,9 +49,9 @@ export class MinLengthError extends Error {
   name: string = 'MinLengthError';
 
   constructor(name: string, minLength: number) {
-    super(`
-      Property '${name}' length is expected to be longer or equal to '${minLength}'
-    `);
+    super(
+      `Property '${name}' length is expected to be longer or equal to '${minLength}'`,
+    );
   }
 };
 
@@ -218,7 +218,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
 
     static query(filterBy: Filter<S>): typeof Model {
       let filter = filterBy;
-      if (this.filter !== undefined && Object.keys(this.filter).length > 0)  {
+      if (this.filter !== undefined && Object.keys(this.filter).length > 0) {
         filter = {
           $and: [filterBy, this.filter],
         };
@@ -300,12 +300,12 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
       return this.query(filterBy).first;
     }
 
-    static get findBy(): FindBy<S>  {
+    static get findBy(): FindBy<S> {
       const findBy = <FindBy<S>>{};
       for (const key in this.strictSchema) {
         findBy[key] = (value) => this.find(Array.isArray(value)
-            ? <Filter<any>>{ $in: { [key]: value } }
-            : <Filter<any>>{ [key]: value }
+          ? <Filter<any>>{ $in: { [key]: value } }
+          : <Filter<any>>{ [key]: value }
         );
       };
       return findBy;
@@ -504,7 +504,7 @@ export function NextModel<S extends Identifiable>(): ModelStatic<S> {
     }
 
     reload(): Promise<Model | undefined> {
-      return this.model.limitBy(1).onlyQuery({[this.model.identifier]: this.id}).first;
+      return this.model.limitBy(1).onlyQuery({ [this.model.identifier]: this.id }).first;
     }
   };
 
@@ -559,7 +559,7 @@ export class NextModelStatic<S extends Identifiable, M extends ModelStatic<S>, I
 
   get unfiltered(): M {
     return <any>this.model.unfiltered;
- }
+  }
 
   get all(): Promise<I[]> {
     return <any>this.model.all;
