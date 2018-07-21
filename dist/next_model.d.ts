@@ -1,22 +1,18 @@
 import { ModelConstructor, ModelStatic, ModelConstructorClass, ModelStaticClass, Filter, Identifiable, Order, RelationOptions, QueryByModel, FindByModel } from './types';
-export declare class PropertyNotDefinedError implements Error {
+export declare class PropertyNotDefinedError extends Error {
     name: string;
-    message: string;
     constructor(name: string, isStatic?: boolean, isReadonly?: boolean);
 }
-export declare class LowerBoundsError implements Error {
+export declare class LowerBoundsError extends Error {
     name: string;
-    message: string;
     constructor(name: string, lowerBound: number);
 }
-export declare class MinLengthError implements Error {
+export declare class MinLengthError extends Error {
     name: string;
-    message: string;
     constructor(name: string, minLength: number);
 }
-export declare class TypeError implements Error {
+export declare class TypeError extends Error {
     name: string;
-    message: string;
     constructor(name: string, type: string);
 }
 export declare function NextModel<S extends Identifiable>(): ModelStatic<S>;

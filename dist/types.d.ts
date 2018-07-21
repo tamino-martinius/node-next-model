@@ -60,7 +60,7 @@ export declare enum DataType {
     string = 11,
     text = 12,
     time = 13,
-    uuid = 14,
+    uuid = 14
 }
 export interface SchemaProperty<T> {
     type: DataType;
@@ -91,7 +91,7 @@ export declare type FindByModel<S extends Identifiable, I extends ModelConstruct
 };
 export declare enum OrderDirection {
     'asc' = 1,
-    'desc' = -1,
+    'desc' = -1
 }
 export declare type Order<S extends Identifiable> = {
     [P in keyof S]: OrderDirection;
@@ -167,26 +167,26 @@ export interface ModelStatic<S extends Identifiable> extends Function {
 }
 export declare abstract class ModelStaticClass<S extends Identifiable, M extends ModelStatic<S>, I extends ModelConstructor<S>> {
     abstract limitBy(amount: number): M;
-    readonly abstract unlimited: M;
+    abstract readonly unlimited: M;
     abstract skipBy(amount: number): M;
-    readonly abstract unskipped: M;
+    abstract readonly unskipped: M;
     abstract orderBy(order: Partial<Order<S>>): M;
     abstract reorder(order: Partial<Order<S>>): M;
-    readonly abstract unordered: M;
+    abstract readonly unordered: M;
     abstract query(query: Filter<S>): M;
     abstract onlyQuery(query: Filter<S>): M;
-    readonly abstract queryBy: QueryByModel<S, M>;
-    readonly abstract unfiltered: M;
-    readonly abstract all: Promise<I[]>;
+    abstract readonly queryBy: QueryByModel<S, M>;
+    abstract readonly unfiltered: M;
+    abstract readonly all: Promise<I[]>;
     abstract pluck(key: keyof S): Promise<S[keyof S][]>;
     abstract select(...keys: (keyof S)[]): Promise<S[keyof S][][]>;
     abstract updateAll(attrs: Partial<S>): Promise<M>;
     abstract deleteAll(): Promise<I>;
     abstract inBatchesOf(amount: number): Promise<Promise<I[]>[]>;
-    readonly abstract first: Promise<I | undefined>;
+    abstract readonly first: Promise<I | undefined>;
     abstract find(query: Filter<S>): Promise<I | undefined>;
-    readonly abstract findBy: FindByModel<S, I>;
-    readonly abstract count: Promise<number>;
+    abstract readonly findBy: FindByModel<S, I>;
+    abstract readonly count: Promise<number>;
     abstract build(attrs: Partial<S> | undefined): I;
     abstract create(attrs: Partial<S> | undefined): Promise<I>;
 }

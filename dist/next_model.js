@@ -30,8 +30,8 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     function step(op) {
         if (f) throw new TypeError("Generator is already executing.");
         while (_) try {
-            if (f = 1, y && (t = y[op[0] & 2 ? "return" : op[0] ? "throw" : "next"]) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [0, t.value];
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
             switch (op[0]) {
                 case 0: case 1: t = op; break;
                 case 4: _.label++; return { value: op[1], done: false };
@@ -55,47 +55,50 @@ var types_1 = require("./types");
 var connector_1 = require("./connector");
 var pluralize_1 = require("pluralize");
 var _1 = require(".");
-var PropertyNotDefinedError = (function () {
+var PropertyNotDefinedError = (function (_super) {
+    __extends(PropertyNotDefinedError, _super);
     function PropertyNotDefinedError(name, isStatic, isReadonly) {
         if (isStatic === void 0) { isStatic = true; }
         if (isReadonly === void 0) { isReadonly = true; }
-        this.name = 'PropertyNotDefinedError';
-        this.message = 'Please define ';
-        if (isStatic)
-            this.message += 'static ';
-        if (isReadonly)
-            this.message += 'readonly ';
-        this.message += "property '" + name + "' on your model";
+        var _this = _super.call(this, "Please define " + (isStatic ? 'static ' : '') + " " + (isReadonly ? 'readonly ' : '') + "property '" + name + "' on your model") || this;
+        _this.name = 'PropertyNotDefinedError';
+        return _this;
     }
     return PropertyNotDefinedError;
-}());
+}(Error));
 exports.PropertyNotDefinedError = PropertyNotDefinedError;
 ;
-var LowerBoundsError = (function () {
+var LowerBoundsError = (function (_super) {
+    __extends(LowerBoundsError, _super);
     function LowerBoundsError(name, lowerBound) {
-        this.name = 'LowerBoundsError';
-        this.message = "\n      Property '" + name + "' is expected to be greater or equal to '" + lowerBound + "'\n    ";
+        var _this = _super.call(this, "Property '" + name + "' is expected to be greater or equal to '" + lowerBound + "'") || this;
+        _this.name = 'LowerBoundsError';
+        return _this;
     }
     return LowerBoundsError;
-}());
+}(Error));
 exports.LowerBoundsError = LowerBoundsError;
 ;
-var MinLengthError = (function () {
+var MinLengthError = (function (_super) {
+    __extends(MinLengthError, _super);
     function MinLengthError(name, minLength) {
-        this.name = 'MinLengthError';
-        this.message = "\n      Property '" + name + "' length is expected to be longer or equal to '" + minLength + "'\n    ";
+        var _this = _super.call(this, "Property '" + name + "' length is expected to be longer or equal to '" + minLength + "'") || this;
+        _this.name = 'MinLengthError';
+        return _this;
     }
     return MinLengthError;
-}());
+}(Error));
 exports.MinLengthError = MinLengthError;
 ;
-var TypeError = (function () {
+var TypeError = (function (_super) {
+    __extends(TypeError, _super);
     function TypeError(name, type) {
-        this.name = 'TypeError';
-        this.message = "\n      Property '" + name + "' is expected to an '" + type + "'\n    ";
+        var _this = _super.call(this, "\n      Property '" + name + "' is expected to an '" + type + "'\n    ") || this;
+        _this.name = 'TypeError';
+        return _this;
     }
     return TypeError;
-}());
+}(Error));
 exports.TypeError = TypeError;
 ;
 function NextModel() {
@@ -406,10 +409,10 @@ function NextModel() {
                 var queryBy = {};
                 var _loop_1 = function (key) {
                     queryBy[key] = function (value) {
+                        var _a, _b;
                         return _this.query(Array.isArray(value)
                             ? { $in: (_a = {}, _a[key] = value, _a) }
                             : (_b = {}, _b[key] = value, _b));
-                        var _a, _b;
                     };
                 };
                 for (var key in this.strictSchema) {
@@ -517,10 +520,10 @@ function NextModel() {
                 var findBy = {};
                 var _loop_2 = function (key) {
                     findBy[key] = function (value) {
+                        var _a, _b;
                         return _this.find(Array.isArray(value)
                             ? { $in: (_a = {}, _a[key] = value, _a) }
                             : (_b = {}, _b[key] = value, _b));
-                        var _a, _b;
                     };
                 };
                 for (var key in this.strictSchema) {
@@ -644,6 +647,7 @@ function NextModel() {
         });
         Model.prototype.belongsTo = function (model, options) {
             var _this = this;
+            var _a;
             var relOptions = options || {};
             var foreignKey = relOptions.foreignKey || model.lowerModelName + "Id}";
             var identifier = model.identifier;
@@ -656,11 +660,11 @@ function NextModel() {
                         return __generator(this, function (_c) {
                             switch (_c.label) {
                                 case 0:
-                                    _b = {};
-                                    _a = identifier;
+                                    _a = {};
+                                    _b = identifier;
                                     return [4, through.pluck(foreignKey)];
-                                case 1: return [2, (_b[_a] = _c.sent(),
-                                        _b)];
+                                case 1: return [2, (_a[_b] = _c.sent(),
+                                        _a)];
                             }
                         });
                     }); }
@@ -672,10 +676,10 @@ function NextModel() {
                     _a);
             }
             return model.query(filter).limitBy(1).unskipped;
-            var _a;
         };
         Model.prototype.hasMany = function (model, options) {
             var _this = this;
+            var _a;
             var relOptions = options || {};
             var through = relOptions.through;
             var filter;
@@ -687,11 +691,11 @@ function NextModel() {
                         return __generator(this, function (_c) {
                             switch (_c.label) {
                                 case 0:
-                                    _b = {};
-                                    _a = foreignKey_1;
+                                    _a = {};
+                                    _b = foreignKey_1;
                                     return [4, through.pluck(through.identifier)];
-                                case 1: return [2, (_b[_a] = _c.sent(),
-                                        _b)];
+                                case 1: return [2, (_a[_b] = _c.sent(),
+                                        _a)];
                             }
                         });
                     }); }
@@ -704,10 +708,10 @@ function NextModel() {
                     _a);
             }
             return model.query(filter).unlimited.unskipped;
-            var _a;
         };
         Model.prototype.hasOne = function (model, options) {
             var _this = this;
+            var _a;
             var relOptions = options || {};
             var through = relOptions.through;
             var filter;
@@ -719,11 +723,11 @@ function NextModel() {
                         return __generator(this, function (_c) {
                             switch (_c.label) {
                                 case 0:
-                                    _b = {};
-                                    _a = foreignKey_2;
+                                    _a = {};
+                                    _b = foreignKey_2;
                                     return [4, through.pluck(through.identifier)];
-                                case 1: return [2, (_b[_a] = _c.sent(),
-                                        _b)];
+                                case 1: return [2, (_a[_b] = _c.sent(),
+                                        _a)];
                             }
                         });
                     }); }
@@ -736,7 +740,6 @@ function NextModel() {
                     _a);
             }
             return model.query(filter).limitBy(1).unskipped;
-            var _a;
         };
         Model.prototype.getTyped = function () {
             return new NextModelConstructor(this);
@@ -807,16 +810,16 @@ function NextModel() {
             });
         };
         Model.prototype.reload = function () {
-            return this.model.limitBy(1).onlyQuery((_a = {}, _a[this.model.identifier] = this.id, _a)).first;
             var _a;
+            return this.model.limitBy(1).onlyQuery((_a = {}, _a[this.model.identifier] = this.id, _a)).first;
         };
+        var Model_1;
         Model.DEFAULT_LIMIT = Number.MAX_SAFE_INTEGER;
         Model.DEFAULT_SKIP = 0;
         Model = Model_1 = __decorate([
             _1.staticImplements()
         ], Model);
         return Model;
-        var Model_1;
     }());
     ;
     return Model;
@@ -899,8 +902,8 @@ var NextModelStatic = (function (_super) {
         for (var _i = 0; _i < arguments.length; _i++) {
             keys[_i] = arguments[_i];
         }
-        return (_a = this.model).select.apply(_a, keys);
         var _a;
+        return (_a = this.model).select.apply(_a, keys);
     };
     NextModelStatic.prototype.updateAll = function (attrs) {
         return this.model.updateAll(attrs);
