@@ -26,9 +26,7 @@
     "**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "*/__tests__",
-    "*/__mocks__"
+    "node_modules"
   ],
   "jest": {
     "globals": {
