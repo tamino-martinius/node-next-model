@@ -33,7 +33,13 @@ export class MemoryConnector implements Connector {
     return ++this.lastIds[tableName];
   }
 
-  private async items({ tableName, filter, limit, skip, order }: Scope): Promise<Dict<any>[]> {
+  private async items({
+    tableName,
+    filter = {},
+    limit,
+    skip,
+    order = [],
+  }: Scope): Promise<Dict<any>[]> {
     let items = await this.filter(this.collection(tableName), filter);
     if (skip && limit) {
       items = items.slice(skip, skip + limit);
