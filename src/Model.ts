@@ -121,16 +121,19 @@ export function Model<
     //   };
     // }
 
+    static get modelScope(): Scope {
+      return {
+        tableName,
+        filter: this.currentFilter,
+        limit: this.currentLimit,
+        skip: this.currentSkip,
+        order: this.currentOrder,
+      };
+    }
+
     static async all() {
-      const filter: DynamoDB.DocumentClient.FilterConditionMap = {};
-      // const response = await db
-      //   .scan({
-      //     ...defaultDbParams,
-      //     Limit: this.currentLimit,
-      //     ScanFilter: filter,
-      //   })
-      //   .promise();
-      const items = /*response.Items ||*/ [] as (PersistentProps & { [P in keyof K]: string })[];
+      const items = (await conn.query(this.modelScope)) as (PersistentProps &
+        { [P in keyof K]: string })[];
       return items.map(item => new Model(item));
     }
 
