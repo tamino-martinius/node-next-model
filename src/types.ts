@@ -90,10 +90,10 @@ export interface Connector {
 
 export interface Scope {
   tableName: string;
-  filter: undefined | Filter<Dict<any>>;
-  limit: undefined | number;
-  skip: undefined | number;
-  order: OrderColumn<Dict<any>>[];
+  filter?: Filter<Dict<any>>;
+  limit?: number;
+  skip?: number;
+  order?: OrderColumn<Dict<any>>[];
 }
 
 // // "{ new(): T }"
