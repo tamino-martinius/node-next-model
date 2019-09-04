@@ -16,7 +16,7 @@ import { uuid } from './util';
 export type Storage = Dict<Dict<any>[]>;
 
 const globalStorage: Storage = {};
-const globalLastIds = {} as Dict<number>;
+const globalLastIds: Dict<number> = {};
 
 export class MemoryConnector implements Connector {
   constructor(
@@ -304,7 +304,7 @@ export class MemoryConnector implements Connector {
     try {
       const items = await this.items(scope);
       return items.map(item => {
-        const obj = {} as Dict<any>;
+        const obj: Dict<any> = {};
         for (const key of keys) {
           obj[key] = item[key];
         }
@@ -351,7 +351,7 @@ export class MemoryConnector implements Connector {
 
   async insert(tableName: string, keys: Dict<KeyType>, item: Dict<any>): Promise<Dict<any>> {
     try {
-      const keyValues = {} as Dict<any>;
+      const keyValues: Dict<any> = {};
       for (const key in keys) {
         switch (keys[key]) {
           case KeyType.uuid:
