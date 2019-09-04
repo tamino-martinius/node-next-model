@@ -143,7 +143,7 @@ for (const key in filterSpecGroups) {
 }
 
 describe('Connector', () => {
-  describe('#query(model)', () => {
+  describe('#query(scope)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
     let filter: Filter<any> | undefined = {};
@@ -177,9 +177,8 @@ describe('Connector', () => {
           describe(groupName + ' filter', () => {
             filterSpecGroups[groupName].forEach(filterSpec => {
               context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-                definitions() {
-                  filter = filterSpec.filter;
-                },
+                definitions: () => (filter = filterSpec.filter),
+                reset: () => (filter = undefined),
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
@@ -250,399 +249,334 @@ describe('Connector', () => {
     });
   });
 
-  // describe('#select(model, ...keys)', () => {
-  //   let skip = 0;
-  //   let limit = Number.MAX_SAFE_INTEGER;
-  //   let keys: any[] = [];
-  //   const subject = () => connector().select(Klass.skipBy(skip).limitBy(limit), ...keys);
+  describe('#select(scope, ...keys)', () => {
+    let skip: number | undefined;
+    let limit: number | undefined;
+    let filter: Filter<any> | undefined = {};
+    let keys: string[] = [];
+    const scope = () => ({ tableName, skip, limit, filter });
+    const subject = () => connector().select(scope(), ...keys);
 
-  //   it('promises empty array', () => {
-  //     return expect(subject()).resolves.toEqual([]);
-  //   });
+    context('with single item prefilled storage', {
+      definitions: withEmptySeed,
+      tests() {
+        it('promises to return empty array', () => {
+          return expect(subject()).resolves.toEqual([]);
+        });
+      },
+    });
 
-  //   context('with single item prefilled storage', {
-  //     definitions() {
-  //       storage = singleSeed;
-  //     },
-  //     tests() {
-  //       it('promises all items with selected attributes', async () => {
-  //         const items = await subject();
-  //         expect(items.length).toEqual(1);
-  //         expect(items[0].length).toEqual(0);
-  //       });
-  //     },
-  //   });
+    context('with single item prefilled storage', {
+      definitions: withSingleSeed,
+      tests() {
+        it('promises to return all items with selected attributes', async () => {
+          const items = await subject();
+          expect(items.length).toEqual(1);
+          expect(Object.keys(items[0]).length).toEqual(0);
+        });
+      },
+    });
 
-  //   context('with multiple items prefilled storage', {
-  //     definitions() {
-  //       storage = multiSeed;
-  //     },
-  //     tests() {
-  //       for (const groupName in filterSpecGroups) {
-  //         describe(groupName + ' filter', () => {
-  //           filterSpecGroups[groupName].forEach(filterSpec => {
-  //             context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-  //               definitions() {
-  //                 class NewKlass extends Klass {
-  //                   static get filter(): Filter<any> {
-  //                     return filterSpec.filter;
-  //                   }
-  //                 }
-  //                 Klass = NewKlass;
-  //               },
-  //               tests() {
-  //                 const results = filterSpec.results;
-  //                 if (Array.isArray(results)) {
-  //                   if (results.length === 0) {
-  //                     it('promises empty array', () => {
-  //                       return expect(subject()).resolves.toEqual([]);
-  //                     });
-  //                   } else if (results.length === 3) {
-  //                     it('promises all items with selected attributes', async () => {
-  //                       const items = await subject();
-  //                       expect(items.length).toEqual(results.length);
-  //                       expect(items[0].length).toEqual(0);
-  //                     });
-  //                   } else {
-  //                     it('promises all matching items with selected attributes', async () => {
-  //                       const items = await subject();
-  //                       expect(items.length).toEqual(results.length);
-  //                       expect(items[0].length).toEqual(0);
-  //                     });
-  //                   }
+    context('with multiple items prefilled storage', {
+      definitions: withMultiSeed,
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions: () => (filter = filterSpec.filter),
+                reset: () => (filter = undefined),
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    if (results.length === 0) {
+                      it('promises to return empty array', () => {
+                        return expect(subject()).resolves.toEqual([]);
+                      });
+                    } else if (results.length === 3) {
+                      it('promises to return all items with selected attributes', async () => {
+                        const items = await subject();
+                        expect(items.length).toEqual(results.length);
+                        expect(Object.keys(items[0]).length).toEqual(0);
+                      });
+                    } else {
+                      it('promises to return all matching items with selected attributes', async () => {
+                        const items = await subject();
+                        expect(items.length).toEqual(results.length);
+                        expect(Object.keys(items[0]).length).toEqual(0);
+                      });
+                    }
 
-  //                   context('when skip is present', {
-  //                     definitions() {
-  //                       skip = 1;
-  //                     },
-  //                     reset() {
-  //                       skip = 0;
-  //                     },
-  //                     tests() {
-  //                       it('promises all matching items with selected attributes', async () => {
-  //                         const items = await subject();
-  //                         expect(items.length).toEqual(Math.max(0, results.length - 1));
-  //                         if (results.length > 1) {
-  //                           expect(items[0].length).toEqual(0);
-  //                         }
-  //                       });
-  //                     },
-  //                   });
+                    context('when skip is present', {
+                      definitions: () => (skip = 1),
+                      reset: () => (skip = undefined),
+                      tests() {
+                        it('promises to return all matching items with selected attributes', async () => {
+                          const items = await subject();
+                          expect(items.length).toEqual(Math.max(0, results.length - 1));
+                          if (results.length > 1) {
+                            expect(Object.keys(items[0]).length).toEqual(0);
+                          }
+                        });
+                      },
+                    });
 
-  //                   context('when limit is present', {
-  //                     definitions() {
-  //                       limit = 1;
-  //                     },
-  //                     reset() {
-  //                       limit = Number.MAX_SAFE_INTEGER;
-  //                     },
-  //                     tests() {
-  //                       it('promises all matching items with selected attributes', async () => {
-  //                         const items = await subject();
-  //                         expect(items.length).toEqual(results.length > 0 ? 1 : 0);
-  //                         if (results.length > 0) {
-  //                           expect(items[0].length).toEqual(0);
-  //                         }
-  //                       });
-  //                     },
-  //                   });
+                    context('when limit is present', {
+                      definitions: () => (limit = 1),
+                      reset: () => (limit = undefined),
+                      tests() {
+                        it('promises to return all matching items with selected attributes', async () => {
+                          const items = await subject();
+                          expect(items.length).toEqual(results.length > 0 ? 1 : 0);
+                          if (results.length > 0) {
+                            expect(Object.keys(items[0]).length).toEqual(0);
+                          }
+                        });
+                      },
+                    });
 
-  //                   context('when skip and limit is present', {
-  //                     definitions() {
-  //                       skip = 1;
-  //                       limit = 1;
-  //                     },
-  //                     reset() {
-  //                       skip = 0;
-  //                       limit = Number.MAX_SAFE_INTEGER;
-  //                     },
-  //                     tests() {
-  //                       it('promises all matching items with selected attributes', async () => {
-  //                         const items = await subject();
-  //                         expect(items.length).toEqual(results.length - 1 > 0 ? 1 : 0);
-  //                         if (results.length > 1) {
-  //                           expect(items[0].length).toEqual(0);
-  //                         }
-  //                       });
-  //                     },
-  //                   });
-  //                 } else {
-  //                   it('rejects filter and returns error', () => {
-  //                     return expect(subject()).rejects.toEqual(results);
-  //                   });
-  //                 }
-  //               },
-  //             });
-  //           });
-  //         });
-  //       }
-  //     },
-  //   });
+                    context('when skip and limit is present', {
+                      definitions: () => (skip = limit = 1),
+                      reset: () => (skip = limit = undefined),
+                      tests() {
+                        it('promises to return all matching items with selected attributes', async () => {
+                          const items = await subject();
+                          expect(items.length).toEqual(results.length - 1 > 0 ? 1 : 0);
+                          if (results.length > 1) {
+                            expect(Object.keys(items[0]).length).toEqual(0);
+                          }
+                        });
+                      },
+                    });
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
 
-  //   context('when keys contain single item', {
-  //     definitions() {
-  //       keys = ['id'];
-  //     },
-  //     tests() {
-  //       context('with single item prefilled storage', {
-  //         definitions() {
-  //           storage = singleSeed;
-  //         },
-  //         tests() {
-  //           it('promises all items with selected attributes', async () => {
-  //             const items = await subject();
-  //             expect(items.length).toEqual(1);
-  //             expect(items[0].length).toEqual(1);
-  //             expect(items[0]).toEqual([validId]);
-  //           });
-  //         },
-  //       });
+    context('when keys contain single item', {
+      definitions() {
+        keys = ['id'];
+      },
+      tests() {
+        context('with single item prefilled storage', {
+          definitions: withSingleSeed,
+          tests() {
+            it('promises to return all items with selected attributes', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(1);
+              expect(Object.keys(items[0]).length).toEqual(1);
+              expect(items[0]).toEqual({ id: validId });
+            });
+          },
+        });
 
-  //       context('with multiple items prefilled storage', {
-  //         definitions() {
-  //           storage = multiSeed;
-  //         },
-  //         tests() {
-  //           for (const groupName in filterSpecGroups) {
-  //             describe(groupName + ' filter', () => {
-  //               filterSpecGroups[groupName].forEach(filterSpec => {
-  //                 context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-  //                   definitions() {
-  //                     class NewKlass extends Klass {
-  //                       static get filter(): Filter<any> {
-  //                         return filterSpec.filter;
-  //                       }
-  //                     }
-  //                     Klass = NewKlass;
-  //                   },
-  //                   tests() {
-  //                     const results = filterSpec.results;
-  //                     if (Array.isArray(results)) {
-  //                       if (results.length === 0) {
-  //                         it('promises empty array', () => {
-  //                           return expect(subject()).resolves.toEqual([]);
-  //                         });
-  //                       } else if (results.length === 3) {
-  //                         it('promises all items with selected attributes', async () => {
-  //                           const items = await subject();
-  //                           expect(items.length).toEqual(results.length);
-  //                           expect(items[0].length).toEqual(1);
-  //                           expect(items.map(attrs => attrs[0])).toEqual(results);
-  //                         });
-  //                       } else {
-  //                         it('promises all matching items with selected attributes', async () => {
-  //                           const items = await subject();
-  //                           expect(items.length).toEqual(results.length);
-  //                           expect(items[0].length).toEqual(1);
-  //                           expect(items.map(attrs => attrs[0])).toEqual(results);
-  //                         });
-  //                       }
+        context('with multiple items prefilled storage', {
+          definitions: withMultiSeed,
+          tests() {
+            for (const groupName in filterSpecGroups) {
+              describe(groupName + ' filter', () => {
+                filterSpecGroups[groupName].forEach(filterSpec => {
+                  context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                    definitions: () => (filter = filterSpec.filter),
+                    reset: () => (filter = undefined),
+                    tests() {
+                      const results = filterSpec.results;
+                      if (Array.isArray(results)) {
+                        if (results.length === 0) {
+                          it('promises to return empty array', () => {
+                            return expect(subject()).resolves.toEqual([]);
+                          });
+                        } else if (results.length === 3) {
+                          it('promises to return all items with selected attributes', async () => {
+                            const items = await subject();
+                            expect(items.length).toEqual(results.length);
+                            expect(Object.keys(items[0]).length).toEqual(1);
+                            expect(idsOf(items)).toEqual(results);
+                          });
+                        } else {
+                          it('promises to return all matching items with selected attributes', async () => {
+                            const items = await subject();
+                            expect(items.length).toEqual(results.length);
+                            expect(Object.keys(items[0]).length).toEqual(1);
+                            expect(idsOf(items)).toEqual(results);
+                          });
+                        }
 
-  //                       context('when skip is present', {
-  //                         definitions() {
-  //                           skip = 1;
-  //                         },
-  //                         reset() {
-  //                           skip = 0;
-  //                         },
-  //                         tests() {
-  //                           it('promises all matching items with selected attributes', async () => {
-  //                             const items = await subject();
-  //                             expect(items.length).toEqual(Math.max(0, results.length - 1));
-  //                             if (results.length > 1) {
-  //                               expect(items[0].length).toEqual(1);
-  //                             }
-  //                             expect(items.map(attrs => attrs[0])).toEqual(results.slice(1));
-  //                           });
-  //                         },
-  //                       });
+                        context('when skip is present', {
+                          definitions: () => (skip = 1),
+                          reset: () => (skip = undefined),
+                          tests() {
+                            it('promises to return all matching items with selected attributes', async () => {
+                              const items = await subject();
+                              expect(items.length).toEqual(Math.max(0, results.length - 1));
+                              if (results.length > 1) {
+                                expect(Object.keys(items[0]).length).toEqual(1);
+                              }
+                              expect(idsOf(items)).toEqual(results.slice(1));
+                            });
+                          },
+                        });
 
-  //                       context('when limit is present', {
-  //                         definitions() {
-  //                           limit = 1;
-  //                         },
-  //                         reset() {
-  //                           limit = Number.MAX_SAFE_INTEGER;
-  //                         },
-  //                         tests() {
-  //                           it('promises all matching items with selected attributes', async () => {
-  //                             const items = await subject();
-  //                             expect(items.length).toEqual(results.length > 0 ? 1 : 0);
-  //                             if (results.length > 0) {
-  //                               expect(items[0].length).toEqual(1);
-  //                             }
-  //                             expect(items.map(attrs => attrs[0])).toEqual(results.slice(0, 1));
-  //                           });
-  //                         },
-  //                       });
+                        context('when limit is present', {
+                          definitions: () => (limit = 1),
+                          reset: () => (limit = undefined),
+                          tests() {
+                            it('promises to return all matching items with selected attributes', async () => {
+                              const items = await subject();
+                              expect(items.length).toEqual(results.length > 0 ? 1 : 0);
+                              if (results.length > 0) {
+                                expect(Object.keys(items[0]).length).toEqual(1);
+                              }
+                              expect(idsOf(items)).toEqual(results.slice(0, 1));
+                            });
+                          },
+                        });
 
-  //                       context('when skip and limit is present', {
-  //                         definitions() {
-  //                           skip = 1;
-  //                           limit = 1;
-  //                         },
-  //                         reset() {
-  //                           skip = 0;
-  //                           limit = Number.MAX_SAFE_INTEGER;
-  //                         },
-  //                         tests() {
-  //                           it('promises all matching items with selected attributes', async () => {
-  //                             const items = await subject();
-  //                             expect(items.length).toEqual(results.length - 1 > 0 ? 1 : 0);
-  //                             if (results.length > 1) {
-  //                               expect(items[0].length).toEqual(1);
-  //                             }
-  //                             expect(items.map(attrs => attrs[0])).toEqual(results.slice(1, 2));
-  //                           });
-  //                         },
-  //                       });
-  //                     } else {
-  //                       it('rejects filter and returns error', () => {
-  //                         return expect(subject()).rejects.toEqual(results);
-  //                       });
-  //                     }
-  //                   },
-  //                 });
-  //               });
-  //             });
-  //           }
-  //         },
-  //       });
-  //     },
-  //   });
+                        context('when skip and limit is present', {
+                          definitions: () => (skip = limit = 1),
+                          reset: () => (skip = limit = undefined),
+                          tests() {
+                            it('promises to return all matching items with selected attributes', async () => {
+                              const items = await subject();
+                              expect(items.length).toEqual(results.length - 1 > 0 ? 1 : 0);
+                              if (results.length > 1) {
+                                expect(Object.keys(items[0]).length).toEqual(1);
+                              }
+                              expect(idsOf(items)).toEqual(results.slice(1, 2));
+                            });
+                          },
+                        });
+                      } else {
+                        it('rejects filter and returns error', () => {
+                          return expect(subject()).rejects.toEqual(results);
+                        });
+                      }
+                    },
+                  });
+                });
+              });
+            }
+          },
+        });
+      },
+    });
 
-  //   context('when keys contain multiple items', {
-  //     definitions() {
-  //       keys = ['id', 'foo'];
-  //     },
-  //     tests() {
-  //       context('with single item prefilled storage', {
-  //         definitions() {
-  //           storage = singleSeed;
-  //         },
-  //         tests() {
-  //           it('promises all items with selected attributes', async () => {
-  //             const items = await subject();
-  //             expect(items.length).toEqual(1);
-  //             expect(items[0].length).toEqual(2);
-  //             expect(items[0]).toEqual([validId, undefined]);
-  //           });
-  //         },
-  //       });
+    context('when keys contain multiple items', {
+      definitions() {
+        keys = ['id', 'foo'];
+      },
+      tests() {
+        context('with single item prefilled storage', {
+          definitions: withSingleSeed,
+          tests() {
+            it('promises to return all items with selected attributes', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(1);
+              expect(Object.keys(items[0]).length).toEqual(2);
+              expect(items[0]).toEqual({ id: validId, foo: undefined });
+            });
+          },
+        });
 
-  //       context('with multiple items prefilled storage', {
-  //         definitions() {
-  //           storage = multiSeed;
-  //         },
-  //         tests() {
-  //           for (const groupName in filterSpecGroups) {
-  //             describe(groupName + ' filter', () => {
-  //               filterSpecGroups[groupName].forEach(filterSpec => {
-  //                 context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-  //                   definitions() {
-  //                     class NewKlass extends Klass {
-  //                       static get filter(): Filter<any> {
-  //                         return filterSpec.filter;
-  //                       }
-  //                     }
-  //                     Klass = NewKlass;
-  //                   },
-  //                   tests() {
-  //                     const results = filterSpec.results;
-  //                     if (Array.isArray(results)) {
-  //                       if (results.length === 0) {
-  //                         it('promises empty array', () => {
-  //                           return expect(subject()).resolves.toEqual([]);
-  //                         });
-  //                       } else if (results.length === 3) {
-  //                         it('promises all items with selected attributes', async () => {
-  //                           const items = await subject();
-  //                           expect(items.length).toEqual(results.length);
-  //                           expect(items[0].length).toEqual(2);
-  //                           expect(items.map(attrs => attrs[0])).toEqual(results);
-  //                         });
-  //                       } else {
-  //                         it('promises all matching items with selected attributes', async () => {
-  //                           const items = await subject();
-  //                           expect(items.length).toEqual(results.length);
-  //                           expect(items[0].length).toEqual(2);
-  //                           expect(items.map(attrs => attrs[0])).toEqual(results);
-  //                         });
-  //                       }
+        context('with multiple items prefilled storage', {
+          definitions: withMultiSeed,
+          tests() {
+            for (const groupName in filterSpecGroups) {
+              describe(groupName + ' filter', () => {
+                filterSpecGroups[groupName].forEach(filterSpec => {
+                  context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                    definitions: () => (filter = filterSpec.filter),
+                    reset: () => (filter = undefined),
+                    tests() {
+                      const results = filterSpec.results;
+                      if (Array.isArray(results)) {
+                        if (results.length === 0) {
+                          it('promises to return empty array', () => {
+                            return expect(subject()).resolves.toEqual([]);
+                          });
+                        } else if (results.length === 3) {
+                          it('promises to return all items with selected attributes', async () => {
+                            const items = await subject();
+                            expect(items.length).toEqual(results.length);
+                            expect(Object.keys(items[0]).length).toEqual(2);
+                            expect(idsOf(items)).toEqual(results);
+                          });
+                        } else {
+                          it('promises to return all matching items with selected attributes', async () => {
+                            const items = await subject();
+                            expect(items.length).toEqual(results.length);
+                            expect(Object.keys(items[0]).length).toEqual(2);
+                            expect(idsOf(items)).toEqual(results);
+                          });
+                        }
 
-  //                       context('when skip is present', {
-  //                         definitions() {
-  //                           skip = 1;
-  //                         },
-  //                         reset() {
-  //                           skip = 0;
-  //                         },
-  //                         tests() {
-  //                           it('promises all matching items with selected attributes', async () => {
-  //                             const items = await subject();
-  //                             expect(items.length).toEqual(Math.max(0, results.length - 1));
-  //                             if (results.length > 1) {
-  //                               expect(items[0].length).toEqual(2);
-  //                             }
-  //                             expect(items.map(attrs => attrs[0])).toEqual(results.slice(1));
-  //                           });
-  //                         },
-  //                       });
+                        context('when skip is present', {
+                          definitions: () => (skip = 1),
+                          reset: () => (skip = undefined),
+                          tests() {
+                            it('promises to return all matching items with selected attributes', async () => {
+                              const items = await subject();
+                              expect(items.length).toEqual(Math.max(0, results.length - 1));
+                              if (results.length > 1) {
+                                expect(Object.keys(items[0]).length).toEqual(2);
+                              }
+                              expect(idsOf(items)).toEqual(results.slice(1));
+                            });
+                          },
+                        });
 
-  //                       context('when limit is present', {
-  //                         definitions() {
-  //                           limit = 1;
-  //                         },
-  //                         reset() {
-  //                           limit = Number.MAX_SAFE_INTEGER;
-  //                         },
-  //                         tests() {
-  //                           it('promises all matching items with selected attributes', async () => {
-  //                             const items = await subject();
-  //                             expect(items.length).toEqual(results.length > 0 ? 1 : 0);
-  //                             if (results.length > 0) {
-  //                               expect(items[0].length).toEqual(2);
-  //                             }
-  //                             expect(items.map(attrs => attrs[0])).toEqual(results.slice(0, 1));
-  //                           });
-  //                         },
-  //                       });
+                        context('when limit is present', {
+                          definitions: () => (limit = 1),
+                          reset: () => (limit = undefined),
+                          tests() {
+                            it('promises to return all matching items with selected attributes', async () => {
+                              const items = await subject();
+                              expect(items.length).toEqual(results.length > 0 ? 1 : 0);
+                              if (results.length > 0) {
+                                expect(Object.keys(items[0]).length).toEqual(2);
+                              }
+                              expect(idsOf(items)).toEqual(results.slice(0, 1));
+                            });
+                          },
+                        });
 
-  //                       context('when skip and limit is present', {
-  //                         definitions() {
-  //                           skip = 1;
-  //                           limit = 1;
-  //                         },
-  //                         reset() {
-  //                           skip = 0;
-  //                           limit = Number.MAX_SAFE_INTEGER;
-  //                         },
-  //                         tests() {
-  //                           it('promises all matching items with selected attributes', async () => {
-  //                             const items = await subject();
-  //                             expect(items.length).toEqual(results.length - 1 > 0 ? 1 : 0);
-  //                             if (results.length > 1) {
-  //                               expect(items[0].length).toEqual(2);
-  //                             }
-  //                             expect(items.map(attrs => attrs[0])).toEqual(results.slice(1, 2));
-  //                           });
-  //                         },
-  //                       });
-  //                     } else {
-  //                       it('rejects filter and returns error', () => {
-  //                         return expect(subject()).rejects.toEqual(results);
-  //                       });
-  //                     }
-  //                   },
-  //                 });
-  //               });
-  //             });
-  //           }
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
+                        context('when skip and limit is present', {
+                          definitions: () => (skip = limit = 1),
+                          reset: () => (skip = limit = undefined),
+                          tests() {
+                            it('promises to return all matching items with selected attributes', async () => {
+                              const items = await subject();
+                              expect(items.length).toEqual(results.length - 1 > 0 ? 1 : 0);
+                              if (results.length > 1) {
+                                expect(Object.keys(items[0]).length).toEqual(2);
+                              }
+                              expect(idsOf(items)).toEqual(results.slice(1, 2));
+                            });
+                          },
+                        });
+                      } else {
+                        it('rejects filter and returns error', () => {
+                          return expect(subject()).rejects.toEqual(results);
+                        });
+                      }
+                    },
+                  });
+                });
+              });
+            }
+          },
+        });
+      },
+    });
+  });
 
   // describe('#count(model)', () => {
   //   const subject = () => connector().count(Klass);
