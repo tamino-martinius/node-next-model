@@ -146,7 +146,7 @@ describe('Connector', () => {
   describe('#query(scope)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = {};
+    let filter: Filter<any> | undefined = undefined;
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().query(scope());
 
@@ -252,7 +252,7 @@ describe('Connector', () => {
   describe('#select(scope, ...keys)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = {};
+    let filter: Filter<any> | undefined = undefined;
     let keys: string[] = [];
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().select(scope(), ...keys);
@@ -578,60 +578,90 @@ describe('Connector', () => {
     });
   });
 
-  // describe('#count(model)', () => {
-  //   const subject = () => connector().count(Klass);
+  describe('#count(model)', () => {
+    let skip: number | undefined;
+    let limit: number | undefined;
+    let filter: Filter<any> | undefined = undefined;
+    const scope = () => ({ tableName, skip, limit, filter });
+    const subject = () => connector().count(scope());
 
-  //   it('promises a count of 0', () => {
-  //     return expect(subject()).resolves.toEqual(0);
-  //   });
+    context('with single item prefilled storage', {
+      definitions: withEmptySeed,
+      tests() {
+        it('promises to return a count of 0', () => {
+          return expect(subject()).resolves.toEqual(0);
+        });
+      },
+    });
 
-  //   context('with single item prefilled storage', {
-  //     definitions() {
-  //       storage = singleSeed;
-  //     },
-  //     tests() {
-  //       it('promises a count of 1', () => {
-  //         return expect(subject()).resolves.toEqual(1);
-  //       });
-  //     },
-  //   });
+    context('with single item prefilled storage', {
+      definitions: withSingleSeed,
+      tests() {
+        it('promises to return a count of 1', () => {
+          return expect(subject()).resolves.toEqual(1);
+        });
+      },
+    });
 
-  //   context('with multiple items prefilled storage', {
-  //     definitions() {
-  //       storage = multiSeed;
-  //     },
-  //     tests() {
-  //       for (const groupName in filterSpecGroups) {
-  //         describe(groupName + ' filter', () => {
-  //           filterSpecGroups[groupName].forEach(filterSpec => {
-  //             context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-  //               definitions() {
-  //                 class NewKlass extends Klass {
-  //                   static get filter(): Filter<any> {
-  //                     return filterSpec.filter;
-  //                   }
-  //                 }
-  //                 Klass = NewKlass;
-  //               },
-  //               tests() {
-  //                 const results = filterSpec.results;
-  //                 if (Array.isArray(results)) {
-  //                   it('promises a count of ' + results.length, () => {
-  //                     return expect(subject()).resolves.toEqual(results.length);
-  //                   });
-  //                 } else {
-  //                   it('rejects filter and returns error', () => {
-  //                     return expect(subject()).rejects.toEqual(results);
-  //                   });
-  //                 }
-  //               },
-  //             });
-  //           });
-  //         });
-  //       }
-  //     },
-  //   });
-  // });
+    context('with multiple items prefilled storage', {
+      definitions: withMultiSeed,
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions: () => (filter = filterSpec.filter),
+                reset: () => (filter = undefined),
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    it('promises to return a count of ' + results.length, () => {
+                      return expect(subject()).resolves.toEqual(results.length);
+                    });
+
+                    context('when skip is present', {
+                      definitions: () => (skip = 1),
+                      reset: () => (skip = undefined),
+                      tests() {
+                        it('promises to return the count of all matching items', async () => {
+                          expect(subject()).resolves.toEqual(Math.max(0, results.length - 1));
+                        });
+                      },
+                    });
+
+                    context('when limit is present', {
+                      definitions: () => (limit = 1),
+                      reset: () => (limit = undefined),
+                      tests() {
+                        it('promises to return the count of all matching items', async () => {
+                          const items = await subject();
+                          expect(subject()).resolves.toEqual(results.length > 0 ? 1 : 0);
+                        });
+                      },
+                    });
+
+                    context('when skip and limit is present', {
+                      definitions: () => (skip = limit = 1),
+                      reset: () => (skip = limit = undefined),
+                      tests() {
+                        it('promises to return the count of all matching items', async () => {
+                          expect(subject()).resolves.toEqual(results.length - 1 > 0 ? 1 : 0);
+                        });
+                      },
+                    });
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
+  });
 
   // describe('#updateAll(model, attrs)', () => {
   //   const attrs = {
