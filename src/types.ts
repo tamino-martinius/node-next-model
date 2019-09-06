@@ -82,7 +82,7 @@ export interface Connector {
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
   select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]>;
-  updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<number>;
+  updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]>;
   deleteAll(scope: Scope): Promise<number>;
   insert(tableName: string, keys: Dict<KeyType>, item: Dict<any>): Promise<Dict<any>>;
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;

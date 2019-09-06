@@ -315,7 +315,7 @@ export class MemoryConnector implements Connector {
     }
   }
 
-  async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<number> {
+  async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]> {
     try {
       const items = await this.items(scope);
       items.forEach(item => {
@@ -323,7 +323,7 @@ export class MemoryConnector implements Connector {
           item[key] = attrs[key];
         }
       });
-      return Promise.resolve(items.length);
+      return Promise.resolve(items);
     } catch (e) {
       return Promise.reject(e);
     }
