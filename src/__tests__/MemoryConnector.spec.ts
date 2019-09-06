@@ -801,101 +801,136 @@ describe('Connector', () => {
     });
   });
 
-  // describe('#deleteAll(model)', () => {
-  //   const subject = () => {
-  //     return connector().deleteAll(Klass);
-  //   };
+  describe('#deleteAll(scope)', () => {
+    let skip: number | undefined;
+    let limit: number | undefined;
+    let filter: Filter<any> | undefined = undefined;
+    const scope = () => ({ tableName, skip, limit, filter });
+    const subject = () => connector().deleteAll(scope());
 
-  //   context('with single item prefilled storage', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get schema(): Schema<any> {
-  //           return {
-  //             id: { type: DataType.integer },
-  //             foo: { type: DataType.string },
-  //           };
-  //         }
-  //       }
-  //       Klass = NewKlass;
+    context('with empty prefilled storage', {
+      definitions: withEmptySeed,
+      tests() {
+        it('promises to return empty array', async () => {
+          await expect(subject()).resolves.toEqual([]);
+        });
+        it('does not change items in storage', async () => {
+          const storageBeforeUpdate = clone(items());
+          await subject();
+          const storageAfterUpdate = items();
+          expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+        });
+      },
+    });
 
-  //       storage = singleSeed;
-  //     },
-  //     tests() {
-  //       it('updates item within storage storage', async () => {
-  //         const count = await subject();
-  //         expect(count).toEqual(1);
-  //         expect(items()).toEqual([]);
-  //       });
+    context('with single item prefilled storage', {
+      definitions: withSingleSeed,
+      tests() {
+        it('promises to return deleted items', async () => {
+          const storageBeforeUpdate = clone(items());
+          await expect(subject()).resolves.toEqual(storageBeforeUpdate);
+        });
 
-  //       context('when item is not in storage', {
-  //         definitions() {
-  //           class NewKlass extends Klass {
-  //             static get filter(): Filter<any> {
-  //               return {
-  //                 id: invalidId,
-  //               };
-  //             }
-  //           }
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('does not change storage', async () => {
-  //             const count = await subject();
-  //             expect(count).toEqual(0);
-  //             expect(items()).toEqual([{ id: validId }]);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
+        it('deletes items in storage', async () => {
+          const storageBeforeUpdate = clone(items());
+          await subject();
+          const storageAfterUpdate = items();
+          expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+          expect(storageAfterUpdate).toEqual([]);
+        });
 
-  //   context('with multiple items prefilled storage', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get schema(): Schema<any> {
-  //           return {
-  //             id: { type: DataType.integer },
-  //             foo: { type: DataType.string },
-  //           };
-  //         }
-  //       }
-  //       Klass = NewKlass;
+        context('when filter does not match any item', {
+          definitions: () => (filter = { id: invalidId }),
+          reset: () => (filter = undefined),
+          tests() {
+            it('promises to return empty array', async () => {
+              await expect(subject()).resolves.toEqual([]);
+            });
+            it('does not delete items in storage', async () => {
+              const storageBeforeUpdate = clone(items());
+              await subject();
+              const storageAfterUpdate = items();
+              expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+            });
+          },
+        });
+      },
+    });
 
-  //       storage = multiSeed;
-  //     },
-  //     tests() {
-  //       for (const groupName in filterSpecGroups) {
-  //         describe(groupName + ' filter', () => {
-  //           filterSpecGroups[groupName].forEach(filterSpec => {
-  //             context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-  //               definitions() {
-  //                 class NewKlass extends Klass {
-  //                   static get filter(): Filter<any> {
-  //                     return filterSpec.filter;
-  //                   }
-  //                 }
-  //                 Klass = NewKlass;
-  //               },
-  //               tests() {
-  //                 const results = filterSpec.results;
-  //                 if (Array.isArray(results)) {
-  //                   it('deletes matching amount of records', async () => {
-  //                     const count = await subject();
-  //                     expect(count).toEqual(results.length);
-  //                   });
-  //                 } else {
-  //                   it('rejects filter and returns error', () => {
-  //                     return expect(subject()).rejects.toEqual(results);
-  //                   });
-  //                 }
-  //               },
-  //             });
-  //           });
-  //         });
-  //       }
-  //     },
-  //   });
-  // });
+    context('with multiple items prefilled storage', {
+      definitions: withMultiSeed,
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions: () => (filter = filterSpec.filter),
+                reset: () => (filter = undefined),
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    const itDeletesMatchingItems = (results: number[]) => {
+                      it('promises to return deleted records', async () => {
+                        const deletedItems = items().filter(item => results.includes(item.id));
+                        await expect(subject()).resolves.toEqual(deletedItems);
+                      });
+                      if (results.length === 0) {
+                        it('does not change storage when scope has no matches', async () => {
+                          const storageBeforeUpdate = clone(items());
+                          await subject();
+                          const storageAfterUpdate = items();
+                          expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+                        });
+                      } else {
+                        it('deletes matching items in storage', async () => {
+                          const storageBeforeUpdate = clone(items());
+                          const changedStorage = items().filter(item => !results.includes(item.id));
+                          await subject();
+                          const storageAfterUpdate = items();
+                          expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                          expect(storageAfterUpdate).toEqual(changedStorage);
+                        });
+                      }
+                    };
+
+                    itDeletesMatchingItems(results);
+
+                    context('when skip is present', {
+                      definitions: () => (skip = 1),
+                      reset: () => (skip = undefined),
+                      tests() {
+                        itDeletesMatchingItems(results.slice(1));
+                      },
+                    });
+
+                    context('when limit is present', {
+                      definitions: () => (limit = 1),
+                      reset: () => (limit = undefined),
+                      tests() {
+                        itDeletesMatchingItems(results.slice(0, 1));
+                      },
+                    });
+
+                    context('when skip and limit is present', {
+                      definitions: () => (skip = limit = 1),
+                      reset: () => (skip = limit = undefined),
+                      tests() {
+                        itDeletesMatchingItems(results.slice(1, 2));
+                      },
+                    });
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
+  });
 
   // describe('#create(instance)', () => {
   //   const attrs = {
