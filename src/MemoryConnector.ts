@@ -329,10 +329,9 @@ export class MemoryConnector implements Connector {
     }
   }
 
-  async deleteAll(scope: Scope): Promise<number> {
+  async deleteAll(scope: Scope): Promise<Dict<any>[]> {
     try {
       const items = await this.items(scope);
-      const count = items.length;
       const collection = this.collection(scope.tableName);
       let index = 0;
       while (index < collection.length) {
@@ -342,8 +341,7 @@ export class MemoryConnector implements Connector {
           index += 1;
         }
       }
-
-      return count;
+      return items;
     } catch (e) {
       return Promise.reject(e);
     }
