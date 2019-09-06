@@ -14,6 +14,10 @@ const withMultiSeed = () =>
   (storage = { [tableName]: [{ id: 1, foo: 'bar' }, { id: 2, foo: null }, { id: 3, foo: 'bar' }] });
 
 const idsOf = (items: Dict<any>[]) => items.map(item => item.id);
+const items = () => storage[tableName];
+function clone<T extends object>(obj: T) {
+  return JSON.parse(JSON.stringify(obj)) as T;
+}
 const connector = () => new MemoryConnector(storage);
 
 interface FilterSpecs {
@@ -150,7 +154,7 @@ describe('Connector', () => {
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().query(scope());
 
-    context('with single item prefilled storage', {
+    context('with empty prefilled storage', {
       definitions: withEmptySeed,
       tests() {
         it('promises to return empty array', () => {
@@ -257,7 +261,7 @@ describe('Connector', () => {
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().select(scope(), ...keys);
 
-    context('with single item prefilled storage', {
+    context('with empty prefilled storage', {
       definitions: withEmptySeed,
       tests() {
         it('promises to return empty array', () => {
@@ -585,7 +589,7 @@ describe('Connector', () => {
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().count(scope());
 
-    context('with single item prefilled storage', {
+    context('with empty prefilled storage', {
       definitions: withEmptySeed,
       tests() {
         it('promises to return a count of 0', () => {
@@ -663,104 +667,113 @@ describe('Connector', () => {
     });
   });
 
-  // describe('#updateAll(model, attrs)', () => {
-  //   const attrs = {
-  //     id: 1,
-  //     foo: 'baz',
-  //   };
-  //   const subject = () => {
-  //     return connector().updateAll(Klass, attrs);
-  //   };
+  describe('#updateAll(model, attrs)', () => {
+    const attrs = {
+      foo: 'baz',
+    };
+    let filter: Filter<any> | undefined = undefined;
+    const scope = () => ({ tableName, filter });
+    const subject = () => connector().updateAll(scope(), attrs);
 
-  //   context('with single item prefilled storage', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get schema(): Schema<any> {
-  //           return {
-  //             id: { type: DataType.integer },
-  //             foo: { type: DataType.string },
-  //           };
-  //         }
-  //       }
-  //       Klass = NewKlass;
+    context('with empty prefilled storage', {
+      definitions: withEmptySeed,
+      tests() {
+        it('promises to return empty array', async () => {
+          const items = await subject();
+          expect(items).toEqual([]);
+        });
+        it('does not change items in storage', async () => {
+          const storageBeforeUpdate = clone(items());
+          await subject();
+          const storageAfterUpdate = items();
+          expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+        });
+      },
+    });
 
-  //       storage = singleSeed;
-  //     },
-  //     tests() {
-  //       it('updates item within storage storage', async () => {
-  //         const count = await subject();
-  //         expect(count).toEqual(1);
-  //       });
+    context('with single item prefilled storage', {
+      definitions: withSingleSeed,
+      tests() {
+        it('promises to return updated items', async () => {
+          const items = await subject();
+          expect(items).toEqual([{ id: validId, ...attrs }]);
+        });
 
-  //       context('when item is not in storage', {
-  //         definitions() {
-  //           class NewKlass extends Klass {
-  //             static get filter(): Filter<any> {
-  //               return {
-  //                 id: invalidId,
-  //               };
-  //             }
-  //           }
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('does not change storage', async () => {
-  //             const count = await subject();
-  //             expect(count).toEqual(0);
-  //             expect(items()).toEqual([{ id: validId }]);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
+        it('updates items in storage', async () => {
+          const storageBeforeUpdate = clone(items());
+          await subject();
+          const storageAfterUpdate = items();
+          expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+          expect(storageAfterUpdate).toEqual([{ id: validId, ...attrs }]);
+        });
 
-  //   context('with multiple items prefilled storage', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get schema(): Schema<any> {
-  //           return {
-  //             id: { type: DataType.integer },
-  //             foo: { type: DataType.string },
-  //           };
-  //         }
-  //       }
-  //       Klass = NewKlass;
+        context('when filter does not match any item', {
+          definitions: () => (filter = { id: invalidId }),
+          reset: () => (filter = undefined),
+          tests() {
+            it('promises to return empty array', async () => {
+              const items = await subject();
+              expect(items).toEqual([]);
+            });
+            it('does not change items in storage', async () => {
+              const storageBeforeUpdate = clone(items());
+              await subject();
+              const storageAfterUpdate = items();
+              expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+            });
+          },
+        });
+      },
+    });
 
-  //       storage = multiSeed;
-  //     },
-  //     tests() {
-  //       for (const groupName in filterSpecGroups) {
-  //         describe(groupName + ' filter', () => {
-  //           filterSpecGroups[groupName].forEach(filterSpec => {
-  //             context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
-  //               definitions() {
-  //                 class NewKlass extends Klass {
-  //                   static get filter(): Filter<any> {
-  //                     return filterSpec.filter;
-  //                   }
-  //                 }
-  //                 Klass = NewKlass;
-  //               },
-  //               tests() {
-  //                 const results = filterSpec.results;
-  //                 if (Array.isArray(results)) {
-  //                   it('updated matching count of records', async () => {
-  //                     const count = await subject();
-  //                     expect(count).toEqual(results.length);
-  //                   });
-  //                 } else {
-  //                   it('rejects filter and returns error', () => {
-  //                     return expect(subject()).rejects.toEqual(results);
-  //                   });
-  //                 }
-  //               },
-  //             });
-  //           });
-  //         });
-  //       }
-  //     },
-  //   });
-  // });
+    context('with multiple items prefilled storage', {
+      definitions: withMultiSeed,
+      tests() {
+        for (const groupName in filterSpecGroups) {
+          describe(groupName + ' filter', () => {
+            filterSpecGroups[groupName].forEach(filterSpec => {
+              context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
+                definitions: () => (filter = filterSpec.filter),
+                tests() {
+                  const results = filterSpec.results;
+                  if (Array.isArray(results)) {
+                    it('promises to return updated matching records', async () => {
+                      const items = await subject();
+                      expect(items).toEqual(results.map(id => ({ id, ...attrs })));
+                    });
+                    if (results.length === 0) {
+                      it('does not update storage when scope has no matches', async () => {
+                        const storageBeforeUpdate = clone(items());
+                        await subject();
+                        const storageAfterUpdate = items();
+                        expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+                      });
+                    } else {
+                      it('updates matching items in storage', async () => {
+                        const storageBeforeUpdate = clone(items());
+                        await subject();
+                        const storageAfterUpdate = items();
+                        expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                        expect(storageAfterUpdate).toEqual(
+                          storageBeforeUpdate.map(item =>
+                            results.includes(item.id) ? { id: item.id, ...attrs } : item,
+                          ),
+                        );
+                      });
+                    }
+                  } else {
+                    it('rejects filter and returns error', () => {
+                      return expect(subject()).rejects.toEqual(results);
+                    });
+                  }
+                },
+              });
+            });
+          });
+        }
+      },
+    });
+  });
 
   // describe('#deleteAll(model)', () => {
   //   const subject = () => {
