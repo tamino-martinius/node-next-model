@@ -27,7 +27,10 @@ interface FilterSpecGroup {
 }
 
 const filterSpecGroups: FilterSpecGroup = {
-  none: [{ filter: undefined, results: [1, 2, 3] }, { filter: {}, results: [1, 2, 3] }],
+  none: [
+    { filter: undefined, results: [1, 2, 3] }, // No filter
+    { filter: {}, results: [1, 2, 3] }, // Empty filter
+  ],
   property: [
     { filter: { id: validId }, results: [validId] },
     { filter: { id: 1, foo: 'bar' }, results: [1] },
@@ -154,8 +157,8 @@ describe('Connector', () => {
     context('with empty prefilled storage', {
       definitions: withEmptySeed,
       tests() {
-        it('promises to return empty array', () => {
-          return expect(subject()).resolves.toEqual([]);
+        it('promises to return empty array', async () => {
+          await expect(subject()).resolves.toEqual([]);
         });
       },
     });
@@ -184,8 +187,8 @@ describe('Connector', () => {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
                     if (results.length === 0) {
-                      it('promises to return empty array', () => {
-                        return expect(subject()).resolves.toEqual([]);
+                      it('promises to return empty array', async () => {
+                        await expect(subject()).resolves.toEqual([]);
                       });
                     } else if (results.length === 3) {
                       it('promisesto return all items', async () => {
@@ -261,8 +264,8 @@ describe('Connector', () => {
     context('with empty prefilled storage', {
       definitions: withEmptySeed,
       tests() {
-        it('promises to return empty array', () => {
-          return expect(subject()).resolves.toEqual([]);
+        it('promises to return empty array', async () => {
+          await expect(subject()).resolves.toEqual([]);
         });
       },
     });
@@ -291,8 +294,8 @@ describe('Connector', () => {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
                     if (results.length === 0) {
-                      it('promises to return empty array', () => {
-                        return expect(subject()).resolves.toEqual([]);
+                      it('promises to return empty array', async () => {
+                        await expect(subject()).resolves.toEqual([]);
                       });
                     } else if (results.length === 3) {
                       it('promises to return all items with selected attributes', async () => {
@@ -392,8 +395,8 @@ describe('Connector', () => {
                       const results = filterSpec.results;
                       if (Array.isArray(results)) {
                         if (results.length === 0) {
-                          it('promises to return empty array', () => {
-                            return expect(subject()).resolves.toEqual([]);
+                          it('promises to return empty array', async () => {
+                            await expect(subject()).resolves.toEqual([]);
                           });
                         } else if (results.length === 3) {
                           it('promises to return all items with selected attributes', async () => {
@@ -500,8 +503,8 @@ describe('Connector', () => {
                       const results = filterSpec.results;
                       if (Array.isArray(results)) {
                         if (results.length === 0) {
-                          it('promises to return empty array', () => {
-                            return expect(subject()).resolves.toEqual([]);
+                          it('promises to return empty array', async () => {
+                            await expect(subject()).resolves.toEqual([]);
                           });
                         } else if (results.length === 3) {
                           it('promises to return all items with selected attributes', async () => {
@@ -579,7 +582,7 @@ describe('Connector', () => {
     });
   });
 
-  describe('#count(model)', () => {
+  describe('#count(scope)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
     let filter: Filter<any> | undefined = undefined;
@@ -589,8 +592,8 @@ describe('Connector', () => {
     context('with empty prefilled storage', {
       definitions: withEmptySeed,
       tests() {
-        it('promises to return a count of 0', () => {
-          return expect(subject()).resolves.toEqual(0);
+        it('promises to return a count of 0', async () => {
+          await expect(subject()).resolves.toEqual(0);
         });
       },
     });
@@ -598,8 +601,8 @@ describe('Connector', () => {
     context('with single item prefilled storage', {
       definitions: withSingleSeed,
       tests() {
-        it('promises to return a count of 1', () => {
-          return expect(subject()).resolves.toEqual(1);
+        it('promises to return a count of 1', async () => {
+          await expect(subject()).resolves.toEqual(1);
         });
       },
     });
@@ -616,8 +619,8 @@ describe('Connector', () => {
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    it('promises to return a count of ' + results.length, () => {
-                      return expect(subject()).resolves.toEqual(results.length);
+                    it('promises to return a count of ' + results.length, async () => {
+                      await expect(subject()).resolves.toEqual(results.length);
                     });
 
                     context('when skip is present', {
@@ -625,7 +628,7 @@ describe('Connector', () => {
                       reset: () => (skip = undefined),
                       tests() {
                         it('promises to return the count of all matching items', async () => {
-                          expect(subject()).resolves.toEqual(Math.max(0, results.length - 1));
+                          await expect(subject()).resolves.toEqual(Math.max(0, results.length - 1));
                         });
                       },
                     });
@@ -635,8 +638,7 @@ describe('Connector', () => {
                       reset: () => (limit = undefined),
                       tests() {
                         it('promises to return the count of all matching items', async () => {
-                          const items = await subject();
-                          expect(subject()).resolves.toEqual(results.length > 0 ? 1 : 0);
+                          await expect(subject()).resolves.toEqual(results.length > 0 ? 1 : 0);
                         });
                       },
                     });
@@ -646,7 +648,7 @@ describe('Connector', () => {
                       reset: () => (skip = limit = undefined),
                       tests() {
                         it('promises to return the count of all matching items', async () => {
-                          expect(subject()).resolves.toEqual(results.length - 1 > 0 ? 1 : 0);
+                          await expect(subject()).resolves.toEqual(results.length - 1 > 0 ? 1 : 0);
                         });
                       },
                     });
@@ -664,7 +666,7 @@ describe('Connector', () => {
     });
   });
 
-  describe('#updateAll(model, attrs)', () => {
+  describe('#updateAll(scope, attrs)', () => {
     const attrs = {
       foo: 'baz',
     };
@@ -678,8 +680,7 @@ describe('Connector', () => {
       definitions: withEmptySeed,
       tests() {
         it('promises to return empty array', async () => {
-          const items = await subject();
-          expect(items).toEqual([]);
+          await expect(subject()).resolves.toEqual([]);
         });
         it('does not change items in storage', async () => {
           const storageBeforeUpdate = clone(items());
@@ -694,11 +695,10 @@ describe('Connector', () => {
       definitions: withSingleSeed,
       tests() {
         it('promises to return updated items', async () => {
-          const items = await subject();
-          expect(items).toEqual([{ id: validId, ...attrs }]);
+          await expect(subject()).resolves.toEqual([{ id: validId, ...attrs }]);
         });
 
-        it('updates items in storage', async () => {
+        it('changes items in storage', async () => {
           const storageBeforeUpdate = clone(items());
           await subject();
           const storageAfterUpdate = items();
@@ -711,8 +711,7 @@ describe('Connector', () => {
           reset: () => (filter = undefined),
           tests() {
             it('promises to return empty array', async () => {
-              const items = await subject();
-              expect(items).toEqual([]);
+              await expect(subject()).resolves.toEqual([]);
             });
             it('does not change items in storage', async () => {
               const storageBeforeUpdate = clone(items());
@@ -737,28 +736,28 @@ describe('Connector', () => {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
                     const itUpdatesMatchingItems = (results: number[]) => {
-                      it('promises to return updated matching records', async () => {
-                        const items = await subject();
-                        expect(items).toEqual(results.map(id => ({ id, ...attrs })));
+                      it('promises to return updated records', async () => {
+                        await expect(subject()).resolves.toEqual(
+                          results.map(id => ({ id, ...attrs })),
+                        );
                       });
                       if (results.length === 0) {
-                        it('does not update storage when scope has no matches', async () => {
+                        it('does not change storage when scope has no matches', async () => {
                           const storageBeforeUpdate = clone(items());
                           await subject();
                           const storageAfterUpdate = items();
                           expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
                         });
                       } else {
-                        it('updates matching items in storage', async () => {
+                        it('changes matching items in storage', async () => {
                           const storageBeforeUpdate = clone(items());
+                          const changedStorage = items().map(item =>
+                            results.includes(item.id) ? { ...item, ...attrs } : item,
+                          );
                           await subject();
                           const storageAfterUpdate = items();
                           expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
-                          expect(storageAfterUpdate).toEqual(
-                            storageBeforeUpdate.map(item =>
-                              results.includes(item.id) ? { id: item.id, ...attrs } : item,
-                            ),
-                          );
+                          expect(storageAfterUpdate).toEqual(changedStorage);
                         });
                       }
                     };
