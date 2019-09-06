@@ -348,22 +348,30 @@ export class MemoryConnector implements Connector {
     }
   }
 
-  async insert(tableName: string, keys: Dict<KeyType>, item: Dict<any>): Promise<Dict<any>> {
+  async batchInsert(
+    tableName: string,
+    keys: Dict<KeyType>,
+    items: Dict<any>[],
+  ): Promise<Dict<any>[]> {
     try {
-      const keyValues: Dict<any> = {};
-      for (const key in keys) {
-        switch (keys[key]) {
-          case KeyType.uuid:
-            keyValues[key] = uuid();
-            break;
-          case KeyType.number:
-            keyValues[key] = this.nextId(tableName);
-            break;
+      const result: Dict<any>[] = [];
+      for (const item of items) {
+        const keyValues: Dict<any> = {};
+        for (const key in keys) {
+          switch (keys[key]) {
+            case KeyType.uuid:
+              keyValues[key] = uuid();
+              break;
+            case KeyType.number:
+              keyValues[key] = this.nextId(tableName);
+              break;
+          }
         }
+        const attributes = { ...item, ...keyValues };
+        this.collection(tableName).push(attributes);
+        result.push(attributes);
       }
-      const attributes = { ...item, ...keyValues };
-      this.collection(tableName).push(attributes);
-      return Promise.resolve(attributes);
+      return Promise.resolve(result);
     } catch (e) {
       return Promise.reject(e);
     }

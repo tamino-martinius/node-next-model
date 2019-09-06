@@ -84,7 +84,7 @@ export interface Connector {
   select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]>;
   updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]>;
   deleteAll(scope: Scope): Promise<Dict<any>[]>;
-  insert(tableName: string, keys: Dict<KeyType>, item: Dict<any>): Promise<Dict<any>>;
+  batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]>;
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;
 }
 
