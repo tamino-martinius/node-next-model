@@ -1,4 +1,4 @@
-import { Dict, Filter, MemoryConnector, Scope, Storage } from '..';
+import { Dict, Filter, MemoryConnector, Scope, Storage, clone } from '..';
 import { context, it, randomInteger } from '.';
 
 let storage: Storage = {};
@@ -15,9 +15,6 @@ const withMultiSeed = () =>
 
 const idsOf = (items: Dict<any>[]) => items.map(item => item.id);
 const items = () => storage[tableName];
-function clone<T extends object>(obj: T) {
-  return JSON.parse(JSON.stringify(obj)) as T;
-}
 const connector = () => new MemoryConnector(storage);
 
 interface FilterSpecs {

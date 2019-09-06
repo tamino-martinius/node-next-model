@@ -22,3 +22,7 @@ export function uuid() {
     randomStr.slice(-12),
   ].join('-');
 }
+
+export function clone<T extends object>(obj: T) {
+  return JSON.parse(JSON.stringify(obj)) as T;
+}
