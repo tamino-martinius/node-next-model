@@ -1,6 +1,8 @@
 import { Dict, Filter, MemoryConnector, Scope, Storage, clone } from '..';
 import { context, it, randomInteger } from '.';
 
+import { KeyType } from '../types';
+
 let storage: Storage = {};
 
 const validId: number = randomInteger(1, 3);
@@ -932,40 +934,152 @@ describe('Connector', () => {
     });
   });
 
-  // describe('#create(instance)', () => {
-  //   const attrs = {
-  //     foo: 'baz',
-  //   };
-  //   let instance: ModelConstructor<any>;
-  //   const subject = () => {
-  //     return connector().create(instance);
-  //   };
+  describe('#batchInsert(tableName, keys, items)', () => {
+    const defaultKeys: Dict<KeyType> = { id: KeyType.number };
+    let keys: Dict<KeyType> = defaultKeys;
+    let itemsToInsert: Dict<any>[] = [];
+    const subject = () => connector().batchInsert(tableName, keys, itemsToInsert);
 
-  //   context('with empty storage', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get schema(): Schema<any> {
-  //           return {
-  //             id: { type: DataType.integer },
-  //             foo: { type: DataType.string },
-  //           };
-  //         }
-  //       }
-  //       Klass = NewKlass;
-  //       instance = new Klass(attrs);
-  //       storage = emptySeed;
-  //     },
-  //     tests() {
-  //       it('creates new instance', async () => {
-  //         expect(items()).toEqual([]);
-  //         const instace = await subject();
-  //         expect(instance instanceof Klass).toBeTruthy();
-  //         expect(items().length).toEqual(1);
-  //         const id = items()[0].id;
-  //         expect(items()).toEqual([{ id: id, foo: 'baz' }]);
-  //         expect(instance.attributes).toEqual({ id: id, foo: 'baz' });
-  //       });
-  //     },
-  //   });
-  // });
+    const itInsertsItemsToStorage = (seeds: Dict<() => void>) => {
+      for (const description in seeds) {
+        const definitions = seeds[description];
+        context(description, {
+          definitions,
+          tests() {
+            it('promises to return empty', async () => {
+              await expect(subject()).resolves.toEqual([]);
+            });
+            it('does not change storage', async () => {
+              const storageBeforeUpdate = clone(items());
+              await subject();
+              const storageAfterUpdate = items();
+              expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+            });
+
+            context('with single item to insert', {
+              definitions: () => (itemsToInsert = [{ foo: 'bar' }]),
+              reset: () => (itemsToInsert = []),
+              tests() {
+                it('promises to return single item', async () => {
+                  const items = await subject();
+                  const createdItems = items.map((item, index) => ({
+                    id: item.id,
+                    ...itemsToInsert[index],
+                  }));
+                  expect(items.length).toEqual(itemsToInsert.length);
+                  for (const item of items) {
+                    expect(typeof item.id).toEqual('number');
+                  }
+                  expect(items).toEqual(createdItems);
+                });
+                it('adds items to storage', async () => {
+                  const storageBeforeUpdate = clone(items());
+                  const createdItems = await subject();
+                  const storageAfterUpdate = items();
+                  expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                  expect(storageAfterUpdate).toEqual([...storageBeforeUpdate, ...createdItems]);
+                });
+
+                context('with uuid id', {
+                  definitions: () => (keys = { id: KeyType.number, uuid: KeyType.uuid }),
+                  reset: () => (keys = defaultKeys),
+                  tests() {
+                    it('promises to return single item with multiple keys', async () => {
+                      const items = await subject();
+                      const createdItems = items.map((item, index) => ({
+                        id: item.id,
+                        uuid: item.uuid,
+                        ...itemsToInsert[index],
+                      }));
+                      expect(items.length).toEqual(itemsToInsert.length);
+                      for (const item of items) {
+                        expect(item.id).toBeGreaterThan(0);
+                        expect(typeof item.uuid).toEqual('string');
+                      }
+                      expect(items).toEqual(createdItems);
+                    });
+                    it('adds items to storage', async () => {
+                      const storageBeforeUpdate = clone(items());
+                      const createdItems = await subject();
+                      const storageAfterUpdate = items();
+                      expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                      expect(storageAfterUpdate).toEqual([...storageBeforeUpdate, ...createdItems]);
+                    });
+                  },
+                });
+              },
+            });
+
+            context('with multiple items to insert', {
+              definitions: () =>
+                (itemsToInsert = [{ foo: 'bar' }, { foo: null }, { foo: undefined }]),
+              reset: () => (itemsToInsert = []),
+              tests() {
+                it('promises to return created items', async () => {
+                  const items = await subject();
+                  const createdItems = items.map((item, index) => ({
+                    id: item.id,
+                    ...itemsToInsert[index],
+                  }));
+                  expect(items.length).toEqual(itemsToInsert.length);
+                  let prevItem = items[items.length - 1];
+                  for (const item of items) {
+                    expect(typeof item.id).toEqual('number');
+                    expect(item.id).not.toEqual(prevItem.id);
+                    prevItem = item;
+                  }
+                  expect(items).toEqual(createdItems);
+                });
+                it('adds items to storage', async () => {
+                  const storageBeforeUpdate = clone(items());
+                  const createdItems = await subject();
+                  const storageAfterUpdate = items();
+                  expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                  expect(storageAfterUpdate).toEqual([...storageBeforeUpdate, ...createdItems]);
+                });
+
+                context('with uuid id', {
+                  definitions: () => (keys = { id: KeyType.number, uuid: KeyType.uuid }),
+                  reset: () => (keys = defaultKeys),
+                  tests() {
+                    it('promises to return created items', async () => {
+                      const items = await subject();
+                      const createdItems = items.map((item, index) => ({
+                        id: item.id,
+                        uuid: item.uuid,
+                        ...itemsToInsert[index],
+                      }));
+                      expect(items.length).toEqual(itemsToInsert.length);
+                      let prevItem = items[items.length - 1];
+                      for (const item of items) {
+                        expect(typeof item.id).toEqual('number');
+                        expect(typeof item.uuid).toEqual('string');
+                        expect(item.id).not.toEqual(prevItem.id);
+                        expect(item.uuid).not.toEqual(prevItem.uuid);
+                        prevItem = item;
+                      }
+                      expect(items).toEqual(createdItems);
+                    });
+                    it('adds items to storage', async () => {
+                      const storageBeforeUpdate = clone(items());
+                      const createdItems = await subject();
+                      const storageAfterUpdate = items();
+                      expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                      expect(storageAfterUpdate).toEqual([...storageBeforeUpdate, ...createdItems]);
+                    });
+                  },
+                });
+              },
+            });
+          },
+        });
+      }
+    };
+
+    itInsertsItemsToStorage({
+      'with empty prefilled storage': withEmptySeed,
+      'with single item prefilled storage': withSingleSeed,
+      'with multiple items prefilled storage': withMultiSeed,
+    });
+  });
 });
