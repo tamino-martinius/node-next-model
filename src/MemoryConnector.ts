@@ -11,7 +11,7 @@ import {
   Scope,
 } from './types';
 
-import { uuid } from './util';
+import { uuid, clone } from './util';
 
 export type Storage = Dict<Dict<any>[]>;
 
@@ -332,6 +332,7 @@ export class MemoryConnector implements Connector {
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
     try {
       const items = await this.items(scope);
+      const result = clone(items);
       const collection = this.collection(scope.tableName);
       let index = 0;
       while (index < collection.length) {
@@ -341,7 +342,7 @@ export class MemoryConnector implements Connector {
           index += 1;
         }
       }
-      return items;
+      return result;
     } catch (e) {
       return Promise.reject(e);
     }
