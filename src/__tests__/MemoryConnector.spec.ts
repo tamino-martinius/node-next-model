@@ -671,8 +671,10 @@ describe('Connector', () => {
     const attrs = {
       foo: 'baz',
     };
+    let skip: number | undefined;
+    let limit: number | undefined;
     let filter: Filter<any> | undefined = undefined;
-    const scope = () => ({ tableName, filter });
+    const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().updateAll(scope(), attrs);
 
     context('with empty prefilled storage', {
@@ -737,30 +739,58 @@ describe('Connector', () => {
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    it('promises to return updated matching records', async () => {
-                      const items = await subject();
-                      expect(items).toEqual(results.map(id => ({ id, ...attrs })));
+                    const itUpdatesMatchingItems = (results: number[]) => {
+                      it('promises to return updated matching records', async () => {
+                        const items = await subject();
+                        expect(items).toEqual(results.map(id => ({ id, ...attrs })));
+                      });
+                      if (results.length === 0) {
+                        it('does not update storage when scope has no matches', async () => {
+                          const storageBeforeUpdate = clone(items());
+                          await subject();
+                          const storageAfterUpdate = items();
+                          expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
+                        });
+                      } else {
+                        it('updates matching items in storage', async () => {
+                          const storageBeforeUpdate = clone(items());
+                          await subject();
+                          const storageAfterUpdate = items();
+                          expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
+                          expect(storageAfterUpdate).toEqual(
+                            storageBeforeUpdate.map(item =>
+                              results.includes(item.id) ? { id: item.id, ...attrs } : item,
+                            ),
+                          );
+                        });
+                      }
+                    };
+
+                    itUpdatesMatchingItems(results);
+
+                    context('when skip is present', {
+                      definitions: () => (skip = 1),
+                      reset: () => (skip = undefined),
+                      tests() {
+                        itUpdatesMatchingItems(results.slice(1));
+                      },
                     });
-                    if (results.length === 0) {
-                      it('does not update storage when scope has no matches', async () => {
-                        const storageBeforeUpdate = clone(items());
-                        await subject();
-                        const storageAfterUpdate = items();
-                        expect(storageBeforeUpdate).toEqual(storageAfterUpdate);
-                      });
-                    } else {
-                      it('updates matching items in storage', async () => {
-                        const storageBeforeUpdate = clone(items());
-                        await subject();
-                        const storageAfterUpdate = items();
-                        expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);
-                        expect(storageAfterUpdate).toEqual(
-                          storageBeforeUpdate.map(item =>
-                            results.includes(item.id) ? { id: item.id, ...attrs } : item,
-                          ),
-                        );
-                      });
-                    }
+
+                    context('when limit is present', {
+                      definitions: () => (limit = 1),
+                      reset: () => (limit = undefined),
+                      tests() {
+                        itUpdatesMatchingItems(results.slice(0, 1));
+                      },
+                    });
+
+                    context('when skip and limit is present', {
+                      definitions: () => (skip = limit = 1),
+                      reset: () => (skip = limit = undefined),
+                      tests() {
+                        itUpdatesMatchingItems(results.slice(1, 2));
+                      },
+                    });
                   } else {
                     it('rejects filter and returns error', () => {
                       return expect(subject()).rejects.toEqual(results);
