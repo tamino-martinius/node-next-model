@@ -7,7 +7,6 @@ let storage: Storage = {};
 
 const validId: number = randomInteger(1, 3);
 const invalidId: number = randomInteger(4, Number.MAX_SAFE_INTEGER);
-const anyId: number = randomInteger(1, Number.MAX_SAFE_INTEGER);
 
 const tableName = 'foo';
 const withEmptySeed = () => (storage = { [tableName]: [] });
