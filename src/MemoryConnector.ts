@@ -288,7 +288,7 @@ export class MemoryConnector implements Connector {
   }
 
   async query(scope: Scope): Promise<Dict<any>[]> {
-    return this.items(scope);
+    return clone(this.items(scope));
   }
 
   async count(scope: Scope): Promise<number> {
@@ -323,7 +323,7 @@ export class MemoryConnector implements Connector {
           item[key] = attrs[key];
         }
       });
-      return Promise.resolve(items);
+      return Promise.resolve(clone(items));
     } catch (e) {
       return Promise.reject(e);
     }
@@ -369,7 +369,7 @@ export class MemoryConnector implements Connector {
         }
         const attributes = { ...item, ...keyValues };
         this.collection(tableName).push(attributes);
-        result.push(attributes);
+        result.push(clone(attributes));
       }
       return Promise.resolve(result);
     } catch (e) {
