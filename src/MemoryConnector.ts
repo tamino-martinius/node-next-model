@@ -288,7 +288,8 @@ export class MemoryConnector implements Connector {
   }
 
   async query(scope: Scope): Promise<Dict<any>[]> {
-    return clone(this.items(scope));
+    const items = await this.items(scope);
+    return clone(items);
   }
 
   async count(scope: Scope): Promise<number> {
