@@ -72,12 +72,6 @@ export type Order<PersistentProps extends Schema> =
   | OrderColumn<PersistentProps>
   | OrderColumn<PersistentProps>[];
 
-export interface FunctionModel<CreateProps = {}, PersistentProps extends Schema = {}> {
-  (props: CreateProps): PersistentProps;
-  currentFilter?: Filter<PersistentProps>;
-  currentOrder?: Order<PersistentProps>;
-}
-
 export interface Connector {
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
