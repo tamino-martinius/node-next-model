@@ -1,32 +1,11 @@
-import {
-  Connector,
-  Dict,
-  Filter,
-  FunctionModel,
-  KeyType,
-  Order,
-  OrderColumn,
-  Schema,
-  Scope,
-} from './types';
+import { Connector, Dict, Filter, KeyType, Order, OrderColumn, Schema, Scope } from './types';
 
 import { MemoryConnector } from './MemoryConnector';
-import { uuid } from './util';
-
-export function mapKeys<T extends Dict<KeyType>>(keys: T): { [P in keyof T]: string } {
-  return Object.keys(keys).reduce(
-    (obj, key: keyof T) => {
-      obj[key] = uuid();
-      return obj;
-    },
-    {} as { [P in keyof T]: string },
-  );
-}
 
 export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
-  K extends Dict<KeyType> = { id: KeyType.uuid }
+  Keys extends Dict<KeyType> = { id: KeyType.uuid }
 >({
   tableName,
   init,
@@ -38,103 +17,106 @@ export function Model<
   keys = { id: KeyType.uuid } as any,
 }: {
   tableName: string;
-  init: FunctionModel<CreateProps, PersistentProps>;
-  filter?: Filter<PersistentProps>;
+  init: (props: CreateProps) => PersistentProps;
+  filter?: Filter<PersistentProps & { [P in keyof Keys]: string }>;
   limit?: number;
   skip?: number;
   order?: Order<PersistentProps>;
   connector?: Connector;
-  keys?: K;
+  keys?: Keys;
 }) {
   const conn = connector ? connector : new MemoryConnector();
+  const params = {
+    tableName,
+    init,
+    filter,
+    limit,
+    skip,
+    order,
+    connector,
+    keys,
+  };
 
-  const keyNames = Object.keys(keys);
+  const orderColumns: OrderColumn<PersistentProps>[] = order
+    ? Array.isArray(order)
+      ? order
+      : [order]
+    : [];
+  const outerFilter = filter;
+
+  const keyNames = Object.keys(keys) as (keyof Keys)[];
   if (keyNames.length === 0) {
     throw 'Provide at least one key';
   }
 
-  function isCreateProps(
-    props: CreateProps | (PersistentProps & { [P in keyof K]: string }),
-  ): props is CreateProps {
-    return (props as { [P in keyof K]: string })[Object.keys(keys)[0]] === undefined;
-  }
-
-  return class Model {
-    static currentFilter = filter;
-    static currentOrder = Array.isArray(order) ? order : [order];
-    static currentLimit = limit;
-    static currentSkip = skip;
-
-    persistentProps: PersistentProps;
-    changedProps: Partial<PersistentProps> = {};
-    keys: { [P in keyof K]: string } | undefined;
-
+  return class M {
     static limitBy(amount: number) {
-      return class extends Model {
-        static currentLimit: number | undefined = amount;
-      };
+      return Model({ ...params, limit: amount });
     }
 
-    static get unlimited() {
-      return class extends Model {
-        static currentLimit: number | undefined;
-      };
+    static unlimited() {
+      return Model({ ...params, limit: undefined });
     }
 
-    // static skipBy(amount: number) {
-    //   return class extends Model {
-    //     static currentSkip: number | undefined = amount;
-    //   };
-    // }
+    static skipBy(amount: number) {
+      return Model({ ...params, skip: amount });
+    }
 
-    // static get unskiped() {
-    //   return class extends Model {
-    //     static currentSkip: number | undefined;
-    //   };
-    // }
+    static unskipped() {
+      return Model({ ...params, skip: undefined });
+    }
 
-    // static orderBy(order: Order<PersistentProps>) {
-    //   const currentOrder = [...this.currentOrder, ...(Array.isArray(order) ? order : [order])];
-    //   return class extends Model {
-    //     static currentOrder = currentOrder;
-    //   };
-    // }
+    static orderBy(order: Order<PersistentProps>) {
+      return Model({
+        ...params,
+        order: [...orderColumns, ...(Array.isArray(order) ? order : [order])],
+      });
+    }
 
-    // static get unordered() {
-    //   return class extends Model {
-    //     static currentOrder: OrderColumn<PersistentProps>[] = [];
-    //   };
-    // }
+    static unordered() {
+      return Model({ ...params, order: undefined });
+    }
 
-    // static reorder(order: Order<PersistentProps>) {
-    //   return this.unordered.orderBy(order);
-    // }
+    static reorder(order: Order<PersistentProps>) {
+      return Model({
+        ...params,
+        order: [...orderColumns, ...(Array.isArray(order) ? order : [order])],
+      });
+    }
+
+    static queryBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
+      return Model({ ...params, filter: outerFilter ? { $and: [outerFilter, filter] } : filter });
+    }
+
+    static orQueryBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
+      return Model({ ...params, filter: outerFilter ? { $or: [outerFilter, filter] } : filter });
+    }
 
     static build(props: CreateProps) {
-      return new Model(props);
+      return new M(init(props));
     }
-
-    // static queryBy(filter: Filter<PersistentProps>) {
-    //   const currentFilter = this.currentFilter ? { $and: [this.currentFilter, filter] } : filter;
-    //   return class extends Model {
-    //     static currentFilter: Filter<PersistentProps> | undefined = currentFilter;
-    //   };
-    // }
 
     static get modelScope(): Scope {
       return {
         tableName,
-        filter: this.currentFilter,
-        limit: this.currentLimit,
-        skip: this.currentSkip,
-        order: this.currentOrder,
+        filter,
+        limit,
+        skip,
+        order: orderColumns,
       };
     }
 
     static async all() {
       const items = (await conn.query(this.modelScope)) as (PersistentProps &
-        { [P in keyof K]: string })[];
-      return items.map(item => new Model(item));
+        { [P in keyof Keys]: string })[];
+      return items.map(item => {
+        const keys = {} as { [P in keyof Keys]: string };
+        for (const key of keyNames) {
+          keys[key] = item[key];
+          delete item[key];
+        }
+        return new M(item, keys);
+      });
     }
 
     static async first() {
@@ -142,22 +124,13 @@ export function Model<
       return items.pop();
     }
 
-    constructor(props: CreateProps | (PersistentProps & { [P in keyof K]: string })) {
-      if (isCreateProps(props)) {
-        this.persistentProps = init(props);
-      } else {
-        for (const key in props) {
-          const keys = {} as { [P in keyof K]: string };
-          const persistentProps = {} as PersistentProps;
-          if (keyNames.includes(key)) {
-            keys[key as keyof K] = props[key];
-          } else {
-            persistentProps[key as keyof PersistentProps] = props[key];
-          }
-          this.persistentProps = persistentProps;
-          this.keys = keys;
-        }
-      }
+    persistentProps: PersistentProps;
+    changedProps: Partial<PersistentProps> = {};
+    keys: { [P in keyof Keys]: string } | undefined;
+
+    constructor(props: PersistentProps, keys?: { [P in keyof Keys]: string }) {
+      this.persistentProps = props as PersistentProps;
+      this.keys = keys;
     }
 
     get isPersistent() {
@@ -184,7 +157,7 @@ export function Model<
 
     get itemScope(): Scope {
       return {
-        tableName,
+        tableName: tableName,
         filter: this.keys,
         limit: 1,
         skip: 0,
@@ -196,20 +169,35 @@ export function Model<
       if (this.keys) {
         const changedKeys = Object.keys(this.changedProps);
         if (changedKeys.length > 0) {
-          await conn.updateAll(this.itemScope, this.changedProps);
-          this.persistentProps = { ...this.persistentProps, ...this.changedProps };
-          this.changedProps = {};
+          const items = await conn.updateAll(this.itemScope, this.changedProps);
+          const item = items.pop();
+          if (item) {
+            for (const key in keys) {
+              this.keys[key] = item[key];
+              delete item[key];
+            }
+            this.persistentProps = item as PersistentProps;
+            this.changedProps = {};
+          } else {
+            throw 'Item not found';
+          }
         }
       } else {
-        const keys = keyNames.reduce(
-          (obj, key: keyof K) => {
-            obj[key] = uuid();
-            return obj;
-          },
-          {} as { [P in keyof K]: string },
-        );
-        // await db.put({ ...defaultDbParams, Item: { ...this.persistentProps, ...keys } }).promise();
-        this.keys = keys;
+        const items = await conn.batchInsert(tableName, keys, [
+          { ...this.persistentProps, ...this.changedProps },
+        ]);
+        const item = items.pop();
+        if (item) {
+          this.keys = {} as { [P in keyof Keys]: string };
+          for (const key in keys) {
+            this.keys[key] = item[key];
+            delete item[key];
+          }
+          this.persistentProps = item as PersistentProps;
+          this.changedProps = {};
+        } else {
+          throw 'Failed to insert item';
+        }
       }
       return this;
     }
