@@ -231,6 +231,52 @@ describe('Model', () => {
     });
   });
 
+  describe('#limitBy', () => {
+    let limit: number = Number.MAX_SAFE_INTEGER;
+
+    const subject = () => CreateModel().limitBy(limit);
+
+    itReturnsClass(subject);
+
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .limitBy(limit)
+            .all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with filter', {
+          definitions: () => (filter = { foo: 'bar' }),
+          reset: () => (filter = {}),
+          tests: () => {
+            it('uses filter', async () => {
+              const instances = await subject();
+              const expectedItems = seed.filter(item => item.foo === 'bar');
+              expect(attributesOf(instances)).toEqual(expectedItems);
+            });
+
+            context('limit lower then expected count', {
+              definitions: () => (limit = 1),
+              reset: () => (limit = Number.MAX_SAFE_INTEGER),
+              tests: () => {
+                it('limits returned results', async () => {
+                  const instances = await subject();
+                  const expectedItems = seed.filter(item => item.foo === 'bar').splice(0, 1);
+                  expect(attributesOf(instances)).toEqual(expectedItems);
+                });
+              },
+            });
+          },
+        });
+      });
+    });
+  });
+
   // describe('.limit', () => {
   //   let Klass: typeof Model = Faker.model;
   //   let limit: number = Faker.limit;
