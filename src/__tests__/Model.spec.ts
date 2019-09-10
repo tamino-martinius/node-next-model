@@ -1,349 +1,52 @@
+import { Dict, Filter, KeyType, MemoryConnector, Model, Order, Storage } from '..';
 import { context, it } from '.';
 
 describe('Model', () => {
-  it('passed', () => {
-    expect(true).toBeTruthy();
+  let storage: Storage = {};
+
+  let tableName = 'foo';
+  let init = () => ({});
+  let skip: number | undefined;
+  let limit: number | undefined;
+  let filter: Filter<any> | undefined;
+  let order: Order<any> | undefined;
+  let connector = new MemoryConnector({ storage });
+  let keys: Dict<KeyType> | undefined;
+
+  const seed = [{ id: 1, foo: 'bar' }, { id: 2, foo: null }, { id: 3, foo: 'bar' }];
+  function withSeededData(tests: () => void) {
+    context('with seeded data', {
+      definitions() {
+        storage = {
+          [tableName]: seed,
+        };
+      },
+      reset() {
+        storage = {};
+      },
+      tests,
+    });
+  }
+
+  const CreateModel = () =>
+    Model({
+      tableName,
+      init,
+      skip,
+      limit,
+      filter,
+      order,
+      connector,
+      keys,
+    });
+
+  const subject = () => CreateModel();
+
+  it('returns class', () => {
+    const Model = subject();
+    expect(typeof Model).toEqual('function');
+    expect(typeof Model.prototype).toEqual('object');
   });
-
-  // //#region Static
-  // //#region Properties
-  // describe('.modelName', () => {
-  //   let Klass: typeof Model;
-  //   let modelName: string = Faker.modelName;
-
-  //   const subject = () => Klass.modelName;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() {};
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('throws Error', () => {
-  //         expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
-  //       });
-
-  //       context('when modelName is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get modelName(): string {
-  //               return modelName;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the name of the model', () => {
-  //             expect(subject()).toEqual(modelName);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.lowerModelName', () => {
-  //   let Klass: typeof Model;
-  //   let modelName: string = Faker.modelName;
-
-  //   const subject = () => Klass.lowerModelName;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('throws Error', () => {
-  //         expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
-  //       });
-
-  //       context('when modelName is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get modelName(): string {
-  //               return modelName;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the name of the model with starting lowercase', () => {
-  //             expect(subject()).toEqual(modelName.toLowerCase());
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.underscoreModelName', () => {
-  //   let Klass: typeof Model;
-  //   let modelName: string = Faker.modelName;
-  //   const subject = () => Klass.underscoreModelName;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('throws Error', () => {
-  //         expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
-  //       });
-
-  //       context('when modelName is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get modelName(): string {
-  //               return modelName;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the name of the model with starting lowercase', () => {
-  //             expect(subject()).toEqual(modelName.toLowerCase());
-  //           });
-
-  //           context('when modelName has multiple uppercase letters', {
-  //             definitions() {
-  //               class NewKlass extends NextModel<any>() {
-  //                 static get modelName(): string {
-  //                   return modelName + modelName;
-  //                 }
-  //               };
-  //               Klass = NewKlass;
-  //             },
-  //             tests() {
-  //               it('seperates both parts with underscore', () => {
-  //               const name = modelName.toLowerCase() + '_' + modelName.toLowerCase();
-  //                 expect(subject()).toEqual(name);
-  //               });
-  //             },
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.pluralModelName', () => {
-  //   let Klass: typeof Model;
-  //   let modelName: string = Faker.modelName;
-  //   const subject = () => Klass.pluralModelName;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('throws Error', () => {
-  //         expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
-  //       });
-
-  //       context('when modelName is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get modelName(): string {
-  //               return 'Foo';
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the plural name of the model with starting lowercase', () => {
-  //             expect(subject()).toEqual('foos');
-  //           });
-
-  //           context('when modelName has multiple uppercase letters', {
-  //             definitions() {
-  //               class NewKlass extends NextModel<any>() {
-  //                 static get modelName(): string {
-  //                   return modelName + modelName;
-  //                 }
-  //               };
-  //               Klass = NewKlass;
-  //             },
-  //             tests() {
-  //               it('seperates both parts with underscore', () => {
-  //                 expect(subject()).toMatch(modelName.toLowerCase() + '_');
-  //               });
-  //             },
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.identifier', () => {
-  //   let Klass: typeof Model;
-  //   let identifier: string = Faker.identifier;
-
-  //   const subject = () => Klass.identifier;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns `id` as default', () => {
-  //         expect(subject()).toEqual('id');
-  //       });
-
-  //       context('when identifier is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get identifier(): string {
-  //               return identifier;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the name of the model', () => {
-  //             expect(subject()).toEqual(identifier);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.collectionName', () => {
-  //   let Klass: typeof Model;
-  //   let collectionName: string = Faker.collectionName;
-
-  //   const subject = () => Klass.collectionName;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('is undefined by default', () => {
-  //         expect(subject()).toBeUndefined();
-  //       });
-
-  //       context('when collectionName is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get collectionName(): string {
-  //               return collectionName;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the name of the model', () => {
-  //             expect(subject()).toEqual(collectionName);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.connector', () => {
-  //   let Klass: typeof Model;
-  //   let connector: Connector<any> = Faker.connector;
-
-  //   const subject = () => Klass.connector;
-
-  //   context('model is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('is a connector by default', () => {
-  //         expect(subject()).toBeInstanceOf(Connector);
-  //       });
-
-  //       context('when connector is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get connector(): Connector<any> {
-  //               return connector;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the name of the model', () => {
-  //             expect(subject()).toEqual(connector);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.schema', () => {
-  //   let Klass: typeof Model;
-  //   let schema: Schema<any> = Faker.schema;
-
-  //   const subject = () => Klass.schema;
-
-  //   context('schema is not extended', {
-  //     definitions() {
-  //       class NewKlass extends NextModel<any>() { };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('throws Error', () => {
-  //         expect(subject).toThrow(Error); // TODO: Check for PropertyNotDefinedError
-  //       });
-
-  //       context('when schema is present', {
-  //         definitions() {
-  //           class NewKlass extends NextModel<any>() {
-  //             static get schema(): Schema<any> {
-  //               return schema;
-  //             }
-  //           };
-  //           Klass = NewKlass;
-  //         },
-  //         tests() {
-  //           it('returns the schema of the model', () => {
-  //             expect(subject()).toEqual(schema);
-  //           });
-  //         },
-  //       });
-  //     },
-  //   });
-  // });
-
-  // describe('.filter', () => {
-  //   let Klass: typeof Model = Faker.model;
-  //   let filter: Filter<any> = Faker.filter;
-
-  //   const subject = () => Klass.filter;
-
-  //   it('returns empty filter', () => {
-  //     expect(subject()).toEqual({});
-  //   });
-
-  //   context('when filter is present', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get filter(): Filter<any> {
-  //           return filter;
-  //         }
-  //       };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns the filter of the model', () => {
-  //         expect(subject()).toEqual(filter);
-  //       });
-  //     },
-  //   });
-  // });
 
   // describe('.limit', () => {
   //   let Klass: typeof Model = Faker.model;
