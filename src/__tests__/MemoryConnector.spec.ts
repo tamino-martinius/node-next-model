@@ -94,6 +94,23 @@ const filterSpecGroups: FilterSpecGroup = {
       results: '[TODO] Return proper error',
     },
   ],
+  $notBetween: [
+    { filter: { $notBetween: {} }, results: '[TODO] Return proper error' },
+    { filter: { $notBetween: { id: { from: 1, to: 2 } } }, results: [3] },
+    { filter: { $notBetween: { foo: { from: 'a', to: 'z' } } }, results: [] },
+    { filter: { $notBetween: { id: { from: 0, to: 1 } } }, results: [2, 3] },
+    { filter: { $notBetween: { id: { from: 3, to: 4 } } }, results: [1, 2] },
+    {
+      filter: { $notBetween: { id: { from: validId, to: validId } } },
+      results: [1, 2, 3].filter(id => id !== validId),
+    },
+    { filter: { $notBetween: { id: { from: 4, to: 5 } } }, results: [1, 2, 3] },
+    { filter: { $notBetween: { id: { from: 3, to: 1 } } }, results: [1, 2, 3] },
+    {
+      filter: { $notBetween: { id: { from: 1, to: 3 }, foo: { from: 'a', to: 'z' } } },
+      results: '[TODO] Return proper error',
+    },
+  ],
   $gt: [
     { filter: { $gt: {} }, results: '[TODO] Return proper error' },
     { filter: { $gt: { id: 2 } }, results: [3] },
