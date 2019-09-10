@@ -114,6 +114,57 @@ describe('Model', () => {
       });
     });
   });
+
+  describe('#filterBy', () => {
+    let filter: Filter<any> = {};
+
+    const subject = () => CreateModel().filterBy(filter);
+
+    itReturnsClass(subject);
+
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .filterBy(filter)
+            .all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with filter', {
+          definitions() {
+            filter = { foo: 'bar' };
+          },
+          reset() {
+            filter = {};
+          },
+          tests: () => {
+            it('uses filter', async () => {
+              const instances = await subject();
+              const expectedItems = seed.filter(item => item.foo === 'bar');
+              expect(attributesOf(instances)).toEqual(expectedItems);
+            });
+
+            describe('when additional filter is present', () => {
+              const subject = () =>
+                CreateModel()
+                  .filterBy(filter)
+                  .filterBy({ bar: 'baz' } as Filter<any>)
+                  .all();
+
+              it('uses both filters', async () => {
+                const instances = await subject();
+                const expectedItems = seed.filter(item => item.foo === 'bar' && item.bar === 'baz');
+                expect(attributesOf(instances)).toEqual(expectedItems);
+              });
+            });
+          },
+        });
+      });
+    });
   });
 
   // describe('.limit', () => {
