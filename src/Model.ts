@@ -18,7 +18,9 @@ export function Model<
 }: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
-  filter?: Filter<PersistentProps & { [P in keyof Keys]: string }>;
+  filter?: Filter<
+    PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+  >;
   limit?: number;
   skip?: number;
   order?: Order<PersistentProps>;
@@ -79,11 +81,19 @@ export function Model<
       });
     }
 
-    static filterBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
+    static filterBy(
+      filter: Filter<
+        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+      >,
+    ) {
       return Model({ ...params, filter: outerFilter ? { $and: [outerFilter, filter] } : filter });
     }
 
-    static orFilterBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
+    static orFilterBy(
+      filter: Filter<
+        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+      >,
+    ) {
       return Model({ ...params, filter: outerFilter ? { $or: [outerFilter, filter] } : filter });
     }
 
@@ -105,7 +115,7 @@ export function Model<
       const items = (await conn.query(this.modelScope)) as (PersistentProps &
         { [P in keyof Keys]: string })[];
       return items.map(item => {
-        const keys = {} as { [P in keyof Keys]: string };
+        const keys = {} as { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number };
         for (const key in keys) {
           keys[key] = item[key];
           delete item[key];
@@ -121,9 +131,12 @@ export function Model<
 
     persistentProps: PersistentProps;
     changedProps: Partial<PersistentProps> = {};
-    keys: { [P in keyof Keys]: string } | undefined;
+    keys: { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number } | undefined;
 
-    constructor(props: PersistentProps, keys?: { [P in keyof Keys]: string }) {
+    constructor(
+      props: PersistentProps,
+      keys?: { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number },
+    ) {
       this.persistentProps = props as PersistentProps;
       this.keys = keys;
     }
@@ -183,7 +196,7 @@ export function Model<
         ]);
         const item = items.pop();
         if (item) {
-          this.keys = {} as { [P in keyof Keys]: string };
+          this.keys = {} as { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number };
           for (const key in keys) {
             this.keys[key] = item[key];
             delete item[key];
