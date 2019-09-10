@@ -20,14 +20,11 @@ describe('Model', () => {
   ];
   function withSeededData(tests: () => void) {
     context('with seeded data', {
-      definitions() {
-        storage = {
+      definitions: () =>
+        (storage = {
           [tableName]: seed,
-        };
-      },
-      reset() {
-        storage = {};
-      },
+        }),
+      reset: () => (storage = {}),
       tests,
     });
   }
@@ -69,12 +66,8 @@ describe('Model', () => {
         });
 
         context('without filter', {
-          definitions() {
-            filter = undefined;
-          },
-          reset() {
-            filter = {};
-          },
+          definitions: () => (filter = undefined),
+          reset: () => (filter = undefined),
           tests: () => {
             it('promises to return all matching items as model instances', async () => {
               const instances = await subject();
@@ -84,12 +77,8 @@ describe('Model', () => {
         });
 
         context('with filter', {
-          definitions() {
-            filter = { foo: 'bar' };
-          },
-          reset() {
-            filter = {};
-          },
+          definitions: () => (filter = { foo: 'bar' }),
+          reset: () => (filter = undefined),
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
@@ -103,7 +92,7 @@ describe('Model', () => {
                   .filterBy({ bar: 'baz' } as Filter<any>)
                   .all();
 
-              it('uses both filters', async () => {
+              it('uses intersection of both filters', async () => {
                 const instances = await subject();
                 const expectedItems = seed.filter(item => item.foo === 'bar' && item.bar === 'baz');
                 expect(attributesOf(instances)).toEqual(expectedItems);
@@ -135,12 +124,8 @@ describe('Model', () => {
         });
 
         context('with filter', {
-          definitions() {
-            filter = { foo: 'bar' };
-          },
-          reset() {
-            filter = {};
-          },
+          definitions: () => (filter = { foo: 'bar' }),
+          reset: () => (filter = {}),
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
@@ -155,7 +140,7 @@ describe('Model', () => {
                   .filterBy({ bar: 'baz' } as Filter<any>)
                   .all();
 
-              it('uses both filters', async () => {
+              it('uses intersection of both filters', async () => {
                 const instances = await subject();
                 const expectedItems = seed.filter(item => item.foo === 'bar' && item.bar === 'baz');
                 expect(attributesOf(instances)).toEqual(expectedItems);
