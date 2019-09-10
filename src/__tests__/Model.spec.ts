@@ -10,10 +10,14 @@ describe('Model', () => {
   let limit: number | undefined;
   let filter: Filter<any> | undefined;
   let order: Order<any> | undefined;
-  let connector = new MemoryConnector({ storage });
+  let connector = () => new MemoryConnector({ storage });
   let keys: Dict<KeyType> | undefined;
 
-  const seed = [{ id: 1, foo: 'bar' }, { id: 2, foo: null }, { id: 3, foo: 'bar' }];
+  const seed = [
+    { id: 1, foo: 'bar', bar: 'baz' },
+    { id: 2, foo: null, bar: 'baz' },
+    { id: 3, foo: 'bar', bar: null },
+  ];
   function withSeededData(tests: () => void) {
     context('with seeded data', {
       definitions() {
@@ -28,6 +32,16 @@ describe('Model', () => {
     });
   }
 
+  function itReturnsClass(subject: () => any) {
+    it('returns class', () => {
+      const Model = subject();
+      expect(typeof Model).toEqual('function');
+      expect(typeof Model.prototype).toEqual('object');
+    });
+  }
+
+  const attributesOf = (items: any[]) => items.map(item => item.attributes as Dict<any>);
+
   const CreateModel = () =>
     Model({
       tableName,
@@ -36,16 +50,70 @@ describe('Model', () => {
       limit,
       filter,
       order,
-      connector,
+      connector: connector(),
       keys,
     });
 
   const subject = () => CreateModel();
 
-  it('returns class', () => {
-    const Model = subject();
-    expect(typeof Model).toEqual('function');
-    expect(typeof Model.prototype).toEqual('object');
+  itReturnsClass(subject);
+
+  describe('filter parameter', () => {
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () => CreateModel().all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('without filter', {
+          definitions() {
+            filter = undefined;
+          },
+          reset() {
+            filter = {};
+          },
+          tests: () => {
+            it('promises to return all matching items as model instances', async () => {
+              const instances = await subject();
+              expect(attributesOf(instances)).toEqual(seed);
+            });
+          },
+        });
+
+        context('with filter', {
+          definitions() {
+            filter = { foo: 'bar' };
+          },
+          reset() {
+            filter = {};
+          },
+          tests: () => {
+            it('uses filter', async () => {
+              const instances = await subject();
+              const expectedItems = seed.filter(item => item.foo === 'bar');
+              expect(attributesOf(instances)).toEqual(expectedItems);
+            });
+
+            describe('when additional filter is present', () => {
+              const subject = () =>
+                CreateModel()
+                  .filterBy({ bar: 'baz' } as Filter<any>)
+                  .all();
+
+              it('uses both filters', async () => {
+                const instances = await subject();
+                const expectedItems = seed.filter(item => item.foo === 'bar' && item.bar === 'baz');
+                expect(attributesOf(instances)).toEqual(expectedItems);
+              });
+            });
+          },
+        });
+      });
+    });
+  });
   });
 
   // describe('.limit', () => {
