@@ -152,6 +152,53 @@ describe('Model', () => {
     });
   });
 
+  describe('#orFilterBy', () => {
+    let filter: Filter<any> = {};
+
+    const subject = () => CreateModel().orFilterBy(filter);
+
+    itReturnsClass(subject);
+
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .orFilterBy(filter)
+            .all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with filter', {
+          definitions: () => (filter = { id: 1 }),
+          reset: () => (filter = {}),
+          tests: () => {
+            it('uses filter', async () => {
+              const instances = await subject();
+              const expectedItems = seed.filter(item => item.id === 1);
+              expect(attributesOf(instances)).toEqual(expectedItems);
+            });
+
+            describe('when additional filter is present', () => {
+              const subject = () =>
+                CreateModel()
+                  .orFilterBy(filter)
+                  .orFilterBy({ id: 2 } as Filter<any>)
+                  .all();
+
+              it('uses union of both filters', async () => {
+                const instances = await subject();
+                const expectedItems = seed.filter(item => item.id === 1 || item.id === 2);
+                expect(attributesOf(instances)).toEqual(expectedItems);
+              });
+            });
+          },
+        });
+      });
+    });
+  });
   // describe('.limit', () => {
   //   let Klass: typeof Model = Faker.model;
   //   let limit: number = Faker.limit;
