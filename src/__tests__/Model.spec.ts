@@ -199,6 +199,38 @@ describe('Model', () => {
       });
     });
   });
+
+  describe('#unfiltered', () => {
+    const subject = () => CreateModel().unfiltered();
+
+    itReturnsClass(subject);
+
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .unfiltered()
+            .all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with filter', {
+          definitions: () => (filter = { id: 1 }),
+          reset: () => (filter = {}),
+          tests: () => {
+            it('resets filter', async () => {
+              const instances = await subject();
+              expect(attributesOf(instances)).toEqual(seed);
+            });
+          },
+        });
+      });
+    });
+  });
+
   // describe('.limit', () => {
   //   let Klass: typeof Model = Faker.model;
   //   let limit: number = Faker.limit;
