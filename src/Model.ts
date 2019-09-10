@@ -97,6 +97,10 @@ export function Model<
       return Model({ ...params, filter: outerFilter ? { $or: [outerFilter, filter] } : filter });
     }
 
+    static unfiltered() {
+      return Model({ ...params, filter: undefined });
+    }
+
     static build(props: CreateProps) {
       return new M(init(props));
     }
