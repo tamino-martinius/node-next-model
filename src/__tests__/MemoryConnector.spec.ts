@@ -16,7 +16,7 @@ const withMultiSeed = () =>
 
 const idsOf = (items: Dict<any>[]) => items.map(item => item.id);
 const items = () => storage[tableName];
-const connector = () => new MemoryConnector(storage);
+const connector = () => new MemoryConnector({ storage });
 
 interface FilterSpecs {
   filter: Filter<any> | undefined;

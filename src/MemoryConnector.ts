@@ -19,10 +19,13 @@ const globalStorage: Storage = {};
 const globalLastIds: Dict<number> = {};
 
 export class MemoryConnector implements Connector {
-  constructor(
-    private storage: Storage = globalStorage,
-    private lastIds: Dict<number> = globalLastIds,
-  ) {}
+  private storage: Storage;
+  private lastIds: Dict<number>;
+
+  constructor(props?: { storage?: Storage; lastIds?: Dict<number> }) {
+    this.storage = (props && props.storage) || globalStorage;
+    this.lastIds = (props && props.lastIds) || globalLastIds;
+  }
 
   private collection(tableName: string): Dict<any>[] {
     return (this.storage[tableName] = this.storage[tableName] || []);
