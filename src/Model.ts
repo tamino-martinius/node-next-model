@@ -84,11 +84,11 @@ export function Model<
       });
     }
 
-    static queryBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
+    static filterBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
       return Model({ ...params, filter: outerFilter ? { $and: [outerFilter, filter] } : filter });
     }
 
-    static orQueryBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
+    static orFilterBy(filter: Filter<PersistentProps & { [P in keyof Keys]: string }>) {
       return Model({ ...params, filter: outerFilter ? { $or: [outerFilter, filter] } : filter });
     }
 
