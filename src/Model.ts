@@ -44,11 +44,6 @@ export function Model<
     : [];
   const outerFilter = filter;
 
-  const keyNames = Object.keys(keys) as (keyof Keys)[];
-  if (keyNames.length === 0) {
-    throw 'Provide at least one key';
-  }
-
   return class M {
     static limitBy(amount: number) {
       return Model({ ...params, limit: amount });
@@ -111,7 +106,7 @@ export function Model<
         { [P in keyof Keys]: string })[];
       return items.map(item => {
         const keys = {} as { [P in keyof Keys]: string };
-        for (const key of keyNames) {
+        for (const key in keys) {
           keys[key] = item[key];
           delete item[key];
         }
