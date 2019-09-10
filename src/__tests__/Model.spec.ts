@@ -277,32 +277,36 @@ describe('Model', () => {
     });
   });
 
-  // describe('.limit', () => {
-  //   let Klass: typeof Model = Faker.model;
-  //   let limit: number = Faker.limit;
+  describe('#unlimited', () => {
+    const subject = () => CreateModel().unlimited();
 
-  //   const subject = () => Klass.limit;
+    itReturnsClass(subject);
 
-  //   it('returns maximum limit', () => {
-  //     expect(subject()).toEqual(Number.MAX_SAFE_INTEGER);
-  //   });
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .unfiltered()
+            .all();
 
-  //   context('when limit is present', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get limit(): number {
-  //           return limit;
-  //         }
-  //       };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns the limit of the model', () => {
-  //         expect(subject()).toEqual(limit);
-  //       });
-  //     },
-  //   });
-  // });
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with limit', {
+          definitions: () => (limit = 1),
+          reset: () => (limit = undefined),
+          tests: () => {
+            it('resets limit', async () => {
+              const instances = await subject();
+              expect(attributesOf(instances)).toEqual(seed);
+            });
+          },
+        });
+      });
+    });
+  });
 
   // describe('.skip', () => {
   //   let Klass: typeof Model = Faker.model;
