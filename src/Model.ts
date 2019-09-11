@@ -95,7 +95,17 @@ export function Model<
         PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return Model({ ...params, filter: outerFilter ? { $and: [outerFilter, filter] } : filter });
+      if (outerFilter) {
+        const flatFilter = { ...outerFilter };
+        for (const key in filter) {
+          if ((flatFilter as any)[key] !== undefined && (filter as any)[key] !== undefined) {
+            return Model({ ...params, filter: { $and: [filter, outerFilter] } });
+          }
+          (flatFilter as any)[key] = (filter as any)[key];
+        }
+        return Model({ ...params, filter: flatFilter });
+      }
+      return Model({ ...params, filter });
     }
 
     static orFilterBy(
