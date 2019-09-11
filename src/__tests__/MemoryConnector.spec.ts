@@ -1,7 +1,6 @@
 import { Dict, Filter, MemoryConnector, Scope, Storage, clone } from '..';
+import { KeyType, OrderColumn, SortDirection } from '../types';
 import { context, it, randomInteger } from '.';
-
-import { KeyType } from '../types';
 
 let storage: Storage = {};
 
@@ -168,8 +167,9 @@ describe('Connector', () => {
   describe('#query(scope)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = undefined;
-    const scope = () => ({ tableName, skip, limit, filter });
+    let filter: Filter<any> | undefined;
+    let order: OrderColumn<any>[] | undefined;
+    const scope = () => ({ tableName, skip, limit, filter, order });
     const subject = () => connector().query(scope());
 
     context('with empty prefilled storage', {
@@ -195,6 +195,86 @@ describe('Connector', () => {
     context('with multiple items prefilled storage', {
       definitions: withMultiSeed,
       tests() {
+        context('single ascending order', {
+          definitions: () => (order = [{ key: 'id', dir: SortDirection.Asc }]),
+          reset: () => (order = undefined),
+          tests() {
+            it('promises to return matching items in defined order', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(3);
+              expect(idsOf(items)).toEqual([1, 2, 3]);
+            });
+          },
+        });
+
+        context('single descending order', {
+          definitions: () => (order = [{ key: 'id', dir: SortDirection.Desc }]),
+          reset: () => (order = undefined),
+          tests() {
+            it('promises to return matching items in defined order', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(3);
+              expect(idsOf(items)).toEqual([3, 2, 1]);
+            });
+          },
+        });
+
+        context('single ascending order on nullable field', {
+          definitions: () => (order = [{ key: 'foo', dir: SortDirection.Asc }]),
+          reset: () => (order = undefined),
+          tests() {
+            it('promises to return matching items in defined order with nulls last', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(3);
+              expect(idsOf(items)).toEqual([1, 3, 2]);
+            });
+          },
+        });
+
+        context('single descending order on nullable field', {
+          definitions: () => (order = [{ key: 'foo', dir: SortDirection.Desc }]),
+          reset: () => (order = undefined),
+          tests() {
+            it('promises to return matching items in defined order with nulls first', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(3);
+              expect(idsOf(items)).toEqual([2, 1, 3]);
+            });
+          },
+        });
+
+        context('multiple ascending order on nullable field', {
+          definitions: () =>
+            (order = [
+              { key: 'foo', dir: SortDirection.Asc },
+              { key: 'id', dir: SortDirection.Asc },
+            ]),
+          reset: () => (order = undefined),
+          tests() {
+            it('promises to return matching items in defined order with nulls last', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(3);
+              expect(idsOf(items)).toEqual([1, 3, 2]);
+            });
+          },
+        });
+
+        context('multiple descending order on nullable field', {
+          definitions: () =>
+            (order = [
+              { key: 'foo', dir: SortDirection.Desc },
+              { key: 'id', dir: SortDirection.Desc },
+            ]),
+          reset: () => (order = undefined),
+          tests() {
+            it('promises to return matching items in defined order with nulls last', async () => {
+              const items = await subject();
+              expect(items.length).toEqual(3);
+              expect(idsOf(items)).toEqual([2, 3, 1]);
+            });
+          },
+        });
+
         for (const groupName in filterSpecGroups) {
           describe(groupName + ' filter', () => {
             filterSpecGroups[groupName].forEach(filterSpec => {
