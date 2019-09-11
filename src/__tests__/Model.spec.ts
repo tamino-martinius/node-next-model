@@ -201,16 +201,13 @@ describe('Model', () => {
   });
 
   describe('.unfiltered', () => {
-    const subject = () => CreateModel().unfiltered();
+    const subject = () => CreateModel().unfiltered;
 
     itReturnsClass(subject);
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .unfiltered()
-            .all();
+        const subject = () => CreateModel().unfiltered.all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -278,16 +275,13 @@ describe('Model', () => {
   });
 
   describe('.unlimited', () => {
-    const subject = () => CreateModel().unlimited();
+    const subject = () => CreateModel().unlimited;
 
     itReturnsClass(subject);
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .unlimited()
-            .all();
+        const subject = () => CreateModel().unlimited.all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -355,16 +349,13 @@ describe('Model', () => {
   });
 
   describe('.unskipped', () => {
-    const subject = () => CreateModel().unskipped();
+    const subject = () => CreateModel().unskipped;
 
     itReturnsClass(subject);
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .unskipped()
-            .all();
+        const subject = () => CreateModel().unskipped.all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
