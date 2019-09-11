@@ -104,7 +104,7 @@ describe('Model', () => {
     });
   });
 
-  describe('#filterBy', () => {
+  describe('.filterBy', () => {
     let filter: Filter<any> = {};
 
     const subject = () => CreateModel().filterBy(filter);
@@ -152,7 +152,7 @@ describe('Model', () => {
     });
   });
 
-  describe('#orFilterBy', () => {
+  describe('.orFilterBy', () => {
     let filter: Filter<any> = {};
 
     const subject = () => CreateModel().orFilterBy(filter);
@@ -200,7 +200,7 @@ describe('Model', () => {
     });
   });
 
-  describe('#unfiltered', () => {
+  describe('.unfiltered', () => {
     const subject = () => CreateModel().unfiltered();
 
     itReturnsClass(subject);
@@ -231,7 +231,7 @@ describe('Model', () => {
     });
   });
 
-  describe('#limitBy', () => {
+  describe('.limitBy', () => {
     let limit: number = Number.MAX_SAFE_INTEGER;
 
     const subject = () => CreateModel().limitBy(limit);
@@ -277,7 +277,7 @@ describe('Model', () => {
     });
   });
 
-  describe('#unlimited', () => {
+  describe('.unlimited', () => {
     const subject = () => CreateModel().unlimited();
 
     itReturnsClass(subject);
@@ -308,32 +308,82 @@ describe('Model', () => {
     });
   });
 
-  // describe('.skip', () => {
-  //   let Klass: typeof Model = Faker.model;
-  //   let skip: number = Faker.skip;
+  describe('.skipBy', () => {
+    let skip: number = 0;
 
-  //   const subject = () => Klass.skip;
+    const subject = () => CreateModel().skipBy(skip);
 
-  //   it('returns maximum skip', () => {
-  //     expect(subject()).toEqual(0);
-  //   });
+    itReturnsClass(subject);
 
-  //   context('when skip is present', {
-  //     definitions() {
-  //       class NewKlass extends Klass {
-  //         static get skip(): number {
-  //           return skip;
-  //         }
-  //       };
-  //       Klass = NewKlass;
-  //     },
-  //     tests() {
-  //       it('returns the skip of the model', () => {
-  //         expect(subject()).toEqual(skip);
-  //       });
-  //     },
-  //   });
-  // });
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .skipBy(skip)
+            .all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with filter', {
+          definitions: () => (filter = { foo: 'bar' }),
+          reset: () => (filter = {}),
+          tests: () => {
+            it('uses filter', async () => {
+              const instances = await subject();
+              const expectedItems = seed.filter(item => item.foo === 'bar');
+              expect(attributesOf(instances)).toEqual(expectedItems);
+            });
+
+            context('skip lower then expected count', {
+              definitions: () => (skip = 1),
+              reset: () => (skip = 1),
+              tests: () => {
+                it('skips returned results', async () => {
+                  const instances = await subject();
+                  const expectedItems = seed.filter(item => item.foo === 'bar').splice(1, 1);
+                  expect(attributesOf(instances)).toEqual(expectedItems);
+                });
+              },
+            });
+          },
+        });
+      });
+    });
+  });
+
+  describe('.unskipped', () => {
+    const subject = () => CreateModel().unskipped();
+
+    itReturnsClass(subject);
+
+    withSeededData(() => {
+      describe('when testing query results', () => {
+        const subject = () =>
+          CreateModel()
+            .unskipped()
+            .all();
+
+        it('promises to return all matching items as model instances', async () => {
+          const instances = await subject();
+          expect(attributesOf(instances)).toEqual(seed);
+        });
+
+        context('with skip', {
+          definitions: () => (skip = 1),
+          reset: () => (skip = undefined),
+          tests: () => {
+            it('resets skip', async () => {
+              const instances = await subject();
+              expect(attributesOf(instances)).toEqual(seed);
+            });
+          },
+        });
+      });
+    });
+  });
 
   // describe('.order', () => {
   //   let Klass: typeof Model;
