@@ -5,7 +5,7 @@ import { MemoryConnector } from './MemoryConnector';
 export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
-  Keys extends Dict<KeyType> = { id: KeyType.uuid }
+  Keys extends Dict<KeyType> = { id: KeyType.number }
 >({
   tableName,
   init,
@@ -14,7 +14,7 @@ export function Model<
   skip,
   order = [],
   connector,
-  keys = { id: KeyType.uuid } as any,
+  keys = { id: KeyType.number } as any,
 }: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
