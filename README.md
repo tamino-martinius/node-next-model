@@ -1,11 +1,10 @@
 # NextModel
 
-Rails like models using **TypeScript**. [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model)
+Write scoped models using **TypeScript**. [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model)
 
 NextModel gives you the ability to:
 
 * Represent **models** and their data.
-* Represent **associations** between these models.
 * Represent **inheritance** hierarchies through related models.
 * Perform database operations in an **object-oriented** fashion.
 * Uses **Promises** for database queries.
@@ -15,6 +14,7 @@ NextModel gives you the ability to:
 See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) project for current progress/tasks
 
 * Fix **typos**
+* Add **associations** between models
 * Improve **documentation**
 * Implement **order** in `Connector`
 * `createdAt` and `updatedAt` **timestamps**
@@ -32,159 +32,107 @@ See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) pro
 
 ## TOC
 
-* [Naming Conventions](#naming-conventions)
-* [Example](#example)
-* [Model Instances](#model-instances)
-  * [build](#build)
-  * [create](#create)
-* [Relations](#relations)
-  * [belongsTo](#belongsto)
-  * [hasMany](#hasmany)
-  * [hasOne](#hasone)
-* [Queries](#queries)
-  * [query](#query)
-  * [find](#find)
-  * [orderBy](#order)
-  * [skip](#skipby)
-  * [limit](#limitby)
-* [Scopes](#scopes)
-  * [Scope chaining](#scope-chaining)
-  * [Build from scope](#build-from-scope)
-* [Fetching](#fetching)
-  * [all](#all)
-  * [first](#first)
-  * [count](#count)
-* [Batches](#batches)
-  * [updateAll](#updateall)
-  * [deleteAll](#deleteall)
-* [Class Properties](#class-properties)
-  * [modelName](#modelname)
-  * [Schema](#schema)
-  * [connector](#connector)
-  * [identifier](#identifier)
-  * [validators](#validators)
-  * [keys](#keys)
-  * [filter](#filter)
-  * [order](#order)
-  * [skip](#skip)
-  * [limit](#limit)
-* [Instance Attributes](#instance-attributes)
-  * [isNew](#isnew)
-  * [isPersistent](#ispersistent)
-  * [attributes](#attributes)
-  * [isChanged](#ischanged)
-  * [changes](#changes)
-  * [errors](#errors)
-  * [Custom Attributes](#custom-attributes)
-* [Instance Actions](#instance-actions)
-  * [assign](#assign)
-  * [save](#save)
-  * [delete](#delete)
-  * [reload](#reload)
-  * [revertChanges](#revertchanges)
-  * [isValid](#isvalid)
-* [Changelog](#changelog)
-
-## Naming Conventions
-
-To keep the configuration as short as possible, its recommended to use the following conventions:
-
-* Use camel case for multiple words
-  * `createdAt`
-  * `someOtherValue`
-  * `ChatMessage`
-* Every property starts with lower case.
-  * `createdAt`
-  * `someOtherValue`
-* Classes should be singular start with an capital letter.
-  * `Address`
-  * `Chat`
-  * `ChatMessage`
-* Foreign keys are the class names starting with an lower case character and end with Id.
-  * `User` - `userId`
-  * `Chat` - `chatId`
-  * `ChatMessage` - `chatMessageId`
-* Every model has an `id` property. If needed you can add aliases for it.
+- [NextModel](#nextmodel)
+  - [Roadmap / Where can i contribute](#roadmap--where-can-i-contribute)
+  - [TOC](#toc)
+  - [Example](#example)
+  - [Model Instances](#model-instances)
+    - [build](#build)
+    - [create](#create)
+    - [From Scopes and queries](#from-scopes-and-queries)
+  - [Relations *WIP - Definitions will change*](#relations-wip---definitions-will-change)
+    - [belongsTo *WIP - Definitions will change*](#belongsto-wip---definitions-will-change)
+    - [hasMany *WIP - Definitions will change*](#hasmany-wip---definitions-will-change)
+    - [hasOne *WIP - Definitions will change*](#hasone-wip---definitions-will-change)
+  - [Queries](#queries)
+    - [filterBy](#filterby)
+    - [orderBy](#orderby)
+    - [skipBy](#skipby)
+    - [limitBy](#limitby)
+  - [Scopes](#scopes)
+    - [Build from scope](#build-from-scope)
+    - [Scope chaining](#scope-chaining)
+  - [Fetching](#fetching)
+    - [all](#all)
+    - [first](#first)
+    - [count](#count)
+  - [Batches *WIP - Definitions will change*](#batches-wip---definitions-will-change)
+    - [updateaAll *WIP - Definitions will change*](#updateaall-wip---definitions-will-change)
+    - [deleteAll *WIP - Definitions will change*](#deleteall-wip---definitions-will-change)
+  - [Model Parameters *WIP - Definitions will change*](#model-parameters-wip---definitions-will-change)
+    - [connector *WIP - Definitions will change*](#connector-wip---definitions-will-change)
+    - [keys *WIP - Definitions will change*](#keys-wip---definitions-will-change)
+    - [filter *WIP - Definitions will change*](#filter-wip---definitions-will-change)
+    - [order *WIP - Definitions will change*](#order-wip---definitions-will-change)
+    - [skip *WIP - Definitions will change*](#skip-wip---definitions-will-change)
+    - [limit *WIP - Definitions will change*](#limit-wip---definitions-will-change)
+  - [Instance Attributes](#instance-attributes)
+    - [isNew](#isnew)
+    - [isPersistent](#ispersistent)
+    - [attributes](#attributes)
+    - [isChanged *WIP - Definitions will change*](#ischanged-wip---definitions-will-change)
+    - [changes *WIP - Definitions will change*](#changes-wip---definitions-will-change)
+    - [Custom Attributes *WIP - Definitions will change*](#custom-attributes-wip---definitions-will-change)
+  - [Instance Actions](#instance-actions)
+    - [assign](#assign)
+    - [save](#save)
+    - [delete](#delete)
+    - [reload](#reload)
+    - [revertCachanges](#revertcachanges)
+    - [isValid](#isvalid)
+  - [Changelog](#changelog)
 
 ## Example
 
 ~~~ts
 // import
-import NextModel from 'next-model';
+import { Model } from '@next-model/core';
 
-// Typings
-interface UserSchema {
-  id: number;
-  addressId: number;
-  firstName: string;
-  lastName: string;
-  gender: string;
-};
-
-interface AddressSchema {
-  id: number;
-  street: string;
-};
-
-// model definitions
-class User extends NextModel<UserSchema>() {
-  id: number;
-  firstName: string;
-  lastName: string;
-  gender: string;
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      addressId: { type: 'integer' },
-      firstName: { type: 'string' },
-      lastName: { type: 'string' },
-      gender: { type: 'string' },
-    };
+class User extends Model({
+  tableName: 'users',
+  init: (props: { firstName?: string; lastName?: string; gender?: string }) => props,
+}) {
+  static get males() {
+    return this.filterBy({ gender: 'male' });
   }
 
-  static get males(): typeof User {
-    return this.queryBy.gender('male');
+  static get females() {
+    return this.filterBy({ gender: 'female' });
   }
 
-  static get females(): typeof User {
-    return this.queryBy('female');
-  }
-
-  static withFirstName(firstName): typeof User {
-    return this.query({ firstName });
+  static withFirstName(firstName: string) {
+    return this.filterBy({firstName});
   }
 
   get addresses() {
-    return this.hasMany(Address);
+    return Address.filterBy({ userId: this.attributes.id })
   }
 
   get name(): string {
-    return `${this.firstName} ${this.lastName}`;
+    return `${this.attributes.firstName} ${this.attributes.lastName}`;
   }
-};
+}
 
-class Address extends NextModel<AddressSchema>() {
-  id: number;
-  street: string;
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      street: { type: 'string' },
-    };
-  }
-
+class Address extends Model({
+  tableName: 'addresses',
+  init: (props: { street: string; userId: number }) => props,
+}) {
   get user() {
-    return this.belongsTo(User);
+    return User.filterBy({ id: this.attributes.userId }).first;
   }
-};
+}
 
 // Creating
-user = User.males.build({ firstName: 'John', lastName: 'Doe' });
-user.gender === 'male';
+user = User.build({
+  firstName: 'John',
+  lastName: 'Doe',
+  gender: 'male',
+});
 user.name === 'John Doe';
 user = await user.save();
+
+user = User.males.buildScoped({ firstName: 'John', lastName: 'Doe' });
+user.gender === 'male';
 
 user = await User.create({
   firstName: 'John',
@@ -192,16 +140,17 @@ user = await User.create({
   gender: 'male',
 });
 
-address = await user.addresses.create({
+address = await user.addresses.createScoped({
   street: 'Bakerstr.'
 });
+address.userId === user.id
 
 // Searching
-users = await User.males.all;
-user = await User.withFirstName('John').first;
-addresses = await User.addresses.all;
-users = await User.queryBy.lastName('Doe').all;
-users = await User.males.order({ lastName: 'asc' }).all;
+users = await User.males.all();
+user = await User.withFirstName('John').first();
+addresses = await user.addresses.all();
+users = await User.filterBy({ lastName: 'Doe' }).all();
+users = await User.males().order({ key: 'lastName' }).all();
 ~~~
 
 ## Model Instances
@@ -210,7 +159,7 @@ users = await User.males.order({ lastName: 'asc' }).all;
 
 Initializes new record without saving it to the database.
 
-~~~js
+~~~ts
 user = User.build({ firstName: 'John', lastName: 'Doe' });
 user.isNew === true;
 user.name === 'John Doe';
@@ -220,7 +169,7 @@ user.name === 'John Doe';
 
 Returns a `Promise` which returns the created record on success or the initialized if sth. goes wrong.
 
-~~~js
+~~~ts
 user = await User.create({
   firstName: 'John',
   lastName: 'Doe',
@@ -229,36 +178,36 @@ user = await User.create({
 
 ### From Scopes and queries
 
-An record can be `build` or `create`d from scopes. These records are created with scope values as default.
+An record can be `buildScoped` or `createScoped` from filters. These records are created with scope values as default.
 
-~~~js
-address = user.addresses.build();
+~~~ts
+address = user.addresses.buildScoped();
 address.userId === user.id;
 
-user = User.males.build();
+user = User.males.buildScoped();
 user.gender === 'male';
 
-user = User.withFirstName('John').build();
+user = User.withFirstName('John').buildScoped();
 user.firstName === 'John';
 
-user = User.withFirstName('John').queryBy({ lastName: 'Doe' }).build();
+user = User.withFirstName('John').filterBy({ lastName: 'Doe' }).buildScoped();
 user.name === 'John Doe';
 
-user = User.where({ gender: 'male'}).build();
+user = User.filterBy({ gender: 'male'}).buildScoped();
 user.gender === 'male';
 ~~~
 
-## Relations
+## Relations *WIP - Definitions will change*
 
 Define the Model associations. Describe the relation between models to get predefined scopes and constructors.
 
-### belongsTo
+### belongsTo *WIP - Definitions will change*
 
 A `.belongsTo` association sets up a one-to-one connection with another model, such that each instance of the declaring model "belongs to" one instance of the other model.
 
 For example, if your application includes users and addresses, and each user can be assigned to exactly one address, you'd declare the user model this way:
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   get address() {
     return this.belongsTo(Address);
@@ -274,13 +223,13 @@ user.address = address;
 user.addressId === address.id;
 ~~~
 
-### hasMany
+### hasMany *WIP - Definitions will change*
 
 A `.hasMany` association indicates a one-to-many connection with another model. You'll often find this association on the "other side" of a [belongsTo](#belongsto) association. This association indicates that each instance of the model has zero or more instances of another model.
 
 For example, in an application containing users and addresses, the author model could be declared like this:
 
-~~~js
+~~~ts
 class Address extends NextModel<AddressSchema>() {
   get users() {
     return this.hasMany(User);
@@ -291,13 +240,13 @@ users = await address.users.all;
 user = await address.users.create({ ... });
 ~~~
 
-### hasOne
+### hasOne *WIP - Definitions will change*
 
 A `.hasOne` association also sets up a one-to-one connection with another model, but with somewhat different semantics (and consequences). This association indicates that each instance of a model contains or possesses one instance of another model.
 
 For example, if each address in your application has only one user, you'd declare the user model like this:
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   get address() {
     return this.hasOne(Address);
@@ -315,40 +264,40 @@ address = await user.address;
 
 ## Queries
 
-### queryBy
+### filterBy
 
-Special query syntax is dependent on used connector. But all connectors and the cache supports basic attribute filtering and the special queries $and, $or and $now. All special queries start with an leading $. The query can be completely cleared by calling `.unqueried`
+Special filter syntax is dependent on used connector. But all connectors and the cache supports basic attribute filtering and the special queries $and, $or and $now. All special queries start with an leading $. The filter can be completely cleared by calling `.unfiltered`
 
-~~~js
-User.queryBy({ gender: 'male' });
-User.queryBy({ age: 21 });
-User.queryBy({ name: 'John', gender: 'male' });
-User.queryBy({ $or: [
+~~~ts
+User.filterBy({ gender: 'male' });
+User.filterBy({ age: 21 });
+User.filterBy({ name: 'John', gender: 'male' });
+User.filterBy({ $or: [
   { firstName: 'John' },
   { firstName: 'Foo' },
 ]});
-User.queryBy({ $and: [
+User.filterBy({ $and: [
   { firstName: 'John' },
   { lastName: 'Doe' },
 ]});
-User.queryBy({ $not: [
+User.filterBy({ $not: [
   { gender: 'male' },
   { gender: 'female' },
 ]});
-User.males.queryBy({ name: 'John' });
-User.males.unfiltered.females;
+User.males.filterBy({ name: 'John' });
+User.males.unfiltered().females;
 ~~~
 
 ### orderBy
 
 The fetched data can be sorted before fetching then. The `orderBy` function takes an object with property names as keys and the sort direction as value. Valid values are `asc` and `desc`. The order can be resetted by calling `.unordered`.
 
-~~~js
-User.orderBy({ name: 'asc' });
-User.orderBy({ name: 'desc' });
-User.orderBy({ name: 'asc', age: 'desc' });
-User.males.orderBy({ name: 'asc' });
-User.orderBy({ name: 'asc' }).unordered;
+~~~ts
+User.orderBy({ key: 'name' });
+User.orderBy({ key: 'name', dir: SortDirection.Desc });
+User.orderBy([{ key: 'name' }, { key: 'age', dir: SortDirection.Desc }]);
+User.males.orderBy({ key: 'name' dir: SortDirection.Asc });
+User.orderBy({ key: 'name' }).unordered;
 ~~~
 
 ### skipBy
@@ -359,14 +308,12 @@ An defined amont of matching records can be skipped with `.skipBy(amount)` and b
 
 Default value is `0`.
 
-~~~js
-User.count; //=> 10
-User.skip; //=> 0
-User.skipBy(3).count; //=> 7
-User.skip; //=> 0 !
-User = User.skipBy(15);
-User.skip; //=> 15
-User.skipBy(5).unskipped.count; //=> 10
+~~~ts
+User.count(); //=> 10
+User.skipBy(3).count(); //=> 7
+User.count(); //=> 10 - creates new instance and does not modify existing
+User.skipBy(15).count(); //=> 10
+User.skipBy(5).unskipped.count(); //=> 10
 ~~~
 
 ### limitBy
@@ -377,62 +324,60 @@ The resultset can be limited with `.limitBy(amount)` and be resetted with  `.unl
 
 Default value is `Number.MAX_SAFE_INTEGER`.
 
-~~~js
-User.count; //=> 10
-User.limit; //=> Number.MAX_SAFE_INTEGER
-User.limitBy(3).count; //=> 3
-User.limit; //=> Number.MAX_SAFE_INTEGER !
-User = User.limitBy(15);
-User.limit; //=> 15
-User.limitBy(5).unlimited.count; //=> 10
+~~~ts
+User.count(); //=> 10
+User.limitBy(3).count(); //=> 3
+User.count(); //=> 10 - creates new instance and does not modify existing
+User.limitBy(15).count(); //=> 10
+User.limitBy(5).unlimited.count(); //=> 10
 ~~~
 
 ## Scopes
 
-Scopes are predefined search queries on a Model.
+Scopes are predefined queries on a Model. For example filters, orders and limitations.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get males() {
-    return this.queryBy.gender('male');
+    return this.filterBy({ gender: 'male' });
   }
 
   static get females() {
-    return this.queryBy.gender('female');
+    return this.filterBy({ gender: 'female' });
   }
 
   static withFirstName(firstName) {
-    return this.queryBy.firstName(firstName);
+    return this.filterBy({ firstName });
   }
 };
 ~~~
 
 Now you can use these scopes to search/filter records.
 
-~~~js
+~~~ts
 User.males;
 User.withFirstName('John');
 ~~~
 
 Scopes can be chained with other scopes or search queries.
 
-~~~js
+~~~ts
 User.males.witFirsthName('John');
-User.withFirstName('John').queryBy.gender('transgender');
+User.withFirstName('John').filterBy({ gender: 'transgender' });
 ~~~
 
 ### Build from scope
 
-~~~js
-profile = User.males.build();
+~~~ts
+profile = User.males.buildScoped();
 profile.gender === 'male';
 ~~~
 
 ### Scope chaining
 
-~~~js
+~~~ts
 User.males.young;
-User.males.young.query({ ... });
+User.males.young.filterBy({ ... });
 ~~~
 
 ## Fetching
@@ -443,96 +388,60 @@ If you want to read the data of the samples of the [previous section](#fetching)
 
 Returns all data of the query. Results can be limited by [skipBy](#skipby) and [limitBy](#limitby).
 
-~~~js
-users = await User.all;
-users = await User.males.all;
-users = await User.queryBy({ firstName: 'John' }).all;
+~~~ts
+users = await User.all();
+users = await User.males.all();
+users = await User.filterBy({ firstName: 'John' }).all();
 ~~~
 
 ### first
 
 Returns the first record which matches the query. Use **orderBy** to sort matching records before fetching the first one.
 
-~~~js
-user = await User.first;
-user = await User.males.first;
-user = await User.queryBy({ firstName: 'John' }).first;
-user = await User.orderBy({ lastName: 'asc' }).first;
+~~~ts
+user = await User.first();
+user = await User.males.first();
+user = await User.filterBy({ firstName: 'John' }).first();
+user = await User.orderBy({ lastName: 'asc' }).first();
 ~~~
 
 ### count
 
 Returns the count of the matching records. Ignores [orderBy](#orderBy), [skip](#skipby) and [limit](#limitby) and always returns complete count of matching records.
 
-~~~js
-count = await User.count;
-count = await User.males.count;
-count = await User.queryBy({ name: 'John' }).count;
+~~~ts
+count = await User.count();
+count = await User.males.count();
+count = await User.filterBy({ name: 'John' }).count();
 ~~~
 
-## Batches
+## Batches *WIP - Definitions will change*
 
 When there is a need to change/delete multiple records at once its recommended to use the following methods if possible. They provide a much better performance compared to do it record by record.
 
-### updateaAll
+### updateaAll *WIP - Definitions will change*
 
 `.updateAll(attrs)` updates all matching records with the passed attributes.
 
-~~~js
-users = await User.queryBy({ firstName: 'John' }).updateAll({ gender: 'male' });
+~~~ts
+users = await User.filterBy({ firstName: 'John' }).updateAll({ gender: 'male' });
 users = await User.updateAll({ encryptedPassword: undefined });
 ~~~
 
-### deleteAll
+### deleteAll *WIP - Definitions will change*
 
 Deletes and returns all matching records..
 
-~~~js
+~~~ts
 deletedUsers = await User.deleteAll();
 deletedUsers = await User.query({ firstName: 'John', lastName: 'Doe' }).deleteAll();
 ~~~
 
-## Class Properties
+## Model Parameters *WIP - Definitions will change*
 
 Class Properties are static getters which can be defined with the class. Some of them can be modified by [Queries](#queries) which creates a new Class.
 
-### modelName
-
-The model name needs to be defined for every model. The name should be singular camelcase, starting with an uppercase char. If the `.modelName` is not passed its reflected from its Class Name.
-
-~~~js
-class User extends NextModel<UserSchema>() {};
-User.modelName; //=> 'User'
-
-class User extends NextModel<UserSchema>() {
-  static get modelName() {
-    return 'User';
-  }
-};
-
-class UserAddress extends NextModel<AddressSchema>() {
-  static get modelName() {
-    return 'UserAddress';
-  }
-};
-~~~
-
-### schema
-
-A schema describes all (database stored) properties. Foreign keys from relations like [belongsTo](#belongsto) are automatically added to the schema. The existing types and their names are depending on the used Database connector.
-
-~~~js
-class User extends NextModel<UserSchema>() {
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-};
-~~~
-
-### connector
+### connector *WIP - Definitions will change*
 
 A connector is the bridge between models and the database. NextModel comes with an DefaultConnector which reads and writes on an simpe js object.
 
@@ -541,7 +450,7 @@ Available connectors:
 * WIP [knex](https://github.com/tamino-martinius/node-next-model-knex-connector.git) (mySQL, postgres, sqlite3, ...)
 * WIP [local-storage](https://github.com/tamino-martinius/node-next-model-local-storage-connector.git) (Client side for Browser usage)
 
-~~~js
+~~~ts
 const Connector = require('next-model-knex-connector');
 const connector = new Connector(options);
 
@@ -556,7 +465,7 @@ Define an base model with connector to prevent adding connector to all Models.
 
 *Please note:* In this case its better to call the `@Model` Decorator just on the final models and not on the base model, else you need to define the [modelName](#modelname) on each model because its reflected from the base model.
 
-~~~js
+~~~ts
 class BaseModel<S extends Identifiable> extends NextModel<S>() {
   static get connector() {
     return connector;
@@ -572,82 +481,11 @@ class Address extends BaseModel<AddressSchema> {
 };
 ~~~
 
-### Identifier
-
-Defines the name of the primary key. It also gets automatically added to the schema with type `'integer'` if the identifier is not present at the schema. The identifier values must be serialized to an unique value with `toString()`
-
-Default values is `id`.
-
-~~~js
-class User extends NextModel<UserSchema>() {
-  static get identifier() {
-    return 'key';
-  }
-
-get id(): string {
-    return this.key;
-  }
-
-  set id(key: string) {
-    return this.key = key;
-  }
-};
-~~~
-
-You also can define your identifier on the [schema](#schema) to change the default type.
-
-~~~js
-class User extends NextModel<UserSchema>() {
-  static get identifier(): string {
-    return 'uid';
-  }
-
-  get id(): string {
-    return this.uid;
-  }
-
-  set id(uid: string) {
-    return this.uid = uid;
-  }
-
-  static get schema(): Schema {
-    return {
-      uid: { type: 'uuid' },
-      ...
-    };
-  }
-};
-~~~
-
-### validators
-
-Validators is an object with keys of type string and values which are Promises to check if an instance is valid. An Validator gets the model instance and returns an promised boolean. The values can also be Arrays of Validators. These validators are checked with [isValid](#isValid).
-
-~~~js
-class User extends NextModel {
-  static get validators: Validators {
-    return {
-      ageCheck: (user) => Promise.resolve(user.age > 0),
-    };
-  }
-};
-
-new User({ age: 28 }).isValid().then(isValid => ...) //=> true
-new User({ age: -1 }).isValid().then(isValid => ...) //=> flase
-~~~
-
-Validators can be skipped by `.skipValidator(key)` by passing the key of the validator. Multiple keys could be skipped by `.skipValidators(keys)` or be defining the getter `.skippedValidators`.
-
-~~~js
-UncheckedUser = User.skipValidator('ageCheck');
-new User({ age: -1 }).isValid().then(isValid => ...) //=> true
-~~~
-
-### keys
+### keys *WIP - Definitions will change*
 
 The `.keys` will return all possible attributes you can pass to build new model Instances. The keys depend on [schema](#schema).
 
-~~~js
+~~~ts
 class Foo extends NextModel{
   static get schema(): Schema {
     return {
@@ -658,11 +496,11 @@ class Foo extends NextModel{
 Foo.keys //=> ['bar']
 ~~~
 
-### filter
+### filter *WIP - Definitions will change*
 
 A default scope can be defined by adding a getter for `.filter`. You need call [unfiltered](#query) to search without this scope.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get filter() {
     return {
@@ -675,11 +513,11 @@ user = await User.first;
 User.unqueried.where( ... );
 ~~~
 
-### order
+### order *WIP - Definitions will change*
 
 Adds an default Order to all queries unless its overwritten.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get order() {
     return [{
@@ -689,11 +527,11 @@ class User extends NextModel<UserSchema>() {
 };
 ~~~
 
-### skip
+### skip *WIP - Definitions will change*
 
 Adds an default amount of skipped records on every query. This can be changed by [skipBy](#skipby) and removed by `.unskipped`.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get limit(): number {
     return 10;
@@ -701,11 +539,11 @@ class User extends NextModel<UserSchema>() {
 };
 ~~~
 
-### limit
+### limit *WIP - Definitions will change*
 
 Limits all queries made to this model to an specific amount. This can be changed by [limitBy](#limitby) and removed by `.unlimited`.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get limit(): number {
     return 100;
@@ -719,7 +557,7 @@ class User extends NextModel<UserSchema>() {
 
 An record is new unless the record is saved to the database. NextModel checks if the identifier property is set for this attribute.
 
-~~~js
+~~~ts
 address = Address.build();
 address.isNew === true;
 address = await address.save();
@@ -730,7 +568,7 @@ address.isNew === false;
 
 The opposite of [isNew](#isnew). Returns false unless the record is not saved to the database.
 
-~~~js
+~~~ts
 address = Address.build();
 address.isPersistent === false;
 address = await address.save();
@@ -741,35 +579,26 @@ address.isPersistent === true;
 
 Returns an object which contains all properties defined by schema.
 
-~~~js
-class Address extends NextModel<AddressSchema>() {
-  static get schema() {
-    return {
-      street: { type: 'string' },
-      city: { type: 'string' },
-    };
-  }
-};
-
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-  fetchGeoCoord: false,
+~~~ts
+user = User.build({
+  firstName: 'John',
+  lastName: 'Doe',
+  gender: 'male',
 });
-address.foo = 'bar';
 
-address.attributes === {
-  street: '1st street',
-  city: 'New York',
-  fetchGeoCoord: false
+user.attributes === {
+  id: 1,
+  firstName: 'John',
+  lastName: 'Doe',
+  gender: 'male',
 };
 ~~~
 
-### isChanged
+### isChanged *WIP - Definitions will change*
 
 When you change a fresh build or created Class instance this property changes to true.
 
-~~~js
+~~~ts
 address = Address.build({
   street: '1st street',
   city: 'New York',
@@ -781,7 +610,7 @@ address.isChanged === true;
 
 This property does not change when the value is same after assignment.
 
-~~~js
+~~~ts
 address = Address.build({
   street: '1st street',
   city: 'New York',
@@ -791,11 +620,11 @@ address.street = '1st street';
 address.isChanged === false;
 ~~~
 
-### changes
+### changes *WIP - Definitions will change*
 
 The `changes` property contains an `object` of changes per property which has changed. Each entry contains an `from` and `to` property. Just the last value is saved at the `to` property if the property is changed multiple times. The changes are cleared once its set again to its initial value, or if the record got saved.
 
-~~~js
+~~~ts
 address = Address.build({
   street: '1st street',
   city: 'New York',
@@ -813,7 +642,7 @@ address.street = '1st street';
 address.changes === {};
 ~~~
 
-~~~js
+~~~ts
 address = Address.build({
   street: '1st street',
   city: 'New York',
@@ -827,11 +656,11 @@ address = await address.save();
 address.changes === {}
 ~~~
 
-### Custom Attributes
+### Custom Attributes *WIP - Definitions will change*
 
 Custom attributes can be defined as on every other js class.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get schema() {
     return {
@@ -858,7 +687,7 @@ user.name === 'Foo Bar';
 
 You can assign a new value to an [schema](#schema) defined property. This does **not** automatically save the data to the database. All assigned attributes will be tracked by [changes](#changes)
 
-~~~js
+~~~ts
 address.assign({
   street: '1st Street',
   city: 'New York',
@@ -869,13 +698,13 @@ address.assign({
 
 Saves the record to database. Returns a `Promise` with the created record including its newly created id. An already existing record gets updated.
 
-~~~js
+~~~ts
 address = Address.build({street: '1st street'});
 address = await address.save();
 address.isNew === false;
 ~~~
 
-~~~js
+~~~ts
 address.street = 'changed';
 address = await address.save();
 ~~~
@@ -884,7 +713,7 @@ address = await address.save();
 
 Removes the record from database. Returns a `Promise` with the deleted record.
 
-~~~js
+~~~ts
 address.isNew === false;
 address = await address.delete();
 address.isNew === true;
@@ -894,7 +723,7 @@ address.isNew === true;
 
 Refetches the record from database. All temporary attributes and changes will be lost. Returns a `Promise` with the reloaded record.
 
-~~~js
+~~~ts
 address.isNew === false;
 address.street = 'changed';
 address.notAnDatabaseColumn = 'foo';
@@ -907,7 +736,7 @@ address.notAnDatabaseColumn === undefined;
 
 Reverts an unsaved change with `#revertChange(key)` or reverts all unsaved changed with `#revertChanges()`.
 
-~~~js
+~~~ts
 address = Address.build({
   street: '1st street',
   city: 'New York',
@@ -921,7 +750,7 @@ address.revertChange('street');
 address.changes === {};
 ~~~
 
-~~~js
+~~~ts
 address = Address.build({
   street: '1st street',
   city: 'New York',
@@ -941,7 +770,7 @@ address.changes === {};
 
 Checks if the current instance is valid. Promises to return boolean value.
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static get validators(): Validators {
     return {
@@ -957,7 +786,7 @@ UncheckedUser = User.skipValidator('ageCheck');
 isValid = await new User({ age: -1 }).isValid //=> true
 ~~~
 
-~~~js
+~~~ts
 class User extends NextModel<UserSchema>() {
   static ageCheck(user): Promise<boolean> {
     return Promise.resolve(user.age > 0);
@@ -975,7 +804,7 @@ class User extends NextModel<UserSchema>() {
 
 See [history](HISTORY.md) for more details.
 
-* `1.0.0` **2018-xx-xx** Complete rewrite in typescript
+* `1.0.0` **2019-xx-xx** Complete rewrite in typescript
 * `0.4.1` **2017-04-05** Bugfix: before and after callback
 * `0.4.0` **2017-02-28** Added platform specific callbacks
 * `0.3.0` **2017-02-27** Tracked property changes
