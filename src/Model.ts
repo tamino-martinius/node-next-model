@@ -124,8 +124,16 @@ export function Model<
       return new M(init(props));
     }
 
+    static buildScoped(props: Partial<CreateProps>) {
+      return new M(init({ ...filter, ...props } as CreateProps));
+    }
+
     static create(props: CreateProps) {
       return this.build(props).save();
+    }
+
+    static createScoped(props: Partial<CreateProps>) {
+      return this.buildScoped(props).save();
     }
 
     static async all() {
