@@ -286,7 +286,7 @@ describe('Model', () => {
       describe('when testing query results', () => {
         const subject = () =>
           CreateModel()
-            .unfiltered()
+            .unlimited()
             .all();
 
         it('promises to return all matching items as model instances', async () => {
