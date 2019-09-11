@@ -54,6 +54,8 @@ export interface FilterSpecial<S extends Schema> {
   $lt: Partial<S>;
   $lte: Partial<S>;
 
+  $like: Partial<S>;
+
   $raw: FilterRaw;
 
   $async: Promise<Filter<S>>;
