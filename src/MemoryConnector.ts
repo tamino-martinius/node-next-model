@@ -9,6 +9,7 @@ import {
   Connector,
   BaseType,
   Scope,
+  SortDirection,
 } from './types';
 
 import { uuid, clone } from './util';
@@ -53,7 +54,9 @@ export class MemoryConnector implements Connector {
     }
 
     for (let orderIndex = order.length - 1; orderIndex >= 0; orderIndex -= 1) {
-      const { key, dir } = order[orderIndex];
+      const key = order[orderIndex].key;
+      const dir = order[orderIndex].dir || SortDirection.Asc;
+
       items = items.sort((a, b) => {
         if (a[key as string] > b[key as string]) {
           return dir;

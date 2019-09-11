@@ -66,7 +66,7 @@ export enum SortDirection {
 
 export type OrderColumn<PersistentProps extends Schema> = {
   key: keyof PersistentProps;
-  dir: SortDirection;
+  dir?: SortDirection;
 };
 
 export type Order<PersistentProps extends Schema> =
