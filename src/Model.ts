@@ -60,7 +60,7 @@ export function Model<
       return Model({ ...params, limit: amount });
     }
 
-    static unlimited() {
+    static get unlimited() {
       return Model({ ...params, limit: undefined });
     }
 
@@ -68,7 +68,7 @@ export function Model<
       return Model({ ...params, skip: amount });
     }
 
-    static unskipped() {
+    static get unskipped() {
       return Model({ ...params, skip: undefined });
     }
 
@@ -79,7 +79,7 @@ export function Model<
       });
     }
 
-    static unordered() {
+    static get unordered() {
       return Model({ ...params, order: undefined });
     }
 
@@ -106,7 +106,7 @@ export function Model<
       return Model({ ...params, filter: outerFilter ? { $or: [outerFilter, filter] } : filter });
     }
 
-    static unfiltered() {
+    static get unfiltered() {
       return Model({ ...params, filter: undefined });
     }
 
