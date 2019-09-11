@@ -44,7 +44,16 @@ export function Model<
       ? order
       : [order]
     : [];
+
   const outerFilter = filter;
+
+  const modelScope: Scope = {
+    tableName,
+    filter,
+    limit,
+    skip,
+    order: orderColumns,
+  };
 
   return class M {
     static limitBy(amount: number) {
@@ -106,14 +115,6 @@ export function Model<
     }
 
     static async all() {
-      const modelScope: Scope = {
-        tableName,
-        filter,
-        limit,
-        skip,
-        order: orderColumns,
-      };
-
       const items = (await conn.query(modelScope)) as (PersistentProps &
         { [P in keyof Keys]: string })[];
       return items.map(item => {
@@ -129,6 +130,18 @@ export function Model<
     static async first() {
       const items = await this.limitBy(1).all();
       return items.pop();
+    }
+
+    static async select(...keys: [keyof Keys | keyof PersistentProps][]) {
+      const items = (await conn.select(modelScope, ...(keys as any[]))) as Partial<
+        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+      >[];
+      return items;
+    }
+
+    static async pluck(key: keyof Keys | keyof PersistentProps) {
+      const items = await this.select(key as any);
+      return items.map(item => item[key]);
     }
 
     persistentProps: PersistentProps;
