@@ -60,12 +60,13 @@ export interface FilterSpecial<S extends Schema> {
 }
 
 export enum SortDirection {
-  Asc = 'ASC',
-  Desc = 'DESC',
+  Asc = 1,
+  Desc = -1,
 }
 
 export type OrderColumn<PersistentProps extends Schema> = {
-  [P in keyof PersistentProps]: SortDirection;
+  key: keyof PersistentProps;
+  dir: SortDirection;
 };
 
 export type Order<PersistentProps extends Schema> =
@@ -84,8 +85,8 @@ export interface Connector {
 
 export interface Scope {
   tableName: string;
-  filter?: Filter<Dict<any>>;
+  filter?: Filter<any>;
   limit?: number;
   skip?: number;
-  order?: OrderColumn<Dict<any>>[];
+  order?: OrderColumn<any>[];
 }
