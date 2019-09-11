@@ -124,6 +124,10 @@ export function Model<
       return new M(init(props));
     }
 
+    static create(props: CreateProps) {
+      return this.build(props).save();
+    }
+
     static async all() {
       const items = (await conn.query(modelScope)) as (PersistentProps &
         { [P in keyof Keys]: string })[];
