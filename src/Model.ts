@@ -105,18 +105,16 @@ export function Model<
       return new M(init(props));
     }
 
-    static get modelScope(): Scope {
-      return {
+    static async all() {
+      const modelScope: Scope = {
         tableName,
         filter,
         limit,
         skip,
         order: orderColumns,
       };
-    }
 
-    static async all() {
-      const items = (await conn.query(this.modelScope)) as (PersistentProps &
+      const items = (await conn.query(modelScope)) as (PersistentProps &
         { [P in keyof Keys]: string })[];
       return items.map(item => {
         const keys = {} as { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number };
