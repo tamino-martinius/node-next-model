@@ -51,7 +51,34 @@ export class MemoryConnector implements Connector {
     } else if (limit) {
       items = items.slice(0, limit);
     }
-    // [TODO] implement order
+
+    for (let orderIndex = order.length - 1; orderIndex >= 0; orderIndex -= 1) {
+      const { key, dir } = order[orderIndex];
+      items = items.sort((a, b) => {
+        if (a[key as string] > b[key as string]) {
+          return dir;
+        }
+        if (a[key as string] < b[key as string]) {
+          return -dir;
+        }
+        if (
+          (a[key as string] === null || a[key as string] === undefined) &&
+          b[key as string] !== null &&
+          b[key as string] !== undefined
+        ) {
+          return dir;
+        }
+        if (
+          (b[key as string] === null || b[key as string] === undefined) &&
+          a[key as string] !== null &&
+          a[key as string] !== undefined
+        ) {
+          return -dir;
+        }
+        return 0;
+      });
+    }
+
     return items;
   }
 
