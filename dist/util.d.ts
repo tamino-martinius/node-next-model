@@ -1,2 +1,4 @@
-export declare function applyMixins(derivedCtor: any, baseCtors: any[]): void;
-export declare function staticImplements<T>(): (_constructor: T) => void;
+export declare function snakeToCamelCase(value: string): string;
+export declare function camelToSnakeCase(value: string): string;
+export declare function uuid(): string;
+export declare function clone<T extends object>(obj: T): T;
