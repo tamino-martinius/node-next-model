@@ -1,4 +1,14 @@
-import { Connector, Dict, Filter, KeyType, Order, OrderColumn, Schema, Scope } from './types';
+import {
+  Connector,
+  Dict,
+  Filter,
+  KeyType,
+  ModelStatic,
+  Order,
+  OrderColumn,
+  Schema,
+  Scope,
+} from './types';
 
 import { MemoryConnector } from './MemoryConnector';
 
@@ -19,14 +29,14 @@ export function Model<
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
   filter?: Filter<
-    PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
   limit?: number;
   skip?: number;
   order?: Order<PersistentProps>;
   connector?: Connector;
   keys?: Keys;
-}) {
+}): ModelStatic<CreateProps, PersistentProps, Keys> {
   const conn = connector ? connector : new MemoryConnector();
   const params = {
     tableName,
@@ -53,6 +63,7 @@ export function Model<
     order: orderColumns,
   };
 
+  ///@ts-ignore
   return class M {
     static limitBy(amount: number) {
       return Model({ ...params, limit: amount });
@@ -90,7 +101,7 @@ export function Model<
 
     static filterBy(
       andFilter: Filter<
-        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
       if (Object.keys(andFilter).length === 0) {
@@ -115,7 +126,7 @@ export function Model<
 
     static orFilterBy(
       orFilter: Filter<
-        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
       if (Object.keys(orFilter).length === 0) {
@@ -149,9 +160,9 @@ export function Model<
 
     static async all() {
       const items = (await conn.query(modelScope)) as (PersistentProps &
-        { [P in keyof Keys]: string })[];
+        { [K in keyof Keys]: string })[];
       return items.map(item => {
-        const keys = {} as { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number };
+        const keys = {} as { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
         for (const key in keys) {
           keys[key] = item[key];
           delete item[key];
@@ -167,7 +178,7 @@ export function Model<
 
     static async select(...keys: [keyof Keys | keyof PersistentProps][]) {
       const items = (await conn.select(modelScope, ...(keys as any[]))) as Partial<
-        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >[];
       return items;
     }
@@ -179,11 +190,11 @@ export function Model<
 
     persistentProps: PersistentProps;
     changedProps: Partial<PersistentProps> = {};
-    keys: { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number } | undefined;
+    keys: { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number } | undefined;
 
     constructor(
       props: PersistentProps,
-      keys?: { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number },
+      keys?: { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number },
     ) {
       this.persistentProps = props as PersistentProps;
       this.keys = keys;
@@ -210,6 +221,7 @@ export function Model<
           delete this.changedProps[key];
         }
       }
+      return this;
     }
 
     get itemScope(): Scope {
@@ -246,7 +258,7 @@ export function Model<
         ]);
         const item = items.pop();
         if (item) {
-          this.keys = {} as { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number };
+          this.keys = {} as { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
           for (const key in keys) {
             this.keys[key] = item[key];
             delete item[key];
