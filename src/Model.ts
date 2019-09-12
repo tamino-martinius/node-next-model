@@ -1,14 +1,4 @@
-import {
-  Connector,
-  Dict,
-  Filter,
-  KeyType,
-  ModelStatic,
-  Order,
-  OrderColumn,
-  Schema,
-  Scope,
-} from './types';
+import { Connector, Dict, Filter, KeyType, Order, OrderColumn, Schema, Scope } from './types';
 
 import { MemoryConnector } from './MemoryConnector';
 
@@ -16,16 +6,7 @@ export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
   Keys extends Dict<KeyType> = { id: KeyType.number }
->({
-  tableName,
-  init,
-  filter,
-  limit,
-  skip,
-  order = [],
-  connector,
-  keys = { id: KeyType.number } as any,
-}: {
+>(props: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
   filter?: Filter<
@@ -33,121 +14,149 @@ export function Model<
   >;
   limit?: number;
   skip?: number;
-  order?: Order<PersistentProps>;
+  order?: Order<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
   connector?: Connector;
   keys?: Keys;
-}): ModelStatic<CreateProps, PersistentProps, Keys> {
-  const conn = connector ? connector : new MemoryConnector();
-  const params = {
-    tableName,
-    init,
-    filter,
-    limit,
-    skip,
-    order,
-    connector,
-    keys,
-  };
+}) {
+  const connector = props.connector ? props.connector : new MemoryConnector();
+  const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
+  const keys = props.keys || { id: KeyType.number };
 
-  const orderColumns: OrderColumn<PersistentProps>[] = order
-    ? Array.isArray(order)
-      ? order
-      : [order]
-    : [];
+  return class ModelClass {
+    static tableName = props.tableName;
+    static filter = props.filter;
+    static limit = props.limit;
+    static skip = props.skip;
+    static order = order;
 
-  const modelScope: Scope = {
-    tableName,
-    filter,
-    limit,
-    skip,
-    order: orderColumns,
-  };
-
-  ///@ts-ignore
-  return class M {
-    static limitBy(amount: number) {
-      return Model({ ...params, limit: amount });
+    static modelScope() {
+      return {
+        tableName: this.tableName,
+        filter: this.filter,
+        limit: this.limit,
+        skip: this.skip,
+        order: this.order,
+      } as Scope;
     }
 
-    static get unlimited() {
-      return Model({ ...params, limit: undefined });
+    static limitBy<M extends typeof ModelClass>(this: M, amount: number) {
+      return class extends (this as typeof ModelClass) {
+        static limit = amount;
+      } as M;
     }
 
-    static skipBy(amount: number) {
-      return Model({ ...params, skip: amount });
+    static unlimited<M extends typeof ModelClass>(this: M) {
+      return class extends (this as typeof ModelClass) {
+        static limit = undefined;
+      } as M;
     }
 
-    static get unskipped() {
-      return Model({ ...params, skip: undefined });
+    static skipBy<M extends typeof ModelClass>(this: M, amount: number) {
+      return class extends (this as typeof ModelClass) {
+        static skip = amount;
+      } as M;
     }
 
-    static orderBy(order: Order<PersistentProps>) {
-      return Model({
-        ...params,
-        order: [...orderColumns, ...(Array.isArray(order) ? order : [order])],
-      });
+    static unskipped<M extends typeof ModelClass>(this: M) {
+      return class extends (this as typeof ModelClass) {
+        static skip = undefined;
+      } as M;
     }
 
-    static get unordered() {
-      return Model({ ...params, order: undefined });
+    static orderBy<M extends typeof ModelClass>(
+      this: M,
+      order: Order<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      const newOrder = [...this.order, ...(Array.isArray(order) ? order : [order])];
+      return class extends (this as typeof ModelClass) {
+        static order = newOrder;
+      } as M;
     }
 
-    static reorder(order: Order<PersistentProps>) {
-      return Model({
-        ...params,
-        order: [...orderColumns, ...(Array.isArray(order) ? order : [order])],
-      });
+    static unordered<M extends typeof ModelClass>(this: M) {
+      return class extends (this as typeof ModelClass) {
+        static order: OrderColumn<
+          PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+        >[] = [];
+      } as M;
     }
 
-    static filterBy(
+    static reorder<M extends typeof ModelClass>(
+      this: M,
+      order: Order<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      return class extends (this as typeof ModelClass) {
+        static order = Array.isArray(order) ? order : [order];
+      } as M;
+    }
+
+    static filterBy<M extends typeof ModelClass>(
+      this: M,
       andFilter: Filter<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      if (Object.keys(andFilter).length === 0) {
-        return Model(params); // Short circuit if no new filters are passed
-      }
-      if (filter) {
-        ///@ts-ignore
-        const flatFilter = { ...filter };
-        for (const key in andFilter) {
-          if ((flatFilter as any)[key] !== undefined && (andFilter as any)[key] !== undefined) {
+      ///@ts-ignore
+      let filter:
+        | Filter<
+            PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+          >
+        | undefined = andFilter;
+      if (this.filter) {
+        for (const key in this.filter) {
+          if ((this.filter as any)[key] !== undefined && (andFilter as any)[key] !== undefined) {
             ///@ts-ignore
-            return Model({ ...params, filter: { $and: [filter, andFilter] } });
+            filter = { $and: [filter, andFilter] };
+            break;
           }
-          (flatFilter as any)[key] = (andFilter as any)[key];
+          (filter as any)[key] = (this.filter as any)[key];
         }
-        ///@ts-ignore
-        return Model({ ...params, filter: flatFilter });
       }
       ///@ts-ignore
-      return Model({ ...params, filter: andFilter });
+      if (Object.keys(andFilter).length === 0) filter = this.filter;
+      ///@ts-ignore
+      return class extends (this as typeof ModelClass) {
+        static filter = filter;
+      } as M;
     }
 
-    static orFilterBy(
+    static orFilterBy<M extends typeof ModelClass>(
+      this: M,
       orFilter: Filter<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      if (Object.keys(orFilter).length === 0) {
-        ///@ts-ignore
-        return Model(params); // Short circuit if no new filters are passed
-      }
+      const filter =
+        Object.keys(orFilter).length === 0
+          ? this.filter
+          : this.filter
+          ? { $or: [this.filter, orFilter] }
+          : orFilter;
       ///@ts-ignore
-      return Model({ ...params, filter: filter ? { $or: [filter, orFilter] } : orFilter });
+      return class extends (this as typeof ModelClass) {
+        static filter = filter;
+      } as M;
     }
 
-    static get unfiltered() {
-      return Model({ ...params, filter: undefined });
+    static unfiltered<M extends typeof ModelClass>(this: M) {
+      return class extends (this as typeof ModelClass) {
+        static filter = undefined;
+      } as M;
     }
 
-    static build(props: CreateProps) {
-      return new M(init(props));
+    static build(createProps: CreateProps) {
+      return new this(props.init(createProps));
     }
 
-    static buildScoped(props: Partial<CreateProps>) {
+    static buildScoped(createProps: Partial<CreateProps>) {
       ///@ts-ignore
-      return new M(init({ ...filter, ...props } as CreateProps));
+      return new this(props.init({ ...props.filter, ...createProps } as CreateProps));
     }
 
     static create(props: CreateProps) {
@@ -159,7 +168,7 @@ export function Model<
     }
 
     static async all() {
-      const items = (await conn.query(modelScope)) as (PersistentProps &
+      const items = (await connector.query(this.modelScope())) as (PersistentProps &
         { [K in keyof Keys]: string })[];
       return items.map(item => {
         const keys = {} as { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
@@ -167,7 +176,7 @@ export function Model<
           keys[key] = item[key];
           delete item[key];
         }
-        return new M(item, keys);
+        return new this(item, keys);
       });
     }
 
@@ -177,7 +186,7 @@ export function Model<
     }
 
     static async select(...keys: [keyof Keys | keyof PersistentProps][]) {
-      const items = (await conn.select(modelScope, ...(keys as any[]))) as Partial<
+      const items = (await connector.select(this.modelScope(), ...(keys as any[]))) as Partial<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >[];
       return items;
@@ -213,7 +222,7 @@ export function Model<
       return { ...this.persistentProps, ...this.changedProps, ...this.keys };
     }
 
-    assign(props: Partial<PersistentProps>) {
+    assign<M extends ModelClass>(this: M, props: Partial<PersistentProps>) {
       for (const key in props) {
         if (this.persistentProps[key] !== props[key]) {
           this.changedProps[key] = props[key];
@@ -221,12 +230,12 @@ export function Model<
           delete this.changedProps[key];
         }
       }
-      return this;
+      return this as M;
     }
 
     get itemScope(): Scope {
       return {
-        tableName: tableName,
+        tableName: props.tableName,
         filter: this.keys,
         limit: 1,
         skip: 0,
@@ -234,15 +243,15 @@ export function Model<
       };
     }
 
-    async save() {
+    async save<M extends ModelClass>(this: M) {
       if (this.keys) {
         const changedKeys = Object.keys(this.changedProps);
         if (changedKeys.length > 0) {
-          const items = await conn.updateAll(this.itemScope, this.changedProps);
+          const items = await connector.updateAll(this.itemScope, this.changedProps);
           const item = items.pop();
           if (item) {
             for (const key in keys) {
-              this.keys[key] = item[key];
+              this.keys[key as keyof Keys] = item[key];
               delete item[key];
             }
             this.persistentProps = item as PersistentProps;
@@ -252,7 +261,7 @@ export function Model<
           }
         }
       } else {
-        const items = await conn.batchInsert(tableName, keys, [
+        const items = await connector.batchInsert(props.tableName, keys, [
           ///@ts-ignore
           { ...this.persistentProps, ...this.changedProps },
         ]);
@@ -260,7 +269,7 @@ export function Model<
         if (item) {
           this.keys = {} as { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
           for (const key in keys) {
-            this.keys[key] = item[key];
+            this.keys[key as keyof Keys] = item[key];
             delete item[key];
           }
           this.persistentProps = item as PersistentProps;
@@ -269,7 +278,7 @@ export function Model<
           throw 'Failed to insert item';
         }
       }
-      return this;
+      return this as M;
     }
   };
 }
