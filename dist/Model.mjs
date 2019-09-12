@@ -1,4 +1,4 @@
-import { KeyType } from './types';
+import { KeyType, } from './types';
 import { MemoryConnector } from './MemoryConnector';
 export function Model({ tableName, init, filter, limit, skip, order = [], connector, keys = { id: KeyType.number }, }) {
     const conn = connector ? connector : new MemoryConnector();
@@ -24,6 +24,7 @@ export function Model({ tableName, init, filter, limit, skip, order = [], connec
         skip,
         order: orderColumns,
     };
+    ///@ts-ignore
     return class M {
         constructor(props, keys) {
             this.changedProps = {};
@@ -143,6 +144,7 @@ export function Model({ tableName, init, filter, limit, skip, order = [], connec
                     delete this.changedProps[key];
                 }
             }
+            return this;
         }
         get itemScope() {
             return {

@@ -94,6 +94,7 @@ function Model(_a) {
         skip: skip,
         order: orderColumns,
     };
+    ///@ts-ignore
     return /** @class */ (function () {
         function M(props, keys) {
             this.changedProps = {};
@@ -275,6 +276,7 @@ function Model(_a) {
                     delete this.changedProps[key];
                 }
             }
+            return this;
         };
         Object.defineProperty(M.prototype, "itemScope", {
             get: function () {
