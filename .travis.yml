@@ -3,7 +3,7 @@ node_js:
   - '8'
   - '8.10' # AWS Lambda
   - '9'
-  - '10'
+  - '10' # AWS Lambda
   - '11'
   - '12'
   - 'node'
