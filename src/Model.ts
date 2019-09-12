@@ -282,3 +282,5 @@ export function Model<
     }
   };
 }
+
+export default Model;
