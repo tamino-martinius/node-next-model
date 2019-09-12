@@ -45,8 +45,6 @@ export function Model<
       : [order]
     : [];
 
-  const outerFilter = filter;
-
   const modelScope: Scope = {
     tableName,
     filter,
@@ -91,29 +89,41 @@ export function Model<
     }
 
     static filterBy(
-      filter: Filter<
+      andFilter: Filter<
         PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
       >,
     ) {
-      if (outerFilter) {
-        const flatFilter = { ...outerFilter };
-        for (const key in filter) {
-          if ((flatFilter as any)[key] !== undefined && (filter as any)[key] !== undefined) {
-            return Model({ ...params, filter: { $and: [filter, outerFilter] } });
+      if (Object.keys(andFilter).length === 0) {
+        return Model(params); // Short circuit if no new filters are passed
+      }
+      if (filter) {
+        ///@ts-ignore
+        const flatFilter = { ...filter };
+        for (const key in andFilter) {
+          if ((flatFilter as any)[key] !== undefined && (andFilter as any)[key] !== undefined) {
+            ///@ts-ignore
+            return Model({ ...params, filter: { $and: [filter, andFilter] } });
           }
-          (flatFilter as any)[key] = (filter as any)[key];
+          (flatFilter as any)[key] = (andFilter as any)[key];
         }
+        ///@ts-ignore
         return Model({ ...params, filter: flatFilter });
       }
-      return Model({ ...params, filter });
+      ///@ts-ignore
+      return Model({ ...params, filter: andFilter });
     }
 
     static orFilterBy(
-      filter: Filter<
+      orFilter: Filter<
         PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return Model({ ...params, filter: outerFilter ? { $or: [outerFilter, filter] } : filter });
+      if (Object.keys(orFilter).length === 0) {
+        ///@ts-ignore
+        return Model(params); // Short circuit if no new filters are passed
+      }
+      ///@ts-ignore
+      return Model({ ...params, filter: filter ? { $or: [filter, orFilter] } : orFilter });
     }
 
     static get unfiltered() {
@@ -125,6 +135,7 @@ export function Model<
     }
 
     static buildScoped(props: Partial<CreateProps>) {
+      ///@ts-ignore
       return new M(init({ ...filter, ...props } as CreateProps));
     }
 
@@ -187,6 +198,7 @@ export function Model<
     }
 
     get attributes() {
+      ///@ts-ignore
       return { ...this.persistentProps, ...this.changedProps, ...this.keys };
     }
 
@@ -229,6 +241,7 @@ export function Model<
         }
       } else {
         const items = await conn.batchInsert(tableName, keys, [
+          ///@ts-ignore
           { ...this.persistentProps, ...this.changedProps },
         ]);
         const item = items.pop();
