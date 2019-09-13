@@ -26,12 +26,5 @@
   "exclude": [
     "node_modules",
     "*/example*"
-  ],
-  "jest": {
-    "globals": {
-      "ts-jest": {
-        "tsConfigFile": "tsconfig.jest.json"
-      }
-    }
-  }
+  ]
 }
