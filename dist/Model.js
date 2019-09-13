@@ -415,3 +415,4 @@ function Model(props) {
         _a;
 }
 exports.Model = Model;
+exports.default = Model;

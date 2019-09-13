@@ -1,6 +1,6 @@
 {
   "name": "@next-model/core",
-  "version": "1.0.0-alpha.22",
+  "version": "1.0.0-alpha.23",
   "description": "AWS Data API model layer package with zero dependencies to use in lambda",
   "keywords": [
     "model",

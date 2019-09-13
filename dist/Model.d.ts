@@ -111,3 +111,4 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
     select(...keys: [keyof Keys | keyof PersistentProps][]): Promise<Partial<PersistentProps & { [K_8 in keyof Keys]: Keys[K_8] extends KeyType.uuid ? string : number; }>[]>;
     pluck(key: keyof Keys | keyof PersistentProps): Promise<Partial<PersistentProps & { [K_8 in keyof Keys]: Keys[K_8] extends KeyType.uuid ? string : number; }>[keyof Keys | keyof PersistentProps][]>;
 };
+export default Model;

@@ -227,4 +227,5 @@ export function Model(props) {
         _a.order = order,
         _a;
 }
+export default Model;
 //# sourceMappingURL=Model.mjs.map
