@@ -24,9 +24,6 @@
   "jsnext:main": "./dist/index.mjs",
   "typings": "./dist/index.d.ts",
   "license": "MIT",
-  "files": [
-    "dist/*"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/tamino-martinius/node-data-api-model.git"
