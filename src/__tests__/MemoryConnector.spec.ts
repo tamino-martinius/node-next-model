@@ -1,6 +1,6 @@
-import { Dict, Filter, MemoryConnector, Scope, Storage, clone } from '..';
+import { Dict, Filter, MemoryConnector, Storage, clone } from '..';
+import { FilterSpecGroup, context, it, randomInteger } from '.';
 import { KeyType, OrderColumn, SortDirection } from '../types';
-import { context, it, randomInteger } from '.';
 
 let storage: Storage = {};
 
@@ -16,15 +16,6 @@ const withMultiSeed = () =>
 const idsOf = (items: Dict<any>[]) => items.map(item => item.id);
 const items = () => storage[tableName];
 const connector = () => new MemoryConnector({ storage });
-
-interface FilterSpecs {
-  filter: Filter<any> | undefined;
-  results: number[] | string;
-}
-
-interface FilterSpecGroup {
-  [key: string]: FilterSpecs[];
-}
 
 const filterSpecGroups: FilterSpecGroup = {
   none: [
@@ -169,6 +160,7 @@ describe('Connector', () => {
     let limit: number | undefined;
     let filter: Filter<any> | undefined;
     let order: OrderColumn<any>[] | undefined;
+
     const scope = () => ({ tableName, skip, limit, filter, order });
     const subject = () => connector().query(scope());
 
