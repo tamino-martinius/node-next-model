@@ -1,13 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-function snakeToCamelCase(value) {
-    return value.replace(/_\w/g, function (m) { return m[1].toUpperCase(); });
-}
-exports.snakeToCamelCase = snakeToCamelCase;
-function camelToSnakeCase(value) {
-    return value.replace(/([A-Z])/g, function (m) { return "_" + m.toLowerCase(); });
-}
-exports.camelToSnakeCase = camelToSnakeCase;
 function uuid() {
     var dateStr = Date.now()
         .toString(16)
