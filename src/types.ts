@@ -18,7 +18,7 @@ export enum KeyType {
 
 export type Schema = Dict<any>;
 
-export type BaseType = number | string | boolean | null | undefined;
+export type BaseType = number | string | boolean | Date | number[] | string[] | boolean[] | Date[];
 
 export type FilterIn<S extends Schema> = {
   [K in keyof S]: S[K][];
@@ -29,7 +29,7 @@ export type FilterBetween<S extends Schema> = {
 };
 
 export interface FilterRaw {
-  $bindings: BaseType[] | { $key: string; $value: BaseType }[];
+  $bindings: BaseType[] | Dict<BaseType>;
   $query: string;
 }
 
