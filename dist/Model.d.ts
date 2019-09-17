@@ -52,7 +52,7 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         assign<M extends any>(this: M, props: Partial<PersistentProps>): M;
         readonly itemScope: Scope;
         save<M_1 extends any>(this: M_1): Promise<M_1>;
-    };
+    } & PersistentProps & Readonly<{ [K_8 in keyof Keys]: Keys[K_8] extends KeyType.uuid ? string : number; }>;
     buildScoped(createProps: Partial<CreateProps>): {
         persistentProps: PersistentProps;
         changedProps: Partial<PersistentProps>;
@@ -63,7 +63,7 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         assign<M extends any>(this: M, props: Partial<PersistentProps>): M;
         readonly itemScope: Scope;
         save<M_1 extends any>(this: M_1): Promise<M_1>;
-    };
+    } & PersistentProps & Readonly<{ [K_9 in keyof Keys]: Keys[K_9] extends KeyType.uuid ? string : number; }>;
     create(props: CreateProps): Promise<{
         persistentProps: PersistentProps;
         changedProps: Partial<PersistentProps>;
@@ -74,7 +74,7 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         assign<M extends any>(this: M, props: Partial<PersistentProps>): M;
         readonly itemScope: Scope;
         save<M_1 extends any>(this: M_1): Promise<M_1>;
-    }>;
+    } & PersistentProps & Readonly<{ [K_8 in keyof Keys]: Keys[K_8] extends KeyType.uuid ? string : number; }>>;
     createScoped(props: Partial<CreateProps>): Promise<{
         persistentProps: PersistentProps;
         changedProps: Partial<PersistentProps>;
@@ -85,8 +85,8 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         assign<M extends any>(this: M, props: Partial<PersistentProps>): M;
         readonly itemScope: Scope;
         save<M_1 extends any>(this: M_1): Promise<M_1>;
-    }>;
-    all(): Promise<{
+    } & PersistentProps & Readonly<{ [K_9 in keyof Keys]: Keys[K_9] extends KeyType.uuid ? string : number; }>>;
+    all(): Promise<({
         persistentProps: PersistentProps;
         changedProps: Partial<PersistentProps>;
         keys: { [K_1 in keyof Keys]: Keys[K_1] extends KeyType.uuid ? string : number; } | undefined;
@@ -96,8 +96,8 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         assign<M extends any>(this: M, props: Partial<PersistentProps>): M;
         readonly itemScope: Scope;
         save<M_1 extends any>(this: M_1): Promise<M_1>;
-    }[]>;
-    first(): Promise<{
+    } & PersistentProps & Readonly<{ [K_10 in keyof Keys]: Keys[K_10] extends KeyType.uuid ? string : number; }>)[]>;
+    first(): Promise<({
         persistentProps: PersistentProps;
         changedProps: Partial<PersistentProps>;
         keys: { [K_1 in keyof Keys]: Keys[K_1] extends KeyType.uuid ? string : number; } | undefined;
@@ -107,8 +107,8 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         assign<M extends any>(this: M, props: Partial<PersistentProps>): M;
         readonly itemScope: Scope;
         save<M_1 extends any>(this: M_1): Promise<M_1>;
-    } | undefined>;
-    select(...keys: [keyof Keys | keyof PersistentProps][]): Promise<Partial<PersistentProps & { [K_8 in keyof Keys]: Keys[K_8] extends KeyType.uuid ? string : number; }>[]>;
-    pluck(key: keyof Keys | keyof PersistentProps): Promise<Partial<PersistentProps & { [K_8 in keyof Keys]: Keys[K_8] extends KeyType.uuid ? string : number; }>[keyof Keys | keyof PersistentProps][]>;
+    } & PersistentProps & Readonly<{ [K_10 in keyof Keys]: Keys[K_10] extends KeyType.uuid ? string : number; }>) | undefined>;
+    select(...keys: [keyof Keys | keyof PersistentProps][]): Promise<Partial<PersistentProps & { [K_11 in keyof Keys]: Keys[K_11] extends KeyType.uuid ? string : number; }>[]>;
+    pluck(key: keyof Keys | keyof PersistentProps): Promise<Partial<PersistentProps & { [K_11 in keyof Keys]: Keys[K_11] extends KeyType.uuid ? string : number; }>[keyof Keys | keyof PersistentProps][]>;
 };
 export default Model;

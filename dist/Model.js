@@ -73,12 +73,35 @@ function Model(props) {
     var _a;
     var connector = props.connector ? props.connector : new MemoryConnector_1.MemoryConnector();
     var order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
-    var keys = props.keys || { id: types_1.KeyType.number };
+    var keyDefinitions = props.keys || { id: types_1.KeyType.number };
     return _a = /** @class */ (function () {
             function ModelClass(props, keys) {
+                var _this = this;
                 this.changedProps = {};
                 this.persistentProps = props;
                 this.keys = keys;
+                var _loop_1 = function (key) {
+                    Object.defineProperty(this_1, key, {
+                        get: function () { return _this.persistentProps[key]; },
+                        set: function (value) {
+                            var _a;
+                            return _this.assign((_a = {}, _a[key] = value, _a));
+                        },
+                    });
+                };
+                var this_1 = this;
+                for (var key in this.persistentProps) {
+                    _loop_1(key);
+                }
+                var _loop_2 = function (key) {
+                    Object.defineProperty(this_2, key, {
+                        get: function () { return (_this.keys ? _this.keys[key] : undefined); },
+                    });
+                };
+                var this_2 = this;
+                for (var key in keyDefinitions) {
+                    _loop_2(key);
+                }
             }
             ModelClass.modelScope = function () {
                 return {
@@ -236,8 +259,9 @@ function Model(props) {
                 return new this(props.init(createProps));
             };
             ModelClass.buildScoped = function (createProps) {
+                return new this(
                 ///@ts-ignore
-                return new this(props.init(__assign(__assign({}, props.filter), createProps)));
+                props.init(__assign(__assign({}, props.filter), createProps)));
             };
             ModelClass.create = function (props) {
                 return this.build(props).save();
@@ -256,7 +280,7 @@ function Model(props) {
                                 items = (_a.sent());
                                 return [2 /*return*/, items.map(function (item) {
                                         var keys = {};
-                                        for (var key in keys) {
+                                        for (var key in keyDefinitions) {
                                             keys[key] = item[key];
                                             delete item[key];
                                         }
@@ -369,7 +393,7 @@ function Model(props) {
                                 items = _a.sent();
                                 item = items.pop();
                                 if (item) {
-                                    for (key in keys) {
+                                    for (key in keyDefinitions) {
                                         this.keys[key] = item[key];
                                         delete item[key];
                                     }
@@ -381,7 +405,7 @@ function Model(props) {
                                 }
                                 _a.label = 2;
                             case 2: return [3 /*break*/, 5];
-                            case 3: return [4 /*yield*/, connector.batchInsert(props.tableName, keys, [
+                            case 3: return [4 /*yield*/, connector.batchInsert(props.tableName, keyDefinitions, [
                                     __assign(__assign({}, this.persistentProps), this.changedProps),
                                 ])];
                             case 4:
@@ -389,7 +413,7 @@ function Model(props) {
                                 item = items.pop();
                                 if (item) {
                                     this.keys = {};
-                                    for (key in keys) {
+                                    for (key in keyDefinitions) {
                                         this.keys[key] = item[key];
                                         delete item[key];
                                     }

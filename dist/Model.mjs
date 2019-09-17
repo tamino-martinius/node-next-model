@@ -4,12 +4,23 @@ export function Model(props) {
     var _a;
     const connector = props.connector ? props.connector : new MemoryConnector();
     const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
-    const keys = props.keys || { id: KeyType.number };
+    const keyDefinitions = props.keys || { id: KeyType.number };
     return _a = class ModelClass {
             constructor(props, keys) {
                 this.changedProps = {};
                 this.persistentProps = props;
                 this.keys = keys;
+                for (const key in this.persistentProps) {
+                    Object.defineProperty(this, key, {
+                        get: () => this.persistentProps[key],
+                        set: value => this.assign({ [key]: value }),
+                    });
+                }
+                for (const key in keyDefinitions) {
+                    Object.defineProperty(this, key, {
+                        get: () => (this.keys ? this.keys[key] : undefined),
+                    });
+                }
             }
             static modelScope() {
                 return {
@@ -117,8 +128,9 @@ export function Model(props) {
                 return new this(props.init(createProps));
             }
             static buildScoped(createProps) {
+                return new this(
                 ///@ts-ignore
-                return new this(props.init({ ...props.filter, ...createProps }));
+                props.init({ ...props.filter, ...createProps }));
             }
             static create(props) {
                 return this.build(props).save();
@@ -130,7 +142,7 @@ export function Model(props) {
                 const items = (await connector.query(this.modelScope()));
                 return items.map(item => {
                     const keys = {};
-                    for (const key in keys) {
+                    for (const key in keyDefinitions) {
                         keys[key] = item[key];
                         delete item[key];
                     }
@@ -186,7 +198,7 @@ export function Model(props) {
                         const items = await connector.updateAll(this.itemScope, this.changedProps);
                         const item = items.pop();
                         if (item) {
-                            for (const key in keys) {
+                            for (const key in keyDefinitions) {
                                 this.keys[key] = item[key];
                                 delete item[key];
                             }
@@ -199,14 +211,14 @@ export function Model(props) {
                     }
                 }
                 else {
-                    const items = await connector.batchInsert(props.tableName, keys, [
+                    const items = await connector.batchInsert(props.tableName, keyDefinitions, [
                         ///@ts-ignore
                         { ...this.persistentProps, ...this.changedProps },
                     ]);
                     const item = items.pop();
                     if (item) {
                         this.keys = {};
-                        for (const key in keys) {
+                        for (const key in keyDefinitions) {
                             this.keys[key] = item[key];
                             delete item[key];
                         }
