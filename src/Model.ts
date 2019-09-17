@@ -22,7 +22,7 @@ export function Model<
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
-  const keys = props.keys || { id: KeyType.number };
+  const keyDefinitions = props.keys || { id: KeyType.number };
 
   return class ModelClass {
     static tableName = props.tableName;
@@ -151,12 +151,18 @@ export function Model<
     }
 
     static build(createProps: CreateProps) {
-      return new this(props.init(createProps));
+      return new this(props.init(createProps)) as ModelClass &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
     }
 
     static buildScoped(createProps: Partial<CreateProps>) {
-      ///@ts-ignore
-      return new this(props.init({ ...props.filter, ...createProps } as CreateProps));
+      return new this(
+        ///@ts-ignore
+        props.init({ ...props.filter, ...createProps } as CreateProps),
+      ) as ModelClass &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
     }
 
     static create(props: CreateProps) {
@@ -172,11 +178,13 @@ export function Model<
         { [K in keyof Keys]: string })[];
       return items.map(item => {
         const keys = {} as { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
-        for (const key in keys) {
-          keys[key] = item[key];
+        for (const key in keyDefinitions) {
+          keys[key as keyof Keys] = item[key];
           delete item[key];
         }
-        return new this(item, keys);
+        return new this(item, keys) as ModelClass &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
       });
     }
 
@@ -207,6 +215,19 @@ export function Model<
     ) {
       this.persistentProps = props as PersistentProps;
       this.keys = keys;
+
+      for (const key in this.persistentProps) {
+        Object.defineProperty(this, key, {
+          get: () => this.persistentProps[key],
+          set: value => this.assign({ [key]: value } as Partial<PersistentProps>),
+        });
+      }
+
+      for (const key in keyDefinitions) {
+        Object.defineProperty(this, key, {
+          get: () => (this.keys ? this.keys[key] : undefined),
+        });
+      }
     }
 
     get isPersistent() {
@@ -250,7 +271,7 @@ export function Model<
           const items = await connector.updateAll(this.itemScope, this.changedProps);
           const item = items.pop();
           if (item) {
-            for (const key in keys) {
+            for (const key in keyDefinitions) {
               this.keys[key as keyof Keys] = item[key];
               delete item[key];
             }
@@ -261,14 +282,14 @@ export function Model<
           }
         }
       } else {
-        const items = await connector.batchInsert(props.tableName, keys, [
+        const items = await connector.batchInsert(props.tableName, keyDefinitions, [
           ///@ts-ignore
           { ...this.persistentProps, ...this.changedProps },
         ]);
         const item = items.pop();
         if (item) {
           this.keys = {} as { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
-          for (const key in keys) {
+          for (const key in keyDefinitions) {
             this.keys[key as keyof Keys] = item[key];
             delete item[key];
           }
