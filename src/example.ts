@@ -1,4 +1,5 @@
 import { Model } from '../dist';
+// import { Model } from '.';
 
 // [TODO] Remove example below
 class User extends Model({
@@ -25,6 +26,8 @@ class User extends Model({
     return `${this.attributes.firstName} ${this.attributes.lastName}`;
   }
 }
+
+const user = User.build({ firstName: 'John', lastName: 'Doe', gender: 'male' });
 
 class Address extends Model({
   tableName: 'addresses',
