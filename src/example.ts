@@ -1,17 +1,21 @@
 import { Model } from '../dist';
 // import { Model } from '.';
+enum Gender {
+  male,
+  female,
+}
 
 // [TODO] Remove example below
 class User extends Model({
   tableName: 'users',
-  init: (props: { firstName: string; lastName: string; gender: string }) => props,
+  init: (props: { firstName: string; lastName: string; gender: Gender }) => props,
 }) {
   static get males() {
-    return this.filterBy({ gender: 'male' });
+    return this.filterBy({ gender: Gender.male });
   }
 
   static get females() {
-    return this.filterBy({ gender: 'female' });
+    return this.filterBy({ gender: Gender.female });
   }
 
   static withFirstName(firstName: string) {
@@ -27,7 +31,8 @@ class User extends Model({
   }
 }
 
-const user = User.build({ firstName: 'John', lastName: 'Doe', gender: 'male' });
+const user = User.build({ firstName: 'John', lastName: 'Doe', gender: Gender.male });
+User.withFirstName('John').males.buildScoped({ lastName: 'bar', gender: Gender.male });
 
 class Address extends Model({
   tableName: 'addresses',
