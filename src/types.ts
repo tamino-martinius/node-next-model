@@ -29,7 +29,7 @@ export type FilterBetween<S extends Schema> = {
 };
 
 export interface FilterRaw {
-  $bindings: BaseType[] | Dict<BaseType>;
+  $bindings?: BaseType[] | Dict<BaseType>;
   $query: string;
 }
 
