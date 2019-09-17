@@ -21,7 +21,7 @@ export declare type FilterBetween<S extends Schema> = {
     [K in keyof S]: Range<S[K]>;
 };
 export interface FilterRaw {
-    $bindings: BaseType[] | Dict<BaseType>;
+    $bindings?: BaseType[] | Dict<BaseType>;
     $query: string;
 }
 export declare type Filter<S extends Schema> = Partial<S> | Partial<FilterSpecial<S>>;
