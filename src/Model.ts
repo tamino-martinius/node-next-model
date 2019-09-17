@@ -150,30 +150,30 @@ export function Model<
       } as M;
     }
 
-    static build(createProps: CreateProps) {
-      return new this(props.init(createProps)) as ModelClass &
+    static build<M extends typeof ModelClass>(this: M, createProps: CreateProps) {
+      return new this(props.init(createProps)) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
     }
 
-    static buildScoped(createProps: Partial<CreateProps>) {
+    static buildScoped<M extends typeof ModelClass>(this: M, createProps: Partial<CreateProps>) {
       return new this(
         ///@ts-ignore
         props.init({ ...props.filter, ...createProps } as CreateProps),
-      ) as ModelClass &
+      ) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
     }
 
-    static create(props: CreateProps) {
-      return this.build(props).save();
+    static create<M extends typeof ModelClass>(this: M, props: CreateProps) {
+      return this.build<M>(props).save();
     }
 
-    static createScoped(props: Partial<CreateProps>) {
-      return this.buildScoped(props).save();
+    static createScoped<M extends typeof ModelClass>(this: M, props: Partial<CreateProps>) {
+      return this.buildScoped<M>(props).save();
     }
 
-    static async all() {
+    static async all<M extends typeof ModelClass>(this: M) {
       const items = (await connector.query(this.modelScope())) as (PersistentProps &
         { [K in keyof Keys]: string })[];
       return items.map(item => {
@@ -182,14 +182,14 @@ export function Model<
           keys[key as keyof Keys] = item[key];
           delete item[key];
         }
-        return new this(item, keys) as ModelClass &
+        return new this(item, keys) as InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
       });
     }
 
-    static async first() {
-      const items = await this.limitBy(1).all();
+    static async first<M extends typeof ModelClass>(this: M) {
+      const items = await this.limitBy(1).all<M>();
       return items.pop();
     }
 
@@ -218,7 +218,7 @@ export function Model<
 
       for (const key in this.persistentProps) {
         Object.defineProperty(this, key, {
-          get: () => this.persistentProps[key],
+          get: () => this.attributes[key],
           set: value => this.assign({ [key]: value } as Partial<PersistentProps>),
         });
       }
