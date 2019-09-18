@@ -17,4 +17,3 @@ export function uuid() {
 export function clone(obj) {
     return JSON.parse(JSON.stringify(obj));
 }
-//# sourceMappingURL=util.mjs.map

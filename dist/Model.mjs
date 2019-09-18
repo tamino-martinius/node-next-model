@@ -297,4 +297,3 @@ export function Model(props) {
         _a;
 }
 export default Model;
-//# sourceMappingURL=Model.mjs.map

@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function uuid() {
-    var dateStr = Date.now()
+    const dateStr = Date.now()
         .toString(16)
         .padStart(12, '0');
-    var randomStr = Math.random()
+    const randomStr = Math.random()
         .toString(16)
         .slice(2)
         .padStart(12, '0');

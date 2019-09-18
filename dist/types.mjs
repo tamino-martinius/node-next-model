@@ -8,4 +8,3 @@ export var SortDirection;
     SortDirection[SortDirection["Asc"] = 1] = "Asc";
     SortDirection[SortDirection["Desc"] = -1] = "Desc";
 })(SortDirection || (SortDirection = {}));
-//# sourceMappingURL=types.mjs.map
