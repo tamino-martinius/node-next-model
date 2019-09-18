@@ -69,293 +69,456 @@ var __spreadArrays = (this && this.__spreadArrays) || function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 var types_1 = require("./types");
 var MemoryConnector_1 = require("./MemoryConnector");
+var ModelClass = /** @class */ (function () {
+    function ModelClass(props, keys) {
+        var _this = this;
+        this.changedProps = {};
+        this.persistentProps = props;
+        this.keys = keys;
+        var _loop_1 = function (key) {
+            Object.defineProperty(this_1, key, {
+                get: function () { return _this.attributes[key]; },
+                set: function (value) {
+                    var _a;
+                    return _this.assign((_a = {}, _a[key] = value, _a));
+                },
+            });
+        };
+        var this_1 = this;
+        for (var key in this.persistentProps) {
+            _loop_1(key);
+        }
+        var model = this.constructor;
+        var _loop_2 = function (key) {
+            Object.defineProperty(this_2, key, {
+                get: function () { return (_this.keys ? _this.keys[key] : undefined); },
+            });
+        };
+        var this_2 = this;
+        for (var key in model.keys) {
+            _loop_2(key);
+        }
+    }
+    ModelClass.modelScope = function () {
+        return {
+            tableName: this.tableName,
+            filter: this.filter,
+            limit: this.limit,
+            skip: this.skip,
+            order: this.order,
+        };
+    };
+    ModelClass.limitBy = function (amount) {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_1, _super);
+                function class_1() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_1;
+            }(this)),
+            _a.limit = amount,
+            _a;
+    };
+    ModelClass.unlimited = function () {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_2, _super);
+                function class_2() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_2;
+            }(this)),
+            _a.limit = undefined,
+            _a;
+    };
+    ModelClass.skipBy = function (amount) {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_3, _super);
+                function class_3() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_3;
+            }(this)),
+            _a.skip = amount,
+            _a;
+    };
+    ModelClass.unskipped = function () {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_4, _super);
+                function class_4() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_4;
+            }(this)),
+            _a.skip = undefined,
+            _a;
+    };
+    ModelClass.orderBy = function (order) {
+        var _a;
+        var newOrder = __spreadArrays(this.order, (Array.isArray(order) ? order : [order]));
+        return _a = /** @class */ (function (_super) {
+                __extends(class_5, _super);
+                function class_5() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_5;
+            }(this)),
+            _a.order = newOrder,
+            _a;
+    };
+    ModelClass.unordered = function () {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_6, _super);
+                function class_6() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_6;
+            }(this)),
+            _a.order = [],
+            _a;
+    };
+    ModelClass.reorder = function (order) {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_7, _super);
+                function class_7() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_7;
+            }(this)),
+            _a.order = Array.isArray(order) ? order : [order],
+            _a;
+    };
+    ModelClass.filterBy = function (andFilter) {
+        var _a;
+        var filter = andFilter;
+        if (this.filter) {
+            for (var key in this.filter) {
+                if (this.filter[key] !== undefined && andFilter[key] !== undefined) {
+                    filter = { $and: [filter, andFilter] };
+                    break;
+                }
+                filter[key] = this.filter[key];
+            }
+        }
+        if (Object.keys(andFilter).length === 0)
+            filter = this.filter;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_8, _super);
+                function class_8() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_8;
+            }(this)),
+            _a.filter = filter,
+            _a;
+    };
+    ModelClass.orFilterBy = function (orFilter) {
+        var _a;
+        var filter = Object.keys(orFilter).length === 0
+            ? this.filter
+            : this.filter
+                ? { $or: [this.filter, orFilter] }
+                : orFilter;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_9, _super);
+                function class_9() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_9;
+            }(this)),
+            _a.filter = filter,
+            _a;
+    };
+    ModelClass.unfiltered = function () {
+        var _a;
+        return _a = /** @class */ (function (_super) {
+                __extends(class_10, _super);
+                function class_10() {
+                    return _super !== null && _super.apply(this, arguments) || this;
+                }
+                return class_10;
+            }(this)),
+            _a.filter = undefined,
+            _a;
+    };
+    ModelClass.build = function (createProps) {
+        return new this(this.init(createProps));
+    };
+    ModelClass.buildScoped = function (createProps) {
+        return new this(this.init(__assign(__assign({}, this.filter), createProps)));
+    };
+    ModelClass.create = function (createProps) {
+        return this.build(createProps).save();
+    };
+    ModelClass.createScoped = function (props) {
+        return this.buildScoped(props).save();
+    };
+    ModelClass.all = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var items;
+            var _this = this;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.connector.query(this.modelScope())];
+                    case 1:
+                        items = _a.sent();
+                        return [2 /*return*/, items.map(function (item) {
+                                var keys = {};
+                                for (var key in _this.keys) {
+                                    keys[key] = item[key];
+                                    delete item[key];
+                                }
+                                return new _this(item, keys);
+                            })];
+                }
+            });
+        });
+    };
+    ModelClass.first = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var items;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.limitBy(1).all()];
+                    case 1:
+                        items = _a.sent();
+                        return [2 /*return*/, items.pop()];
+                }
+            });
+        });
+    };
+    ModelClass.select = function () {
+        var keys = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            keys[_i] = arguments[_i];
+        }
+        return __awaiter(this, void 0, void 0, function () {
+            var items;
+            var _a;
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, (_a = this.connector).select.apply(_a, __spreadArrays([this.modelScope()], keys))];
+                    case 1:
+                        items = _b.sent();
+                        return [2 /*return*/, items];
+                }
+            });
+        });
+    };
+    ModelClass.pluck = function (key) {
+        return __awaiter(this, void 0, void 0, function () {
+            var items;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.select(key)];
+                    case 1:
+                        items = _a.sent();
+                        return [2 /*return*/, items.map(function (item) { return item[key]; })];
+                }
+            });
+        });
+    };
+    Object.defineProperty(ModelClass.prototype, "isPersistent", {
+        get: function () {
+            return this.keys !== undefined;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(ModelClass.prototype, "isNew", {
+        get: function () {
+            return this.keys === undefined;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(ModelClass.prototype, "attributes", {
+        get: function () {
+            return __assign(__assign(__assign({}, this.persistentProps), this.changedProps), this.keys);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ModelClass.prototype.assign = function (props) {
+        for (var key in props) {
+            if (this.persistentProps[key] !== props[key]) {
+                this.changedProps[key] = props[key];
+            }
+            else {
+                delete this.changedProps[key];
+            }
+        }
+        return this;
+    };
+    Object.defineProperty(ModelClass.prototype, "itemScope", {
+        get: function () {
+            var model = this.constructor;
+            return {
+                tableName: model.tableName,
+                filter: this.keys,
+                limit: 1,
+                skip: 0,
+                order: [],
+            };
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ModelClass.prototype.save = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var model, changedKeys, items, item, key, items, item, key;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        model = this.constructor;
+                        if (!this.keys) return [3 /*break*/, 3];
+                        changedKeys = Object.keys(this.changedProps);
+                        if (!(changedKeys.length > 0)) return [3 /*break*/, 2];
+                        return [4 /*yield*/, model.connector.updateAll(this.itemScope, this.changedProps)];
+                    case 1:
+                        items = _a.sent();
+                        item = items.pop();
+                        if (item) {
+                            for (key in model.keys) {
+                                this.keys[key] = item[key];
+                                delete item[key];
+                            }
+                            this.persistentProps = item;
+                            this.changedProps = {};
+                        }
+                        else {
+                            throw 'Item not found';
+                        }
+                        _a.label = 2;
+                    case 2: return [3 /*break*/, 5];
+                    case 3: return [4 /*yield*/, model.connector.batchInsert(model.tableName, model.keys, [
+                            __assign(__assign({}, this.persistentProps), this.changedProps),
+                        ])];
+                    case 4:
+                        items = _a.sent();
+                        item = items.pop();
+                        if (item) {
+                            this.keys = {};
+                            for (key in model.keys) {
+                                this.keys[key] = item[key];
+                                delete item[key];
+                            }
+                            this.persistentProps = item;
+                            this.changedProps = {};
+                        }
+                        else {
+                            throw 'Failed to insert item';
+                        }
+                        _a.label = 5;
+                    case 5: return [2 /*return*/, this];
+                }
+            });
+        });
+    };
+    return ModelClass;
+}());
+exports.ModelClass = ModelClass;
 function Model(props) {
     var _a;
     var connector = props.connector ? props.connector : new MemoryConnector_1.MemoryConnector();
     var order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
     var keyDefinitions = props.keys || { id: types_1.KeyType.number };
-    return _a = /** @class */ (function () {
-            function ModelClass(props, keys) {
-                var _this = this;
-                this.changedProps = {};
-                this.persistentProps = props;
-                this.keys = keys;
-                var _loop_1 = function (key) {
-                    Object.defineProperty(this_1, key, {
-                        get: function () { return _this.persistentProps[key]; },
-                        set: function (value) {
-                            var _a;
-                            return _this.assign((_a = {}, _a[key] = value, _a));
-                        },
-                    });
-                };
-                var this_1 = this;
-                for (var key in this.persistentProps) {
-                    _loop_1(key);
-                }
-                var _loop_2 = function (key) {
-                    Object.defineProperty(this_2, key, {
-                        get: function () { return (_this.keys ? _this.keys[key] : undefined); },
-                    });
-                };
-                var this_2 = this;
-                for (var key in keyDefinitions) {
-                    _loop_2(key);
-                }
+    return _a = /** @class */ (function (_super) {
+            __extends(Model, _super);
+            function Model(props, keys) {
+                var _this = _super.call(this, props, keys) || this;
+                _this.changedProps = {};
+                return _this;
             }
-            ModelClass.modelScope = function () {
-                return {
-                    tableName: this.tableName,
-                    filter: this.filter,
-                    limit: this.limit,
-                    skip: this.skip,
-                    order: this.order,
-                };
+            Model.orderBy = function (order) {
+                return _super.orderBy.call(this, order);
             };
-            ModelClass.limitBy = function (amount) {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_1, _super);
-                        function class_1() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_1;
-                    }(this)),
-                    _a.limit = amount,
-                    _a;
+            Model.reorder = function (order) {
+                return _super.reorder.call(this, order);
             };
-            ModelClass.unlimited = function () {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_2, _super);
-                        function class_2() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_2;
-                    }(this)),
-                    _a.limit = undefined,
-                    _a;
+            Model.filterBy = function (filter) {
+                return _super.filterBy.call(this, filter);
             };
-            ModelClass.skipBy = function (amount) {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_3, _super);
-                        function class_3() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_3;
-                    }(this)),
-                    _a.skip = amount,
-                    _a;
+            Model.orFilterBy = function (filter) {
+                return _super.orFilterBy.call(this, filter);
             };
-            ModelClass.unskipped = function () {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_4, _super);
-                        function class_4() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_4;
-                    }(this)),
-                    _a.skip = undefined,
-                    _a;
-            };
-            ModelClass.orderBy = function (order) {
-                var _a;
-                var newOrder = __spreadArrays(this.order, (Array.isArray(order) ? order : [order]));
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_5, _super);
-                        function class_5() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_5;
-                    }(this)),
-                    _a.order = newOrder,
-                    _a;
-            };
-            ModelClass.unordered = function () {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_6, _super);
-                        function class_6() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_6;
-                    }(this)),
-                    _a.order = [],
-                    _a;
-            };
-            ModelClass.reorder = function (order) {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_7, _super);
-                        function class_7() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_7;
-                    }(this)),
-                    _a.order = Array.isArray(order) ? order : [order],
-                    _a;
-            };
-            ModelClass.filterBy = function (andFilter) {
-                var _a;
-                ///@ts-ignore
-                var filter = andFilter;
-                if (this.filter) {
-                    for (var key in this.filter) {
-                        if (this.filter[key] !== undefined && andFilter[key] !== undefined) {
-                            ///@ts-ignore
-                            filter = { $and: [filter, andFilter] };
-                            break;
-                        }
-                        filter[key] = this.filter[key];
-                    }
-                }
-                ///@ts-ignore
-                if (Object.keys(andFilter).length === 0)
-                    filter = this.filter;
-                ///@ts-ignore
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_8, _super);
-                        function class_8() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_8;
-                    }(this)),
-                    _a.filter = filter,
-                    _a;
-            };
-            ModelClass.orFilterBy = function (orFilter) {
-                var _a;
-                var filter = Object.keys(orFilter).length === 0
-                    ? this.filter
-                    : this.filter
-                        ? { $or: [this.filter, orFilter] }
-                        : orFilter;
-                ///@ts-ignore
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_9, _super);
-                        function class_9() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_9;
-                    }(this)),
-                    _a.filter = filter,
-                    _a;
-            };
-            ModelClass.unfiltered = function () {
-                var _a;
-                return _a = /** @class */ (function (_super) {
-                        __extends(class_10, _super);
-                        function class_10() {
-                            return _super !== null && _super.apply(this, arguments) || this;
-                        }
-                        return class_10;
-                    }(this)),
-                    _a.filter = undefined,
-                    _a;
-            };
-            ModelClass.build = function (createProps) {
-                return new this(props.init(createProps));
-            };
-            ModelClass.buildScoped = function (createProps) {
-                return new this(
-                ///@ts-ignore
-                props.init(__assign(__assign({}, props.filter), createProps)));
-            };
-            ModelClass.create = function (props) {
-                return this.build(props).save();
-            };
-            ModelClass.createScoped = function (props) {
-                return this.buildScoped(props).save();
-            };
-            ModelClass.all = function () {
-                return __awaiter(this, void 0, void 0, function () {
-                    var items;
-                    var _this = this;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0: return [4 /*yield*/, connector.query(this.modelScope())];
-                            case 1:
-                                items = (_a.sent());
-                                return [2 /*return*/, items.map(function (item) {
-                                        var keys = {};
-                                        for (var key in keyDefinitions) {
-                                            keys[key] = item[key];
-                                            delete item[key];
-                                        }
-                                        return new _this(item, keys);
-                                    })];
-                        }
-                    });
-                });
-            };
-            ModelClass.first = function () {
-                return __awaiter(this, void 0, void 0, function () {
-                    var items;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0: return [4 /*yield*/, this.limitBy(1).all()];
-                            case 1:
-                                items = _a.sent();
-                                return [2 /*return*/, items.pop()];
-                        }
-                    });
-                });
-            };
-            ModelClass.select = function () {
+            Model.select = function () {
                 var keys = [];
                 for (var _i = 0; _i < arguments.length; _i++) {
                     keys[_i] = arguments[_i];
                 }
                 return __awaiter(this, void 0, void 0, function () {
-                    var items;
                     return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0: return [4 /*yield*/, connector.select.apply(connector, __spreadArrays([this.modelScope()], keys))];
-                            case 1:
-                                items = (_a.sent());
-                                return [2 /*return*/, items];
-                        }
+                        return [2 /*return*/, _super.select.apply(this, keys)];
                     });
                 });
             };
-            ModelClass.pluck = function (key) {
+            Model.pluck = function (key) {
                 return __awaiter(this, void 0, void 0, function () {
-                    var items;
+                    return __generator(this, function (_a) {
+                        return [2 /*return*/, _super.pluck.call(this, key)];
+                    });
+                });
+            };
+            Model.all = function () {
+                return __awaiter(this, void 0, void 0, function () {
                     return __generator(this, function (_a) {
                         switch (_a.label) {
-                            case 0: return [4 /*yield*/, this.select(key)];
-                            case 1:
-                                items = _a.sent();
-                                return [2 /*return*/, items.map(function (item) { return item[key]; })];
+                            case 0: return [4 /*yield*/, _super.all.call(this)];
+                            case 1: return [2 /*return*/, (_a.sent())];
                         }
                     });
                 });
             };
-            Object.defineProperty(ModelClass.prototype, "isPersistent", {
+            Model.first = function () {
+                return __awaiter(this, void 0, void 0, function () {
+                    return __generator(this, function (_a) {
+                        switch (_a.label) {
+                            case 0: return [4 /*yield*/, _super.first.call(this)];
+                            case 1: return [2 /*return*/, (_a.sent())];
+                        }
+                    });
+                });
+            };
+            Model.build = function (props) {
+                return _super.build.call(this, props);
+            };
+            Model.buildScoped = function (props) {
+                return _super.buildScoped.call(this, props);
+            };
+            Model.create = function (props) {
+                return __awaiter(this, void 0, void 0, function () {
+                    return __generator(this, function (_a) {
+                        switch (_a.label) {
+                            case 0: return [4 /*yield*/, _super.create.call(this, props)];
+                            case 1: return [2 /*return*/, (_a.sent())];
+                        }
+                    });
+                });
+            };
+            Model.createScoped = function (props) {
+                return __awaiter(this, void 0, void 0, function () {
+                    return __generator(this, function (_a) {
+                        switch (_a.label) {
+                            case 0: return [4 /*yield*/, _super.createScoped.call(this, props)];
+                            case 1: return [2 /*return*/, (_a.sent())];
+                        }
+                    });
+                });
+            };
+            Object.defineProperty(Model.prototype, "attributes", {
                 get: function () {
-                    return this.keys !== undefined;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(ModelClass.prototype, "isNew", {
-                get: function () {
-                    return this.keys === undefined;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(ModelClass.prototype, "attributes", {
-                get: function () {
-                    ///@ts-ignore
                     return __assign(__assign(__assign({}, this.persistentProps), this.changedProps), this.keys);
                 },
                 enumerable: true,
                 configurable: true
             });
-            ModelClass.prototype.assign = function (props) {
+            Model.prototype.assign = function (props) {
                 for (var key in props) {
                     if (this.persistentProps[key] !== props[key]) {
                         this.changedProps[key] = props[key];
@@ -366,76 +529,15 @@ function Model(props) {
                 }
                 return this;
             };
-            Object.defineProperty(ModelClass.prototype, "itemScope", {
-                get: function () {
-                    return {
-                        tableName: props.tableName,
-                        filter: this.keys,
-                        limit: 1,
-                        skip: 0,
-                        order: [],
-                    };
-                },
-                enumerable: true,
-                configurable: true
-            });
-            ModelClass.prototype.save = function () {
-                return __awaiter(this, void 0, void 0, function () {
-                    var changedKeys, items, item, key, items, item, key;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                if (!this.keys) return [3 /*break*/, 3];
-                                changedKeys = Object.keys(this.changedProps);
-                                if (!(changedKeys.length > 0)) return [3 /*break*/, 2];
-                                return [4 /*yield*/, connector.updateAll(this.itemScope, this.changedProps)];
-                            case 1:
-                                items = _a.sent();
-                                item = items.pop();
-                                if (item) {
-                                    for (key in keyDefinitions) {
-                                        this.keys[key] = item[key];
-                                        delete item[key];
-                                    }
-                                    this.persistentProps = item;
-                                    this.changedProps = {};
-                                }
-                                else {
-                                    throw 'Item not found';
-                                }
-                                _a.label = 2;
-                            case 2: return [3 /*break*/, 5];
-                            case 3: return [4 /*yield*/, connector.batchInsert(props.tableName, keyDefinitions, [
-                                    __assign(__assign({}, this.persistentProps), this.changedProps),
-                                ])];
-                            case 4:
-                                items = _a.sent();
-                                item = items.pop();
-                                if (item) {
-                                    this.keys = {};
-                                    for (key in keyDefinitions) {
-                                        this.keys[key] = item[key];
-                                        delete item[key];
-                                    }
-                                    this.persistentProps = item;
-                                    this.changedProps = {};
-                                }
-                                else {
-                                    throw 'Failed to insert item';
-                                }
-                                _a.label = 5;
-                            case 5: return [2 /*return*/, this];
-                        }
-                    });
-                });
-            };
-            return ModelClass;
-        }()),
+            return Model;
+        }(ModelClass)),
         _a.tableName = props.tableName,
         _a.filter = props.filter,
         _a.limit = props.limit,
         _a.skip = props.skip,
         _a.order = order,
+        _a.keys = keyDefinitions,
+        _a.connector = connector,
         _a;
 }
 exports.Model = Model;
