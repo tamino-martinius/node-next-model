@@ -36,7 +36,7 @@
     "test": "jest --maxWorkers=1",
     "watch": "tsc -w",
     "ci": "npm run coverage && codecov",
-    "compile": "rm -rf dist/* && tsc && tsc-mjs --sourceMap --declaration false --target esnext --module esnext --mjs",
+    "compile": "rm -rf dist/* && tsc && tsc-mjs --declaration false --target esnext --module esnext --mjs",
     "preversion": "npm run compile && git add ."
   },
   "devDependencies": {
