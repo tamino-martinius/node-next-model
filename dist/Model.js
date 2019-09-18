@@ -538,6 +538,7 @@ function Model(props) {
         _a.order = order,
         _a.keys = keyDefinitions,
         _a.connector = connector,
+        _a.init = props.init,
         _a;
 }
 exports.Model = Model;

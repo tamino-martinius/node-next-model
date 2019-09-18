@@ -74,6 +74,7 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
         id: KeyType.number;
     };
     connector: Connector;
+    init: any;
     orderBy<M_2 extends typeof ModelClass>(this: M_2, order: Order<PersistentProps & { [K_5 in keyof Keys]: Keys[K_5] extends KeyType.uuid ? string : number; }>): M_2;
     reorder<M_3 extends typeof ModelClass>(this: M_3, order: Order<PersistentProps & { [K_6 in keyof Keys]: Keys[K_6] extends KeyType.uuid ? string : number; }>): M_3;
     filterBy<M_4 extends typeof ModelClass>(this: M_4, filter: Filter<PersistentProps & { [K_7 in keyof Keys]: Keys[K_7] extends KeyType.uuid ? string : number; }>): M_4;
@@ -86,7 +87,6 @@ export declare function Model<CreateProps = {}, PersistentProps extends Schema =
     buildScoped<M_9 extends typeof ModelClass>(this: M_9, props: Partial<CreateProps>): InstanceType<M_9> & PersistentProps & Readonly<{ [K_13 in keyof Keys]: Keys[K_13] extends KeyType.uuid ? string : number; }>;
     create<M_10 extends typeof ModelClass>(this: M_10, props: CreateProps): Promise<InstanceType<M_10> & PersistentProps & Readonly<{ [K_14 in keyof Keys]: Keys[K_14] extends KeyType.uuid ? string : number; }>>;
     createScoped<M_11 extends typeof ModelClass>(this: M_11, props: Partial<CreateProps>): Promise<InstanceType<M_11> & PersistentProps & Readonly<{ [K_15 in keyof Keys]: Keys[K_15] extends KeyType.uuid ? string : number; }>>;
-    init: (props: Dict<any>) => Dict<any>;
     modelScope(): Scope;
     limitBy<M_12 extends typeof ModelClass>(this: M_12, amount: number): M_12;
     unlimited<M_13 extends typeof ModelClass>(this: M_13): M_13;
