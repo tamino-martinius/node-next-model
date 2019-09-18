@@ -271,6 +271,7 @@ export function Model<
     static order = order;
     static keys = keyDefinitions;
     static connector = connector;
+    static init = props.init as any;
 
     static orderBy<M extends typeof ModelClass>(
       this: M,
