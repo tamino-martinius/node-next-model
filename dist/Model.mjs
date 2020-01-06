@@ -7,7 +7,7 @@ export class ModelClass {
         this.keys = keys;
         for (const key in this.persistentProps) {
             Object.defineProperty(this, key, {
-                get: () => this.attributes[key],
+                get: () => this.attributes()[key],
                 set: value => this.assign({ [key]: value }),
             });
         }
@@ -150,13 +150,16 @@ export class ModelClass {
         const items = await this.select(key);
         return items.map(item => item[key]);
     }
-    get isPersistent() {
+    static async count() {
+        return await this.connector.count(this.modelScope());
+    }
+    isPersistent() {
         return this.keys !== undefined;
     }
-    get isNew() {
+    isNew() {
         return this.keys === undefined;
     }
-    get attributes() {
+    attributes() {
         return { ...this.persistentProps, ...this.changedProps, ...this.keys };
     }
     assign(props) {
@@ -170,7 +173,7 @@ export class ModelClass {
         }
         return this;
     }
-    get itemScope() {
+    itemScope() {
         const model = this.constructor;
         return {
             tableName: model.tableName,
@@ -185,7 +188,7 @@ export class ModelClass {
         if (this.keys) {
             const changedKeys = Object.keys(this.changedProps);
             if (changedKeys.length > 0) {
-                const items = await model.connector.updateAll(this.itemScope, this.changedProps);
+                const items = await model.connector.updateAll(this.itemScope(), this.changedProps);
                 const item = items.pop();
                 if (item) {
                     for (const key in model.keys) {
@@ -255,6 +258,9 @@ export function Model(props) {
             static async first() {
                 return (await super.first());
             }
+            static async count() {
+                return await super.count();
+            }
             static build(props) {
                 return super.build(props);
             }
@@ -267,7 +273,7 @@ export function Model(props) {
             static async createScoped(props) {
                 return (await super.createScoped(props));
             }
-            get attributes() {
+            attributes() {
                 return {
                     ...this.persistentProps,
                     ...this.changedProps,
