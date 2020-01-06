@@ -37,7 +37,7 @@ describe('Model', () => {
     });
   }
 
-  const attributesOf = (items: any[]) => items.map(item => item.attributes as Dict<any>);
+  const attributesOf = (items: any[]) => items.map(item => item.attributes() as Dict<any>);
 
   const CreateModel = () =>
     ///@ts-ignore

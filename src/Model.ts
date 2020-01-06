@@ -157,7 +157,7 @@ export class ModelClass {
 
     for (const key in this.persistentProps) {
       Object.defineProperty(this, key, {
-        get: () => this.attributes[key],
+        get: () => this.attributes()[key],
         set: value => this.assign({ [key]: value }),
       });
     }
@@ -171,15 +171,15 @@ export class ModelClass {
     }
   }
 
-  get isPersistent() {
+  isPersistent() {
     return this.keys !== undefined;
   }
 
-  get isNew() {
+  isNew() {
     return this.keys === undefined;
   }
 
-  get attributes(): Dict<any> {
+  attributes(): Dict<any> {
     return { ...this.persistentProps, ...this.changedProps, ...this.keys };
   }
 
@@ -194,7 +194,7 @@ export class ModelClass {
     return this as M;
   }
 
-  get itemScope(): Scope {
+  itemScope(): Scope {
     const model = this.constructor as typeof ModelClass;
     return {
       tableName: model.tableName,
@@ -211,7 +211,7 @@ export class ModelClass {
     if (this.keys) {
       const changedKeys = Object.keys(this.changedProps);
       if (changedKeys.length > 0) {
-        const items = await model.connector.updateAll(this.itemScope, this.changedProps);
+        const items = await model.connector.updateAll(this.itemScope(), this.changedProps);
         const item = items.pop();
         if (item) {
           for (const key in model.keys) {
@@ -374,7 +374,7 @@ export function Model<
       super(props, keys);
     }
 
-    get attributes() {
+    attributes() {
       return {
         ...(this.persistentProps as object),
         ...(this.changedProps as object),
