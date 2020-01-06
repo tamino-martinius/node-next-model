@@ -143,6 +143,10 @@ export class ModelClass {
     return items.map(item => item[key]);
   }
 
+  static async count<M extends typeof ModelClass>(this: M) {
+    return await this.connector.count(this.modelScope());
+  }
+
   persistentProps: Dict<any>;
   changedProps: Dict<any> = {};
   keys: Dict<any> | undefined;
@@ -329,6 +333,10 @@ export function Model<
       return (await super.first()) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async count<M extends typeof ModelClass>(this: M) {
+      return await super.count();
     }
 
     static build<M extends typeof ModelClass>(this: M, props: CreateProps) {
