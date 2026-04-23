@@ -265,6 +265,39 @@ export class ModelClass {
     return (this.reverse() as M).first<M>();
   }
 
+  static async paginate<M extends typeof ModelClass>(
+    this: M,
+    page: number,
+    perPage = 25,
+  ): Promise<{
+    items: InstanceType<M>[];
+    total: number;
+    page: number;
+    perPage: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }> {
+    const safePage = Math.max(1, Math.floor(page));
+    const safePerPage = Math.max(1, Math.floor(perPage));
+    const skip = (safePage - 1) * safePerPage;
+    const scoped = this.limitBy(safePerPage).skipBy(skip);
+    const [items, total] = await Promise.all([
+      scoped.all<M>(),
+      this.unlimited().unskipped().count(),
+    ]);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / safePerPage);
+    return {
+      items,
+      total,
+      page: safePage,
+      perPage: safePerPage,
+      totalPages,
+      hasNext: safePage < totalPages,
+      hasPrev: safePage > 1,
+    };
+  }
+
   static async ids<M extends typeof ModelClass>(this: M) {
     const primaryKey = Object.keys(this.keys)[0] ?? 'id';
     return this.pluck(primaryKey);
@@ -866,6 +899,21 @@ export function Model<
       return (await super.last()) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async paginate<M extends typeof ModelClass>(this: M, page: number, perPage?: number) {
+      const result = await super.paginate(page, perPage);
+      return result as {
+        items: (InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
+        total: number;
+        page: number;
+        perPage: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
     }
 
     static async count<M extends typeof ModelClass>(this: M) {
