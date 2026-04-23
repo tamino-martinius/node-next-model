@@ -389,6 +389,29 @@ export class ModelClass {
     return { ...this.persistentProps, ...this.changedProps, ...this.keys };
   }
 
+  toJSON(): Dict<any> {
+    return this.attributes();
+  }
+
+  pick(keys: string[]): Dict<any> {
+    const attrs = this.attributes();
+    const result: Dict<any> = {};
+    for (const key of keys) {
+      if (key in attrs) result[key] = attrs[key];
+    }
+    return result;
+  }
+
+  omit(keys: string[]): Dict<any> {
+    const attrs = this.attributes();
+    const skip = new Set(keys);
+    const result: Dict<any> = {};
+    for (const key in attrs) {
+      if (!skip.has(key)) result[key] = attrs[key];
+    }
+    return result;
+  }
+
   assign<M extends ModelClass>(this: M, props: Dict<any>) {
     for (const key in props) {
       if (this.persistentProps[key] !== props[key]) {
@@ -935,6 +958,24 @@ export function Model<
         ...(this.changedProps as object),
         ...(this.keys as object),
       } as PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number };
+    }
+
+    toJSON() {
+      return this.attributes();
+    }
+
+    pick<K extends keyof PersistentProps | keyof Keys>(keys: K[]) {
+      return super.pick(keys as string[]) as Pick<
+        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number },
+        K & (keyof PersistentProps | keyof Keys)
+      >;
+    }
+
+    omit<K extends keyof PersistentProps | keyof Keys>(keys: K[]) {
+      return super.omit(keys as string[]) as Omit<
+        PersistentProps & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number },
+        K & (keyof PersistentProps | keyof Keys)
+      >;
     }
 
     assign<M extends ModelClass>(this: M, props: Partial<PersistentProps>) {

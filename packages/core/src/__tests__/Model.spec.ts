@@ -1992,6 +1992,69 @@ describe('Model', () => {
     });
   });
 
+  describe('serialization', () => {
+    const buildKlass = () => {
+      storage = {};
+      return Model({
+        tableName,
+        init: (props: { foo: string; bar: number }) => props,
+        connector: connector(),
+      });
+    };
+
+    it('toJSON returns the full attributes', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 42 });
+      const json = r.toJSON();
+      expect(json).toMatchObject({ foo: 'x', bar: 42 });
+      expect(json.id).toBe(r.attributes().id);
+      storage = {};
+    });
+
+    it('JSON.stringify uses toJSON', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 1 });
+      const parsed = JSON.parse(JSON.stringify(r));
+      expect(parsed).toMatchObject({ foo: 'x', bar: 1 });
+      storage = {};
+    });
+
+    it('pick returns only requested keys', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 7 });
+      expect(r.pick(['foo'])).toEqual({ foo: 'x' });
+      expect(r.pick(['foo', 'bar'])).toEqual({ foo: 'x', bar: 7 });
+      storage = {};
+    });
+
+    it('pick skips missing keys without throwing', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 1 });
+      expect(r.pick(['foo', 'nope' as any])).toEqual({ foo: 'x' });
+      storage = {};
+    });
+
+    it('omit removes the requested keys', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 7 });
+      const result = r.omit(['bar']);
+      expect(result).not.toHaveProperty('bar');
+      expect(result.foo).toBe('x');
+      expect((result as any).id).toBe(r.attributes().id);
+      storage = {};
+    });
+
+    it('pick and omit reflect in-memory changes', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 1 });
+      r.assign({ foo: 'y' });
+      expect(r.pick(['foo'])).toEqual({ foo: 'y' });
+      const omitted = r.omit(['bar', 'id' as any, 'createdAt' as any, 'updatedAt' as any]);
+      expect(omitted).toEqual({ foo: 'y' });
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
