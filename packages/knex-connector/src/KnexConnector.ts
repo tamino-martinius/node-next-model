@@ -9,8 +9,8 @@ import {
   type Connector,
   type Dict,
   type Filter,
-  FilterError,
   type FilterBetween,
+  FilterError,
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
@@ -226,7 +226,8 @@ export class KnexConnector implements Connector {
 
   async updateAll(scope: Scope, attrs: Dict<any>): Promise<Dict<any>[]> {
     const clientName = this.knex.client.config.client;
-    const supportsReturning = clientName !== 'sqlite3' && clientName !== 'mysql' && clientName !== 'mysql2';
+    const supportsReturning =
+      clientName !== 'sqlite3' && clientName !== 'mysql' && clientName !== 'mysql2';
     const { query } = await this.collection(scope);
     let rows: any;
     if (supportsReturning) {
@@ -270,9 +271,9 @@ export class KnexConnector implements Connector {
       for (const item of items) {
         const insertResult = await this.table(tableName).insert(item);
         const insertedId = Array.isArray(insertResult) ? insertResult[0] : insertResult;
-        const row = (await this.table(tableName)
-          .where(primaryKey, insertedId)
-          .first()) as Dict<any> | undefined;
+        const row = (await this.table(tableName).where(primaryKey, insertedId).first()) as
+          | Dict<any>
+          | undefined;
         if (row === undefined) {
           throw new PersistenceError(`batchInsert into ${tableName} returned no row`);
         }
@@ -289,9 +290,7 @@ export class KnexConnector implements Connector {
       return idsOrRows as Dict<any>[];
     }
     const ids = idsOrRows as number[];
-    const rows = (await this.table(tableName)
-      .whereIn(primaryKey, ids)
-      .select('*')) as Dict<any>[];
+    const rows = (await this.table(tableName).whereIn(primaryKey, ids).select('*')) as Dict<any>[];
     const rowDict: Dict<Dict<any>> = {};
     for (const row of rows) {
       rowDict[row[primaryKey]] = row;

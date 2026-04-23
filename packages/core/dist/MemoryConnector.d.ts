@@ -1,8 +1,9 @@
-import { Dict, KeyType, Connector, BaseType, Scope } from './types';
-export declare type Storage = Dict<Dict<any>[]>;
+import { type AggregateKind, type BaseType, type Connector, type Dict, KeyType, type Scope } from './types';
+export type Storage = Dict<Dict<any>[]>;
 export declare class MemoryConnector implements Connector {
     private storage;
     private lastIds;
+    private inTransaction;
     constructor(props?: {
         storage?: Storage;
         lastIds?: Dict<number>;
@@ -10,30 +11,15 @@ export declare class MemoryConnector implements Connector {
     private collection;
     private nextId;
     private items;
-    private propertyFilter;
-    private andFilter;
-    private notFilter;
-    private orFilter;
-    private inFilter;
-    private notInFilter;
-    private nullFilter;
-    private notNullFilter;
-    private betweenFilter;
-    private notBetweenFilter;
-    private gtFilter;
-    private gteFilter;
-    private ltFilter;
-    private lteFilter;
-    private rawFilter;
-    private asyncFilter;
-    private specialFilter;
-    private filter;
     query(scope: Scope): Promise<Dict<any>[]>;
     count(scope: Scope): Promise<number>;
     select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]>;
     updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]>;
     deleteAll(scope: Scope): Promise<Dict<any>[]>;
     batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]>;
+    aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined>;
     execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;
+    transaction<T>(fn: () => Promise<T>): Promise<T>;
 }
 export default MemoryConnector;
+//# sourceMappingURL=MemoryConnector.d.ts.map
