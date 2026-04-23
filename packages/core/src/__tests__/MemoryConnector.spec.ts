@@ -1,5 +1,5 @@
 import { type FilterSpecGroup, context, it, randomInteger } from '.';
-import { type Dict, type Filter, MemoryConnector, type Storage, clone } from '..';
+import { type Dict, type Filter, FilterError, MemoryConnector, type Storage, clone } from '..';
 import { KeyType, type OrderColumn, SortDirection } from '../types';
 
 let storage: Storage = {};
@@ -53,18 +53,18 @@ const filterSpecGroups: FilterSpecGroup = {
     { filter: { $or: [{ id: 2 }, { id: 2 }] }, results: [2] },
   ],
   $in: [
-    { filter: { $in: {} }, results: '[TODO] Return proper error' },
+    { filter: { $in: {} }, results: FilterError },
     { filter: { $in: { id: [validId] } }, results: [validId] },
     { filter: { $in: { id: [2, 3] } }, results: [2, 3] },
     { filter: { $in: { id: [2, 2] } }, results: [2] },
-    { filter: { $in: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
+    { filter: { $in: { id: [1], foo: ['bar'] } }, results: FilterError },
   ],
   $notIn: [
-    { filter: { $notIn: {} }, results: '[TODO] Return proper error' },
+    { filter: { $notIn: {} }, results: FilterError },
     { filter: { $notIn: { id: [2] } }, results: [1, 3] },
     { filter: { $notIn: { id: [2, 3] } }, results: [1] },
     { filter: { $notIn: { id: [2, 2] } }, results: [1, 3] },
-    { filter: { $notIn: { id: [1], foo: ['bar'] } }, results: '[TODO] Return proper error' },
+    { filter: { $notIn: { id: [1], foo: ['bar'] } }, results: FilterError },
   ],
   $null: [
     { filter: { $null: 'foo' }, results: [2] },
@@ -77,7 +77,7 @@ const filterSpecGroups: FilterSpecGroup = {
     { filter: { $notNull: 'bar' }, results: [] },
   ],
   $between: [
-    { filter: { $between: {} }, results: '[TODO] Return proper error' },
+    { filter: { $between: {} }, results: FilterError },
     { filter: { $between: { id: { from: 1, to: 2 } } }, results: [1, 2] },
     { filter: { $between: { foo: { from: 'a', to: 'z' } } }, results: [1, 3] },
     { filter: { $between: { id: { from: 0, to: 1 } } }, results: [1] },
@@ -87,11 +87,11 @@ const filterSpecGroups: FilterSpecGroup = {
     { filter: { $between: { id: { from: 3, to: 1 } } }, results: [] },
     {
       filter: { $between: { id: { from: 1, to: 3 }, foo: { from: 'a', to: 'z' } } },
-      results: '[TODO] Return proper error',
+      results: FilterError,
     },
   ],
   $notBetween: [
-    { filter: { $notBetween: {} }, results: '[TODO] Return proper error' },
+    { filter: { $notBetween: {} }, results: FilterError },
     { filter: { $notBetween: { id: { from: 1, to: 2 } } }, results: [3] },
     { filter: { $notBetween: { foo: { from: 'a', to: 'z' } } }, results: [] },
     { filter: { $notBetween: { id: { from: 0, to: 1 } } }, results: [2, 3] },
@@ -104,46 +104,46 @@ const filterSpecGroups: FilterSpecGroup = {
     { filter: { $notBetween: { id: { from: 3, to: 1 } } }, results: [1, 2, 3] },
     {
       filter: { $notBetween: { id: { from: 1, to: 3 }, foo: { from: 'a', to: 'z' } } },
-      results: '[TODO] Return proper error',
+      results: FilterError,
     },
   ],
   $gt: [
-    { filter: { $gt: {} }, results: '[TODO] Return proper error' },
+    { filter: { $gt: {} }, results: FilterError },
     { filter: { $gt: { id: 2 } }, results: [3] },
     { filter: { $gt: { foo: 'bar' } }, results: [] },
     { filter: { $gt: { foo: 'a' } }, results: [1, 3] },
     { filter: { $gt: { id: 0 } }, results: [1, 2, 3] },
     { filter: { $gt: { id: invalidId } }, results: [] },
-    { filter: { $gt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+    { filter: { $gt: { id: 1, foo: 'a' } }, results: FilterError },
   ],
   $gte: [
-    { filter: { $gte: {} }, results: '[TODO] Return proper error' },
+    { filter: { $gte: {} }, results: FilterError },
     { filter: { $gte: { id: 2 } }, results: [2, 3] },
     { filter: { $gte: { foo: 'z' } }, results: [] },
     { filter: { $gte: { foo: 'bar' } }, results: [1, 3] },
     { filter: { $gte: { foo: 'a' } }, results: [1, 3] },
     { filter: { $gte: { id: 0 } }, results: [1, 2, 3] },
     { filter: { $gte: { id: invalidId } }, results: [] },
-    { filter: { $gte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+    { filter: { $gte: { id: 1, foo: 'a' } }, results: FilterError },
   ],
   $lt: [
-    { filter: { $lt: {} }, results: '[TODO] Return proper error' },
+    { filter: { $lt: {} }, results: FilterError },
     { filter: { $lt: { id: 2 } }, results: [1] },
     { filter: { $lt: { foo: 'bar' } }, results: [] },
     { filter: { $lt: { foo: 'z' } }, results: [1, 3] },
     { filter: { $lt: { id: 4 } }, results: [1, 2, 3] },
     { filter: { $lt: { id: 0 } }, results: [] },
-    { filter: { $lt: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+    { filter: { $lt: { id: 1, foo: 'a' } }, results: FilterError },
   ],
   $lte: [
-    { filter: { $lte: {} }, results: '[TODO] Return proper error' },
+    { filter: { $lte: {} }, results: FilterError },
     { filter: { $lte: { id: 2 } }, results: [1, 2] },
     { filter: { $lte: { foo: 'a' } }, results: [] },
     { filter: { $lte: { foo: 'bar' } }, results: [1, 3] },
     { filter: { $lte: { foo: 'z' } }, results: [1, 3] },
     { filter: { $lte: { id: 4 } }, results: [1, 2, 3] },
     { filter: { $lte: { id: 0 } }, results: [] },
-    { filter: { $lte: { id: 1, foo: 'a' } }, results: '[TODO] Return proper error' },
+    { filter: { $lte: { id: 1, foo: 'a' } }, results: FilterError },
   ],
 };
 
@@ -337,7 +337,7 @@ describe('Connector', () => {
                     });
                   } else {
                     it('rejects filter and returns error', () => {
-                      return expect(subject()).rejects.toEqual(results);
+                      return expect(subject()).rejects.toBeInstanceOf(results);
                     });
                   }
                 },
@@ -450,7 +450,7 @@ describe('Connector', () => {
                     });
                   } else {
                     it('rejects filter and returns error', () => {
-                      return expect(subject()).rejects.toEqual(results);
+                      return expect(subject()).rejects.toBeInstanceOf(results);
                     });
                   }
                 },
@@ -556,7 +556,7 @@ describe('Connector', () => {
                         });
                       } else {
                         it('rejects filter and returns error', () => {
-                          return expect(subject()).rejects.toEqual(results);
+                          return expect(subject()).rejects.toBeInstanceOf(results);
                         });
                       }
                     },
@@ -664,7 +664,7 @@ describe('Connector', () => {
                         });
                       } else {
                         it('rejects filter and returns error', () => {
-                          return expect(subject()).rejects.toEqual(results);
+                          return expect(subject()).rejects.toBeInstanceOf(results);
                         });
                       }
                     },
@@ -750,7 +750,7 @@ describe('Connector', () => {
                     });
                   } else {
                     it('rejects filter and returns error', () => {
-                      return expect(subject()).rejects.toEqual(results);
+                      return expect(subject()).rejects.toBeInstanceOf(results);
                     });
                   }
                 },
@@ -885,7 +885,7 @@ describe('Connector', () => {
                     });
                   } else {
                     it('rejects filter and returns error', () => {
-                      return expect(subject()).rejects.toEqual(results);
+                      return expect(subject()).rejects.toBeInstanceOf(results);
                     });
                   }
                 },
@@ -1018,7 +1018,7 @@ describe('Connector', () => {
                     });
                   } else {
                     it('rejects filter and returns error', () => {
-                      return expect(subject()).rejects.toEqual(results);
+                      return expect(subject()).rejects.toBeInstanceOf(results);
                     });
                   }
                 },

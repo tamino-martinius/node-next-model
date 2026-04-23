@@ -1,3 +1,4 @@
+import { NotFoundError, PersistenceError } from './errors';
 import {
   type Connector,
   type Dict,
@@ -230,7 +231,7 @@ export class ModelClass {
           this.persistentProps = item;
           this.changedProps = {};
         } else {
-          throw 'Item not found';
+          throw new NotFoundError('Item not found');
         }
       }
     } else {
@@ -247,7 +248,7 @@ export class ModelClass {
         this.persistentProps = item;
         this.changedProps = {};
       } else {
-        throw 'Failed to insert item';
+        throw new PersistenceError('Failed to insert item');
       }
     }
     return this as M;
