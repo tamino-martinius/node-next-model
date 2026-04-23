@@ -11,6 +11,7 @@ import {
   type OrderColumn,
   type Schema,
   type Scope,
+  SortDirection,
   type Validator,
 } from './types';
 
@@ -159,6 +160,31 @@ export class ModelClass {
     } as M;
   }
 
+  static reverse<M extends typeof ModelClass>(this: M) {
+    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    const existing = this.order.length > 0 ? this.order : [{ key: primaryKey }];
+    const flipped = existing.map((col) => ({
+      key: col.key,
+      dir:
+        (col.dir ?? SortDirection.Asc) === SortDirection.Asc
+          ? SortDirection.Desc
+          : SortDirection.Asc,
+    }));
+    return class extends (this as typeof ModelClass) {
+      static order = flipped;
+    } as M;
+  }
+
+  static unscoped<M extends typeof ModelClass>(this: M) {
+    return class extends (this as typeof ModelClass) {
+      static filter = undefined;
+      static limit = undefined;
+      static skip = undefined;
+      static order: OrderColumn<any>[] = [];
+      static softDelete: 'active' | 'only' | false = false;
+    } as M;
+  }
+
   static withDiscarded<M extends typeof ModelClass>(this: M) {
     return class extends (this as typeof ModelClass) {
       static softDelete: 'active' | 'only' | false = false;
@@ -226,10 +252,7 @@ export class ModelClass {
   }
 
   static async last<M extends typeof ModelClass>(this: M) {
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const scoped = this.order.length > 0 ? this : (this.orderBy({ key: primaryKey }) as M);
-    const items = await scoped.all<M>();
-    return items.pop();
+    return (this.reverse() as M).first<M>();
   }
 
   static async ids<M extends typeof ModelClass>(this: M) {

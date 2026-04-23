@@ -44,13 +44,6 @@ export class MemoryConnector implements Connector {
     order = [],
   }: Scope): Promise<Dict<any>[]> {
     let items = await filterList(this.collection(tableName), filter);
-    if (skip && limit) {
-      items = items.slice(skip, skip + limit);
-    } else if (skip) {
-      items = items.slice(skip);
-    } else if (limit) {
-      items = items.slice(0, limit);
-    }
 
     for (let orderIndex = order.length - 1; orderIndex >= 0; orderIndex -= 1) {
       const key = order[orderIndex].key;
@@ -79,6 +72,14 @@ export class MemoryConnector implements Connector {
         }
         return 0;
       });
+    }
+
+    if (skip && limit) {
+      items = items.slice(skip, skip + limit);
+    } else if (skip) {
+      items = items.slice(skip);
+    } else if (limit) {
+      items = items.slice(0, limit);
     }
 
     return items;
