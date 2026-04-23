@@ -20,6 +20,9 @@ import { singularize } from './util';
 export type AssociationOptions = {
   foreignKey?: string;
   primaryKey?: string;
+  polymorphic?: string;
+  typeKey?: string;
+  typeValue?: string;
 };
 
 export type HasManyThroughOptions = {
@@ -465,11 +468,20 @@ export class ModelClass {
     Related: Related,
     options: AssociationOptions = {},
   ): Promise<InstanceType<Related> | undefined> {
-    const fk = options.foreignKey ?? `${singularize(Related.tableName)}Id`;
+    const poly = options.polymorphic;
+    const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(Related.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(Related.keys)[0] ?? 'id';
-    const fkValue = (this.attributes() as Dict<any>)[fk];
+    const attrs = this.attributes() as Dict<any>;
+    const fkValue = attrs[fk];
     if (fkValue === undefined || fkValue === null) {
       return Promise.resolve(undefined);
+    }
+    if (poly) {
+      const typeKey = options.typeKey ?? `${poly}Type`;
+      const expectedType = options.typeValue ?? Related.tableName;
+      if (attrs[typeKey] !== expectedType) {
+        return Promise.resolve(undefined);
+      }
     }
     return Related.findBy({ [pk]: fkValue }) as Promise<InstanceType<Related> | undefined>;
   }
@@ -480,10 +492,16 @@ export class ModelClass {
     options: AssociationOptions = {},
   ): Related {
     const selfModel = this.constructor as typeof ModelClass;
-    const fk = options.foreignKey ?? `${singularize(selfModel.tableName)}Id`;
+    const poly = options.polymorphic;
+    const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(selfModel.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id';
     const pkValue = (this as any)[pk];
-    return Related.filterBy({ [fk]: pkValue }) as Related;
+    const filter: Dict<any> = { [fk]: pkValue };
+    if (poly) {
+      const typeKey = options.typeKey ?? `${poly}Type`;
+      filter[typeKey] = options.typeValue ?? selfModel.tableName;
+    }
+    return Related.filterBy(filter) as Related;
   }
 
   hasOne<Related extends typeof ModelClass>(
@@ -492,13 +510,19 @@ export class ModelClass {
     options: AssociationOptions = {},
   ): Promise<InstanceType<Related> | undefined> {
     const selfModel = this.constructor as typeof ModelClass;
-    const fk = options.foreignKey ?? `${singularize(selfModel.tableName)}Id`;
+    const poly = options.polymorphic;
+    const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(selfModel.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id';
     const pkValue = (this as any)[pk];
     if (pkValue === undefined || pkValue === null) {
       return Promise.resolve(undefined);
     }
-    return Related.findBy({ [fk]: pkValue }) as Promise<InstanceType<Related> | undefined>;
+    const filter: Dict<any> = { [fk]: pkValue };
+    if (poly) {
+      const typeKey = options.typeKey ?? `${poly}Type`;
+      filter[typeKey] = options.typeValue ?? selfModel.tableName;
+    }
+    return Related.findBy(filter) as Promise<InstanceType<Related> | undefined>;
   }
 
   hasManyThrough<Target extends typeof ModelClass, Through extends typeof ModelClass>(
