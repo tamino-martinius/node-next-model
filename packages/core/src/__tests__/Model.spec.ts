@@ -977,6 +977,69 @@ describe('Model', () => {
     });
   });
 
+  describe('aggregates', () => {
+    const buildKlass = () => {
+      storage = {};
+      return Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+    };
+
+    it('#sum adds numeric values in scope', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ n: 1 });
+      await Klass.create({ n: 2 });
+      await Klass.create({ n: 4 });
+      expect(await Klass.sum('n')).toBe(7);
+      storage = {};
+    });
+
+    it('#sum returns 0 for empty result', async () => {
+      const Klass = buildKlass();
+      expect(await Klass.sum('n')).toBe(0);
+      storage = {};
+    });
+
+    it('#min and #max return the bounds', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ n: 3 });
+      await Klass.create({ n: 1 });
+      await Klass.create({ n: 8 });
+      expect(await Klass.min('n')).toBe(1);
+      expect(await Klass.max('n')).toBe(8);
+      storage = {};
+    });
+
+    it('#avg returns the mean of numeric values', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ n: 2 });
+      await Klass.create({ n: 4 });
+      await Klass.create({ n: 6 });
+      expect(await Klass.avg('n')).toBe(4);
+      storage = {};
+    });
+
+    it('returns undefined when no numeric values exist', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ n: 'not-a-number' });
+      expect(await Klass.min('n')).toBeUndefined();
+      expect(await Klass.max('n')).toBeUndefined();
+      expect(await Klass.avg('n')).toBeUndefined();
+      storage = {};
+    });
+
+    it('respects the current filter scope', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ group: 1, n: 10 });
+      await Klass.create({ group: 1, n: 20 });
+      await Klass.create({ group: 2, n: 999 });
+      expect(await Klass.filterBy({ group: 1 }).sum('n')).toBe(30);
+      storage = {};
+    });
+  });
+
   describe('.find', () => {
     it('returns the record by primary key', async () => {
       storage = {};

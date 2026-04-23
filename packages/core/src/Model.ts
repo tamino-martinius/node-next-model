@@ -1,5 +1,6 @@
 import { NotFoundError, PersistenceError, ValidationError } from './errors';
 import {
+  type AggregateKind,
   type Callback,
   type Callbacks,
   type Connector,
@@ -183,6 +184,30 @@ export class ModelClass {
 
   static async count<M extends typeof ModelClass>(this: M) {
     return await this.connector.count(this.modelScope());
+  }
+
+  static async aggregate<M extends typeof ModelClass>(
+    this: M,
+    kind: AggregateKind,
+    key: string,
+  ): Promise<number | undefined> {
+    return await this.connector.aggregate(this.modelScope(), kind, key);
+  }
+
+  static async sum<M extends typeof ModelClass>(this: M, key: string) {
+    return (await this.aggregate('sum', key)) ?? 0;
+  }
+
+  static async min<M extends typeof ModelClass>(this: M, key: string) {
+    return this.aggregate('min', key);
+  }
+
+  static async max<M extends typeof ModelClass>(this: M, key: string) {
+    return this.aggregate('max', key);
+  }
+
+  static async avg<M extends typeof ModelClass>(this: M, key: string) {
+    return this.aggregate('avg', key);
   }
 
   static async deleteAll<M extends typeof ModelClass>(this: M) {
@@ -640,6 +665,22 @@ export function Model<
 
     static async count<M extends typeof ModelClass>(this: M) {
       return await super.count();
+    }
+
+    static async sum<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+      return super.sum(key as string);
+    }
+
+    static async min<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+      return super.min(key as string);
+    }
+
+    static async max<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+      return super.max(key as string);
+    }
+
+    static async avg<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+      return super.avg(key as string);
     }
 
     static async deleteAll<M extends typeof ModelClass>(this: M) {
