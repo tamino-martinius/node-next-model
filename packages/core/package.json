@@ -28,7 +28,7 @@
     "url": "https://github.com/tamino-martinius/node-data-api-model.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "test": "vitest run",
