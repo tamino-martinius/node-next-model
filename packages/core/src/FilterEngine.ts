@@ -144,6 +144,19 @@ async function lteFilter(items: Dict<any>[], filter: Partial<Dict<any>>): Promis
   return items.filter((item) => item[key] <= filter[key]);
 }
 
+async function likeFilter(items: Dict<any>[], filter: Partial<Dict<any>>): Promise<Dict<any>[]> {
+  const key = singleKey(filter, '$like');
+  const pattern = filter[key];
+  if (typeof pattern !== 'string') return [];
+  const regex = new RegExp(
+    `^${pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/%/g, '.*')
+      .replace(/_/g, '.')}$`,
+  );
+  return items.filter((item) => typeof item[key] === 'string' && regex.test(item[key]));
+}
+
 async function rawFilter(items: Dict<any>[], filter: FilterRaw): Promise<Dict<any>[]> {
   const fn = compileRawQuery(filter.$query);
   const params = filter.$bindings;
@@ -185,6 +198,7 @@ async function specialFilter(
   if (filter.$gte !== undefined) return gteFilter(items, filter.$gte);
   if (filter.$lt !== undefined) return ltFilter(items, filter.$lt);
   if (filter.$lte !== undefined) return lteFilter(items, filter.$lte);
+  if (filter.$like !== undefined) return likeFilter(items, filter.$like);
   if (filter.$raw !== undefined) return rawFilter(items, filter.$raw);
   if (filter.$async !== undefined) return asyncFilter(items, filter.$async);
   throw new FilterError(`unknown special filter operator: ${keys[0]}`);

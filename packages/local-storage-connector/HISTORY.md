@@ -2,8 +2,26 @@
 
 ## vNext
 
-Add new queries for:
-* `$exists`
+Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
+
+### Rewrite
+
+- Full TypeScript rewrite. Package renamed to `@next-model/local-storage-connector`.
+- Connector now subclasses `MemoryConnector`; all filter operators, ordering, aggregates, `execute` (JS eval), and `batchInsert` behave identically to the in-memory store.
+- Persists each table lazily: reads a single JSON array from `localStorage` on first access and writes back after every mutation. Per-table `__nextId` key so deleted rows never have their id reused.
+
+### Options
+
+- Constructor accepts `{ localStorage?, prefix?, suffix? }`. When no `localStorage` is injected, falls back to `globalThis.localStorage` for browser use; throws if neither is available.
+- `prefix`/`suffix` let apps namespace keys (e.g. `prefix: 'app:', suffix: ':v1'` → `app:users:v1`).
+
+### Transactions
+
+- `transaction(fn)` defers `localStorage` writes until commit; on rollback, the underlying storage and `localStorage` both stay untouched. Nested transactions join the outer transaction.
+
+### Testing
+
+- Ships `MemoryLocalStorage` mock implementing the minimal `Storage` surface so the vitest suite runs headlessly in Node.
 
 ## v0.4.3
 

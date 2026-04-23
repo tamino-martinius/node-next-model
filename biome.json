@@ -13,8 +13,7 @@
       "**/*.js",
       "**/*.mjs",
       "packages/api-router/**",
-      "packages/api-server-express/**",
-      "packages/local-storage-connector/**"
+      "packages/api-server-express/**"
     ]
   },
   "formatter": {
