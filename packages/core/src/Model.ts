@@ -1,5 +1,7 @@
 import { NotFoundError, PersistenceError, ValidationError } from './errors';
 import {
+  type Callback,
+  type Callbacks,
   type Connector,
   type Dict,
   type Filter,
@@ -24,6 +26,7 @@ export class ModelClass {
   static init: (props: any) => Dict<any>;
   static timestamps = true;
   static validators: Validator<any>[] = [];
+  static callbacks: Callbacks<any> = {};
 
   static modelScope() {
     return {
@@ -265,12 +268,25 @@ export class ModelClass {
     return true;
   }
 
+  async runCallbacks(kind: keyof Callbacks<any>): Promise<void> {
+    const model = this.constructor as typeof ModelClass;
+    const callbacks = model.callbacks[kind] as Callback<any>[] | undefined;
+    if (!callbacks) return;
+    for (const callback of callbacks) {
+      await callback(this);
+    }
+  }
+
   async save<M extends ModelClass>(this: M) {
     const model = this.constructor as typeof ModelClass;
     if (!(await this.isValid())) {
       throw new ValidationError('Validation failed');
     }
     const now = new Date();
+    const isInsert = !this.keys;
+
+    await this.runCallbacks('beforeSave');
+    await this.runCallbacks(isInsert ? 'beforeCreate' : 'beforeUpdate');
 
     if (this.keys) {
       const changedKeys = Object.keys(this.changedProps);
@@ -311,6 +327,10 @@ export class ModelClass {
         throw new PersistenceError('Failed to insert item');
       }
     }
+
+    await this.runCallbacks(isInsert ? 'afterCreate' : 'afterUpdate');
+    await this.runCallbacks('afterSave');
+
     return this as M;
   }
 
@@ -319,6 +339,7 @@ export class ModelClass {
       throw new PersistenceError('Cannot delete a record that has not been saved');
     }
     const model = this.constructor as typeof ModelClass;
+    await this.runCallbacks('beforeDelete');
     const items = await model.connector.deleteAll(this.itemScope());
     if (items.length === 0) {
       throw new NotFoundError('Item not found');
@@ -326,6 +347,7 @@ export class ModelClass {
     this.persistentProps = { ...this.persistentProps, ...this.changedProps, ...this.keys };
     this.changedProps = {};
     this.keys = undefined;
+    await this.runCallbacks('afterDelete');
     return this as M;
   }
 }
@@ -351,12 +373,16 @@ export function Model<
   validators?: Validator<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >[];
+  callbacks?: Callbacks<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
   const timestamps = props.timestamps ?? true;
   const validators = props.validators || [];
+  const callbacks = props.callbacks || {};
 
   return class Model extends ModelClass {
     static tableName = props.tableName;
@@ -369,6 +395,7 @@ export function Model<
     static init = props.init as any;
     static timestamps = timestamps;
     static validators = validators as Validator<any>[];
+    static callbacks = callbacks as Callbacks<any>;
 
     static orderBy<M extends typeof ModelClass>(
       this: M,

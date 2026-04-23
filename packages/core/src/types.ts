@@ -94,3 +94,16 @@ export interface Scope {
 }
 
 export type Validator<T> = (instance: T) => boolean | Promise<boolean>;
+
+export type Callback<T> = (instance: T) => void | Promise<void>;
+
+export interface Callbacks<T> {
+  beforeSave?: Callback<T>[];
+  afterSave?: Callback<T>[];
+  beforeCreate?: Callback<T>[];
+  afterCreate?: Callback<T>[];
+  beforeUpdate?: Callback<T>[];
+  afterUpdate?: Callback<T>[];
+  beforeDelete?: Callback<T>[];
+  afterDelete?: Callback<T>[];
+}
