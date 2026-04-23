@@ -1694,6 +1694,146 @@ describe('Model', () => {
         expect(profile?.attributes().bio).toBe('hi');
       });
     });
+
+    describe('polymorphic', () => {
+      it('belongsTo resolves by {name}Id + {name}Type matching target tableName', async () => {
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const PhotoKlass = Model({
+          tableName: 'photos',
+          init: (props: { url: string }) => props,
+          connector: assocConnector(),
+        });
+        const CommentKlass = Model({
+          tableName: 'comments',
+          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
+          connector: assocConnector(),
+        });
+        const post = await PostKlass.create({ title: 'Hello' });
+        const photo = await PhotoKlass.create({ url: '/a.jpg' });
+        const c1 = await CommentKlass.create({
+          body: 'on post',
+          commentableId: post.id,
+          commentableType: 'posts',
+        });
+        const c2 = await CommentKlass.create({
+          body: 'on photo',
+          commentableId: photo.id,
+          commentableType: 'photos',
+        });
+        const resolvedPost = await c1.belongsTo(PostKlass, { polymorphic: 'commentable' });
+        const resolvedPhoto = await c2.belongsTo(PhotoKlass, { polymorphic: 'commentable' });
+        expect(resolvedPost?.attributes().title).toBe('Hello');
+        expect(resolvedPhoto?.attributes().url).toBe('/a.jpg');
+      });
+
+      it('belongsTo returns undefined when type does not match target tableName', async () => {
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const PhotoKlass = Model({
+          tableName: 'photos',
+          init: (props: { url: string }) => props,
+          connector: assocConnector(),
+        });
+        const CommentKlass = Model({
+          tableName: 'comments',
+          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
+          connector: assocConnector(),
+        });
+        await PostKlass.create({ title: 'Hello' });
+        const photo = await PhotoKlass.create({ url: '/a.jpg' });
+        const c = await CommentKlass.create({
+          body: 'on photo',
+          commentableId: photo.id,
+          commentableType: 'photos',
+        });
+        const resolved = await c.belongsTo(PostKlass, { polymorphic: 'commentable' });
+        expect(resolved).toBeUndefined();
+      });
+
+      it('hasMany scopes by both id and type', async () => {
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const CommentKlass = Model({
+          tableName: 'comments',
+          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
+          connector: assocConnector(),
+        });
+        const post1 = await PostKlass.create({ title: 'One' });
+        const post2 = await PostKlass.create({ title: 'Two' });
+        await CommentKlass.create({
+          body: 'a',
+          commentableId: post1.id,
+          commentableType: 'posts',
+        });
+        await CommentKlass.create({
+          body: 'b',
+          commentableId: post1.id,
+          commentableType: 'photos',
+        });
+        await CommentKlass.create({
+          body: 'c',
+          commentableId: post2.id,
+          commentableType: 'posts',
+        });
+        const comments = await post1.hasMany(CommentKlass, { polymorphic: 'commentable' }).all();
+        expect(comments.map((c) => c.attributes().body)).toEqual(['a']);
+      });
+
+      it('honours explicit typeValue override', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const CommentKlass = Model({
+          tableName: 'comments',
+          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        await CommentKlass.create({
+          body: 'hi',
+          commentableId: user.id,
+          commentableType: 'User',
+        });
+        const comments = await user
+          .hasMany(CommentKlass, { polymorphic: 'commentable', typeValue: 'User' })
+          .all();
+        expect(comments).toHaveLength(1);
+      });
+
+      it('supports typeKey override', async () => {
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const CommentKlass = Model({
+          tableName: 'comments',
+          init: (props: { body: string; targetId: number; targetKind: string }) => props,
+          connector: assocConnector(),
+        });
+        const post = await PostKlass.create({ title: 'P' });
+        await CommentKlass.create({ body: 'x', targetId: post.id, targetKind: 'posts' });
+        const c = await CommentKlass.first();
+        const resolved = await c?.belongsTo(PostKlass, {
+          foreignKey: 'targetId',
+          typeKey: 'targetKind',
+          polymorphic: 'target',
+        });
+        expect(resolved?.attributes().title).toBe('P');
+      });
+    });
   });
 
   describe('scopes', () => {
