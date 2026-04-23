@@ -600,6 +600,111 @@ describe('Model', () => {
     });
   });
 
+  describe('savedChanges / wasChanged', () => {
+    it('captures inserted attributes with from: undefined after create', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'hello' });
+      expect(record.wasChanged()).toBe(true);
+      expect(record.wasChangedBy('foo')).toBe(true);
+      expect(record.wasChangedBy('id')).toBe(true);
+      expect(record.savedChangeBy('foo')).toEqual({ from: undefined, to: 'hello' });
+      expect(record.savedChanges().foo).toEqual({ from: undefined, to: 'hello' });
+      storage = {};
+    });
+
+    it('captures only the updated attributes with their prior values', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string; bar: string }) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'a', bar: 'b' });
+      record.assign({ foo: 'A' });
+      await record.save();
+      expect(record.wasChangedBy('foo')).toBe(true);
+      expect(record.wasChangedBy('bar')).toBe(false);
+      expect(record.savedChangeBy('foo')).toEqual({ from: 'a', to: 'A' });
+      expect(record.savedChangeBy('bar')).toBeUndefined();
+      storage = {};
+    });
+
+    it('clears pending changes (#changes) while keeping savedChanges', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'a' });
+      record.assign({ foo: 'b' });
+      await record.save();
+      expect(record.isChanged()).toBe(false);
+      expect(record.changes()).toEqual({});
+      expect(record.savedChanges().foo).toEqual({ from: 'a', to: 'b' });
+      storage = {};
+    });
+
+    it('exposes savedChanges from an afterUpdate callback', async () => {
+      storage = {};
+      let seen: any;
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      Klass.on('afterUpdate', (instance) => {
+        seen = (instance as any).savedChanges();
+      });
+      const record = await Klass.create({ foo: 'a' });
+      record.assign({ foo: 'b' });
+      await record.save();
+      expect(seen.foo).toEqual({ from: 'a', to: 'b' });
+      storage = {};
+    });
+
+    it('replaces the prior snapshot on each subsequent save', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'a' });
+      record.assign({ foo: 'b' });
+      await record.save();
+      record.assign({ foo: 'c' });
+      await record.save();
+      expect(record.savedChangeBy('foo')).toEqual({ from: 'b', to: 'c' });
+      storage = {};
+    });
+
+    it('returns wasChanged() false when save is a no-op (no pending changes)', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'a' });
+      await record.save();
+      expect(record.wasChanged()).toBe(false);
+      expect(record.savedChanges()).toEqual({});
+      storage = {};
+    });
+  });
+
   describe('timestamps', () => {
     it('sets createdAt and updatedAt on insert by default', async () => {
       storage = {};

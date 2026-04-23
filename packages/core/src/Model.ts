@@ -460,6 +460,7 @@ export class ModelClass {
 
   persistentProps: Dict<any>;
   changedProps: Dict<any> = {};
+  lastSavedChanges: Dict<{ from: any; to: any }> = {};
   keys: Dict<any> | undefined;
 
   constructor(props: Dict<any>, keys?: Dict<any>) {
@@ -542,6 +543,22 @@ export class ModelClass {
       result[key] = { from: this.persistentProps[key], to: this.changedProps[key] };
     }
     return result;
+  }
+
+  savedChanges(): Dict<{ from: any; to: any }> {
+    return { ...this.lastSavedChanges };
+  }
+
+  savedChangeBy(key: string): { from: any; to: any } | undefined {
+    return this.lastSavedChanges[key];
+  }
+
+  wasChanged(): boolean {
+    return Object.keys(this.lastSavedChanges).length > 0;
+  }
+
+  wasChangedBy(key: string): boolean {
+    return key in this.lastSavedChanges;
   }
 
   revertChange<M extends ModelClass>(this: M, key: string) {
@@ -686,11 +703,16 @@ export class ModelClass {
     await this.runCallbacks('beforeSave');
     await this.runCallbacks(isInsert ? 'beforeCreate' : 'beforeUpdate');
 
+    const snapshot: Dict<{ from: any; to: any }> = {};
+
     if (this.keys) {
       const changedKeys = Object.keys(this.changedProps);
       if (changedKeys.length > 0) {
         if (model.timestamps) {
           this.changedProps.updatedAt = now;
+        }
+        for (const key in this.changedProps) {
+          snapshot[key] = { from: this.persistentProps[key], to: this.changedProps[key] };
         }
         const items = await model.connector.updateAll(this.itemScope(), this.changedProps);
         const item = items.pop();
@@ -719,12 +741,20 @@ export class ModelClass {
           this.keys[key] = item[key];
           delete item[key];
         }
+        for (const key in item) {
+          snapshot[key] = { from: undefined, to: item[key] };
+        }
+        for (const key in this.keys) {
+          snapshot[key] = { from: undefined, to: this.keys[key] };
+        }
         this.persistentProps = item;
         this.changedProps = {};
       } else {
         throw new PersistenceError('Failed to insert item');
       }
     }
+
+    this.lastSavedChanges = snapshot;
 
     await this.runCallbacks(isInsert ? 'afterCreate' : 'afterUpdate');
     await this.runCallbacks('afterSave');
