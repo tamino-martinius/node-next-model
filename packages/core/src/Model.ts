@@ -1,4 +1,4 @@
-import { NotFoundError, PersistenceError } from './errors';
+import { NotFoundError, PersistenceError, ValidationError } from './errors';
 import {
   type Connector,
   type Dict,
@@ -8,6 +8,7 @@ import {
   type OrderColumn,
   type Schema,
   type Scope,
+  type Validator,
 } from './types';
 
 import { MemoryConnector } from './MemoryConnector';
@@ -22,6 +23,7 @@ export class ModelClass {
   static connector: Connector;
   static init: (props: any) => Dict<any>;
   static timestamps = true;
+  static validators: Validator<any>[] = [];
 
   static modelScope() {
     return {
@@ -255,8 +257,19 @@ export class ModelClass {
     };
   }
 
+  async isValid(): Promise<boolean> {
+    const model = this.constructor as typeof ModelClass;
+    for (const validator of model.validators) {
+      if (!(await validator(this))) return false;
+    }
+    return true;
+  }
+
   async save<M extends ModelClass>(this: M) {
     const model = this.constructor as typeof ModelClass;
+    if (!(await this.isValid())) {
+      throw new ValidationError('Validation failed');
+    }
     const now = new Date();
 
     if (this.keys) {
@@ -335,11 +348,15 @@ export function Model<
   connector?: Connector;
   keys?: Keys;
   timestamps?: boolean;
+  validators?: Validator<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >[];
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
   const timestamps = props.timestamps ?? true;
+  const validators = props.validators || [];
 
   return class Model extends ModelClass {
     static tableName = props.tableName;
@@ -351,6 +368,7 @@ export function Model<
     static connector = connector;
     static init = props.init as any;
     static timestamps = timestamps;
+    static validators = validators as Validator<any>[];
 
     static orderBy<M extends typeof ModelClass>(
       this: M,

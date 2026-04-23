@@ -676,6 +676,104 @@ describe('Model', () => {
     });
   });
 
+  describe('validators', () => {
+    it('isValid() returns true when no validators are defined', async () => {
+      storage = {};
+      const record = CreateModel().build({});
+      expect(await record.isValid()).toBe(true);
+      storage = {};
+    });
+
+    it('isValid() returns true when all validators pass', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        validators: [(instance: any) => instance.foo === 'bar'],
+      });
+      const record = Klass.build({ foo: 'bar' });
+      expect(await record.isValid()).toBe(true);
+      storage = {};
+    });
+
+    it('isValid() returns false when any validator fails', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        validators: [
+          (instance: any) => instance.foo === 'bar',
+          (instance: any) => instance.bar === 'baz',
+        ],
+      });
+      const record = Klass.build({ foo: 'bar', bar: 'wrong' });
+      expect(await record.isValid()).toBe(false);
+      storage = {};
+    });
+
+    it('supports async validators', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        validators: [async (instance: any) => instance.foo === 'bar'],
+      });
+      const record = Klass.build({ foo: 'bar' });
+      expect(await record.isValid()).toBe(true);
+      storage = {};
+    });
+
+    it('save() throws ValidationError when invalid', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        validators: [() => false],
+      });
+      const record = Klass.build({ foo: 'bar' });
+      await expect(record.save()).rejects.toBeInstanceOf(Error);
+      expect(Object.keys(storage[tableName] ?? {})).toHaveLength(0);
+      storage = {};
+    });
+
+    it('save() proceeds when valid', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        validators: [(instance: any) => instance.foo === 'bar'],
+      });
+      const record = await Klass.create({ foo: 'bar' });
+      expect(record.isPersistent()).toBe(true);
+      storage = {};
+    });
+
+    it('short-circuits on the first failing validator', async () => {
+      storage = {};
+      let secondCalled = false;
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        validators: [
+          () => false,
+          () => {
+            secondCalled = true;
+            return true;
+          },
+        ],
+      });
+      expect(await Klass.build({}).isValid()).toBe(false);
+      expect(secondCalled).toBe(false);
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
