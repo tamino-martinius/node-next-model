@@ -899,6 +899,84 @@ describe('Model', () => {
     });
   });
 
+  describe('transactions', () => {
+    it('commits writes when the callback resolves', async () => {
+      storage = {};
+      const Klass = CreateModel();
+      await Klass.transaction(async () => {
+        await Klass.create({ foo: 'bar' });
+        await Klass.create({ foo: 'baz' });
+      });
+      expect(await Klass.count()).toBe(2);
+      storage = {};
+    });
+
+    it('rolls back writes when the callback throws', async () => {
+      storage = {};
+      const Klass = CreateModel();
+      await Klass.create({ foo: 'before' });
+      await expect(
+        Klass.transaction(async () => {
+          await Klass.create({ foo: 'inside' });
+          throw new Error('rollback');
+        }),
+      ).rejects.toThrow('rollback');
+      expect(await Klass.count()).toBe(1);
+      expect(await Klass.findBy({ foo: 'inside' })).toBeUndefined();
+      storage = {};
+    });
+
+    it('rolls back updates and deletes on throw', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ foo: 'original' });
+      await expect(
+        Klass.transaction(async () => {
+          record.assign({ foo: 'updated' });
+          await record.save();
+          const another = await Klass.create({ foo: 'new' });
+          await another.delete();
+          throw new Error('rollback');
+        }),
+      ).rejects.toThrow('rollback');
+      const reloaded = await Klass.findBy({ id: record.attributes().id });
+      expect(reloaded?.attributes().foo).toBe('original');
+      expect(await Klass.count()).toBe(1);
+      storage = {};
+    });
+
+    it('returns the callback return value on commit', async () => {
+      storage = {};
+      const Klass = CreateModel();
+      const result = await Klass.transaction(async () => {
+        await Klass.create({ foo: 'bar' });
+        return 42;
+      });
+      expect(result).toBe(42);
+      storage = {};
+    });
+
+    it('joins an outer transaction (nested throw rolls back both)', async () => {
+      storage = {};
+      const Klass = CreateModel();
+      await expect(
+        Klass.transaction(async () => {
+          await Klass.create({ foo: 'outer' });
+          await Klass.transaction(async () => {
+            await Klass.create({ foo: 'inner' });
+            throw new Error('inner-fail');
+          });
+        }),
+      ).rejects.toThrow('inner-fail');
+      expect(await Klass.count()).toBe(0);
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;

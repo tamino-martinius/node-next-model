@@ -28,6 +28,10 @@ export class ModelClass {
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
+  static async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    return this.connector.transaction(fn);
+  }
+
   static modelScope() {
     return {
       tableName: this.tableName,

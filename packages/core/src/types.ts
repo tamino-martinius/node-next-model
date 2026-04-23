@@ -83,6 +83,7 @@ export interface Connector {
   deleteAll(scope: Scope): Promise<Dict<any>[]>;
   batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]>;
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;
+  transaction<T>(fn: () => Promise<T>): Promise<T>;
 }
 
 export interface Scope {
