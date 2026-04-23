@@ -1122,6 +1122,74 @@ describe('Model', () => {
     });
   });
 
+  describe('#increment / #decrement', () => {
+    it('increments the given field and persists', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ count: 5 });
+      await record.increment('count');
+      expect(record.attributes().count).toBe(6);
+      const reloaded = (await Klass.findBy({ id: record.attributes().id }))!;
+      expect(reloaded.attributes().count).toBe(6);
+      storage = {};
+    });
+
+    it('accepts a custom step', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ count: 10 });
+      await record.increment('count', 3);
+      expect(record.attributes().count).toBe(13);
+      storage = {};
+    });
+
+    it('decrements the field', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ count: 5 });
+      await record.decrement('count', 2);
+      expect(record.attributes().count).toBe(3);
+      storage = {};
+    });
+
+    it('treats missing values as zero', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({});
+      await record.increment('count');
+      expect(record.attributes().count).toBe(1);
+      storage = {};
+    });
+
+    it('throws when the record is unsaved', async () => {
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = Klass.build({ count: 1 });
+      await expect(record.increment('count')).rejects.toThrow(
+        'Cannot increment a record that has not been saved',
+      );
+    });
+  });
+
   describe('#update', () => {
     it('assigns and saves in one call', async () => {
       storage = {};
@@ -1399,6 +1467,116 @@ describe('Model', () => {
         await PostKlass.create({ authorId: user.id, title: 'A' });
         const posts = await user.hasMany(PostKlass, { foreignKey: 'authorId' }).all();
         expect(posts).toHaveLength(1);
+      });
+    });
+
+    describe('#hasManyThrough', () => {
+      it('returns target records linked via the join table', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const AuthorshipKlass = Model({
+          tableName: 'authorships',
+          init: (props: { userId: number; postId: number }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const bob = await UserKlass.create({ name: 'Bob' });
+        const postA = await PostKlass.create({ title: 'A' });
+        const postB = await PostKlass.create({ title: 'B' });
+        const postC = await PostKlass.create({ title: 'C' });
+        await AuthorshipKlass.create({ userId: alice.id, postId: postA.id });
+        await AuthorshipKlass.create({ userId: alice.id, postId: postB.id });
+        await AuthorshipKlass.create({ userId: bob.id, postId: postC.id });
+
+        const alicePosts = await alice.hasManyThrough(PostKlass, AuthorshipKlass).all();
+        expect(alicePosts.map((p) => p.attributes().title).sort()).toEqual(['A', 'B']);
+      });
+
+      it('supports further chained scopes on the returned class', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string; published: boolean }) => props,
+          connector: assocConnector(),
+        });
+        const AuthorshipKlass = Model({
+          tableName: 'authorships',
+          init: (props: { userId: number; postId: number }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const postA = await PostKlass.create({ title: 'A', published: true });
+        const postB = await PostKlass.create({ title: 'B', published: false });
+        await AuthorshipKlass.create({ userId: alice.id, postId: postA.id });
+        await AuthorshipKlass.create({ userId: alice.id, postId: postB.id });
+
+        const published = await alice
+          .hasManyThrough(PostKlass, AuthorshipKlass)
+          .filterBy({ published: true })
+          .all();
+        expect(published).toHaveLength(1);
+        expect(published[0].attributes().title).toBe('A');
+      });
+
+      it('returns an empty result when no join rows match', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const AuthorshipKlass = Model({
+          tableName: 'authorships',
+          init: (props: { userId: number; postId: number }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const posts = await alice.hasManyThrough(PostKlass, AuthorshipKlass).all();
+        expect(posts).toHaveLength(0);
+      });
+
+      it('honours custom foreignKeys', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { title: string }) => props,
+          connector: assocConnector(),
+        });
+        const AuthorshipKlass = Model({
+          tableName: 'authorships',
+          init: (props: { authorId: number; articleId: number }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const postA = await PostKlass.create({ title: 'A' });
+        await AuthorshipKlass.create({ authorId: alice.id, articleId: postA.id });
+        const posts = await alice
+          .hasManyThrough(PostKlass, AuthorshipKlass, {
+            throughForeignKey: 'authorId',
+            targetForeignKey: 'articleId',
+          })
+          .all();
+        expect(posts.map((p) => p.attributes().title)).toEqual(['A']);
       });
     });
 
