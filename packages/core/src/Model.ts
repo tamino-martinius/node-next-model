@@ -194,6 +194,53 @@ export class ModelClass {
     return (await scoped.count()) > 0;
   }
 
+  static async find<M extends typeof ModelClass>(this: M, id: number | string) {
+    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    const record = await this.findBy<M>({ [primaryKey]: id });
+    if (!record) {
+      throw new NotFoundError(`${this.name || 'Record'} with ${primaryKey}=${id} not found`);
+    }
+    return record;
+  }
+
+  static async findOrFail<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
+    const record = await this.findBy<M>(filter);
+    if (!record) throw new NotFoundError('Record not found');
+    return record;
+  }
+
+  static async findOrBuild<M extends typeof ModelClass>(
+    this: M,
+    filter: Filter<any>,
+    createProps: any,
+  ) {
+    const record = await this.findBy<M>(filter);
+    if (record) return record;
+    return this.build<M>({ ...filter, ...createProps });
+  }
+
+  static async firstOrCreate<M extends typeof ModelClass>(
+    this: M,
+    filter: Filter<any>,
+    createProps: any = {},
+  ) {
+    const record = await this.findBy<M>(filter);
+    if (record) return record;
+    return this.create<M>({ ...filter, ...createProps });
+  }
+
+  static async updateOrCreate<M extends typeof ModelClass>(
+    this: M,
+    filter: Filter<any>,
+    attrs: Dict<any>,
+  ) {
+    const record = await this.findBy<M>(filter);
+    if (record) {
+      return (record as any).update(attrs) as Promise<InstanceType<M>>;
+    }
+    return this.create<M>({ ...filter, ...attrs });
+  }
+
   persistentProps: Dict<any>;
   changedProps: Dict<any> = {};
   keys: Dict<any> | undefined;
@@ -582,6 +629,62 @@ export function Model<
       >,
     ) {
       return await super.exists(filter);
+    }
+
+    static async find<M extends typeof ModelClass>(
+      this: M,
+      id: Keys[keyof Keys] extends KeyType.uuid ? string : number,
+    ) {
+      return (await super.find(id as number | string)) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async findOrFail<M extends typeof ModelClass>(
+      this: M,
+      filter: Filter<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      return (await super.findOrFail(filter)) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async findOrBuild<M extends typeof ModelClass>(
+      this: M,
+      filter: Filter<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+      createProps: CreateProps,
+    ) {
+      return (await super.findOrBuild(filter, createProps)) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async firstOrCreate<M extends typeof ModelClass>(
+      this: M,
+      filter: Filter<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+      createProps: Partial<CreateProps> = {},
+    ) {
+      return (await super.firstOrCreate(filter, createProps)) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async updateOrCreate<M extends typeof ModelClass>(
+      this: M,
+      filter: Filter<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+      attrs: Partial<PersistentProps>,
+    ) {
+      return (await super.updateOrCreate(filter, attrs)) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
     }
 
     static build<M extends typeof ModelClass>(this: M, props: CreateProps) {

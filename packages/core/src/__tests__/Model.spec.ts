@@ -977,6 +977,151 @@ describe('Model', () => {
     });
   });
 
+  describe('.find', () => {
+    it('returns the record by primary key', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ foo: 'a' });
+      const found = await Klass.find(record.attributes().id);
+      expect(found.attributes().foo).toBe('a');
+      storage = {};
+    });
+
+    it('throws NotFoundError when the record is absent', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await expect(Klass.find(999)).rejects.toThrow(/not found/);
+      storage = {};
+    });
+  });
+
+  describe('.findOrFail', () => {
+    it('returns the matching record', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'match' });
+      const found = await Klass.findOrFail({ foo: 'match' });
+      expect(found.attributes().foo).toBe('match');
+      storage = {};
+    });
+
+    it('throws when no record matches', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await expect(Klass.findOrFail({ foo: 'missing' })).rejects.toThrow('Record not found');
+      storage = {};
+    });
+  });
+
+  describe('.findOrBuild', () => {
+    it('returns the existing record when found', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'a', bar: 1 });
+      const record = await Klass.findOrBuild({ foo: 'a' }, { bar: 99 });
+      expect(record.attributes().bar).toBe(1);
+      expect(record.isNew()).toBe(false);
+      storage = {};
+    });
+
+    it('builds an unsaved instance when not found', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.findOrBuild({ foo: 'missing' }, { bar: 42 });
+      expect(record.attributes().foo).toBe('missing');
+      expect(record.attributes().bar).toBe(42);
+      expect(record.isNew()).toBe(true);
+      expect(await Klass.count()).toBe(0);
+      storage = {};
+    });
+  });
+
+  describe('.firstOrCreate', () => {
+    it('returns the existing record without writing', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'a' });
+      const before = await Klass.count();
+      const record = await Klass.firstOrCreate({ foo: 'a' }, { bar: 1 });
+      expect(record.attributes().foo).toBe('a');
+      expect(await Klass.count()).toBe(before);
+      storage = {};
+    });
+
+    it('creates when no record matches', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.firstOrCreate({ foo: 'new' }, { bar: 42 });
+      expect(record.attributes().foo).toBe('new');
+      expect(record.attributes().bar).toBe(42);
+      expect(record.isPersistent()).toBe(true);
+      storage = {};
+    });
+  });
+
+  describe('.updateOrCreate', () => {
+    it('updates the existing record', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const original = await Klass.create({ foo: 'a', bar: 1 });
+      const record = await Klass.updateOrCreate({ foo: 'a' }, { bar: 99 });
+      expect(record.attributes().id).toBe(original.attributes().id);
+      expect(record.attributes().bar).toBe(99);
+      expect(await Klass.count()).toBe(1);
+      storage = {};
+    });
+
+    it('creates when no record matches', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.updateOrCreate({ foo: 'new' }, { bar: 7 });
+      expect(record.attributes().foo).toBe('new');
+      expect(record.attributes().bar).toBe(7);
+      expect(record.isPersistent()).toBe(true);
+      storage = {};
+    });
+  });
+
   describe('#update', () => {
     it('assigns and saves in one call', async () => {
       storage = {};
