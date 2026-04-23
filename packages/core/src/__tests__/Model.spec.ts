@@ -2001,6 +2001,140 @@ describe('Model', () => {
     });
   });
 
+  describe('.inBatchesOf', () => {
+    it('yields batches of the requested size in order', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      for (const foo of ['a', 'b', 'c', 'd', 'e']) {
+        await Klass.create({ foo });
+      }
+      const batches: string[][] = [];
+      for await (const batch of Klass.inBatchesOf(2)) {
+        batches.push(batch.map((i) => i.foo));
+      }
+      expect(batches).toEqual([['a', 'b'], ['c', 'd'], ['e']]);
+      storage = {};
+    });
+
+    it('yields nothing when the scope is empty', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const batches: any[] = [];
+      for await (const batch of Klass.inBatchesOf(10)) {
+        batches.push(batch);
+      }
+      expect(batches).toEqual([]);
+      storage = {};
+    });
+
+    it('respects the current filter scope', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string; active: boolean }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      for (const foo of ['a', 'b', 'c', 'd']) {
+        await Klass.create({ foo, active: foo !== 'b' });
+      }
+      const all: string[] = [];
+      for await (const batch of Klass.filterBy({ active: true }).inBatchesOf(2)) {
+        for (const instance of batch) all.push(instance.foo);
+      }
+      expect(all).toEqual(['a', 'c', 'd']);
+      storage = {};
+    });
+
+    it('honors a prior limit by yielding at most that many rows', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      for (const foo of ['a', 'b', 'c', 'd', 'e']) {
+        await Klass.create({ foo });
+      }
+      const all: string[] = [];
+      for await (const batch of Klass.limitBy(3).inBatchesOf(2)) {
+        for (const instance of batch) all.push(instance.foo);
+      }
+      expect(all).toEqual(['a', 'b', 'c']);
+      storage = {};
+    });
+
+    it('defaults to ordering by primary key when no order is set', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const created: number[] = [];
+      for (const foo of ['z', 'a', 'm']) {
+        const row = await Klass.create({ foo });
+        created.push((row.attributes() as any).id);
+      }
+      const seen: number[] = [];
+      for await (const batch of Klass.inBatchesOf(1)) {
+        for (const instance of batch) seen.push((instance.attributes() as any).id);
+      }
+      expect(seen).toEqual([...created].sort((a, b) => a - b));
+      storage = {};
+    });
+  });
+
+  describe('.findEach', () => {
+    it('yields each instance once, across all batches', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      for (const foo of ['a', 'b', 'c', 'd', 'e']) {
+        await Klass.create({ foo });
+      }
+      const seen: string[] = [];
+      for await (const instance of Klass.findEach(2)) {
+        seen.push(instance.foo);
+      }
+      expect(seen).toEqual(['a', 'b', 'c', 'd', 'e']);
+      storage = {};
+    });
+
+    it('defaults batch size to 100', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: number }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      for (let foo = 0; foo < 3; foo++) {
+        await Klass.create({ foo });
+      }
+      const seen: number[] = [];
+      for await (const instance of Klass.findEach()) {
+        seen.push(instance.foo);
+      }
+      expect(seen).toEqual([0, 1, 2]);
+      storage = {};
+    });
+  });
+
   describe('.paginate', () => {
     it('returns the requested page with total/page metadata', async () => {
       storage = {};

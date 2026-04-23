@@ -265,6 +265,42 @@ export class ModelClass {
     return (this.reverse() as M).first<M>();
   }
 
+  static async *inBatchesOf<M extends typeof ModelClass>(
+    this: M,
+    size: number,
+  ): AsyncGenerator<InstanceType<M>[], void, void> {
+    const batchSize = Math.max(1, Math.floor(size));
+    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    const ordered = this.order.length > 0 ? this : this.orderBy({ key: primaryKey });
+    const baseSkip = this.skip ?? 0;
+    const totalLimit = this.limit;
+    let offset = 0;
+    while (true) {
+      const remaining = totalLimit === undefined ? batchSize : totalLimit - offset;
+      if (remaining <= 0) return;
+      const take = Math.min(batchSize, remaining);
+      const batch = await ordered
+        .unlimited()
+        .unskipped()
+        .skipBy(baseSkip + offset)
+        .limitBy(take)
+        .all<M>();
+      if (batch.length === 0) return;
+      yield batch;
+      if (batch.length < take) return;
+      offset += batch.length;
+    }
+  }
+
+  static async *findEach<M extends typeof ModelClass>(
+    this: M,
+    size = 100,
+  ): AsyncGenerator<InstanceType<M>, void, void> {
+    for await (const batch of this.inBatchesOf<M>(size)) {
+      for (const item of batch) yield item;
+    }
+  }
+
   static async paginate<M extends typeof ModelClass>(
     this: M,
     page: number,
@@ -899,6 +935,22 @@ export function Model<
       return (await super.last()) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async *inBatchesOf<M extends typeof ModelClass>(this: M, size: number) {
+      for await (const batch of super.inBatchesOf(size)) {
+        yield batch as (InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
+      }
+    }
+
+    static async *findEach<M extends typeof ModelClass>(this: M, size?: number) {
+      for await (const item of super.findEach(size)) {
+        yield item as InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+      }
     }
 
     static async paginate<M extends typeof ModelClass>(this: M, page: number, perPage?: number) {
