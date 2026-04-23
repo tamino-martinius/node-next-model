@@ -1896,6 +1896,102 @@ describe('Model', () => {
     });
   });
 
+  describe('soft deletes', () => {
+    const buildKlass = () => {
+      storage = {};
+      return Model({
+        tableName,
+        init: (props: { title: string; discardedAt?: Date | null }) => ({
+          discardedAt: null,
+          ...props,
+        }),
+        connector: connector(),
+        softDelete: true,
+      });
+    };
+
+    it('hides discarded records from the default scope', async () => {
+      const Klass = buildKlass();
+      const a = await Klass.create({ title: 'A' });
+      await Klass.create({ title: 'B' });
+      await a.discard();
+      const titles = (await Klass.all()).map((r) => r.attributes().title);
+      expect(titles).toEqual(['B']);
+      storage = {};
+    });
+
+    it('sets discardedAt to the current time when discarded', async () => {
+      const Klass = buildKlass();
+      const a = await Klass.create({ title: 'A' });
+      expect(a.isDiscarded()).toBe(false);
+      await a.discard();
+      expect(a.isDiscarded()).toBe(true);
+      expect(a.attributes().discardedAt).toBeInstanceOf(Date);
+      storage = {};
+    });
+
+    it('restore() clears discardedAt and brings the record back', async () => {
+      const Klass = buildKlass();
+      const a = await Klass.create({ title: 'A' });
+      await a.discard();
+      expect(await Klass.count()).toBe(0);
+      await a.restore();
+      expect(a.isDiscarded()).toBe(false);
+      expect(await Klass.count()).toBe(1);
+      storage = {};
+    });
+
+    it('withDiscarded() includes both active and discarded records', async () => {
+      const Klass = buildKlass();
+      const a = await Klass.create({ title: 'A' });
+      await Klass.create({ title: 'B' });
+      await a.discard();
+      const all = await Klass.withDiscarded().all();
+      expect(all.map((r) => r.attributes().title).sort()).toEqual(['A', 'B']);
+      storage = {};
+    });
+
+    it('onlyDiscarded() returns only discarded records', async () => {
+      const Klass = buildKlass();
+      const a = await Klass.create({ title: 'A' });
+      await Klass.create({ title: 'B' });
+      await a.discard();
+      const only = await Klass.onlyDiscarded().all();
+      expect(only.map((r) => r.attributes().title)).toEqual(['A']);
+      storage = {};
+    });
+
+    it('delete() still performs a hard delete when soft-delete is enabled', async () => {
+      const Klass = buildKlass();
+      const a = await Klass.create({ title: 'A' });
+      await a.delete();
+      expect(await Klass.withDiscarded().count()).toBe(0);
+      storage = {};
+    });
+
+    it('discard on an unsaved record throws', async () => {
+      const Klass = buildKlass();
+      const a = Klass.build({ title: 'A' });
+      await expect(a.discard()).rejects.toThrow();
+      storage = {};
+    });
+
+    it('does not apply soft-delete scope when the option is off', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { title: string; discardedAt?: Date | null }) => ({
+          discardedAt: null,
+          ...props,
+        }),
+        connector: connector(),
+      });
+      await Klass.create({ title: 'A', discardedAt: new Date() });
+      expect(await Klass.count()).toBe(1);
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
