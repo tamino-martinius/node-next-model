@@ -977,6 +977,211 @@ describe('Model', () => {
     });
   });
 
+  describe('associations', () => {
+    let assocStorage: Storage = {};
+    const assocConnector = () => new MemoryConnector({ storage: assocStorage });
+
+    beforeEach(() => {
+      assocStorage = {};
+    });
+
+    describe('#belongsTo', () => {
+      it('returns the referenced record using tableName convention', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        const post = await PostKlass.create({ userId: user.id, title: 'Hello' });
+        const author = await post.belongsTo(UserKlass);
+        expect(author?.attributes().name).toBe('Alice');
+      });
+
+      it('returns undefined when the foreign key is null', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number | null; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const post = await PostKlass.create({ userId: null, title: 'Orphan' });
+        const author = await post.belongsTo(UserKlass);
+        expect(author).toBeUndefined();
+      });
+
+      it('returns undefined when the referenced record does not exist', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const post = await PostKlass.create({ userId: 999, title: 'Dangling' });
+        const author = await post.belongsTo(UserKlass);
+        expect(author).toBeUndefined();
+      });
+
+      it('accepts an explicit foreignKey', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { authorId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        const post = await PostKlass.create({ authorId: user.id, title: 'Hello' });
+        const author = await post.belongsTo(UserKlass, { foreignKey: 'authorId' });
+        expect(author?.attributes().name).toBe('Alice');
+      });
+    });
+
+    describe('#hasMany', () => {
+      it('returns a scoped query of related records', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        const other = await UserKlass.create({ name: 'Bob' });
+        await PostKlass.create({ userId: user.id, title: 'A' });
+        await PostKlass.create({ userId: user.id, title: 'B' });
+        await PostKlass.create({ userId: other.id, title: 'C' });
+        const userPosts = await user.hasMany(PostKlass).all();
+        expect(userPosts).toHaveLength(2);
+        expect(userPosts.map((p) => p.attributes().title).sort()).toEqual(['A', 'B']);
+      });
+
+      it('supports count on the scoped query', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        await PostKlass.create({ userId: user.id, title: 'A' });
+        await PostKlass.create({ userId: user.id, title: 'B' });
+        expect(await user.hasMany(PostKlass).count()).toBe(2);
+      });
+
+      it('supports further chained scopes on the returned class', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string; published: boolean }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        await PostKlass.create({ userId: user.id, title: 'A', published: true });
+        await PostKlass.create({ userId: user.id, title: 'B', published: false });
+        const published = await user.hasMany(PostKlass).filterBy({ published: true }).all();
+        expect(published).toHaveLength(1);
+        expect(published[0].attributes().title).toBe('A');
+      });
+
+      it('accepts an explicit foreignKey', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { authorId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        await PostKlass.create({ authorId: user.id, title: 'A' });
+        const posts = await user.hasMany(PostKlass, { foreignKey: 'authorId' }).all();
+        expect(posts).toHaveLength(1);
+      });
+    });
+
+    describe('#hasOne', () => {
+      it('returns the associated record', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const ProfileKlass = Model({
+          tableName: 'profiles',
+          init: (props: { userId: number; bio: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        await ProfileKlass.create({ userId: user.id, bio: 'hello' });
+        const profile = await user.hasOne(ProfileKlass);
+        expect(profile?.attributes().bio).toBe('hello');
+      });
+
+      it('returns undefined when no related record exists', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const ProfileKlass = Model({
+          tableName: 'profiles',
+          init: (props: { userId: number; bio: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        const profile = await user.hasOne(ProfileKlass);
+        expect(profile).toBeUndefined();
+      });
+
+      it('accepts an explicit foreignKey', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const ProfileKlass = Model({
+          tableName: 'profiles',
+          init: (props: { ownerId: number; bio: string }) => props,
+          connector: assocConnector(),
+        });
+        const user = await UserKlass.create({ name: 'Alice' });
+        await ProfileKlass.create({ ownerId: user.id, bio: 'hi' });
+        const profile = await user.hasOne(ProfileKlass, { foreignKey: 'ownerId' });
+        expect(profile?.attributes().bio).toBe('hi');
+      });
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
