@@ -1,4 +1,13 @@
-import { Connector, Dict, Filter, KeyType, Order, OrderColumn, Schema, Scope } from './types';
+import {
+  type Connector,
+  type Dict,
+  type Filter,
+  KeyType,
+  type Order,
+  type OrderColumn,
+  type Schema,
+  type Scope,
+} from './types';
 
 import { MemoryConnector } from './MemoryConnector';
 
@@ -87,8 +96,8 @@ export class ModelClass {
       Object.keys(orFilter).length === 0
         ? this.filter
         : this.filter
-        ? { $or: [this.filter, orFilter] }
-        : orFilter;
+          ? { $or: [this.filter, orFilter] }
+          : orFilter;
     return class extends (this as typeof ModelClass) {
       static filter = filter;
     } as M;
@@ -118,7 +127,7 @@ export class ModelClass {
 
   static async all<M extends typeof ModelClass>(this: M) {
     const items = await this.connector.query(this.modelScope());
-    return items.map(item => {
+    return items.map((item) => {
       const keys: Dict<any> = {};
       for (const key in this.keys) {
         keys[key] = item[key];
@@ -140,7 +149,7 @@ export class ModelClass {
 
   static async pluck(key: string) {
     const items = await this.select(key as any);
-    return items.map(item => item[key]);
+    return items.map((item) => item[key]);
   }
 
   static async count<M extends typeof ModelClass>(this: M) {
@@ -158,7 +167,7 @@ export class ModelClass {
     for (const key in this.persistentProps) {
       Object.defineProperty(this, key, {
         get: () => this.attributes()[key],
-        set: value => this.assign({ [key]: value }),
+        set: (value) => this.assign({ [key]: value }),
       });
     }
 
@@ -248,7 +257,7 @@ export class ModelClass {
 export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
-  Keys extends Dict<KeyType> = { id: KeyType.number }
+  Keys extends Dict<KeyType> = { id: KeyType.number },
 >(props: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
@@ -314,7 +323,7 @@ export function Model<
     }
 
     static async select(...keys: [keyof Keys | keyof PersistentProps][]) {
-      return (super.select(...(keys as any[])) as any) as Partial<
+      return super.select(...(keys as any[])) as any as Partial<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >[];
     }
@@ -367,6 +376,7 @@ export function Model<
     changedProps: Partial<PersistentProps> = {};
     keys: { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number } | undefined;
 
+    // biome-ignore lint/complexity/noUselessConstructor: narrows parent's Dict<any> params to PersistentProps/Keys
     constructor(
       props: PersistentProps,
       keys?: { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number },

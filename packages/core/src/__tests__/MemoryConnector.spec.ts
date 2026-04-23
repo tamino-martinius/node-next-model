@@ -1,6 +1,6 @@
-import { Dict, Filter, MemoryConnector, Storage, clone } from '..';
-import { FilterSpecGroup, context, it, randomInteger } from '.';
-import { KeyType, OrderColumn, SortDirection } from '../types';
+import { type FilterSpecGroup, context, it, randomInteger } from '.';
+import { type Dict, type Filter, MemoryConnector, type Storage, clone } from '..';
+import { KeyType, type OrderColumn, SortDirection } from '../types';
 
 let storage: Storage = {};
 
@@ -11,9 +11,15 @@ const tableName = 'foo';
 const withEmptySeed = () => (storage = { [tableName]: [] });
 const withSingleSeed = () => (storage = { [tableName]: [{ id: validId }] });
 const withMultiSeed = () =>
-  (storage = { [tableName]: [{ id: 1, foo: 'bar' }, { id: 2, foo: null }, { id: 3, foo: 'bar' }] });
+  (storage = {
+    [tableName]: [
+      { id: 1, foo: 'bar' },
+      { id: 2, foo: null },
+      { id: 3, foo: 'bar' },
+    ],
+  });
 
-const idsOf = (items: Dict<any>[]) => items.map(item => item.id);
+const idsOf = (items: Dict<any>[]) => items.map((item) => item.id);
 const items = () => storage[tableName];
 const connector = () => new MemoryConnector({ storage });
 
@@ -92,7 +98,7 @@ const filterSpecGroups: FilterSpecGroup = {
     { filter: { $notBetween: { id: { from: 3, to: 4 } } }, results: [1, 2] },
     {
       filter: { $notBetween: { id: { from: validId, to: validId } } },
-      results: [1, 2, 3].filter(id => id !== validId),
+      results: [1, 2, 3].filter((id) => id !== validId),
     },
     { filter: { $notBetween: { id: { from: 4, to: 5 } } }, results: [1, 2, 3] },
     { filter: { $notBetween: { id: { from: 3, to: 1 } } }, results: [1, 2, 3] },
@@ -142,10 +148,10 @@ const filterSpecGroups: FilterSpecGroup = {
 };
 
 for (const key in filterSpecGroups) {
-  const groupName = '$async -> ' + key;
+  const groupName = `$async -> ${key}`;
   filterSpecGroups[groupName] = [];
   filterSpecGroups[groupName].push(
-    ...filterSpecGroups[key].map(spec => ({
+    ...filterSpecGroups[key].map((spec) => ({
       filter: {
         $async: Promise.resolve(spec.filter),
       },
@@ -268,8 +274,8 @@ describe('Connector', () => {
         });
 
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
-            filterSpecGroups[groupName].forEach(filterSpec => {
+          describe(`${groupName} filter`, () => {
+            filterSpecGroups[groupName].forEach((filterSpec) => {
               context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                 definitions: () => (filter = filterSpec.filter),
                 reset: () => (filter = undefined),
@@ -375,8 +381,8 @@ describe('Connector', () => {
       definitions: withMultiSeed,
       tests() {
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
-            filterSpecGroups[groupName].forEach(filterSpec => {
+          describe(`${groupName} filter`, () => {
+            filterSpecGroups[groupName].forEach((filterSpec) => {
               context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                 definitions: () => (filter = filterSpec.filter),
                 reset: () => (filter = undefined),
@@ -476,8 +482,8 @@ describe('Connector', () => {
           definitions: withMultiSeed,
           tests() {
             for (const groupName in filterSpecGroups) {
-              describe(groupName + ' filter', () => {
-                filterSpecGroups[groupName].forEach(filterSpec => {
+              describe(`${groupName} filter`, () => {
+                filterSpecGroups[groupName].forEach((filterSpec) => {
                   context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                     definitions: () => (filter = filterSpec.filter),
                     reset: () => (filter = undefined),
@@ -584,8 +590,8 @@ describe('Connector', () => {
           definitions: withMultiSeed,
           tests() {
             for (const groupName in filterSpecGroups) {
-              describe(groupName + ' filter', () => {
-                filterSpecGroups[groupName].forEach(filterSpec => {
+              describe(`${groupName} filter`, () => {
+                filterSpecGroups[groupName].forEach((filterSpec) => {
                   context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                     definitions: () => (filter = filterSpec.filter),
                     reset: () => (filter = undefined),
@@ -701,15 +707,15 @@ describe('Connector', () => {
       definitions: withMultiSeed,
       tests() {
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
-            filterSpecGroups[groupName].forEach(filterSpec => {
+          describe(`${groupName} filter`, () => {
+            filterSpecGroups[groupName].forEach((filterSpec) => {
               context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                 definitions: () => (filter = filterSpec.filter),
                 reset: () => (filter = undefined),
                 tests() {
                   const results = filterSpec.results;
                   if (Array.isArray(results)) {
-                    it('promises to return a count of ' + results.length, async () => {
+                    it(`promises to return a count of ${results.length}`, async () => {
                       await expect(subject()).resolves.toEqual(results.length);
                     });
 
@@ -818,8 +824,8 @@ describe('Connector', () => {
       definitions: withMultiSeed,
       tests() {
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
-            filterSpecGroups[groupName].forEach(filterSpec => {
+          describe(`${groupName} filter`, () => {
+            filterSpecGroups[groupName].forEach((filterSpec) => {
               context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                 definitions: () => (filter = filterSpec.filter),
                 tests() {
@@ -828,7 +834,7 @@ describe('Connector', () => {
                     const itUpdatesMatchingItems = (results: number[]) => {
                       it('promises to return updated records', async () => {
                         await expect(subject()).resolves.toEqual(
-                          results.map(id => ({ id, ...attrs })),
+                          results.map((id) => ({ id, ...attrs })),
                         );
                       });
                       if (results.length === 0) {
@@ -841,7 +847,7 @@ describe('Connector', () => {
                       } else {
                         it('changes matching items in storage', async () => {
                           const storageBeforeUpdate = clone(items());
-                          const changedStorage = items().map(item =>
+                          const changedStorage = items().map((item) =>
                             results.includes(item.id) ? { ...item, ...attrs } : item,
                           );
                           await subject();
@@ -951,8 +957,8 @@ describe('Connector', () => {
       definitions: withMultiSeed,
       tests() {
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
-            filterSpecGroups[groupName].forEach(filterSpec => {
+          describe(`${groupName} filter`, () => {
+            filterSpecGroups[groupName].forEach((filterSpec) => {
               context(`with filter '${JSON.stringify(filterSpec.filter)}'`, {
                 definitions: () => (filter = filterSpec.filter),
                 reset: () => (filter = undefined),
@@ -961,7 +967,7 @@ describe('Connector', () => {
                   if (Array.isArray(results)) {
                     const itDeletesMatchingItems = (results: number[]) => {
                       it('promises to return deleted records', async () => {
-                        const deletedItems = items().filter(item => results.includes(item.id));
+                        const deletedItems = items().filter((item) => results.includes(item.id));
                         await expect(subject()).resolves.toEqual(deletedItems);
                       });
                       if (results.length === 0) {
@@ -974,7 +980,9 @@ describe('Connector', () => {
                       } else {
                         it('deletes matching items in storage', async () => {
                           const storageBeforeUpdate = clone(items());
-                          const changedStorage = items().filter(item => !results.includes(item.id));
+                          const changedStorage = items().filter(
+                            (item) => !results.includes(item.id),
+                          );
                           await subject();
                           const storageAfterUpdate = items();
                           expect(storageBeforeUpdate).not.toEqual(storageAfterUpdate);

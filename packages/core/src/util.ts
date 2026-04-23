@@ -1,11 +1,6 @@
 export function uuid() {
-  const dateStr = Date.now()
-    .toString(16)
-    .padStart(12, '0');
-  const randomStr = Math.random()
-    .toString(16)
-    .slice(2)
-    .padStart(12, '0');
+  const dateStr = Date.now().toString(16).padStart(12, '0');
+  const randomStr = Math.random().toString(16).slice(2).padStart(12, '0');
   return [
     '2e87c0de',
     dateStr.slice(0, 4),

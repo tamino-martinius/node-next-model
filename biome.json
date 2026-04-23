@@ -39,12 +39,30 @@
       },
       "style": {
         "noNonNullAssertion": "off",
-        "useNodejsImportProtocol": "off"
+        "useNodejsImportProtocol": "off",
+        "noParameterAssign": "off"
       },
       "complexity": {
         "noBannedTypes": "off",
-        "noStaticOnlyClass": "off"
+        "noStaticOnlyClass": "off",
+        "noThisInStatic": "off",
+        "noForEach": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/__tests__/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noAssignInExpressions": "off"
+          },
+          "security": {
+            "noGlobalEval": "off"
+          }
+        }
+      }
+    }
+  ]
 }

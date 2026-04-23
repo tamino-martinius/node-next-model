@@ -1,16 +1,24 @@
-import { Dict, Filter, KeyType, MemoryConnector, Model, Order, Storage } from '..';
 import { context, it } from '.';
+import {
+  type Dict,
+  type Filter,
+  type KeyType,
+  MemoryConnector,
+  Model,
+  type Order,
+  type Storage,
+} from '..';
 
 describe('Model', () => {
   let storage: Storage = {};
 
-  let tableName = 'foo';
-  let init = () => ({});
+  const tableName = 'foo';
+  const init = () => ({});
   let skip: number | undefined;
   let limit: number | undefined;
   let filter: Filter<any> | undefined;
   let order: Order<any> | undefined;
-  let connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage });
   let keys: Dict<KeyType> | undefined;
 
   const seed = [
@@ -37,7 +45,7 @@ describe('Model', () => {
     });
   }
 
-  const attributesOf = (items: any[]) => items.map(item => item.attributes() as Dict<any>);
+  const attributesOf = (items: any[]) => items.map((item) => item.attributes() as Dict<any>);
 
   const CreateModel = () =>
     ///@ts-ignore
@@ -83,7 +91,7 @@ describe('Model', () => {
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
-              const expectedItems = seed.filter(item => item.foo === 'bar');
+              const expectedItems = seed.filter((item) => item.foo === 'bar');
               expect(attributesOf(instances)).toEqual(expectedItems);
             });
 
@@ -95,7 +103,9 @@ describe('Model', () => {
 
               it('uses intersection of both filters', async () => {
                 const instances = await subject();
-                const expectedItems = seed.filter(item => item.foo === 'bar' && item.bar === 'baz');
+                const expectedItems = seed.filter(
+                  (item) => item.foo === 'bar' && item.bar === 'baz',
+                );
                 expect(attributesOf(instances)).toEqual(expectedItems);
               });
             });
@@ -114,10 +124,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .filterBy(filter)
-            .all();
+        const subject = () => CreateModel().filterBy(filter).all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -130,7 +137,7 @@ describe('Model', () => {
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
-              const expectedItems = seed.filter(item => item.foo === 'bar');
+              const expectedItems = seed.filter((item) => item.foo === 'bar');
               expect(attributesOf(instances)).toEqual(expectedItems);
             });
 
@@ -143,7 +150,9 @@ describe('Model', () => {
 
               it('uses intersection of both filters', async () => {
                 const instances = await subject();
-                const expectedItems = seed.filter(item => item.foo === 'bar' && item.bar === 'baz');
+                const expectedItems = seed.filter(
+                  (item) => item.foo === 'bar' && item.bar === 'baz',
+                );
                 expect(attributesOf(instances)).toEqual(expectedItems);
               });
             });
@@ -162,10 +171,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .orFilterBy(filter)
-            .all();
+        const subject = () => CreateModel().orFilterBy(filter).all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -178,7 +184,7 @@ describe('Model', () => {
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
-              const expectedItems = seed.filter(item => item.id === 1);
+              const expectedItems = seed.filter((item) => item.id === 1);
               expect(attributesOf(instances)).toEqual(expectedItems);
             });
 
@@ -191,7 +197,7 @@ describe('Model', () => {
 
               it('uses union of both filters', async () => {
                 const instances = await subject();
-                const expectedItems = seed.filter(item => item.id === 1 || item.id === 2);
+                const expectedItems = seed.filter((item) => item.id === 1 || item.id === 2);
                 expect(attributesOf(instances)).toEqual(expectedItems);
               });
             });
@@ -208,10 +214,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .unfiltered()
-            .all();
+        const subject = () => CreateModel().unfiltered().all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -241,10 +244,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .limitBy(limit)
-            .all();
+        const subject = () => CreateModel().limitBy(limit).all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -257,7 +257,7 @@ describe('Model', () => {
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
-              const expectedItems = seed.filter(item => item.foo === 'bar');
+              const expectedItems = seed.filter((item) => item.foo === 'bar');
               expect(attributesOf(instances)).toEqual(expectedItems);
             });
 
@@ -267,7 +267,7 @@ describe('Model', () => {
               tests: () => {
                 it('limits returned results', async () => {
                   const instances = await subject();
-                  const expectedItems = seed.filter(item => item.foo === 'bar').splice(0, 1);
+                  const expectedItems = seed.filter((item) => item.foo === 'bar').splice(0, 1);
                   expect(attributesOf(instances)).toEqual(expectedItems);
                 });
               },
@@ -285,10 +285,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .unlimited()
-            .all();
+        const subject = () => CreateModel().unlimited().all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -310,7 +307,7 @@ describe('Model', () => {
   });
 
   describe('.skipBy', () => {
-    let skip: number = 0;
+    let skip = 0;
 
     const subject = () => CreateModel().skipBy(skip);
 
@@ -318,10 +315,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .skipBy(skip)
-            .all();
+        const subject = () => CreateModel().skipBy(skip).all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();
@@ -334,7 +328,7 @@ describe('Model', () => {
           tests: () => {
             it('uses filter', async () => {
               const instances = await subject();
-              const expectedItems = seed.filter(item => item.foo === 'bar');
+              const expectedItems = seed.filter((item) => item.foo === 'bar');
               expect(attributesOf(instances)).toEqual(expectedItems);
             });
 
@@ -344,7 +338,7 @@ describe('Model', () => {
               tests: () => {
                 it('skips returned results', async () => {
                   const instances = await subject();
-                  const expectedItems = seed.filter(item => item.foo === 'bar').splice(1, 1);
+                  const expectedItems = seed.filter((item) => item.foo === 'bar').splice(1, 1);
                   expect(attributesOf(instances)).toEqual(expectedItems);
                 });
               },
@@ -362,10 +356,7 @@ describe('Model', () => {
 
     withSeededData(() => {
       describe('when testing query results', () => {
-        const subject = () =>
-          CreateModel()
-            .unskipped()
-            .all();
+        const subject = () => CreateModel().unskipped().all();
 
         it('promises to return all matching items as model instances', async () => {
           const instances = await subject();

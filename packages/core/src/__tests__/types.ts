@@ -1,4 +1,4 @@
-import { Filter } from '..';
+import type { Filter } from '..';
 
 export interface Context {
   definitions: () => void;
