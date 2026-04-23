@@ -1,3 +1,7 @@
+describe.skip('DataApiConnector (not yet ported from knex-connector specs)', () => {
+  it('pending', () => undefined);
+});
+
 // import * as Knex from 'knex';
 
 // import { Model, Filter, OrderColumn, Dict } from '@next-model/core';

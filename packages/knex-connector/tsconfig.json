@@ -1,31 +1,9 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "es2017",
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "lib": ["es2017"],
     "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": false,
-    "experimentalDecorators": true,
-    "strictPropertyInitialization": false,
-    "sourceMap": false
+    "outDir": "dist"
   },
-  "include": [
-    "*.ts",
-    "**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "*/example*"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/__benchmark__", "src/__tests__"]
 }

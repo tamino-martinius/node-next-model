@@ -11,7 +11,7 @@ import {
   SortDirection,
   KeyType,
 } from '@next-model/core';
-import * as Knex from 'knex';
+import Knex from 'knex';
 
 export interface DataApiConfig {
   secretArn: string;

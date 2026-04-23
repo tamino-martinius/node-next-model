@@ -1,0 +1,29 @@
+{
+  "name": "next-model-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo for @next-model/core and its connector packages",
+  "author": "Tamino Martinius <dev@zaku.eu>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tamino-martinius/node-next-model.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "build": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' run build",
+    "test": "pnpm -r --filter './packages/core' --filter './packages/data-api-connector' run test",
+    "test:all": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' run test",
+    "typecheck": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' run typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "ci": "pnpm test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.6.3"
+  }
+}
