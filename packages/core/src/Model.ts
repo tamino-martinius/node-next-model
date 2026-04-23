@@ -21,6 +21,13 @@ export type AssociationOptions = {
   primaryKey?: string;
 };
 
+export type HasManyThroughOptions = {
+  throughForeignKey?: string;
+  targetForeignKey?: string;
+  selfPrimaryKey?: string;
+  targetPrimaryKey?: string;
+};
+
 export class ModelClass {
   static tableName: string;
   static filter: Filter<any> | undefined;
@@ -92,14 +99,19 @@ export class ModelClass {
   }
 
   static filterBy<M extends typeof ModelClass>(this: M, andFilter: Filter<any>) {
+    const hasSpecial = (f: Filter<any>) => Object.keys(f).some((k) => k.startsWith('$'));
     let filter: Filter<any> | undefined = andFilter;
     if (this.filter) {
-      for (const key in this.filter) {
-        if ((this.filter as any)[key] !== undefined && (andFilter as any)[key] !== undefined) {
-          filter = { $and: [filter, andFilter] };
-          break;
+      if (hasSpecial(this.filter) || hasSpecial(andFilter)) {
+        filter = { $and: [this.filter, andFilter] };
+      } else {
+        for (const key in this.filter) {
+          if ((this.filter as any)[key] !== undefined && (andFilter as any)[key] !== undefined) {
+            filter = { $and: [filter, andFilter] };
+            break;
+          }
+          (filter as any)[key] = (this.filter as any)[key];
         }
-        (filter as any)[key] = (this.filter as any)[key];
       }
     }
     if (Object.keys(andFilter).length === 0) filter = this.filter;
@@ -364,6 +376,37 @@ export class ModelClass {
       return Promise.resolve(undefined);
     }
     return Related.findBy({ [fk]: pkValue }) as Promise<InstanceType<Related> | undefined>;
+  }
+
+  hasManyThrough<Target extends typeof ModelClass, Through extends typeof ModelClass>(
+    this: ModelClass,
+    Target: Target,
+    Through: Through,
+    options: HasManyThroughOptions = {},
+  ): Target {
+    const selfModel = this.constructor as typeof ModelClass;
+    const throughFk = options.throughForeignKey ?? `${singularize(selfModel.tableName)}Id`;
+    const targetFk = options.targetForeignKey ?? `${singularize(Target.tableName)}Id`;
+    const selfPk = options.selfPrimaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id';
+    const targetPk = options.targetPrimaryKey ?? Object.keys(Target.keys)[0] ?? 'id';
+    const selfPkValue = (this as any)[selfPk];
+    const asyncPending = (async () => {
+      const ids = await Through.filterBy({ [throughFk]: selfPkValue }).pluck(targetFk);
+      return { $in: { [targetPk]: ids } } as Filter<any>;
+    })();
+    return Target.filterBy({ $async: asyncPending } as Filter<any>) as Target;
+  }
+
+  async increment<M extends ModelClass>(this: M, key: string, by = 1) {
+    if (!this.keys) {
+      throw new PersistenceError('Cannot increment a record that has not been saved');
+    }
+    const current = Number((this.attributes() as Dict<any>)[key] ?? 0);
+    return this.update({ [key]: current + by });
+  }
+
+  async decrement<M extends ModelClass>(this: M, key: string, by = 1) {
+    return this.increment(key, -by);
   }
 
   async isValid(): Promise<boolean> {
