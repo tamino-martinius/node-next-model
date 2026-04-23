@@ -111,6 +111,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 - `MemoryConnector` ships in `@next-model/core`.
 - Sort-before-slice bug in `MemoryConnector` fixed, so `limitBy(1).orderBy(...)` is consistent and `last()` is correct without workarounds.
 - `KnexConnector` brought to parity: adds `$like`, `$async`, `$raw`, `aggregate`, nested `transaction`, and `execute` with driver-aware result normalization; all filter validation now throws `FilterError`.
+- `DataApiConnector` brought to parity: full filter operator set (`$and`, `$or`, `$not`, `$in`, `$notIn`, `$null`, `$notNull`, `$between`, `$notBetween`, `$gt/$gte/$lt/$lte`, `$like`, `$async`, `$raw`), `aggregate`, nested `transaction` via `beginTransaction`/`commit`/`rollback`, and `execute` with positional-binding translation to Aurora Data API `:paramN` placeholders. Constructor accepts either Aurora Data API config (delegates to `data-api-client`) or an injected client for tests. Ships with `MockDataApiClient` backed by sqlite3 so the suite exercises real SQL end-to-end.
 
 ### Errors
 
