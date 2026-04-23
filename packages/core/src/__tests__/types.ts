@@ -1,4 +1,4 @@
-import type { Filter } from '..';
+import type { Filter, NextModelError } from '..';
 
 export interface Context {
   definitions: () => void;
@@ -8,7 +8,7 @@ export interface Context {
 
 export interface FilterSpecs {
   filter: Filter<any> | undefined;
-  results: number[] | string;
+  results: number[] | (new (...args: any[]) => NextModelError);
 }
 
 export interface FilterSpecGroup {
