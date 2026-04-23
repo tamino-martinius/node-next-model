@@ -12,8 +12,8 @@ export interface Range<T> {
 }
 
 export enum KeyType {
-  uuid,
-  number,
+  uuid = 0,
+  number = 1,
 }
 
 export type Schema = Dict<any>;

@@ -1,10 +1,10 @@
-import Knex from 'knex';
+import type Knex from 'knex';
 
-import { Model, Filter, OrderColumn, Dict } from '@next-model/core';
+import { type Dict, type Filter, Model, type OrderColumn } from '@next-model/core';
 
 import { KnexConnector } from '..';
 
-import { context, Connection, FilterSpecGroup, randomInteger } from '.';
+import { type Connection, type FilterSpecGroup, context, randomInteger } from '.';
 
 const client = process.env.DB || 'sqlite3';
 const isOracle = client === 'oracledb';
@@ -76,10 +76,7 @@ async function seedTable(): Promise<void> {
   await connector.knex.schema.dropTableIfExists('users');
 
   await connector.knex.schema.createTable('users', (table: Knex.CreateTableBuilder) => {
-    table
-      .increments('id')
-      .primary()
-      .unsigned();
+    table.increments('id').primary().unsigned();
     table.string('name');
     table.integer('age');
   });
@@ -97,7 +94,7 @@ async function seedDb(): Promise<Knex.SchemaBuilder> {
   await seedData();
 }
 
-const idsOf = (items: Dict<any>[]) => items.map(item => item.id);
+const idsOf = (items: Dict<any>[]) => items.map((item) => item.id);
 
 afterEach(cleanDb);
 
@@ -532,9 +529,9 @@ describe('KnexConnector', () => {
       definitions: seedDb,
       tests() {
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
+          describe(`${groupName} filter`, () => {
             filterSpecGroups[groupName].forEach((filterSpec, index) => {
-              context('with filter #' + (index + 1), {
+              context(`with filter #${index + 1}`, {
                 definitions: () => (filter = filterSpec.filter()),
                 reset: () => (filter = undefined),
                 tests() {
@@ -642,9 +639,9 @@ describe('KnexConnector', () => {
       definitions: seedDb,
       tests() {
         for (const groupName in filterSpecGroups) {
-          describe(groupName + ' filter', () => {
+          describe(`${groupName} filter`, () => {
             filterSpecGroups[groupName].forEach((filterSpec, index) => {
-              context('with filter #' + (index + 1), {
+              context(`with filter #${index + 1}`, {
                 definitions: () => (filter = filterSpec.filter()),
                 reset: () => (filter = undefined),
                 tests() {

@@ -1,22 +1,22 @@
 try {
   const pg = require('pg');
-  pg.types.setTypeParser(20, 'text', parseInt);
+  pg.types.setTypeParser(20, 'text', Number.parseInt);
 } catch (e) {}
 
-import Knex from 'knex';
 import {
-  FilterSpecial,
-  Filter,
-  FilterIn,
-  FilterBetween,
-  FilterRaw,
-  BaseType,
-  Connector,
-  Scope,
-  Dict,
+  type BaseType,
+  type Connector,
+  type Dict,
+  type Filter,
+  type FilterBetween,
+  type FilterIn,
+  type FilterRaw,
+  type FilterSpecial,
+  type KeyType,
+  type Scope,
   SortDirection,
-  KeyType,
 } from '@next-model/core';
+import Knex from 'knex';
 
 export class KnexConnector implements Connector {
   knex: Knex;
@@ -37,7 +37,7 @@ export class KnexConnector implements Connector {
   private async andFilter(query: Knex.QueryBuilder, filters: Filter<Dict<any>>[]) {
     const self = this;
     for (const filter of filters) {
-      query = query.andWhere(async function() {
+      query = query.andWhere(async function () {
         await self.filter(this, filter);
       });
     }
@@ -46,7 +46,7 @@ export class KnexConnector implements Connector {
 
   private async notFilter(query: Knex.QueryBuilder, filter: Filter<Dict<any>>) {
     const self = this;
-    query = query.whereNot(async function() {
+    query = query.whereNot(async function () {
       (await self.filter(this, filter)).query;
     });
     return { query };
@@ -55,7 +55,7 @@ export class KnexConnector implements Connector {
   private async orFilter(query: Knex.QueryBuilder, filters: Filter<Dict<any>>[]) {
     const self = this;
     for (const filter of filters) {
-      query = query.orWhere(function() {
+      query = query.orWhere(function () {
         self.filter(this, filter);
       });
     }
@@ -217,12 +217,8 @@ export class KnexConnector implements Connector {
       const direction = order.dir === SortDirection.Asc ? 'asc' : 'desc';
       query = query.orderBy(order.key, direction);
     }
-    try {
-      const rows: Dict<any>[] = await query.select('*');
-      return rows;
-    } catch (error) {
-      throw error;
-    }
+    const rows: Dict<any>[] = await query.select('*');
+    return rows;
   }
 
   async count(scope: Scope): Promise<number> {
@@ -242,12 +238,8 @@ export class KnexConnector implements Connector {
       const direction = order.dir === SortDirection.Asc ? 'asc' : 'desc';
       query = query.orderBy(order.key, direction);
     }
-    try {
-      const rows: Dict<any>[] = await query.select(...keys);
-      return rows;
-    } catch (error) {
-      throw error;
-    }
+    const rows: Dict<any>[] = await query.select(...keys);
+    return rows;
   }
 
   async updateAll(scope: Scope, attrs: Dict<any>): Promise<Dict<any>[]> {
@@ -275,8 +267,9 @@ export class KnexConnector implements Connector {
         .whereIn(primaryKey, idsOrRows)
         .select('*')) as Dict<any>[];
       const rowDict: Dict<Dict<any>> = {};
-      rows.map(row => (rowDict[row[primaryKey]] = row));
-      return idsOrRows.map(id => rowDict[id]);
+      // biome-ignore lint/suspicious/noAssignInExpressions: concise dict build
+      rows.map((row) => (rowDict[row[primaryKey]] = row));
+      return idsOrRows.map((id) => rowDict[id]);
     }
     return idsOrRows;
   }
@@ -285,11 +278,11 @@ export class KnexConnector implements Connector {
     const rows: any = await this.knex.raw(query, bindings as any);
     if (this.knex.client.config.client === 'sqlite3') {
       return rows;
-    } else if (this.knex.client.config.client === 'postgres') {
-      return rows.rows;
-    } else {
-      return rows[0];
     }
+    if (this.knex.client.config.client === 'postgres') {
+      return rows.rows;
+    }
+    return rows[0];
   }
 }
 

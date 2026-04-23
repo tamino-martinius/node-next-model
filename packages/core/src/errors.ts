@@ -1,0 +1,10 @@
+export class NextModelError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = new.target.name;
+  }
+}
+
+export class FilterError extends NextModelError {}
+export class NotFoundError extends NextModelError {}
+export class PersistenceError extends NextModelError {}

@@ -1,15 +1,15 @@
 import {
-  FilterSpecial,
-  Filter,
-  FilterIn,
-  FilterBetween,
-  FilterRaw,
-  BaseType,
-  Connector,
-  Scope,
-  Dict,
+  type BaseType,
+  type Connector,
+  type Dict,
+  type Filter,
+  type FilterBetween,
+  type FilterIn,
+  type FilterRaw,
+  type FilterSpecial,
+  type KeyType,
+  type Scope,
   SortDirection,
-  KeyType,
 } from '@next-model/core';
 import Knex from 'knex';
 
@@ -43,7 +43,7 @@ export class DataApiConnector implements Connector {
       return [];
     }
     let i = 0;
-    let params: Dict<any> = {};
+    const params: Dict<any> = {};
     const sqlStatement = sql.sql.replace(/\?/g, () => {
       const key = `param${i}`;
       params[key] = sql.bindings[i];
@@ -75,7 +75,7 @@ export class DataApiConnector implements Connector {
   private async andFilter(query: Knex.QueryBuilder, filters: Filter<Dict<any>>[]) {
     const self = this;
     for (const filter of filters) {
-      query = query.andWhere(async function() {
+      query = query.andWhere(async function () {
         await self.filter(this, filter);
       });
     }
@@ -84,7 +84,7 @@ export class DataApiConnector implements Connector {
 
   private async notFilter(query: Knex.QueryBuilder, filter: Filter<Dict<any>>) {
     const self = this;
-    query = query.whereNot(async function() {
+    query = query.whereNot(async function () {
       (await self.filter(this, filter)).query;
     });
     return { query };
@@ -93,7 +93,7 @@ export class DataApiConnector implements Connector {
   private async orFilter(query: Knex.QueryBuilder, filters: Filter<Dict<any>>[]) {
     const self = this;
     for (const filter of filters) {
-      query = query.orWhere(function() {
+      query = query.orWhere(function () {
         self.filter(this, filter);
       });
     }
@@ -255,12 +255,8 @@ export class DataApiConnector implements Connector {
       const direction = order.dir === SortDirection.Asc ? 'asc' : 'desc';
       query = query.orderBy(order.key, direction);
     }
-    try {
-      const rows = await this.queryDataApi(query.select('*'));
-      return rows;
-    } catch (error) {
-      throw error;
-    }
+    const rows = await this.queryDataApi(query.select('*'));
+    return rows;
   }
 
   async count(scope: Scope): Promise<number> {
@@ -280,12 +276,8 @@ export class DataApiConnector implements Connector {
       const direction = order.dir === SortDirection.Asc ? 'asc' : 'desc';
       query = query.orderBy(order.key, direction);
     }
-    try {
-      const rows = await this.queryDataApi(query.select(...keys));
-      return rows;
-    } catch (error) {
-      throw error;
-    }
+    const rows = await this.queryDataApi(query.select(...keys));
+    return rows;
   }
 
   async updateAll(scope: Scope, attrs: Dict<any>): Promise<Dict<any>[]> {
