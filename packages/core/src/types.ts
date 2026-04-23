@@ -92,3 +92,5 @@ export interface Scope {
   skip?: number;
   order?: OrderColumn<any>[];
 }
+
+export type Validator<T> = (instance: T) => boolean | Promise<boolean>;
