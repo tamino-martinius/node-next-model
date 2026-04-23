@@ -2195,6 +2195,91 @@ describe('Model', () => {
     });
   });
 
+  describe('.reverse', () => {
+    const buildKlass = () => {
+      storage = {};
+      return Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+    };
+
+    it('flips primary-key order when no order is set', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ foo: 'a' });
+      await Klass.create({ foo: 'b' });
+      await Klass.create({ foo: 'c' });
+      const reversed = await Klass.reverse().all();
+      expect(reversed.map((r) => r.attributes().foo)).toEqual(['c', 'b', 'a']);
+      storage = {};
+    });
+
+    it('reverses each column in an existing order', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ foo: 'a' });
+      await Klass.create({ foo: 'c' });
+      await Klass.create({ foo: 'b' });
+      const ordered = await Klass.orderBy({ key: 'foo' as any })
+        .reverse()
+        .all();
+      expect(ordered.map((r) => r.attributes().foo)).toEqual(['c', 'b', 'a']);
+      storage = {};
+    });
+
+    it('composes with limitBy (tests sort-before-slice)', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ foo: 'a' });
+      await Klass.create({ foo: 'b' });
+      await Klass.create({ foo: 'c' });
+      const top = await Klass.orderBy({ key: 'foo' as any })
+        .reverse()
+        .limitBy(1)
+        .all();
+      expect(top).toHaveLength(1);
+      expect(top[0].attributes().foo).toBe('c');
+      storage = {};
+    });
+  });
+
+  describe('.unscoped', () => {
+    it('removes filter, limit, skip, and order', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        filter: { foo: 'x' },
+        limit: 1,
+      });
+      await Klass.create({ foo: 'x' });
+      await Klass.create({ foo: 'y' });
+      await Klass.create({ foo: 'z' });
+      expect(await Klass.count()).toBe(1);
+      expect(await Klass.unscoped().count()).toBe(3);
+      storage = {};
+    });
+
+    it('removes the soft-delete scope', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { title: string; discardedAt?: Date | null }) => ({
+          discardedAt: null,
+          ...props,
+        }),
+        connector: connector(),
+        softDelete: true,
+      });
+      const a = await Klass.create({ title: 'A' });
+      await Klass.create({ title: 'B' });
+      await a.discard();
+      expect(await Klass.count()).toBe(1);
+      expect(await Klass.unscoped().count()).toBe(2);
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
