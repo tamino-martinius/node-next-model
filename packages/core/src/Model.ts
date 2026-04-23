@@ -366,6 +366,33 @@ export class ModelClass {
     return await this.connector.count(this.modelScope());
   }
 
+  static async countBy(key: string): Promise<Map<any, number>> {
+    const values = await this.pluck(key);
+    const result = new Map<any, number>();
+    for (const value of values) {
+      result.set(value, (result.get(value) ?? 0) + 1);
+    }
+    return result;
+  }
+
+  static async groupBy<M extends typeof ModelClass>(
+    this: M,
+    key: string,
+  ): Promise<Map<any, InstanceType<M>[]>> {
+    const items = await this.all<M>();
+    const result = new Map<any, InstanceType<M>[]>();
+    for (const item of items) {
+      const bucket = (item.attributes() as Dict<any>)[key];
+      const list = result.get(bucket);
+      if (list) {
+        list.push(item);
+      } else {
+        result.set(bucket, [item]);
+      }
+    }
+    return result;
+  }
+
   static async aggregate<M extends typeof ModelClass>(
     this: M,
     kind: AggregateKind,
@@ -1000,6 +1027,23 @@ export function Model<
 
     static async count<M extends typeof ModelClass>(this: M) {
       return await super.count();
+    }
+
+    static async countBy(key: keyof Keys | keyof PersistentProps) {
+      return super.countBy(key as string);
+    }
+
+    static async groupBy<M extends typeof ModelClass>(
+      this: M,
+      key: keyof Keys | keyof PersistentProps,
+    ) {
+      const result = await super.groupBy(key as string);
+      return result as Map<
+        any,
+        (InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[]
+      >;
     }
 
     static async sum<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {

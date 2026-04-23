@@ -2106,6 +2106,118 @@ describe('Model', () => {
     });
   });
 
+  describe('.countBy', () => {
+    it('counts rows per unique key value', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string }) => props,
+        connector: connector(),
+      });
+      for (const tag of ['red', 'blue', 'red', 'green', 'blue', 'red']) {
+        await Klass.create({ tag });
+      }
+      const result = await Klass.countBy('tag');
+      expect(result.get('red')).toBe(3);
+      expect(result.get('blue')).toBe(2);
+      expect(result.get('green')).toBe(1);
+      expect(result.size).toBe(3);
+      storage = {};
+    });
+
+    it('respects the current filter scope', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string; active: boolean }) => props,
+        connector: connector(),
+      });
+      await Klass.create({ tag: 'red', active: true });
+      await Klass.create({ tag: 'red', active: false });
+      await Klass.create({ tag: 'blue', active: true });
+      const result = await Klass.filterBy({ active: true }).countBy('tag');
+      expect(result.get('red')).toBe(1);
+      expect(result.get('blue')).toBe(1);
+      storage = {};
+    });
+
+    it('returns an empty map when no rows match', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string }) => props,
+        connector: connector(),
+      });
+      const result = await Klass.countBy('tag');
+      expect(result.size).toBe(0);
+      storage = {};
+    });
+
+    it('counts null as its own bucket', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string | null }) => props,
+        connector: connector(),
+      });
+      await Klass.create({ tag: 'red' });
+      await Klass.create({ tag: null });
+      await Klass.create({ tag: null });
+      const result = await Klass.countBy('tag');
+      expect(result.get('red')).toBe(1);
+      expect(result.get(null)).toBe(2);
+      storage = {};
+    });
+  });
+
+  describe('.groupBy', () => {
+    it('groups instances into buckets keyed by the given attribute', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string; title: string }) => props,
+        connector: connector(),
+        order: { key: 'title' },
+      });
+      await Klass.create({ tag: 'red', title: 'a' });
+      await Klass.create({ tag: 'blue', title: 'b' });
+      await Klass.create({ tag: 'red', title: 'c' });
+      const result = await Klass.groupBy('tag');
+      expect(result.get('red')?.map((i) => i.title)).toEqual(['a', 'c']);
+      expect(result.get('blue')?.map((i) => i.title)).toEqual(['b']);
+      expect(result.size).toBe(2);
+      storage = {};
+    });
+
+    it('preserves the order of insertion within each bucket', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string; rank: number }) => props,
+        connector: connector(),
+        order: { key: 'rank' },
+      });
+      await Klass.create({ tag: 'a', rank: 3 });
+      await Klass.create({ tag: 'a', rank: 1 });
+      await Klass.create({ tag: 'a', rank: 2 });
+      const result = await Klass.groupBy('tag');
+      expect(result.get('a')?.map((i) => i.rank)).toEqual([1, 2, 3]);
+      storage = {};
+    });
+
+    it('returns an empty map when no rows match', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string }) => props,
+        connector: connector(),
+      });
+      const result = await Klass.groupBy('tag');
+      expect(result.size).toBe(0);
+      storage = {};
+    });
+  });
+
   describe('.inBatchesOf', () => {
     it('yields batches of the requested size in order', async () => {
       storage = {};
