@@ -20,7 +20,7 @@
     "typecheck": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "ci": "pnpm test"
+    "ci": "pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -10,7 +10,7 @@ export class ModelClass {
   static order: OrderColumn<any>[];
   static keys: Dict<KeyType>;
   static connector: Connector;
-  static init: (props: Dict<any>) => Dict<any>;
+  static init: (props: any) => Dict<any>;
 
   static modelScope() {
     return {
@@ -100,19 +100,19 @@ export class ModelClass {
     } as M;
   }
 
-  static build<M extends typeof ModelClass>(this: M, createProps: Dict<any>) {
+  static build<M extends typeof ModelClass>(this: M, createProps: any) {
     return new this(this.init(createProps)) as InstanceType<M>;
   }
 
-  static buildScoped<M extends typeof ModelClass>(this: M, createProps: Dict<any>) {
+  static buildScoped<M extends typeof ModelClass>(this: M, createProps: any) {
     return new this(this.init({ ...this.filter, ...createProps })) as InstanceType<M>;
   }
 
-  static create<M extends typeof ModelClass>(this: M, createProps: Dict<any>) {
+  static create<M extends typeof ModelClass>(this: M, createProps: any) {
     return this.build<M>(createProps).save();
   }
 
-  static createScoped<M extends typeof ModelClass>(this: M, props: Dict<any>) {
+  static createScoped<M extends typeof ModelClass>(this: M, props: any) {
     return this.buildScoped<M>(props).save();
   }
 
