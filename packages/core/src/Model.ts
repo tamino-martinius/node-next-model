@@ -163,6 +163,27 @@ export class ModelClass {
     return this.buildScoped<M>(props).save();
   }
 
+  static async createMany<M extends typeof ModelClass>(this: M, propsList: any[]) {
+    const now = new Date();
+    const insertProps = propsList.map((p) => {
+      const base = this.init(p) as Dict<any>;
+      if (this.timestamps) {
+        if (base.createdAt === undefined) base.createdAt = now;
+        if (base.updatedAt === undefined) base.updatedAt = now;
+      }
+      return base;
+    });
+    const items = await this.connector.batchInsert(this.tableName, this.keys, insertProps);
+    return items.map((item) => {
+      const keys: Dict<any> = {};
+      for (const key in this.keys) {
+        keys[key] = item[key];
+        delete item[key];
+      }
+      return new this(item, keys) as InstanceType<M>;
+    });
+  }
+
   static async all<M extends typeof ModelClass>(this: M) {
     const items = await this.connector.query(this.modelScope());
     return items.map((item) => {
@@ -180,6 +201,18 @@ export class ModelClass {
     return items.pop();
   }
 
+  static async last<M extends typeof ModelClass>(this: M) {
+    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    const scoped = this.order.length > 0 ? this : (this.orderBy({ key: primaryKey }) as M);
+    const items = await scoped.all<M>();
+    return items.pop();
+  }
+
+  static async ids<M extends typeof ModelClass>(this: M) {
+    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    return this.pluck(primaryKey);
+  }
+
   static async select(...keys: any[]) {
     const items = await this.connector.select(this.modelScope(), ...keys);
     return items;
@@ -188,6 +221,19 @@ export class ModelClass {
   static async pluck(key: string) {
     const items = await this.select(key as any);
     return items.map((item) => item[key]);
+  }
+
+  static async pluckUnique(key: string) {
+    const values = await this.pluck(key);
+    const seen = new Set<any>();
+    const result: any[] = [];
+    for (const v of values) {
+      if (!seen.has(v)) {
+        seen.add(v);
+        result.push(v);
+      }
+    }
+    return result;
   }
 
   static async count<M extends typeof ModelClass>(this: M) {
@@ -662,6 +708,14 @@ export function Model<
       return super.pluck(key as string);
     }
 
+    static async pluckUnique(key: keyof Keys | keyof PersistentProps) {
+      return super.pluckUnique(key as string);
+    }
+
+    static async ids<M extends typeof ModelClass>(this: M) {
+      return super.ids();
+    }
+
     static async all<M extends typeof ModelClass>(this: M) {
       return (await super.all()) as (InstanceType<M> &
         PersistentProps &
@@ -670,6 +724,12 @@ export function Model<
 
     static async first<M extends typeof ModelClass>(this: M) {
       return (await super.first()) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async last<M extends typeof ModelClass>(this: M) {
+      return (await super.last()) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
     }
@@ -804,6 +864,12 @@ export function Model<
       return (await super.createScoped(props)) as InstanceType<M> &
         PersistentProps &
         Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async createMany<M extends typeof ModelClass>(this: M, propsList: CreateProps[]) {
+      return (await super.createMany(propsList)) as (InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
     }
 
     persistentProps: PersistentProps;
