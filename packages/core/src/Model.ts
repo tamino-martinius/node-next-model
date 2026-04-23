@@ -185,6 +185,16 @@ export class ModelClass {
     } as M;
   }
 
+  static on(event: keyof Callbacks<any>, handler: Callback<any>): () => void {
+    if (!this.callbacks[event]) this.callbacks[event] = [];
+    const list = this.callbacks[event] as Callback<any>[];
+    list.push(handler);
+    return () => {
+      const idx = list.indexOf(handler);
+      if (idx >= 0) list.splice(idx, 1);
+    };
+  }
+
   static withDiscarded<M extends typeof ModelClass>(this: M) {
     return class extends (this as typeof ModelClass) {
       static softDelete: 'active' | 'only' | false = false;
@@ -811,6 +821,15 @@ export function Model<
       >,
     ) {
       return super.orFilterBy(filter) as M;
+    }
+
+    static on(
+      event: keyof Callbacks<any>,
+      handler: Callback<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ): () => void {
+      return super.on(event, handler as Callback<any>);
     }
 
     static async select(...keys: [keyof Keys | keyof PersistentProps][]) {

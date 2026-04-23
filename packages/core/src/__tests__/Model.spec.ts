@@ -2242,6 +2242,125 @@ describe('Model', () => {
     });
   });
 
+  describe('.on', () => {
+    it('fires the registered handler for the given lifecycle event', async () => {
+      storage = {};
+      const seen: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      Klass.on('afterCreate', (instance) => {
+        seen.push(`create:${instance.foo}`);
+      });
+      await Klass.create({ foo: 'a' });
+      expect(seen).toEqual(['create:a']);
+      storage = {};
+    });
+
+    it('returns an unsubscribe function that removes the handler', async () => {
+      storage = {};
+      let calls = 0;
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const unsubscribe = Klass.on('afterSave', () => {
+        calls++;
+      });
+      await Klass.create({ foo: 'a' });
+      unsubscribe();
+      await Klass.create({ foo: 'b' });
+      expect(calls).toBe(1);
+      storage = {};
+    });
+
+    it('runs multiple subscribers for the same event in registration order', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      Klass.on('afterSave', () => void order.push('first'));
+      Klass.on('afterSave', () => void order.push('second'));
+      await Klass.create({ foo: 'a' });
+      expect(order).toEqual(['first', 'second']);
+      storage = {};
+    });
+
+    it('composes with callbacks declared in the factory config', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        callbacks: {
+          afterSave: [() => void order.push('config')],
+        },
+      });
+      Klass.on('afterSave', () => void order.push('dynamic'));
+      await Klass.create({ foo: 'a' });
+      expect(order).toEqual(['config', 'dynamic']);
+      storage = {};
+    });
+
+    it('supports async handlers', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      Klass.on('beforeSave', async () => {
+        await Promise.resolve();
+        order.push('before');
+      });
+      Klass.on('afterSave', () => void order.push('after'));
+      await Klass.create({ foo: 'a' });
+      expect(order).toEqual(['before', 'after']);
+      storage = {};
+    });
+
+    it('fires afterDelete when an instance is deleted', async () => {
+      storage = {};
+      const seen: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const instance = await Klass.create({ foo: 'gone' });
+      Klass.on('afterDelete', (i) => void seen.push(`delete:${i.foo}`));
+      await instance.delete();
+      expect(seen).toEqual(['delete:gone']);
+      storage = {};
+    });
+
+    it('unsubscribe is idempotent', async () => {
+      storage = {};
+      let calls = 0;
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const unsubscribe = Klass.on('afterSave', () => {
+        calls++;
+      });
+      unsubscribe();
+      unsubscribe();
+      await Klass.create({ foo: 'a' });
+      expect(calls).toBe(0);
+      storage = {};
+    });
+  });
+
   describe('.unscoped', () => {
     it('removes filter, limit, skip, and order', async () => {
       storage = {};
