@@ -1,0 +1,58 @@
+{
+  "name": "@next-model/data-api-connector",
+  "version": "1.0.0-alpha.3",
+  "description": "Connector for AWS Aurora Data API.",
+  "author": "Tamino Martinius <dev@zaku.eu>",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "jsnext:main": "./dist/index.mjs",
+  "typings": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tamino-martinius/node-next-model-data-api-connector.git"
+  },
+  "engines": {
+    "node": ">=8.10.0"
+  },
+  "scripts": {
+    "coverage": "rm -rf coverage* && jest --coverage",
+    "test": "jest",
+    "watch": "tsc -w",
+    "ci": "npm run coverage && codecov",
+    "compile": "rm -rf dist/* && tsc && tsc-mjs --declaration false --target esnext --module esnext --mjs",
+    "preversion": "npm run compile && git add ."
+  },
+  "devDependencies": {
+    "@types/knex": "^0.16.1",
+    "@types/faker": "^4.1.5",
+    "@types/jest": "^24.0.18",
+    "@types/node": "^12.7.5",
+    "@next-model/core": "^1.0.0-alpha.30",
+    "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
+    "codecov": "^3.5.0",
+    "faker": "^4.1.0",
+    "jest": "^24.9.0",
+    "ts-jest": "^24.0.2",
+    "ts-mjs": "^3.1.0",
+    "typescript": "^3.7.4"
+  },
+  "dependencies": {
+    "knex": "^0.19.4",
+    "data-api-client": "^1.0.1"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testRegex": "(\\.(test|spec))\\.(ts|tsx|js)$",
+    "moduleFileExtensions": [
+      "ts",
+      "js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/__benchmark__/**",
+      "!src/__tests__/**",
+      "!src/__mocks__/**"
+    ]
+  }
+}
