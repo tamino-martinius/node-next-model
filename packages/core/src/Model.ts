@@ -47,6 +47,7 @@ export class ModelClass {
   static connector: Connector;
   static init: (props: any) => Dict<any>;
   static timestamps = true;
+  static softDelete: 'active' | 'only' | false = false;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -55,9 +56,17 @@ export class ModelClass {
   }
 
   static modelScope() {
+    let filter = this.filter;
+    if (this.softDelete === 'active') {
+      filter = filter ? { $and: [{ $null: 'discardedAt' }, filter] } : { $null: 'discardedAt' };
+    } else if (this.softDelete === 'only') {
+      filter = filter
+        ? { $and: [{ $notNull: 'discardedAt' }, filter] }
+        : { $notNull: 'discardedAt' };
+    }
     return {
       tableName: this.tableName,
-      filter: this.filter,
+      filter,
       limit: this.limit,
       skip: this.skip,
       order: this.order,
@@ -144,6 +153,18 @@ export class ModelClass {
   static unfiltered<M extends typeof ModelClass>(this: M) {
     return class extends (this as typeof ModelClass) {
       static filter = undefined;
+    } as M;
+  }
+
+  static withDiscarded<M extends typeof ModelClass>(this: M) {
+    return class extends (this as typeof ModelClass) {
+      static softDelete: 'active' | 'only' | false = false;
+    } as M;
+  }
+
+  static onlyDiscarded<M extends typeof ModelClass>(this: M) {
+    return class extends (this as typeof ModelClass) {
+      static softDelete: 'active' | 'only' | false = 'only';
     } as M;
   }
 
@@ -612,6 +633,27 @@ export class ModelClass {
     await this.runCallbacks('afterDelete');
     return this as M;
   }
+
+  isDiscarded(): boolean {
+    const value = (this.attributes() as Dict<any>).discardedAt;
+    return value !== null && value !== undefined;
+  }
+
+  async discard<M extends ModelClass>(this: M): Promise<M> {
+    if (!this.keys) {
+      throw new PersistenceError('Cannot discard a record that has not been saved');
+    }
+    (this as ModelClass).assign({ discardedAt: new Date() } as Dict<any>);
+    return (this as ModelClass).save() as Promise<M>;
+  }
+
+  async restore<M extends ModelClass>(this: M): Promise<M> {
+    if (!this.keys) {
+      throw new PersistenceError('Cannot restore a record that has not been saved');
+    }
+    (this as ModelClass).assign({ discardedAt: null } as Dict<any>);
+    return (this as ModelClass).save() as Promise<M>;
+  }
 }
 
 export function Model<
@@ -633,6 +675,7 @@ export function Model<
   connector?: Connector;
   keys?: Keys;
   timestamps?: boolean;
+  softDelete?: boolean;
   validators?: Validator<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >[];
@@ -645,6 +688,7 @@ export function Model<
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
   const timestamps = props.timestamps ?? true;
+  const softDelete: 'active' | 'only' | false = props.softDelete ? 'active' : false;
   const validators = props.validators || [];
   const callbacks = props.callbacks || {};
   const scopeDefs = props.scopes || ({} as Scopes);
@@ -659,6 +703,7 @@ export function Model<
     static connector = connector;
     static init = props.init as any;
     static timestamps = timestamps;
+    static softDelete = softDelete;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
