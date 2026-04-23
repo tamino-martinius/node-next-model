@@ -75,6 +75,8 @@ export type Order<PersistentProps extends Schema> =
   | OrderColumn<PersistentProps>
   | OrderColumn<PersistentProps>[];
 
+export type AggregateKind = 'sum' | 'min' | 'max' | 'avg';
+
 export interface Connector {
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
@@ -84,6 +86,7 @@ export interface Connector {
   batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]>;
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;
   transaction<T>(fn: () => Promise<T>): Promise<T>;
+  aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined>;
 }
 
 export interface Scope {

@@ -1,5 +1,6 @@
 import { filterList } from './FilterEngine';
 import {
+  type AggregateKind,
   type BaseType,
   type Connector,
   type Dict,
@@ -152,6 +153,24 @@ export class MemoryConnector implements Connector {
       result.push(clone(attributes));
     }
     return result;
+  }
+
+  async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
+    const items = await this.items(scope);
+    const values = items
+      .map((item) => item[key])
+      .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
+    if (values.length === 0) return undefined;
+    switch (kind) {
+      case 'sum':
+        return values.reduce((acc, v) => acc + v, 0);
+      case 'min':
+        return Math.min(...values);
+      case 'max':
+        return Math.max(...values);
+      case 'avg':
+        return values.reduce((acc, v) => acc + v, 0) / values.length;
+    }
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
