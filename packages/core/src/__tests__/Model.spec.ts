@@ -30,7 +30,7 @@ describe('Model', () => {
     context('with seeded data', {
       definitions: () =>
         (storage = {
-          [tableName]: seed,
+          [tableName]: seed.map((row) => ({ ...row })),
         }),
       reset: () => (storage = {}),
       tests,
@@ -374,6 +374,107 @@ describe('Model', () => {
           },
         });
       });
+    });
+  });
+
+  describe('.findBy(filter)', () => {
+    withSeededData(() => {
+      it('returns the first matching record', async () => {
+        const record = await CreateModel().findBy({ foo: 'bar' });
+        expect(record?.attributes()).toEqual(seed[0]);
+      });
+
+      it('returns undefined when no record matches', async () => {
+        const record = await CreateModel().findBy({ foo: 'nope' });
+        expect(record).toBeUndefined();
+      });
+
+      context('when a class-level filter is already set', {
+        definitions: () => (filter = { bar: 'baz' }),
+        reset: () => (filter = undefined),
+        tests: () => {
+          it('combines the class-level filter with the argument filter', async () => {
+            const record = await CreateModel().findBy({ foo: 'bar' });
+            expect(record?.attributes()).toEqual(seed[0]);
+          });
+
+          it('returns undefined when the combination has no matches', async () => {
+            const record = await CreateModel().findBy({ foo: null });
+            expect(record?.attributes()).toEqual(seed[1]);
+          });
+        },
+      });
+    });
+  });
+
+  describe('.exists(filter?)', () => {
+    withSeededData(() => {
+      it('returns true when a matching record exists', async () => {
+        expect(await CreateModel().exists({ foo: 'bar' })).toBe(true);
+      });
+
+      it('returns false when no record matches', async () => {
+        expect(await CreateModel().exists({ foo: 'nope' })).toBe(false);
+      });
+
+      it('returns true for an empty filter when any record is present', async () => {
+        expect(await CreateModel().exists()).toBe(true);
+      });
+
+      context('with an empty seed', {
+        definitions: () => (storage = { [tableName]: [] }),
+        reset: () => (storage = {}),
+        tests: () => {
+          it('returns false when no records are present', async () => {
+            expect(await CreateModel().exists()).toBe(false);
+          });
+        },
+      });
+    });
+  });
+
+  describe('.deleteAll()', () => {
+    withSeededData(() => {
+      it('deletes all records in the current scope and returns them', async () => {
+        const deleted = await CreateModel().deleteAll();
+        expect(deleted).toHaveLength(seed.length);
+        expect(await CreateModel().count()).toBe(0);
+      });
+
+      context('with a scope filter', {
+        definitions: () => (filter = { foo: 'bar' }),
+        reset: () => (filter = undefined),
+        tests: () => {
+          it('only deletes records matching the scope', async () => {
+            const deleted = await CreateModel().deleteAll();
+            expect(deleted).toHaveLength(2);
+            filter = undefined;
+            expect(await CreateModel().count()).toBe(1);
+          });
+        },
+      });
+    });
+  });
+
+  describe('#delete()', () => {
+    withSeededData(() => {
+      it('deletes the persisted record and clears keys on the instance', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        await record!.delete();
+        expect(record!.isPersistent()).toBe(false);
+        expect(await CreateModel().count()).toBe(seed.length - 1);
+      });
+
+      it('throws NotFoundError when the record was already deleted', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        await CreateModel().filterBy({ id: 1 }).deleteAll();
+        await expect(record!.delete()).rejects.toBeInstanceOf(Error);
+      });
+    });
+
+    it('throws PersistenceError when deleting an unsaved record', async () => {
+      const record = CreateModel().build({});
+      await expect(record.delete()).rejects.toBeInstanceOf(Error);
     });
   });
 
