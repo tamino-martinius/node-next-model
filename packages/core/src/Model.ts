@@ -157,6 +157,19 @@ export class ModelClass {
     return await this.connector.count(this.modelScope());
   }
 
+  static async deleteAll<M extends typeof ModelClass>(this: M) {
+    return await this.connector.deleteAll(this.modelScope());
+  }
+
+  static async findBy<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
+    return await this.filterBy(filter).first<M>();
+  }
+
+  static async exists<M extends typeof ModelClass>(this: M, filter?: Filter<any>) {
+    const scoped = filter === undefined ? this : this.filterBy(filter);
+    return (await scoped.count()) > 0;
+  }
+
   persistentProps: Dict<any>;
   changedProps: Dict<any> = {};
   keys: Dict<any> | undefined;
@@ -253,6 +266,21 @@ export class ModelClass {
     }
     return this as M;
   }
+
+  async delete<M extends ModelClass>(this: M) {
+    if (!this.keys) {
+      throw new PersistenceError('Cannot delete a record that has not been saved');
+    }
+    const model = this.constructor as typeof ModelClass;
+    const items = await model.connector.deleteAll(this.itemScope());
+    if (items.length === 0) {
+      throw new NotFoundError('Item not found');
+    }
+    this.persistentProps = { ...this.persistentProps, ...this.changedProps, ...this.keys };
+    this.changedProps = {};
+    this.keys = undefined;
+    return this as M;
+  }
 }
 
 export function Model<
@@ -347,6 +375,32 @@ export function Model<
 
     static async count<M extends typeof ModelClass>(this: M) {
       return await super.count();
+    }
+
+    static async deleteAll<M extends typeof ModelClass>(this: M) {
+      return (await super.deleteAll()) as (PersistentProps & {
+        [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number;
+      })[];
+    }
+
+    static async findBy<M extends typeof ModelClass>(
+      this: M,
+      filter: Filter<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      return (await super.findBy(filter)) as InstanceType<M> &
+        PersistentProps &
+        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    }
+
+    static async exists<M extends typeof ModelClass>(
+      this: M,
+      filter?: Filter<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      return await super.exists(filter);
     }
 
     static build<M extends typeof ModelClass>(this: M, props: CreateProps) {
