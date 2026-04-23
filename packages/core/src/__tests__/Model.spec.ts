@@ -2001,6 +2001,121 @@ describe('Model', () => {
     });
   });
 
+  describe('.paginate', () => {
+    it('returns the requested page with total/page metadata', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      for (const foo of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+        await Klass.create({ foo });
+      }
+      const page1 = await Klass.paginate(1, 3);
+      expect(page1.items.map((i) => i.foo)).toEqual(['a', 'b', 'c']);
+      expect(page1.total).toBe(7);
+      expect(page1.page).toBe(1);
+      expect(page1.perPage).toBe(3);
+      expect(page1.totalPages).toBe(3);
+      expect(page1.hasNext).toBe(true);
+      expect(page1.hasPrev).toBe(false);
+
+      const page2 = await Klass.paginate(2, 3);
+      expect(page2.items.map((i) => i.foo)).toEqual(['d', 'e', 'f']);
+      expect(page2.hasNext).toBe(true);
+      expect(page2.hasPrev).toBe(true);
+
+      const page3 = await Klass.paginate(3, 3);
+      expect(page3.items.map((i) => i.foo)).toEqual(['g']);
+      expect(page3.hasNext).toBe(false);
+      expect(page3.hasPrev).toBe(true);
+
+      storage = {};
+    });
+
+    it('ignores any prior limit/skip when computing the total', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        limit: 2,
+        skip: 1,
+      });
+      for (const foo of ['a', 'b', 'c', 'd', 'e']) {
+        await Klass.create({ foo });
+      }
+      const result = await Klass.paginate(1, 10);
+      expect(result.total).toBe(5);
+      expect(result.items).toHaveLength(5);
+      storage = {};
+    });
+
+    it('respects the current filter scope when counting', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string; active: boolean }) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'a', active: true });
+      await Klass.create({ foo: 'b', active: false });
+      await Klass.create({ foo: 'c', active: true });
+      const result = await Klass.filterBy({ active: true }).paginate(1, 10);
+      expect(result.total).toBe(2);
+      expect(result.items).toHaveLength(2);
+      storage = {};
+    });
+
+    it('defaults perPage to 25', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'a' });
+      const result = await Klass.paginate(1);
+      expect(result.perPage).toBe(25);
+      storage = {};
+    });
+
+    it('returns an empty page with totalPages 0 when no rows match', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const result = await Klass.paginate(1, 10);
+      expect(result.items).toEqual([]);
+      expect(result.total).toBe(0);
+      expect(result.totalPages).toBe(0);
+      expect(result.hasNext).toBe(false);
+      expect(result.hasPrev).toBe(false);
+      storage = {};
+    });
+
+    it('clamps non-positive page/perPage values to 1', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+        order: { key: 'foo' },
+      });
+      await Klass.create({ foo: 'a' });
+      await Klass.create({ foo: 'b' });
+      const result = await Klass.paginate(0, 0);
+      expect(result.page).toBe(1);
+      expect(result.perPage).toBe(1);
+      expect(result.items.map((i) => i.foo)).toEqual(['a']);
+      storage = {};
+    });
+  });
+
   describe('.ids', () => {
     it('returns the primary keys within the current scope', async () => {
       storage = {};
