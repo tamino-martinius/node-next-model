@@ -1775,6 +1775,127 @@ describe('Model', () => {
     });
   });
 
+  describe('.createMany', () => {
+    const buildKlass = () => {
+      storage = {};
+      return Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+    };
+
+    it('inserts each record and returns persisted instances', async () => {
+      const Klass = buildKlass();
+      const results = await Klass.createMany([{ foo: 'a' }, { foo: 'b' }, { foo: 'c' }]);
+      expect(results).toHaveLength(3);
+      for (const r of results) {
+        expect(r.isPersistent()).toBe(true);
+      }
+      expect(results.map((r) => r.attributes().foo).sort()).toEqual(['a', 'b', 'c']);
+      expect(await Klass.count()).toBe(3);
+      storage = {};
+    });
+
+    it('assigns distinct primary keys', async () => {
+      const Klass = buildKlass();
+      const results = await Klass.createMany([{ foo: 'a' }, { foo: 'b' }]);
+      const ids = results.map((r) => r.attributes().id);
+      expect(new Set(ids).size).toBe(2);
+      storage = {};
+    });
+
+    it('applies timestamps to each row', async () => {
+      const Klass = buildKlass();
+      const results = await Klass.createMany([{ foo: 'a' }, { foo: 'b' }]);
+      for (const r of results) {
+        expect(r.attributes().createdAt).toBeInstanceOf(Date);
+        expect(r.attributes().updatedAt).toBeInstanceOf(Date);
+      }
+      storage = {};
+    });
+
+    it('returns empty array when given empty input', async () => {
+      const Klass = buildKlass();
+      const results = await Klass.createMany([]);
+      expect(results).toEqual([]);
+      storage = {};
+    });
+  });
+
+  describe('.last', () => {
+    const buildKlass = () => {
+      storage = {};
+      return Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+    };
+
+    it('returns the last record by primary key when no order is set', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ foo: 'a' });
+      await Klass.create({ foo: 'b' });
+      await Klass.create({ foo: 'c' });
+      const last = await Klass.last();
+      expect(last?.attributes().foo).toBe('c');
+      storage = {};
+    });
+
+    it('reverses the existing order', async () => {
+      const Klass = buildKlass();
+      await Klass.create({ foo: 'c' });
+      await Klass.create({ foo: 'a' });
+      await Klass.create({ foo: 'b' });
+      const last = await Klass.orderBy({ key: 'foo' as any }).last();
+      expect(last?.attributes().foo).toBe('c');
+      storage = {};
+    });
+
+    it('returns undefined when no records exist', async () => {
+      const Klass = buildKlass();
+      const last = await Klass.last();
+      expect(last).toBeUndefined();
+      storage = {};
+    });
+  });
+
+  describe('.ids', () => {
+    it('returns the primary keys within the current scope', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { foo: string }) => props,
+        connector: connector(),
+      });
+      const a = await Klass.create({ foo: 'a' });
+      const b = await Klass.create({ foo: 'b' });
+      const ids = await Klass.ids();
+      expect(ids.sort()).toEqual([a.attributes().id, b.attributes().id].sort());
+      storage = {};
+    });
+  });
+
+  describe('.pluckUnique', () => {
+    it('returns deduplicated values preserving first-seen order', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: { tag: string }) => props,
+        connector: connector(),
+      });
+      await Klass.create({ tag: 'x' });
+      await Klass.create({ tag: 'y' });
+      await Klass.create({ tag: 'x' });
+      await Klass.create({ tag: 'z' });
+      await Klass.create({ tag: 'y' });
+      const tags = await Klass.pluckUnique('tag');
+      expect(tags).toEqual(['x', 'y', 'z']);
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
