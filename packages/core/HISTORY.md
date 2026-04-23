@@ -99,6 +99,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 - Instance-level helpers: `belongsTo(Related, options?)`, `hasMany(Related, options?)`, `hasOne(Related, options?)`, `hasManyThrough(Target, Through, options?)`.
 - Options: `foreignKey`, `primaryKey`, `throughForeignKey`, `targetForeignKey`, `selfPrimaryKey`, `targetPrimaryKey`.
 - Polymorphic associations via `polymorphic`, `typeKey`, `typeValue`.
+- Batch preload helpers to avoid N+1 queries: `Related.preloadBelongsTo(records, { foreignKey, primaryKey? })` returns `Map<parentPk, Related>`, `Related.preloadHasMany(records, { foreignKey, primaryKey? })` returns `Map<parentPk, Related[]>` (empty buckets are pre-seeded for every parent).
 
 ### Transactions
 

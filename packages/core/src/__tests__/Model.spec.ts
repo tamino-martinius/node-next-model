@@ -1939,6 +1939,204 @@ describe('Model', () => {
         expect(resolved?.attributes().title).toBe('P');
       });
     });
+
+    describe('.preloadBelongsTo', () => {
+      it('returns a map from parent pk to parent instance, keyed by the child foreignKey value', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const bob = await UserKlass.create({ name: 'Bob' });
+        await PostKlass.create({ userId: alice.id, title: 'A' });
+        await PostKlass.create({ userId: alice.id, title: 'B' });
+        await PostKlass.create({ userId: bob.id, title: 'C' });
+        const posts = await PostKlass.all();
+        const authorsByKey = await UserKlass.preloadBelongsTo(posts, { foreignKey: 'userId' });
+        expect(authorsByKey.size).toBe(2);
+        expect(authorsByKey.get(alice.id)?.attributes().name).toBe('Alice');
+        expect(authorsByKey.get(bob.id)?.attributes().name).toBe('Bob');
+      });
+
+      it('de-duplicates parent lookups to a single query', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        for (let i = 0; i < 5; i++) {
+          await PostKlass.create({ userId: alice.id, title: `P${i}` });
+        }
+        const connector = UserKlass.connector as any;
+        const querySpy = vi.spyOn(connector, 'query');
+        const posts = await PostKlass.all();
+        querySpy.mockClear();
+        await UserKlass.preloadBelongsTo(posts, { foreignKey: 'userId' });
+        expect(querySpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('returns an empty map when records list is empty', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const result = await UserKlass.preloadBelongsTo([], { foreignKey: 'userId' });
+        expect(result.size).toBe(0);
+      });
+
+      it('skips null/undefined foreign keys', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number | null; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        await PostKlass.create({ userId: alice.id, title: 'A' });
+        await PostKlass.create({ userId: null, title: 'Orphan' });
+        const posts = await PostKlass.all();
+        const authorsByKey = await UserKlass.preloadBelongsTo(posts, { foreignKey: 'userId' });
+        expect(authorsByKey.size).toBe(1);
+        expect(authorsByKey.get(alice.id)?.attributes().name).toBe('Alice');
+      });
+
+      it('supports a custom primaryKey on the parent', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { slug: string; name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userSlug: string; title: string }) => props,
+          connector: assocConnector(),
+        });
+        await UserKlass.create({ slug: 'alice', name: 'Alice' });
+        await PostKlass.create({ userSlug: 'alice', title: 'A' });
+        const posts = await PostKlass.all();
+        const authorsBySlug = await UserKlass.preloadBelongsTo(posts, {
+          foreignKey: 'userSlug',
+          primaryKey: 'slug',
+        });
+        expect(authorsBySlug.get('alice')?.attributes().name).toBe('Alice');
+      });
+
+      it('accepts plain objects as records', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const authorsByKey = await UserKlass.preloadBelongsTo(
+          [{ userId: alice.id }, { userId: alice.id }],
+          { foreignKey: 'userId' },
+        );
+        expect(authorsByKey.get(alice.id)?.attributes().name).toBe('Alice');
+      });
+    });
+
+    describe('.preloadHasMany', () => {
+      it('returns a map from parent pk to child array, including empty buckets', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const bob = await UserKlass.create({ name: 'Bob' });
+        const carol = await UserKlass.create({ name: 'Carol' });
+        await PostKlass.create({ userId: alice.id, title: 'A1' });
+        await PostKlass.create({ userId: alice.id, title: 'A2' });
+        await PostKlass.create({ userId: bob.id, title: 'B1' });
+        const users = await UserKlass.all();
+        const postsByUser = await PostKlass.preloadHasMany(users, { foreignKey: 'userId' });
+        expect(
+          postsByUser
+            .get(alice.id)
+            ?.map((p) => p.attributes().title)
+            .sort(),
+        ).toEqual(['A1', 'A2']);
+        expect(postsByUser.get(bob.id)?.map((p) => p.attributes().title)).toEqual(['B1']);
+        expect(postsByUser.get(carol.id)).toEqual([]);
+      });
+
+      it('de-duplicates child lookups to a single query', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const alice = await UserKlass.create({ name: 'Alice' });
+        const bob = await UserKlass.create({ name: 'Bob' });
+        await PostKlass.create({ userId: alice.id, title: 'A' });
+        await PostKlass.create({ userId: bob.id, title: 'B' });
+        const connector = PostKlass.connector as any;
+        const querySpy = vi.spyOn(connector, 'query');
+        const users = await UserKlass.all();
+        querySpy.mockClear();
+        await PostKlass.preloadHasMany(users, { foreignKey: 'userId' });
+        expect(querySpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('returns an empty map when parents list is empty', async () => {
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userId: number; title: string }) => props,
+          connector: assocConnector(),
+        });
+        const result = await PostKlass.preloadHasMany([], { foreignKey: 'userId' });
+        expect(result.size).toBe(0);
+      });
+
+      it('supports a custom primaryKey on the parent', async () => {
+        const UserKlass = Model({
+          tableName: 'users',
+          init: (props: { slug: string; name: string }) => props,
+          connector: assocConnector(),
+        });
+        const PostKlass = Model({
+          tableName: 'posts',
+          init: (props: { userSlug: string; title: string }) => props,
+          connector: assocConnector(),
+        });
+        await UserKlass.create({ slug: 'alice', name: 'Alice' });
+        await PostKlass.create({ userSlug: 'alice', title: 'A' });
+        const users = await UserKlass.all();
+        const postsBySlug = await PostKlass.preloadHasMany(users, {
+          foreignKey: 'userSlug',
+          primaryKey: 'slug',
+        });
+        expect(postsBySlug.get('alice')?.map((p) => p.attributes().title)).toEqual(['A']);
+      });
+    });
   });
 
   describe('scopes', () => {
