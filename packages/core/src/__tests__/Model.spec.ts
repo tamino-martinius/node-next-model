@@ -774,6 +774,131 @@ describe('Model', () => {
     });
   });
 
+  describe('callbacks', () => {
+    it('runs beforeSave, beforeCreate, afterCreate, afterSave on insert in order', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        callbacks: {
+          beforeSave: [() => void order.push('beforeSave')],
+          beforeCreate: [() => void order.push('beforeCreate')],
+          beforeUpdate: [() => void order.push('beforeUpdate')],
+          afterUpdate: [() => void order.push('afterUpdate')],
+          afterCreate: [() => void order.push('afterCreate')],
+          afterSave: [() => void order.push('afterSave')],
+        },
+      });
+      await Klass.create({ foo: 'bar' });
+      expect(order).toEqual(['beforeSave', 'beforeCreate', 'afterCreate', 'afterSave']);
+      storage = {};
+    });
+
+    it('runs beforeSave, beforeUpdate, afterUpdate, afterSave on update in order', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        callbacks: {
+          beforeSave: [() => void order.push('beforeSave')],
+          beforeCreate: [() => void order.push('beforeCreate')],
+          beforeUpdate: [() => void order.push('beforeUpdate')],
+          afterUpdate: [() => void order.push('afterUpdate')],
+          afterCreate: [() => void order.push('afterCreate')],
+          afterSave: [() => void order.push('afterSave')],
+        },
+      });
+      const record = await Klass.create({ foo: 'bar' });
+      order.length = 0;
+      record.assign({ foo: 'changed' });
+      await record.save();
+      expect(order).toEqual(['beforeSave', 'beforeUpdate', 'afterUpdate', 'afterSave']);
+      storage = {};
+    });
+
+    it('runs beforeDelete then afterDelete around delete()', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        callbacks: {
+          beforeDelete: [() => void order.push('beforeDelete')],
+          afterDelete: [() => void order.push('afterDelete')],
+        },
+      });
+      const record = await Klass.create({ foo: 'bar' });
+      await record.delete();
+      expect(order).toEqual(['beforeDelete', 'afterDelete']);
+      storage = {};
+    });
+
+    it('awaits async callbacks', async () => {
+      storage = {};
+      const order: string[] = [];
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        callbacks: {
+          beforeSave: [
+            async () => {
+              await new Promise((resolve) => setTimeout(resolve, 5));
+              order.push('beforeSave');
+            },
+          ],
+          afterSave: [() => void order.push('afterSave')],
+        },
+      });
+      await Klass.create({ foo: 'bar' });
+      expect(order).toEqual(['beforeSave', 'afterSave']);
+      storage = {};
+    });
+
+    it('aborts save when a before-callback throws', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        callbacks: {
+          beforeCreate: [
+            () => {
+              throw new Error('nope');
+            },
+          ],
+        },
+      });
+      await expect(Klass.create({ foo: 'bar' })).rejects.toBeInstanceOf(Error);
+      expect(Object.keys(storage[tableName] ?? {})).toHaveLength(0);
+      storage = {};
+    });
+
+    it('skips callbacks when no changes trigger a save()', async () => {
+      storage = {};
+      let calls = 0;
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        callbacks: {
+          beforeSave: [() => void calls++],
+          afterSave: [() => void calls++],
+        },
+      });
+      const record = await Klass.create({ foo: 'bar' });
+      calls = 0;
+      await record.save();
+      expect(calls).toBe(2);
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
