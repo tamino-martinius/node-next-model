@@ -177,6 +177,14 @@ export class ModelClass {
     return await this.connector.deleteAll(this.modelScope());
   }
 
+  static async updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>) {
+    const effectiveAttrs = { ...attrs };
+    if (this.timestamps && effectiveAttrs.updatedAt === undefined) {
+      effectiveAttrs.updatedAt = new Date();
+    }
+    return await this.connector.updateAll(this.modelScope(), effectiveAttrs);
+  }
+
   static async findBy<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
     return await this.filterBy(filter).first<M>();
   }
@@ -385,6 +393,40 @@ export class ModelClass {
     return this as M;
   }
 
+  async update<M extends ModelClass>(this: M, attrs: Dict<any>) {
+    this.assign(attrs);
+    return this.save();
+  }
+
+  async touch<M extends ModelClass>(this: M) {
+    if (!this.keys) {
+      throw new PersistenceError('Cannot touch a record that has not been saved');
+    }
+    const model = this.constructor as typeof ModelClass;
+    const now = new Date();
+    const items = await model.connector.updateAll(this.itemScope(), { updatedAt: now });
+    const item = items.pop();
+    if (!item) throw new NotFoundError('Item not found');
+    for (const key in model.keys) delete item[key];
+    this.persistentProps = item;
+    this.changedProps = {};
+    return this as M;
+  }
+
+  async reload<M extends ModelClass>(this: M) {
+    if (!this.keys) {
+      throw new PersistenceError('Cannot reload a record that has not been saved');
+    }
+    const model = this.constructor as typeof ModelClass;
+    const items = await model.connector.query(this.itemScope());
+    const item = items.pop();
+    if (!item) throw new NotFoundError('Item not found');
+    for (const key in model.keys) delete item[key];
+    this.persistentProps = item;
+    this.changedProps = {};
+    return this as M;
+  }
+
   async delete<M extends ModelClass>(this: M) {
     if (!this.keys) {
       throw new PersistenceError('Cannot delete a record that has not been saved');
@@ -516,6 +558,12 @@ export function Model<
       })[];
     }
 
+    static async updateAll<M extends typeof ModelClass>(this: M, attrs: Partial<PersistentProps>) {
+      return (await super.updateAll(attrs)) as (PersistentProps & {
+        [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number;
+      })[];
+    }
+
     static async findBy<M extends typeof ModelClass>(
       this: M,
       filter: Filter<
@@ -597,6 +645,10 @@ export function Model<
 
     revertChange<M extends ModelClass>(this: M, key: keyof PersistentProps): M {
       return super.revertChange(key as string) as M;
+    }
+
+    update<M extends ModelClass>(this: M, attrs: Partial<PersistentProps>): Promise<M> {
+      return super.update(attrs as Dict<any>) as Promise<M>;
     }
   };
 }

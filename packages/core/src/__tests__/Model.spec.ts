@@ -977,6 +977,134 @@ describe('Model', () => {
     });
   });
 
+  describe('#update', () => {
+    it('assigns and saves in one call', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ foo: 'a' });
+      const updated = await record.update({ foo: 'b' });
+      expect(updated.attributes().foo).toBe('b');
+      const reloaded = await Klass.findBy({ id: record.attributes().id });
+      expect(reloaded?.attributes().foo).toBe('b');
+      storage = {};
+    });
+  });
+
+  describe('#reload', () => {
+    it('replaces in-memory changes with persisted attributes', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ foo: 'original' });
+      record.assign({ foo: 'dirty' });
+      expect(record.isChanged()).toBe(true);
+      await record.reload();
+      expect(record.isChanged()).toBe(false);
+      expect(record.attributes().foo).toBe('original');
+      storage = {};
+    });
+
+    it('picks up changes made through other instances', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const a = await Klass.create({ foo: 'a' });
+      const b = (await Klass.findBy({ id: a.attributes().id }))!;
+      await a.update({ foo: 'changed' });
+      await b.reload();
+      expect(b.attributes().foo).toBe('changed');
+      storage = {};
+    });
+
+    it('throws when the record is unsaved', async () => {
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = Klass.build({ foo: 'x' });
+      await expect(record.reload()).rejects.toThrow(
+        'Cannot reload a record that has not been saved',
+      );
+    });
+  });
+
+  describe('#touch', () => {
+    it('bumps updatedAt without other changes', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = await Klass.create({ foo: 'a' });
+      const originalUpdatedAt = record.attributes().updatedAt as Date;
+      await new Promise((r) => setTimeout(r, 5));
+      await record.touch();
+      const newUpdatedAt = record.attributes().updatedAt as Date;
+      expect(newUpdatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
+      expect(record.attributes().foo).toBe('a');
+      storage = {};
+    });
+
+    it('throws when the record is unsaved', async () => {
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const record = Klass.build({ foo: 'x' });
+      await expect(record.touch()).rejects.toThrow('Cannot touch a record that has not been saved');
+    });
+  });
+
+  describe('.updateAll', () => {
+    it('updates all records in scope', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'a', group: 1 });
+      await Klass.create({ foo: 'b', group: 1 });
+      await Klass.create({ foo: 'c', group: 2 });
+      await Klass.filterBy({ group: 1 }).updateAll({ foo: 'updated' });
+      expect(await Klass.filterBy({ foo: 'updated' }).count()).toBe(2);
+      expect(await Klass.filterBy({ foo: 'c' }).count()).toBe(1);
+      storage = {};
+    });
+
+    it('auto-sets updatedAt when timestamps enabled', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      await Klass.create({ foo: 'a' });
+      await new Promise((r) => setTimeout(r, 5));
+      const before = Date.now();
+      await Klass.updateAll({ foo: 'b' });
+      const after = Date.now();
+      const row = (await Klass.first())!;
+      const updatedAt = row.attributes().updatedAt as Date;
+      expect(updatedAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(updatedAt.getTime()).toBeLessThanOrEqual(after);
+      storage = {};
+    });
+  });
+
   describe('associations', () => {
     let assocStorage: Storage = {};
     const assocConnector = () => new MemoryConnector({ storage: assocStorage });
