@@ -478,6 +478,128 @@ describe('Model', () => {
     });
   });
 
+  describe('#isChanged()', () => {
+    withSeededData(() => {
+      it('returns false immediately after build', () => {
+        const record = CreateModel().build({ foo: 'bar' });
+        expect(record.isChanged()).toBe(false);
+      });
+
+      it('returns true after assigning on top of a built record', () => {
+        const record = CreateModel().build({ foo: 'bar' });
+        record.assign({ foo: 'changed' });
+        expect(record.isChanged()).toBe(true);
+      });
+
+      it('returns false immediately after findBy', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        expect(record!.isChanged()).toBe(false);
+      });
+
+      it('returns true after assigning a different value', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed' });
+        expect(record!.isChanged()).toBe(true);
+      });
+
+      it('returns false after assigning the same value back', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: record!.attributes().foo });
+        expect(record!.isChanged()).toBe(false);
+      });
+
+      it('returns false after save clears changed props', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed' });
+        await record!.save();
+        expect(record!.isChanged()).toBe(false);
+      });
+    });
+  });
+
+  describe('#isChangedBy(key)', () => {
+    withSeededData(() => {
+      it('returns true for a changed key', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed' });
+        expect(record!.isChangedBy('foo')).toBe(true);
+      });
+
+      it('returns false for an unchanged key', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed' });
+        expect(record!.isChangedBy('bar')).toBe(false);
+      });
+
+      it('returns false for a key never present', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        expect(record!.isChangedBy('missing')).toBe(false);
+      });
+    });
+  });
+
+  describe('#changes()', () => {
+    withSeededData(() => {
+      it('returns empty object for an unchanged record', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        expect(record!.changes()).toEqual({});
+      });
+
+      it('returns from/to pairs for each changed key', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed', bar: 'updated' });
+        expect(record!.changes()).toEqual({
+          foo: { from: 'bar', to: 'changed' },
+          bar: { from: 'baz', to: 'updated' },
+        });
+      });
+
+      it('shows undefined for newly-assigned keys with no prior persistent value', () => {
+        const record = CreateModel().build({ foo: 'bar' });
+        record.assign({ newKey: 'value' });
+        expect(record.changes()).toEqual({ newKey: { from: undefined, to: 'value' } });
+      });
+    });
+  });
+
+  describe('#revertChange(key)', () => {
+    withSeededData(() => {
+      it('removes the key from changes and returns the instance', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed', bar: 'updated' });
+        const returned = record!.revertChange('foo');
+        expect(returned).toBe(record);
+        expect(record!.changes()).toEqual({ bar: { from: 'baz', to: 'updated' } });
+      });
+
+      it('is a no-op when the key was not changed', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed' });
+        record!.revertChange('bar');
+        expect(record!.changes()).toEqual({ foo: { from: 'bar', to: 'changed' } });
+      });
+    });
+  });
+
+  describe('#revertChanges()', () => {
+    withSeededData(() => {
+      it('clears all changes and returns the instance', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.assign({ foo: 'changed', bar: 'updated' });
+        const returned = record!.revertChanges();
+        expect(returned).toBe(record);
+        expect(record!.changes()).toEqual({});
+        expect(record!.isChanged()).toBe(false);
+      });
+
+      it('is a no-op when there are no changes', async () => {
+        const record = await CreateModel().findBy({ id: 1 });
+        record!.revertChanges();
+        expect(record!.isChanged()).toBe(false);
+      });
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;

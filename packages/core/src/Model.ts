@@ -217,6 +217,32 @@ export class ModelClass {
     return this as M;
   }
 
+  isChanged(): boolean {
+    return Object.keys(this.changedProps).length > 0;
+  }
+
+  isChangedBy(key: string): boolean {
+    return key in this.changedProps;
+  }
+
+  changes(): Dict<{ from: any; to: any }> {
+    const result: Dict<{ from: any; to: any }> = {};
+    for (const key in this.changedProps) {
+      result[key] = { from: this.persistentProps[key], to: this.changedProps[key] };
+    }
+    return result;
+  }
+
+  revertChange<M extends ModelClass>(this: M, key: string) {
+    delete this.changedProps[key];
+    return this as M;
+  }
+
+  revertChanges<M extends ModelClass>(this: M) {
+    this.changedProps = {};
+    return this as M;
+  }
+
   itemScope(): Scope {
     const model = this.constructor as typeof ModelClass;
     return {
@@ -456,6 +482,14 @@ export function Model<
         }
       }
       return this as M;
+    }
+
+    isChangedBy(key: keyof PersistentProps): boolean {
+      return super.isChangedBy(key as string);
+    }
+
+    revertChange<M extends ModelClass>(this: M, key: keyof PersistentProps): M {
+      return super.revertChange(key as string) as M;
     }
   };
 }
