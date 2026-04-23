@@ -2,8 +2,23 @@
 
 ## vNext
 
-Add new queries for
-* `$exists`
+Rewritten to match the current `@next-model/core` connector interface.
+
+### Filter operators
+- Added `$like`, `$async`, and `$raw` on top of existing boolean/set/range/comparison operators.
+- Consolidated `$gt`/`$gte`/`$lt`/`$lte` under a single `compareFilter` helper.
+- All filter validation errors are now `FilterError` instances (no more string throws).
+
+### Connector interface
+- Implemented `aggregate(scope, kind, key)` driving `sum`/`min`/`max`/`avg` through a single query.
+- Implemented `transaction(fn)` with nesting (inner calls join the outer Knex transaction via an `activeTransaction` instance field).
+- Implemented `execute(query, bindings)` with driver-aware result normalization (sqlite3, postgres/pg, mysql array-of-arrays).
+- `updateAll` and `batchInsert` fall back to a re-fetch path when the driver doesn't support `.returning()` (sqlite3, mysql).
+- `count` coerces the driver's string/number result to a `number`.
+- Persistence errors now throw `PersistenceError`.
+
+### Tests
+- Full test suite rewritten against vitest + sqlite3 `:memory:` covering all connector methods and filter operators.
 
 ## v0.?.?
 
