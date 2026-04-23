@@ -1696,6 +1696,85 @@ describe('Model', () => {
     });
   });
 
+  describe('scopes', () => {
+    let scopeStorage: Storage = {};
+    const scopeConnector = () => new MemoryConnector({ storage: scopeStorage });
+
+    beforeEach(() => {
+      scopeStorage = {};
+    });
+
+    it('registers scope as static method returning scoped class', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: (self) => self.filterBy({ published: true }),
+        },
+      });
+      await Klass.create({ title: 'A', published: true });
+      await Klass.create({ title: 'B', published: false });
+      const results = await Klass.published().all();
+      expect(results).toHaveLength(1);
+      expect(results[0].attributes().title).toBe('A');
+    });
+
+    it('supports parameterized scopes', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; views: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          minViews: (self, threshold: number) =>
+            self.filterBy({ $gte: { views: threshold } } as Filter<any>),
+        },
+      });
+      await Klass.create({ title: 'A', views: 5 });
+      await Klass.create({ title: 'B', views: 50 });
+      await Klass.create({ title: 'C', views: 100 });
+      const popular = await Klass.minViews(50).all();
+      expect(popular.map((p) => p.attributes().title).sort()).toEqual(['B', 'C']);
+    });
+
+    it('allows chaining scopes with other queries', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean; views: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: (self) => self.filterBy({ published: true }),
+        },
+      });
+      await Klass.create({ title: 'A', published: true, views: 10 });
+      await Klass.create({ title: 'B', published: true, views: 5 });
+      await Klass.create({ title: 'C', published: false, views: 100 });
+      const hits = await Klass.published()
+        .filterBy({ $gte: { views: 10 } } as Filter<any>)
+        .all();
+      expect(hits).toHaveLength(1);
+      expect(hits[0].attributes().title).toBe('A');
+    });
+
+    it('composes multiple scopes together', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean; featured: boolean }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: (self) => self.filterBy({ published: true }),
+          featured: (self) => self.filterBy({ featured: true }),
+        },
+      });
+      await Klass.create({ title: 'A', published: true, featured: true });
+      await Klass.create({ title: 'B', published: true, featured: false });
+      await Klass.create({ title: 'C', published: false, featured: true });
+      const results = await Klass.published().featured().all();
+      expect(results).toHaveLength(1);
+      expect(results[0].attributes().title).toBe('A');
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;
