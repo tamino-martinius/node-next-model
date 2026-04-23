@@ -29,6 +29,14 @@ export type HasManyThroughOptions = {
   targetPrimaryKey?: string;
 };
 
+export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
+
+export type ScopeMap<Self> = Dict<ScopeFn<Self>>;
+
+export type ScopesToMethods<Self, S extends ScopeMap<Self>> = {
+  [K in keyof S]: (...args: S[K] extends (self: any, ...rest: infer R) => any ? R : never) => Self;
+};
+
 export class ModelClass {
   static tableName: string;
   static filter: Filter<any> | undefined;
@@ -564,6 +572,7 @@ export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
   Keys extends Dict<KeyType> = { id: KeyType.number },
+  Scopes extends ScopeMap<any> = {},
 >(props: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
@@ -584,6 +593,7 @@ export function Model<
   callbacks?: Callbacks<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
+  scopes?: Scopes;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -591,8 +601,9 @@ export function Model<
   const timestamps = props.timestamps ?? true;
   const validators = props.validators || [];
   const callbacks = props.callbacks || {};
+  const scopeDefs = props.scopes || ({} as Scopes);
 
-  return class Model extends ModelClass {
+  const ModelSubclass = class Model extends ModelClass {
     static tableName = props.tableName;
     static filter = props.filter;
     static limit = props.limit;
@@ -838,6 +849,14 @@ export function Model<
       return super.update(attrs as Dict<any>) as Promise<M>;
     }
   };
+
+  for (const name in scopeDefs) {
+    (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
+      return scopeDefs[name](this, ...args);
+    };
+  }
+
+  return ModelSubclass as typeof ModelSubclass & ScopesToMethods<typeof ModelSubclass, Scopes>;
 }
 
 export default Model;
