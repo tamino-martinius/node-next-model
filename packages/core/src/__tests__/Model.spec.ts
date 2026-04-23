@@ -600,6 +600,82 @@ describe('Model', () => {
     });
   });
 
+  describe('timestamps', () => {
+    it('sets createdAt and updatedAt on insert by default', async () => {
+      storage = {};
+      const before = Date.now();
+      const record = await CreateModel().create({ foo: 'bar' });
+      const after = Date.now();
+      const attrs = record.attributes();
+      expect(attrs.createdAt).toBeInstanceOf(Date);
+      expect(attrs.updatedAt).toBeInstanceOf(Date);
+      expect(attrs.createdAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(attrs.createdAt.getTime()).toBeLessThanOrEqual(after);
+      expect(attrs.updatedAt).toEqual(attrs.createdAt);
+      storage = {};
+    });
+
+    it('updates updatedAt but not createdAt on save after assign', async () => {
+      storage = {};
+      const record = await CreateModel().create({ foo: 'bar' });
+      const created = record.attributes().createdAt;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      record.assign({ foo: 'changed' });
+      await record.save();
+      const attrs = record.attributes();
+      expect(attrs.createdAt).toEqual(created);
+      expect(attrs.updatedAt.getTime()).toBeGreaterThan(created.getTime());
+      storage = {};
+    });
+
+    it('preserves user-supplied createdAt/updatedAt on insert', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+      });
+      const createdAt = new Date('2020-01-01');
+      const updatedAt = new Date('2021-01-01');
+      const record = await Klass.create({ foo: 'bar', createdAt, updatedAt });
+      const attrs = record.attributes();
+      expect(attrs.createdAt).toEqual(createdAt);
+      expect(attrs.updatedAt).toEqual(updatedAt);
+      storage = {};
+    });
+
+    it('does not write timestamps when opted out', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'bar' });
+      const attrs = record.attributes();
+      expect(attrs.createdAt).toBeUndefined();
+      expect(attrs.updatedAt).toBeUndefined();
+      storage = {};
+    });
+
+    it('does not bump updatedAt when opted out, even on update', async () => {
+      storage = {};
+      const Klass = Model({
+        tableName,
+        init: (props: any) => props,
+        connector: connector(),
+        timestamps: false,
+      });
+      const record = await Klass.create({ foo: 'bar' });
+      record.assign({ foo: 'changed' });
+      await record.save();
+      const attrs = record.attributes();
+      expect(attrs.updatedAt).toBeUndefined();
+      storage = {};
+    });
+  });
+
   // describe('.order', () => {
   //   let Klass: typeof Model;
   //   let order: Partial<Order<any>>[] = Faker.order;

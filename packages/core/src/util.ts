@@ -11,5 +11,5 @@ export function uuid() {
 }
 
 export function clone<T extends object>(obj: T) {
-  return JSON.parse(JSON.stringify(obj)) as T;
+  return structuredClone(obj);
 }

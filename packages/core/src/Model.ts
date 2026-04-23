@@ -21,6 +21,7 @@ export class ModelClass {
   static keys: Dict<KeyType>;
   static connector: Connector;
   static init: (props: any) => Dict<any>;
+  static timestamps = true;
 
   static modelScope() {
     return {
@@ -256,10 +257,14 @@ export class ModelClass {
 
   async save<M extends ModelClass>(this: M) {
     const model = this.constructor as typeof ModelClass;
+    const now = new Date();
 
     if (this.keys) {
       const changedKeys = Object.keys(this.changedProps);
       if (changedKeys.length > 0) {
+        if (model.timestamps) {
+          this.changedProps.updatedAt = now;
+        }
         const items = await model.connector.updateAll(this.itemScope(), this.changedProps);
         const item = items.pop();
         if (item) {
@@ -274,9 +279,12 @@ export class ModelClass {
         }
       }
     } else {
-      const items = await model.connector.batchInsert(model.tableName, model.keys, [
-        { ...this.persistentProps, ...this.changedProps },
-      ]);
+      const insertProps = { ...this.persistentProps, ...this.changedProps };
+      if (model.timestamps) {
+        if (insertProps.createdAt === undefined) insertProps.createdAt = now;
+        if (insertProps.updatedAt === undefined) insertProps.updatedAt = now;
+      }
+      const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
       if (item) {
         this.keys = {};
@@ -326,10 +334,12 @@ export function Model<
   >;
   connector?: Connector;
   keys?: Keys;
+  timestamps?: boolean;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
+  const timestamps = props.timestamps ?? true;
 
   return class Model extends ModelClass {
     static tableName = props.tableName;
@@ -340,6 +350,7 @@ export function Model<
     static keys = keyDefinitions;
     static connector = connector;
     static init = props.init as any;
+    static timestamps = timestamps;
 
     static orderBy<M extends typeof ModelClass>(
       this: M,
