@@ -14,7 +14,6 @@
     "aws",
     "serverless",
     "typescript",
-    "jest",
     "node",
     "nodejs"
   ],
@@ -29,37 +28,22 @@
     "url": "https://github.com/tamino-martinius/node-data-api-model.git"
   },
   "engines": {
-    "node": ">=8.10.0"
+    "node": ">=22"
   },
   "scripts": {
-    "coverage": "rm -rf coverage* && jest --coverage --maxWorkers=1",
-    "test": "jest --maxWorkers=1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
     "watch": "tsc -w",
-    "ci": "npm run coverage && codecov",
-    "compile": "rm -rf dist/* && tsc && tsc-mjs --declaration false --target esnext --module esnext --mjs",
-    "preversion": "npm run compile && git add ."
+    "build": "rm -rf dist/* && tsc && tsc-mjs --declaration false --target esnext --module esnext --mjs",
+    "preversion": "pnpm build && git add ."
   },
   "devDependencies": {
-    "@types/jest": "^24.0.25",
-    "@types/node": "^13.1.4",
-    "codecov": "^3.6.1",
-    "jest": "^24.9.0",
-    "ts-jest": "^24.2.0",
+    "@types/node": "^20.12.0",
+    "@vitest/coverage-v8": "^2.1.3",
     "ts-mjs": "^3.1.0",
-    "typescript": "^3.7.4"
-  },
-  "jest": {
-    "preset": "ts-jest",
-    "testRegex": "\\.(test|spec)\\.ts$",
-    "moduleFileExtensions": [
-      "ts",
-      "js"
-    ],
-    "collectCoverageFrom": [
-      "src/**/*.ts",
-      "!src/__benchmark__/**",
-      "!src/__tests__/**",
-      "!src/__mocks__/**"
-    ]
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
   }
 }

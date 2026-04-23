@@ -3,7 +3,7 @@ try {
   pg.types.setTypeParser(20, 'text', parseInt);
 } catch (e) {}
 
-import * as Knex from 'knex';
+import Knex from 'knex';
 import {
   FilterSpecial,
   Filter,

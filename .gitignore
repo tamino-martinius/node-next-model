@@ -4,3 +4,5 @@ node_modules
 npm-debug.log*
 .DS_Store
 dist/**/__tests__
+*.tsbuildinfo
+.pnpm-store
