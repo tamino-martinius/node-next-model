@@ -18,6 +18,7 @@ const globalLastIds: Dict<number> = {};
 export class MemoryConnector implements Connector {
   private storage: Storage;
   private lastIds: Dict<number>;
+  private inTransaction = false;
 
   constructor(props?: { storage?: Storage; lastIds?: Dict<number> }) {
     this.storage = props?.storage || globalStorage;
@@ -159,6 +160,25 @@ export class MemoryConnector implements Connector {
       return fn(this.storage, ...bindings);
     }
     return fn(this.storage, bindings);
+  }
+
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.inTransaction) return fn();
+    const storageSnapshot = structuredClone(this.storage);
+    const lastIdsSnapshot = { ...this.lastIds };
+    this.inTransaction = true;
+    try {
+      const result = await fn();
+      this.inTransaction = false;
+      return result;
+    } catch (err) {
+      for (const key in this.storage) delete this.storage[key];
+      Object.assign(this.storage, storageSnapshot);
+      for (const key in this.lastIds) delete this.lastIds[key];
+      Object.assign(this.lastIds, lastIdsSnapshot);
+      this.inTransaction = false;
+      throw err;
+    }
   }
 }
 
