@@ -1,3 +1,3 @@
 export * from './Migrator';
 export * from './errors';
-export type { Migration, MigrationStatus, MigratorOptions } from './types';
+export type { MigrateOptions, Migration, MigrationStatus, MigratorOptions } from './types';

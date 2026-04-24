@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   MigrationAlreadyAppliedError,
+  MigrationCycleError,
   MigrationMissingError,
   MigrationNotAppliedError,
+  MigrationParentMissingError,
   Migrator,
 } from '..';
 import type { Migration } from '../types';
@@ -277,6 +279,88 @@ for (const backend of backends) {
         await custom.migrate([createUsersTable()]);
         expect(await connector.hasTable('my_migrations')).toBe(true);
         expect(await custom.appliedVersions()).toEqual(['20250101000000']);
+      });
+    });
+
+    describe('dependency graph', () => {
+      function makeMigration(version: string, parent?: string[]): Migration {
+        return {
+          version,
+          name: `m_${version}`,
+          parent,
+          async up(connector) {
+            await connector.createTable(`t_${version}`, (t) => {
+              t.integer('id', { primary: true });
+            });
+          },
+          async down(connector) {
+            await connector.dropTable(`t_${version}`);
+          },
+        };
+      }
+
+      it('respects explicit parents when ordering migrations', async () => {
+        const root = makeMigration('20250101000000', []);
+        const branchA = makeMigration('20250102000000', ['20250101000000']);
+        const branchB = makeMigration('20250103000000', ['20250101000000']);
+        const merge = makeMigration('20250104000000', ['20250102000000', '20250103000000']);
+
+        const applied = await migrator.migrate([merge, branchB, branchA, root]);
+        const order = applied.map((m) => m.version);
+        expect(order[0]).toBe('20250101000000');
+        expect(order[3]).toBe('20250104000000');
+        expect(order.indexOf('20250102000000')).toBeLessThan(order.indexOf('20250104000000'));
+        expect(order.indexOf('20250103000000')).toBeLessThan(order.indexOf('20250104000000'));
+      });
+
+      it('throws MigrationParentMissingError when a declared parent is absent', async () => {
+        const orphan = makeMigration('20250102000000', ['20250199000000']);
+        await expect(migrator.migrate([orphan])).rejects.toBeInstanceOf(
+          MigrationParentMissingError,
+        );
+      });
+
+      it('throws MigrationCycleError when dependencies form a cycle', async () => {
+        const a = makeMigration('20250101000000', ['20250102000000']);
+        const b = makeMigration('20250102000000', ['20250101000000']);
+        await expect(migrator.migrate([a, b])).rejects.toBeInstanceOf(MigrationCycleError);
+      });
+
+      it('applies migrations in waves when parallel is true', async () => {
+        const root = makeMigration('20250101000000', []);
+        const branchA = makeMigration('20250102000000', ['20250101000000']);
+        const branchB = makeMigration('20250103000000', ['20250101000000']);
+        const merge = makeMigration('20250104000000', ['20250102000000', '20250103000000']);
+
+        const applied = await migrator.migrate([merge, branchA, branchB, root], {
+          parallel: true,
+        });
+        expect(applied.map((m) => m.version).sort()).toEqual([
+          '20250101000000',
+          '20250102000000',
+          '20250103000000',
+          '20250104000000',
+        ]);
+        expect((await migrator.appliedVersions()).sort()).toEqual([
+          '20250101000000',
+          '20250102000000',
+          '20250103000000',
+          '20250104000000',
+        ]);
+      });
+
+      it('rolls back in reverse topological order', async () => {
+        const root = makeMigration('20250101000000', []);
+        const child = makeMigration('20250102000000', ['20250101000000']);
+        const grandchild = makeMigration('20250103000000', ['20250102000000']);
+
+        await migrator.migrate([root, child, grandchild]);
+        const reverted = await migrator.rollback([root, child, grandchild], 3);
+        expect(reverted.map((m) => m.version)).toEqual([
+          '20250103000000',
+          '20250102000000',
+          '20250101000000',
+        ]);
       });
     });
   });
