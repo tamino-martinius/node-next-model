@@ -1,5 +1,5 @@
-import { NotFoundError, PersistenceError, ValidationError } from './errors';
-import { MemoryConnector } from './MemoryConnector';
+import { NotFoundError, PersistenceError, ValidationError } from './errors.js';
+import { MemoryConnector } from './MemoryConnector.js';
 import {
   type AggregateKind,
   type Callback,
@@ -14,8 +14,8 @@ import {
   type Scope,
   SortDirection,
   type Validator,
-} from './types';
-import { singularize } from './util';
+} from './types.js';
+import { singularize } from './util.js';
 
 export type AssociationOptions = {
   foreignKey?: string;

@@ -1,6 +1,6 @@
 import { knex as createKnex, type Knex } from 'knex';
 
-import type { DataApiClient, DataApiQueryResult } from '../DataApiConnector';
+import type { DataApiClient, DataApiQueryResult } from '../DataApiConnector.js';
 
 export interface MockDataApiClientOptions {
   knex?: Knex;

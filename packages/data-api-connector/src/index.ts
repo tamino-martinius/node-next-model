@@ -1,1 +1,1 @@
-export * from './DataApiConnector';
+export * from './DataApiConnector.js';

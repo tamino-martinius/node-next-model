@@ -1,5 +1,5 @@
-import { filterList } from './FilterEngine';
-import { defineTable, type TableBuilder } from './schema';
+import { filterList } from './FilterEngine.js';
+import { defineTable, type TableBuilder } from './schema.js';
 import {
   type AggregateKind,
   type BaseType,
@@ -8,9 +8,9 @@ import {
   KeyType,
   type Scope,
   SortDirection,
-} from './types';
+} from './types.js';
 
-import { clone, uuid } from './util';
+import { clone, uuid } from './util.js';
 
 export type Storage = Dict<Dict<any>[]>;
 

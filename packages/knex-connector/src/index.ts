@@ -1,1 +1,1 @@
-export * from './KnexConnector';
+export * from './KnexConnector.js';

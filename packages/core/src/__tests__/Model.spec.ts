@@ -6,8 +6,8 @@ import {
   Model,
   type Order,
   type Storage,
-} from '..';
-import { context, it } from '.';
+} from '../index.js';
+import { context, it } from './index.js';
 
 describe('Model', () => {
   let storage: Storage = {};

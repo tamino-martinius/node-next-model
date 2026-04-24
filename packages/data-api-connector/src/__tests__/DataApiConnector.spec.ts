@@ -1,9 +1,8 @@
 import { FilterError, Model } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import { DataApiConnector } from '..';
-import { MockDataApiClient } from '../__mocks__/MockDataApiClient';
+import { MockDataApiClient } from '../__mocks__/MockDataApiClient.js';
+import { DataApiConnector } from '../index.js';
 
 const mockClient = new MockDataApiClient();
 const connector = new DataApiConnector({ client: mockClient });

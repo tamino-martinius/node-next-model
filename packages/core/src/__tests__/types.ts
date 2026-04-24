@@ -1,4 +1,4 @@
-import type { Filter, NextModelError } from '..';
+import type { Filter, NextModelError } from '../index.js';
 
 export interface Context {
   definitions: () => void;

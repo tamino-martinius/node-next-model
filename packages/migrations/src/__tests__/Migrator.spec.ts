@@ -9,8 +9,8 @@ import {
   MigrationNotAppliedError,
   MigrationParentMissingError,
   Migrator,
-} from '..';
-import type { Migration } from '../types';
+} from '../index.js';
+import type { Migration } from '../types.js';
 
 function createUsersTable(): Migration {
   return {
