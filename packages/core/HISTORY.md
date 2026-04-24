@@ -4,6 +4,7 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+- New `Model.fields(...keys)` chainable for partial fetches — restricts `all()` / `first()` / `last()` / `find()` / `findBy()` to the listed columns while still returning Model instances. Primary key(s) are always included even when not in the list so instances can still `save` / `reload` / `delete`. `allFields()` undoes the restriction; `unscoped()` also clears it. Built on top of the existing `Connector.select(scope, ...keys)` primitive — no connector changes required.
 - `demos/node/` split into `server/` (DB drivers / Express / GraphQL / native modules) and `client/` (pure-JS connectors that also work in a browser: `memory`, `local-storage`). New `demos/nextjs/api` — a Next.js 15 App Router app that exposes a REST resource via `@next-model/nextjs-api` route handlers (per-action auth, sqlite-backed) alongside the existing `demos/nextjs/todo`. pnpm workspace globs updated (`demos/node/server/*`, `demos/node/client/*`). Every demo README — including `nextjs/todo` — now points at the `pnpm rebuild better-sqlite3` fix for the `NODE_MODULE_VERSION` mismatch users hit when the native binding was compiled against a different Node version than the one running `next dev`.
 
 ### Tooling
