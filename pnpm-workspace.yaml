@@ -8,6 +8,6 @@ packages:
   - "packages/redis-connector"
   - "packages/valkey-connector"
   - "packages/mongodb-connector"
-  - "packages/data-api-connector"
+  - "packages/aurora-data-api-connector"
   - "packages/local-storage-connector"
   - "packages/migrations"

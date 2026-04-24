@@ -1,4 +1,4 @@
-# @next-model/data-api-connector
+# @next-model/aurora-data-api-connector
 
 Connector for [`@next-model/core`](../core) that targets the [AWS RDS Data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) — the HTTP-based query interface for Aurora Serverless v1 (PostgreSQL or MySQL flavour).
 
@@ -7,7 +7,7 @@ The connector uses [Knex 3](https://knexjs.org/) only as a query builder (`clien
 ## Installation
 
 ```sh
-pnpm add @next-model/data-api-connector
+pnpm add @next-model/aurora-data-api-connector
 ```
 
 The default client wraps [`data-api-client`](https://www.npmjs.com/package/data-api-client) — install it if you don't bring your own:
@@ -19,7 +19,7 @@ pnpm add data-api-client
 ## Constructing the connector
 
 ```ts
-import { DataApiConnector } from '@next-model/data-api-connector';
+import { DataApiConnector } from '@next-model/aurora-data-api-connector';
 
 const connector = new DataApiConnector({
   secretArn: process.env.AURORA_SECRET_ARN,
@@ -46,7 +46,7 @@ const connector = new DataApiConnector({
 
 ```ts
 import { Model } from '@next-model/core';
-import { DataApiConnector } from '@next-model/data-api-connector';
+import { DataApiConnector } from '@next-model/aurora-data-api-connector';
 
 const connector = new DataApiConnector({
   secretArn: process.env.AURORA_SECRET_ARN,
