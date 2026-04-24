@@ -13,4 +13,5 @@ packages:
   - "packages/migrations"
   - "packages/express-rest-api"
   - "packages/graphql-api"
+  - "packages/nextjs-api"
   - "demos/*"
