@@ -4,6 +4,8 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+- New `SchemaCollector` wrapper + `SchemaSnapshot` shape. Wraps any `Connector`, forwards every data call, and mirrors `createTable` / `dropTable` DDL into an in-memory snapshot you can persist as JSON after `migrate()` / `rollback()`. `collector.writeSchema(path)` writes a pretty-printed snapshot (version-tagged, `generatedAt` timestamped); `readSchemaFile(path)` loads it back and rejects unknown future versions. Downstream tooling (GraphQL / REST / OpenAPI generators, form builders, admin UIs) can consume the file instead of re-declaring every model's field set by hand. Only DDL issued via the schema DSL is captured — raw SQL in `execute()` bypasses the collector by design.
+
 ### Initial release
 
 - New `@next-model/migrations` package providing a connector-agnostic schema migration runner for next-model. Works with any `Connector` (Memory, Knex, DataApi, LocalStorage); migrations receive the connector and declare schema changes via the Rails-style `connector.createTable(name, (t) => { ... })` / `dropTable(name)` DSL. `connector.execute(sql, bindings)` remains available as an escape hatch for dialect-specific DDL.

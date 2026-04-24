@@ -115,6 +115,42 @@ All errors inherit from `MigrationError`:
 | `MigrationParentMissingError` | A `parent` reference doesn't exist in the input migration list. |
 | `MigrationCycleError` | The dependency graph has a cycle. |
 
+## Machine-readable schema snapshots (`SchemaCollector`)
+
+`SchemaCollector` wraps any `Connector`, forwards every call, and mirrors `createTable` / `dropTable` DDL into an in-memory snapshot. After a migration run, serialise it to JSON for consumption by downstream tooling (GraphQL / REST / OpenAPI generators, form builders, admin UIs) so you don't have to re-declare each model's field set by hand.
+
+```ts
+import { Migrator, SchemaCollector, readSchemaFile } from '@next-model/migrations';
+import { PostgresConnector } from '@next-model/postgres-connector';
+
+const db = new PostgresConnector({ url: process.env.DATABASE_URL });
+const tracked = new SchemaCollector(db);
+
+const migrator = new Migrator({ connector: tracked });
+await migrator.migrate(allMigrations);
+
+tracked.writeSchema('./.schema/schema.json');
+
+// Later, anywhere in the codebase:
+const snapshot = await readSchemaFile('./.schema/schema.json');
+console.log(snapshot.tables.users.columns);
+// → [{ name: 'id', type: 'integer', primary: true, autoIncrement: true, nullable: false }, ...]
+```
+
+The snapshot payload:
+
+```ts
+interface SchemaSnapshot {
+  version: 1;                              // bumped on layout changes
+  generatedAt: string;                     // ISO-8601
+  tables: Record<string, TableDefinition>;
+}
+```
+
+`TableDefinition` is the same `{ name, columns, indexes, primaryKey? }` shape `@next-model/core`'s schema DSL produces via `defineTable(name, blueprint)`. Rollbacks (`migrator.rollback`) drop tables from the snapshot when their migration runs `connector.dropTable(...)`, so the file always reflects what's currently applied.
+
+Only DDL changes issued via the schema DSL are captured — raw SQL in `execute()` bypasses the collector by design.
+
 ## Changelog
 
 See [`HISTORY.md`](./HISTORY.md).
