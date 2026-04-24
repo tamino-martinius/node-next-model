@@ -1,6 +1,7 @@
 packages:
   - "packages/core"
   - "packages/knex-connector"
+  - "packages/postgres-connector"
   - "packages/data-api-connector"
   - "packages/local-storage-connector"
   - "packages/migrations"
