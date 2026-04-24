@@ -23,7 +23,6 @@ export function slugify(name: string): string {
   return (
     name
       .normalize('NFKD')
-      // biome-ignore lint/suspicious/noMisleadingCharacterClass: stripping diacritics
       .replace(/[̀-ͯ]/g, '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')

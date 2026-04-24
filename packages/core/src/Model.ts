@@ -94,19 +94,6 @@ export function resolveSoftDelete(option: SoftDeleteOption | undefined): {
   return { softDeleteMode: 'active', softDeleteColumn: option.column ?? 'discardedAt' };
 }
 
-function decodeCursor(token: string, key: string): unknown {
-  let payload: Dict<any>;
-  try {
-    payload = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
-  } catch {
-    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
-  }
-  if (!(key in payload)) {
-    throw new PersistenceError(`Cursor is missing primary key '${key}'`);
-  }
-  return payload[key];
-}
-
 export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
 
 export type ScopeMap<Self> = Dict<ScopeFn<Self>>;

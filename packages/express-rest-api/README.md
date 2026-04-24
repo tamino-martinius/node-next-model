@@ -108,3 +108,50 @@ Disabled actions aren't registered, so the route returns Express's default `404`
 | `UnauthorizedError` (also returned from auth failure) | 401 |
 | `BadRequestError` (invalid query)            | 400         |
 | everything else                              | 500         |
+
+## OpenAPI JSON (no dependencies)
+
+`buildOpenApiDocument(...)` returns a plain-object OpenAPI 3.1 document. Serve it however you like — a `GET /openapi.json` route is all you need:
+
+```ts
+import express from 'express';
+import { buildOpenApiDocument, createRestRouter } from '@next-model/express-rest-api';
+
+const app = express();
+
+app.use('/api/users', createRestRouter(User));
+
+app.get('/openapi.json', (_req, res) => {
+  res.json(
+    buildOpenApiDocument({
+      title: 'My API',
+      version: '1.0.0',
+      servers: [{ url: 'http://localhost:3000' }],
+      resources: [
+        {
+          name: 'User',
+          pluralPath: 'users',
+          basePath: '/api/users',
+          fields: {
+            id: { type: 'integer' },
+            name: { type: 'string' },
+            age: { type: 'integer' },
+            role: { type: 'string', enum: ['admin', 'member'] },
+            createdAt: { type: 'datetime' },
+          },
+        },
+      ],
+    }),
+  );
+});
+```
+
+No third-party dependency (`swagger-jsdoc` / `openapi3-ts` / `zod-to-openapi`) is pulled in — the generator is a plain function over the public `ColumnKind` union.
+
+Each resource produces:
+
+- `<Name>` / `<Name>CreateInput` / `<Name>UpdateInput` / `<Name>FilterInput` / `<Name>List` schemas
+- paths for every enabled action (`index`, `count`, `first`, `last`, `create`, `show`, `update`, `delete`)
+- shared `Error` schema + 400/401/404/422 responses on every operation
+
+Pass `actions: ['index', 'show']` in a resource to restrict what's emitted — disabled actions are absent from the document.
