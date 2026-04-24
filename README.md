@@ -24,6 +24,7 @@ This repository is a pnpm workspace; each published package lives under `package
 | [`@next-model/migrations-generator`](./packages/migrations-generator) | CLI (`nm-generate-migration`) + library for scaffolding timestamped migration files. |
 | [`@next-model/zod`](./packages/zod) | Bridge zod schemas into a Model's `init`, `validators`, and `createTable` columns — one schema, three consumers. |
 | [`@next-model/typebox`](./packages/typebox) | TypeBox variant of `@next-model/zod`. |
+| [`@next-model/arktype`](./packages/arktype) | arktype variant of `@next-model/zod`. |
 
 ## Demos
 
