@@ -1,0 +1,18 @@
+language: node_js
+node_js:
+  - '6'
+  - '6.14.0' # Google cloud functions
+  - '7'
+  - '8'
+  - '8.9.4' # Azure functions
+  - '8.10' # AWS Lambda
+  - '9'
+  - '10'
+script:
+  - if [ "${COVERAGE}" = "true" ]; then npm run ci; else npm run test; fi
+services:
+  - postgresql
+matrix:
+  include: # Add run with latest version and code coverage
+    - node_js: 'node'
+      env: COVERAGE=true

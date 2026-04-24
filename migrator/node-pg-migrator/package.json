@@ -1,0 +1,80 @@
+{
+  "name": "@nextcode/pg-migrator",
+  "version": "1.0.6",
+  "description": "Postgres migration package with zero dependencies",
+  "keywords": [
+    "migrate",
+    "migrations",
+    "migrator",
+    "pg",
+    "postgres",
+    "cli",
+    "typescript",
+    "jest",
+    "node",
+    "nodejs"
+  ],
+  "author": "Tamino Martinius <dev@zaku.eu>",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "jsnext:main": "./dist/index.mjs",
+  "typings": "./dist/index.d.ts",
+  "license": "MIT",
+  "files": [
+    "dist/*",
+    "bin/*"
+  ],
+  "bin": {
+    "pg-migrator": "./bin/pg-migrator"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tamino-martinius/node-pg-migrator.git"
+  },
+  "engines": {
+    "node": ">=6.14.0"
+  },
+  "scripts": {
+    "coverage": "rm -rf coverage* && jest --coverage --maxWorkers=1",
+    "test": "jest --maxWorkers=1",
+    "watch": "tsc -w",
+    "ci": "npm run coverage && codecov",
+    "benchmark:migrator": "node dist/__benchmark__/Migrator | Rscript src/__benchmark__/scatter.R --plot docs/compare--migrator-migrate.png --title \"Comparison of Migration strategies\" --log",
+    "benchmark": "npm run compile:benchmark && npm run benchmark:migrator",
+    "compile": "rm -rf dist/* && tsc && tsc-mjs --sourceMap --declaration false --target esnext --module esnext --mjs",
+    "compile:benchmark": "rm -rf dist/* && tsc -p tsconfig.benchmark.json ",
+    "preversion": "npm run compile && git add ."
+  },
+  "devDependencies": {
+    "@types/jest": "^23.3.2",
+    "@types/node": "^10.10.0",
+    "@types/pg": "^7.4.10",
+    "codecov": "^3.1.0",
+    "jest": "^23.6.0",
+    "pg": "^7.4.3",
+    "ts-jest": "^23.1.4",
+    "ts-mjs": "^3.1.0",
+    "tslint": "^5.11.0",
+    "tslint-config-airbnb": "^5.11.0",
+    "typescript": "^3.0.3"
+  },
+  "peerDependencies": {
+    "pg": "^7.4.3"
+  },
+  "jest": {
+    "transform": {
+      ".ts": "<rootDir>/node_modules/ts-jest/preprocessor.js"
+    },
+    "testRegex": "\\.(test|spec)\\.ts$",
+    "moduleFileExtensions": [
+      "ts",
+      "js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/__benchmark__/**",
+      "!src/__tests__/**",
+      "!src/__mocks__/**"
+    ]
+  }
+}
