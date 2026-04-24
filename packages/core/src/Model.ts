@@ -3,6 +3,7 @@ import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
 import {
   type AggregateKind,
+  type AroundCallback,
   type Callback,
   type Callbacks,
   type Connector,
@@ -339,14 +340,38 @@ export class ModelClass {
     } as M;
   }
 
-  static on(event: keyof Callbacks<any>, handler: Callback<any>): () => void {
-    if (!this.callbacks[event]) this.callbacks[event] = [];
-    const list = this.callbacks[event] as Callback<any>[];
+  static on(event: keyof Callbacks<any>, handler: Callback<any> | AroundCallback<any>): () => void {
+    if (!this.callbacks[event]) (this.callbacks as any)[event] = [];
+    const list = (this.callbacks as any)[event] as Array<Callback<any> | AroundCallback<any>>;
     list.push(handler);
     return () => {
       const idx = list.indexOf(handler);
       if (idx >= 0) list.splice(idx, 1);
     };
+  }
+
+  /**
+   * Run `fn` with the listed lifecycle events suppressed on this Model.
+   * Registered handlers are NOT removed — they're hidden for the duration
+   * of the call and restored in a `finally`, even if `fn` throws. Useful for
+   * tests and bulk imports.
+   */
+  static async skipCallbacks<T>(
+    events: Array<keyof Callbacks<any>>,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const saved: Partial<Record<keyof Callbacks<any>, any>> = {};
+    for (const event of events) {
+      saved[event] = (this.callbacks as any)[event];
+      (this.callbacks as any)[event] = undefined;
+    }
+    try {
+      return await fn();
+    } finally {
+      for (const event of events) {
+        (this.callbacks as any)[event] = saved[event];
+      }
+    }
   }
 
   static withDiscarded<M extends typeof ModelClass>(this: M) {
@@ -449,6 +474,12 @@ export class ModelClass {
     });
     if (this.selectedIncludes) {
       await applyIncludes(records, this.selectedIncludes);
+    }
+    const findCallbacks = (this.callbacks as any).afterFind as Callback<any>[] | undefined;
+    if (findCallbacks) {
+      for (const record of records) {
+        for (const cb of findCallbacks) await cb(record);
+      }
     }
     return records;
   }
@@ -841,6 +872,18 @@ export class ModelClass {
         get: () => (this.keys ? this.keys[key] : undefined),
       });
     }
+
+    const initCallbacks = (model.callbacks as any).afterInitialize as Callback<any>[] | undefined;
+    if (initCallbacks) {
+      for (const cb of initCallbacks) {
+        const result = cb(this);
+        if (result && typeof (result as Promise<void>).then === 'function') {
+          (result as Promise<void>).catch(() => {
+            /* afterInitialize callbacks should be sync — async returns are fire-and-forget */
+          });
+        }
+      }
+    }
   }
 
   isPersistent() {
@@ -1037,19 +1080,43 @@ export class ModelClass {
 
   async isValid(): Promise<boolean> {
     const model = this.constructor as typeof ModelClass;
+    await this.runCallbacks('beforeValidation');
     for (const validator of model.validators) {
-      if (!(await validator(this))) return false;
+      if (!(await validator(this))) {
+        await this.runCallbacks('afterValidation');
+        return false;
+      }
     }
+    await this.runCallbacks('afterValidation');
     return true;
   }
 
   async runCallbacks(kind: keyof Callbacks<any>): Promise<void> {
     const model = this.constructor as typeof ModelClass;
-    const callbacks = model.callbacks[kind] as Callback<any>[] | undefined;
+    const callbacks = (model.callbacks as any)[kind] as Callback<any>[] | undefined;
     if (!callbacks) return;
     for (const callback of callbacks) {
       await callback(this);
     }
+  }
+
+  async runAround(kind: keyof Callbacks<any>, body: () => Promise<void>): Promise<void> {
+    const model = this.constructor as typeof ModelClass;
+    const handlers = (model.callbacks as any)[kind] as AroundCallback<any>[] | undefined;
+    if (!handlers || handlers.length === 0) {
+      await body();
+      return;
+    }
+    let i = -1;
+    const dispatch = async (): Promise<void> => {
+      i += 1;
+      if (i < handlers.length) {
+        await handlers[i](this, dispatch);
+      } else {
+        await body();
+      }
+    };
+    await dispatch();
   }
 
   async save<M extends ModelClass>(this: M) {
@@ -1060,6 +1127,17 @@ export class ModelClass {
     const now = new Date();
     const isInsert = !this.keys;
 
+    const body = async () => {
+      await this._saveCore(now, isInsert);
+    };
+    await this.runAround('aroundSave', async () => {
+      await this.runAround(isInsert ? 'aroundCreate' : 'aroundUpdate', body);
+    });
+    return this as M;
+  }
+
+  async _saveCore(now: Date, isInsert: boolean): Promise<void> {
+    const model = this.constructor as typeof ModelClass;
     await this.runCallbacks('beforeSave');
     await this.runCallbacks(isInsert ? 'beforeCreate' : 'beforeUpdate');
 
@@ -1120,8 +1198,6 @@ export class ModelClass {
 
     await this.runCallbacks(isInsert ? 'afterCreate' : 'afterUpdate');
     await this.runCallbacks('afterSave');
-
-    return this as M;
   }
 
   async update<M extends ModelClass>(this: M, attrs: Dict<any>) {
@@ -1166,6 +1242,14 @@ export class ModelClass {
     if (!this.keys) {
       throw new PersistenceError('Cannot delete a record that has not been saved');
     }
+    const body = async () => {
+      await this._deleteCore();
+    };
+    await this.runAround('aroundDelete', body);
+    return this as M;
+  }
+
+  async _deleteCore(): Promise<void> {
     const model = this.constructor as typeof ModelClass;
     await this.runCallbacks('beforeDelete');
     const items = await model.connector.deleteAll(this.itemScope());
@@ -1176,7 +1260,6 @@ export class ModelClass {
     this.changedProps = {};
     this.keys = undefined;
     await this.runCallbacks('afterDelete');
-    return this as M;
   }
 
   isDiscarded(): boolean {
