@@ -7,8 +7,18 @@ Self-contained scripts that show NextModel against each connector. Every demo is
 | [`memory-node`](./memory-node) | `@next-model/core` (`MemoryConnector`) | none |
 | [`sqlite-node`](./sqlite-node) | `@next-model/sqlite-connector` | none (in-memory db) |
 | [`local-storage-node`](./local-storage-node) | `@next-model/local-storage-connector` | none (uses an in-memory `localStorage` shim) |
+| [`postgres-node`](./postgres-node) | `@next-model/postgres-connector` | `docker compose up -d` (postgres:17) |
+| [`mysql-node`](./mysql-node) | `@next-model/mysql-connector` | `docker compose up -d` (mysql:8) |
+| [`mariadb-node`](./mariadb-node) | `@next-model/mariadb-connector` | `docker compose up -d` (mariadb:11) |
 
-> Demos backed by Postgres / MySQL / MariaDB / Redis / Valkey / MongoDB / Aurora Data API ship in follow-up PRs and bundle a `docker-compose.yml` per demo.
+> Demos backed by Redis / Valkey / MongoDB / Aurora Data API plus the knex-on-multiple-backends matrix ship in follow-up PRs.
+
+Service-backed demos all expose two helper scripts:
+
+```sh
+pnpm db:up    # docker compose up -d (boots the service)
+pnpm db:down  # docker compose down -v (stops + wipes the volume)
+```
 
 ## Running a demo
 

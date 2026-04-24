@@ -1,0 +1,20 @@
+{
+  "name": "@next-model-demos/mariadb-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types demo.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down -v"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/mariadb-connector": "workspace:*",
+    "@next-model/mysql-connector": "workspace:*",
+    "mysql2": "^3.11.5"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
