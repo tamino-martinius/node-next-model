@@ -12,4 +12,5 @@ packages:
   - "packages/local-storage-connector"
   - "packages/migrations"
   - "packages/express-rest-api"
+  - "packages/graphql-api"
   - "demos/*"

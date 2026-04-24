@@ -18,6 +18,7 @@ Self-contained scripts that show NextModel against each connector. Every demo is
 | [`react-todo`](./react-todo) | React 19 + Vite UI on top of `@next-model/local-storage-connector` (multi-user via per-user prefix) | none (browser) |
 | [`nextjs-todo`](./nextjs-todo) | Next.js 15 App Router; server components call `@next-model/sqlite-connector` directly, server actions handle every mutation. User → tasks foreign key, multi-user via cookie. | none (sqlite file at `./.data/`) |
 | [`express-rest-api-node`](./express-rest-api-node) | Express 5 + `@next-model/express-rest-api` on top of `@next-model/sqlite-connector`; drives every default action through per-action auth + response mapping | none (in-memory sqlite) |
+| [`graphql-api-node`](./graphql-api-node) | `graphql-http` + `@next-model/graphql-api` on top of `@next-model/sqlite-connector`; drives every default op through per-op auth + per-row serialize | none (in-memory sqlite) |
 
 Service-backed demos all expose two helper scripts:
 

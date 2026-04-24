@@ -1,0 +1,26 @@
+{
+  "name": "@next-model-demos/graphql-api-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types demo.ts"
+  },
+  "dependencies": {
+    "@graphql-tools/schema": "^10.0.6",
+    "@next-model/core": "workspace:*",
+    "@next-model/graphql-api": "workspace:*",
+    "@next-model/sqlite-connector": "workspace:*",
+    "express": "^5.0.0",
+    "graphql": "^16.9.0",
+    "graphql-http": "^1.22.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
