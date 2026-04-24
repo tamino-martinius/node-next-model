@@ -4,7 +4,7 @@ import type { Type } from 'arktype';
 
 export interface ArkTypeModelBridge<T extends Type<any>> {
   /** Coerces raw props through the arktype. Throws `ValidationError` on failure. */
-  init: (props: unknown) => ReturnType<T> extends infer Out ? Out : unknown;
+  init: (props: unknown) => T['infer'];
   validators: [(instance: unknown) => boolean];
   applyColumns: (builder: TableBuilder) => TableBuilder;
   describeColumns: () => Array<{ name: string; kind: ColumnKind; options: ColumnOptions }>;
@@ -105,19 +105,18 @@ export function fromArkType<T extends Type<any>>(ark: T): ArkTypeModelBridge<T> 
     columns.push({ name, kind: classifyKind(value), options });
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: arktype Types are callable
-  const run = ark as unknown as (value: unknown) => any;
+  const run = ark as unknown as (value: unknown) => T['infer'] | { summary?: string };
   const extractSummary = (result: unknown): string | undefined => {
     if (!result || typeof result !== 'object') return undefined;
     const obj = result as { summary?: unknown };
     return typeof obj.summary === 'string' ? obj.summary : undefined;
   };
 
-  const init = (props: unknown) => {
+  const init = (props: unknown): T['infer'] => {
     const result = run(props);
     const summary = extractSummary(result);
     if (summary !== undefined) throw new ValidationError(summary);
-    return result;
+    return result as T['infer'];
   };
 
   const validator = (instance: unknown): boolean => {
