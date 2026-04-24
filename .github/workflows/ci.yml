@@ -5,7 +5,58 @@ on:
   pull_request:
 
 jobs:
+  changes:
+    # Detect which packages were touched so the per-package real-DB jobs can
+    # skip themselves when nothing they depend on has changed. `core` is the
+    # transitive dependency of every connector, so a core change fans out to
+    # every job. CI/workflow changes also fan out — we always want to verify
+    # the workflow itself still works against the real services.
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      knex: ${{ steps.filter.outputs.knex }}
+      postgres: ${{ steps.filter.outputs.postgres }}
+      mysql: ${{ steps.filter.outputs.mysql }}
+      mariadb: ${{ steps.filter.outputs.mariadb }}
+      redis: ${{ steps.filter.outputs.redis }}
+      valkey: ${{ steps.filter.outputs.valkey }}
+      mongodb: ${{ steps.filter.outputs.mongodb }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'packages/core/**'
+              - 'tsconfig.base.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'biome.json'
+            knex:
+              - 'packages/knex-connector/**'
+            postgres:
+              - 'packages/postgres-connector/**'
+            mysql:
+              - 'packages/mysql-connector/**'
+            mariadb:
+              - 'packages/mariadb-connector/**'
+              - 'packages/mysql-connector/**'
+            redis:
+              - 'packages/redis-connector/**'
+            valkey:
+              - 'packages/valkey-connector/**'
+              - 'packages/redis-connector/**'
+            mongodb:
+              - 'packages/mongodb-connector/**'
+            ci:
+              - '.github/**'
+
   test:
+    # Workspace-wide lint + build + typecheck + the in-memory / mocked
+    # coverage runs. Always runs because lint/typecheck need the whole
+    # workspace.
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,6 +83,8 @@ jobs:
           if-no-files-found: ignore
 
   test-postgres-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.postgres == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -67,6 +120,8 @@ jobs:
           if-no-files-found: ignore
 
   test-mysql-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.mysql == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -101,6 +156,8 @@ jobs:
           if-no-files-found: ignore
 
   test-mariadb-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.mariadb == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -135,6 +192,8 @@ jobs:
           if-no-files-found: ignore
 
   test-redis-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.redis == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     services:
       redis:
@@ -166,6 +225,8 @@ jobs:
           if-no-files-found: ignore
 
   test-valkey-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.valkey == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     services:
       valkey:
@@ -197,6 +258,8 @@ jobs:
           if-no-files-found: ignore
 
   test-mongodb-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.mongodb == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     services:
       mongodb:
@@ -228,6 +291,8 @@ jobs:
           if-no-files-found: ignore
 
   test-knex-real-db:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.knex == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
