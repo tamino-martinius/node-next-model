@@ -17,6 +17,7 @@ packages:
   - "packages/migrations-generator"
   - "packages/zod"
   - "packages/typebox"
+  - "packages/arktype"
   - "demos/node/*"
   - "demos/react/*"
   - "demos/nextjs/*"
