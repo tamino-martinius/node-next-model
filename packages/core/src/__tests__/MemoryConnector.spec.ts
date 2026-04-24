@@ -1186,3 +1186,10 @@ describe('Connector', () => {
     });
   });
 });
+
+import { runModelConformance } from './conformance.js';
+
+runModelConformance({
+  name: 'MemoryConnector',
+  makeConnector: () => new MemoryConnector({ storage: {} }),
+});

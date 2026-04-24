@@ -21,6 +21,7 @@ export interface ColumnOptions {
   unique?: boolean;
   precision?: number;
   scale?: number;
+  autoIncrement?: boolean;
 }
 
 export interface IndexOptions {
@@ -38,6 +39,7 @@ export interface ColumnDefinition {
   unique: boolean;
   precision?: number;
   scale?: number;
+  autoIncrement: boolean;
 }
 
 export interface IndexDefinition {
@@ -85,6 +87,7 @@ class TableBuilderImpl implements TableBuilder {
       unique: options.unique ?? false,
       precision: options.precision,
       scale: options.scale,
+      autoIncrement: options.autoIncrement ?? false,
     });
     return this;
   }

@@ -1,3 +1,4 @@
+import { runModelConformance } from '@next-model/conformance';
 import { FilterError, Model } from '@next-model/core';
 import type { Knex } from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -431,4 +432,9 @@ describe('KnexConnector', () => {
       expect(names).not.toContain('inner');
     });
   });
+});
+
+runModelConformance({
+  name: `KnexConnector (${TEST_CLIENT})`,
+  makeConnector: () => connector,
 });
