@@ -179,6 +179,29 @@ export function runModelConformance(opts: ConformanceOptions): void {
         expect(page.hasPrev).toBe(false);
       });
 
+      it('paginateCursor walks forward via nextCursor', async () => {
+        const first = await Cat.paginateCursor({ limit: 2 });
+        expect(first.items.map((c) => c.age)).toEqual([1, 2]);
+        expect(first.hasMore).toBe(true);
+        expect(first.nextCursor).toBeDefined();
+
+        const second = await Cat.paginateCursor({ after: first.nextCursor, limit: 2 });
+        expect(second.items.map((c) => c.age)).toEqual([3]);
+        expect(second.hasMore).toBe(false);
+        expect(second.nextCursor).toBeUndefined();
+      });
+
+      it('paginateCursor walks backward via before', async () => {
+        const all = await Cat.orderBy({ key: 'id' }).all();
+        const lastId = all[all.length - 1].id;
+        const prev = await Cat.paginateCursor({
+          before: Buffer.from(JSON.stringify({ id: lastId }), 'utf8').toString('base64url'),
+          limit: 2,
+        });
+        // The two rows immediately before lastId.
+        expect(prev.items.map((c) => c.id)).toEqual([all[0].id, all[1].id]);
+      });
+
       it('inBatchesOf yields all rows in chunks', async () => {
         const collected: number[] = [];
         for await (const batch of Cat.orderBy({ key: 'age' }).inBatchesOf(2)) {
