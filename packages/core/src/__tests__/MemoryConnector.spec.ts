@@ -1,6 +1,6 @@
-import { type FilterSpecGroup, context, it, randomInteger } from '.';
-import { type Dict, type Filter, FilterError, MemoryConnector, type Storage, clone } from '..';
+import { clone, type Dict, type Filter, FilterError, MemoryConnector, type Storage } from '..';
 import { KeyType, type OrderColumn, SortDirection } from '../types';
+import { context, type FilterSpecGroup, it, randomInteger } from '.';
 
 let storage: Storage = {};
 
@@ -352,7 +352,7 @@ describe('Connector', () => {
   describe('#select(scope, ...keys)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = undefined;
+    let filter: Filter<any> | undefined;
     let keys: string[] = [];
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().select(scope(), ...keys);
@@ -681,7 +681,7 @@ describe('Connector', () => {
   describe('#count(scope)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = undefined;
+    let filter: Filter<any> | undefined;
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().count(scope());
 
@@ -768,7 +768,7 @@ describe('Connector', () => {
     };
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = undefined;
+    let filter: Filter<any> | undefined;
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().updateAll(scope(), attrs);
 
@@ -900,7 +900,7 @@ describe('Connector', () => {
   describe('#deleteAll(scope)', () => {
     let skip: number | undefined;
     let limit: number | undefined;
-    let filter: Filter<any> | undefined = undefined;
+    let filter: Filter<any> | undefined;
     const scope = () => ({ tableName, skip, limit, filter });
     const subject = () => connector().deleteAll(scope());
 

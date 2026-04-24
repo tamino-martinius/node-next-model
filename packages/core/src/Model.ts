@@ -1,4 +1,5 @@
 import { NotFoundError, PersistenceError, ValidationError } from './errors';
+import { MemoryConnector } from './MemoryConnector';
 import {
   type AggregateKind,
   type Callback,
@@ -14,8 +15,6 @@ import {
   SortDirection,
   type Validator,
 } from './types';
-
-import { MemoryConnector } from './MemoryConnector';
 import { singularize } from './util';
 
 export type AssociationOptions = {

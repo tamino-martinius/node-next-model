@@ -1,4 +1,4 @@
-import Knex from 'knex';
+import { knex as createKnex, type Knex } from 'knex';
 
 import type { DataApiClient, DataApiQueryResult } from '../DataApiConnector';
 
@@ -14,7 +14,7 @@ export class MockDataApiClient implements DataApiClient {
   constructor(options: MockDataApiClientOptions = {}) {
     this.knex =
       options.knex ??
-      Knex({
+      createKnex({
         client: 'sqlite3',
         connection: { filename: ':memory:' },
         useNullAsDefault: true,
@@ -47,7 +47,7 @@ export class MockDataApiClient implements DataApiClient {
     }
 
     if (op === 'insert') {
-      const result: any = await client.raw(positionalSql, bindings);
+      await client.raw(positionalSql, bindings);
       const idRow = (await client.raw('SELECT last_insert_rowid() AS id')) as Array<{ id: number }>;
       const insertId = idRow?.[0]?.id;
       return { records: [], insertId, numberOfRecordsUpdated: 1 };

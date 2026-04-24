@@ -1,8 +1,7 @@
 import { FilterError, Model } from '@next-model/core';
 import { beforeEach, describe, expect, it } from 'vitest';
-
-import { LocalStorageConnector } from '../LocalStorageConnector';
 import { MemoryLocalStorage } from '../__mocks__/MemoryLocalStorage';
+import { LocalStorageConnector } from '../LocalStorageConnector';
 
 let webStorage: MemoryLocalStorage;
 let connector: LocalStorageConnector;

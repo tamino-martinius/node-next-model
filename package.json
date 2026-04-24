@@ -23,7 +23,7 @@
     "ci": "pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "typescript": "^5.6.3"
+    "@biomejs/biome": "^2.4.13",
+    "typescript": "^6.0.3"
   }
 }
