@@ -3,6 +3,7 @@ packages:
   - "packages/knex-connector"
   - "packages/postgres-connector"
   - "packages/sqlite-connector"
+  - "packages/mysql-connector"
   - "packages/data-api-connector"
   - "packages/local-storage-connector"
   - "packages/migrations"
