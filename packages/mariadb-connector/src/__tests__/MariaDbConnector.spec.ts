@@ -79,6 +79,42 @@ describe('MariaDbConnector', () => {
       /unsafe identifier/i,
     );
   });
+
+  it('renders every supported column kind in createTable', async () => {
+    const tableName = 'mariadb_kinds';
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.string('email', { unique: true, limit: 320, null: false });
+      t.text('body');
+      t.bigint('counter', { default: 0 });
+      t.float('rate', { default: 1.5 });
+      t.decimal('price', { precision: 12, scale: 4 });
+      t.decimal('plain');
+      t.boolean('active', { default: true });
+      t.date('starts_on');
+      t.datetime('happens_at');
+      t.timestamp('seen_at', { default: 'currentTimestamp' });
+      t.json('payload');
+      t.index(['email'], { name: 'idx_mariadb_kinds_email' });
+      t.index(['email', 'active'], { unique: true });
+    });
+    expect(await connector.hasTable(tableName)).toBe(true);
+    await connector.dropTable(tableName);
+  });
+
+  it('enforces JSON_VALID on json columns', async () => {
+    const tableName = 'mariadb_json_check';
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.json('payload');
+    });
+    await expect(
+      connector.batchInsert(tableName, { id: 1 } as any, [{ payload: 'not json' }]),
+    ).rejects.toThrow();
+    await connector.dropTable(tableName);
+  });
 });
 
 runModelConformance({
