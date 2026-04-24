@@ -26,6 +26,7 @@ jobs:
       valkey: ${{ steps.filter.outputs.valkey }}
       mongodb: ${{ steps.filter.outputs.mongodb }}
       express-rest-api: ${{ steps.filter.outputs.express-rest-api }}
+      graphql-api: ${{ steps.filter.outputs.graphql-api }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -88,6 +89,9 @@ jobs:
             express-rest-api:
               - 'packages/express-rest-api/**'
               - '!packages/express-rest-api/**/*.md'
+            graphql-api:
+              - 'packages/graphql-api/**'
+              - '!packages/graphql-api/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -239,6 +243,26 @@ jobs:
         with:
           name: coverage-express-rest-api
           path: packages/express-rest-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-graphql-api:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.graphql-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/graphql-api -r build
+      - run: pnpm --filter @next-model/graphql-api coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-graphql-api
+          path: packages/graphql-api/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations:
@@ -526,6 +550,7 @@ jobs:
       - test-local-storage-connector
       - test-sqlite-connector
       - test-express-rest-api
+      - test-graphql-api
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
