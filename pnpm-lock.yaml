@@ -45,6 +45,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  demos/mongodb-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/mongodb-connector':
+        specifier: workspace:*
+        version: link:../../packages/mongodb-connector
+      mongodb:
+        specifier: ^6.10.0
+        version: 6.21.0
+
   demos/mysql-node:
     dependencies:
       '@next-model/core':
@@ -69,6 +81,18 @@ importers:
         specifier: ^8.13.1
         version: 8.20.0
 
+  demos/redis-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/redis-connector':
+        specifier: workspace:*
+        version: link:../../packages/redis-connector
+      redis:
+        specifier: ^4.7.0
+        version: 4.7.1
+
   demos/sqlite-node:
     dependencies:
       '@next-model/core':
@@ -80,6 +104,21 @@ importers:
       better-sqlite3:
         specifier: ^11.6.0
         version: 11.10.0
+
+  demos/valkey-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/redis-connector':
+        specifier: workspace:*
+        version: link:../../packages/redis-connector
+      '@next-model/valkey-connector':
+        specifier: workspace:*
+        version: link:../../packages/valkey-connector
+      redis:
+        specifier: ^4.7.0
+        version: 4.7.1
 
   packages/aurora-data-api-connector:
     dependencies:
