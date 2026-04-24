@@ -9,13 +9,16 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./mock-client": {
+      "types": "./dist/MockDataApiClient.d.ts",
+      "default": "./dist/MockDataApiClient.js"
     }
   },
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "!dist/**/__tests__",
-    "!dist/**/__mocks__",
     "!dist/**/*.map"
   ],
   "repository": {

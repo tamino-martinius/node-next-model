@@ -15,6 +15,42 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  demos/aurora-data-api-node:
+    dependencies:
+      '@next-model/aurora-data-api-connector':
+        specifier: workspace:*
+        version: link:../../packages/aurora-data-api-connector
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      knex:
+        specifier: ^3.2.9
+        version: 3.2.9(mysql2@3.22.2(@types/node@25.6.0))(pg@8.20.0)(sqlite3@6.0.1)
+      sqlite3:
+        specifier: ^6.0.1
+        version: 6.0.1
+
+  demos/knex-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/knex-connector':
+        specifier: workspace:*
+        version: link:../../packages/knex-connector
+      knex:
+        specifier: ^3.2.9
+        version: 3.2.9(mysql2@3.22.2(@types/node@25.6.0))(pg@8.20.0)(sqlite3@6.0.1)
+      mysql2:
+        specifier: ^3.11.5
+        version: 3.22.2(@types/node@25.6.0)
+      pg:
+        specifier: ^8.13.1
+        version: 8.20.0
+      sqlite3:
+        specifier: ^6.0.1
+        version: 6.0.1
+
   demos/local-storage-node:
     dependencies:
       '@next-model/core':

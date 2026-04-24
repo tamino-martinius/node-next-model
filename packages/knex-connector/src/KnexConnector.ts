@@ -22,7 +22,12 @@ import {
   SortDirection,
   type TableBuilder,
 } from '@next-model/core';
-import { knex as createKnex, type Knex } from 'knex';
+import knexPkg, { type Knex } from 'knex';
+
+// `knex` is a CommonJS package — under Node's ESM loader the named exports
+// aren't synthesised reliably. Default-import + destructure is the portable
+// shape.
+const createKnex = knexPkg.knex;
 
 function requireSingleKey(filter: Dict<any>, operator: string): string {
   const keys = Object.keys(filter);
