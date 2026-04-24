@@ -6,6 +6,7 @@ Replaces the legacy `@next-model/api-router` + `@next-model/api-server-express` 
 
 ```sh
 pnpm add @next-model/express-rest-api
+# or: npm install @next-model/express-rest-api
 ```
 
 ## Getting started

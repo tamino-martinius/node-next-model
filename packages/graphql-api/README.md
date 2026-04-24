@@ -6,6 +6,7 @@ Runtime-agnostic: you get back `{ typeDefs, resolvers }` and plug them into what
 
 ```sh
 pnpm add @next-model/graphql-api graphql @graphql-tools/schema
+# or: npm install @next-model/graphql-api graphql @graphql-tools/schema
 ```
 
 ## Getting started

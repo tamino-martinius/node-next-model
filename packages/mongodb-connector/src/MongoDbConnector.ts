@@ -311,6 +311,14 @@ export class MongoDbConnector implements Connector {
     const def = defineTable(tableName, blueprint);
     await this.db.createCollection(tableName).catch(() => {});
     await this.db.collection<Dict<any>>(SCHEMAS).insertOne({ name: tableName, definition: def });
+    for (const idx of def.indexes) {
+      const keys: Dict<1> = {};
+      for (const col of idx.columns) keys[col] = 1;
+      await this.collection(tableName).createIndex(keys, {
+        name: idx.name,
+        unique: idx.unique,
+      });
+    }
   }
 
   async dropTable(tableName: string): Promise<void> {

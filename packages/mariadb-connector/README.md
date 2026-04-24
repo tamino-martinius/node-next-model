@@ -23,6 +23,7 @@ If you might switch between MySQL and MariaDB at runtime, the MySQL connector st
 
 ```sh
 pnpm add @next-model/mariadb-connector mysql2
+# or: npm install @next-model/mariadb-connector mysql2
 ```
 
 ## Constructing the connector

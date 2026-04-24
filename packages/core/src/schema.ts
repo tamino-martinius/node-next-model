@@ -29,6 +29,13 @@ export interface IndexOptions {
   unique?: boolean;
 }
 
+export interface ReferencesOptions {
+  null?: boolean;
+  unique?: boolean;
+  index?: boolean | IndexOptions;
+  column?: string;
+}
+
 export interface ColumnDefinition {
   name: string;
   type: ColumnKind;
@@ -70,6 +77,7 @@ export interface TableBuilder {
   json(name: string, options?: ColumnOptions): this;
   timestamps(options?: { null?: boolean }): this;
   index(columns: string | string[], options?: IndexOptions): this;
+  references(name: string, options?: ReferencesOptions): this;
 }
 
 class TableBuilderImpl implements TableBuilder {
@@ -139,6 +147,17 @@ class TableBuilderImpl implements TableBuilder {
       name: options.name,
       unique: options.unique ?? false,
     });
+    return this;
+  }
+
+  references(name: string, options: ReferencesOptions = {}): this {
+    const columnName = options.column ?? `${name}Id`;
+    this.column(columnName, 'integer', { null: options.null ?? false, unique: options.unique });
+    const indexOpt = options.index ?? true;
+    if (indexOpt !== false) {
+      const indexOptions: IndexOptions = typeof indexOpt === 'object' ? indexOpt : {};
+      this.index(columnName, indexOptions);
+    }
     return this;
   }
 }

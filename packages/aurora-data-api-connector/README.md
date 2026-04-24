@@ -8,12 +8,14 @@ The connector uses [Knex 3](https://knexjs.org/) only as a query builder (`clien
 
 ```sh
 pnpm add @next-model/aurora-data-api-connector
+# or: npm install @next-model/aurora-data-api-connector
 ```
 
 The default client wraps [`data-api-client`](https://www.npmjs.com/package/data-api-client) — install it if you don't bring your own:
 
 ```sh
 pnpm add data-api-client
+# or: npm install data-api-client
 ```
 
 ## Constructing the connector

@@ -10,6 +10,7 @@ Zero runtime dependencies beyond `@next-model/core`. Connector packages are cons
 
 ```sh
 pnpm add @next-model/migrations @next-model/core
+# or: npm install @next-model/migrations @next-model/core
 ```
 
 ## A migration
@@ -28,9 +29,8 @@ export const m_2026_04_24_create_users: Migration = {
     });
     await connector.createTable('user_emails', (t) => {
       t.integer('id', { primary: true, autoIncrement: true });
-      t.integer('user_id');
+      t.references('user', { column: 'user_id' });    // integer user_id + index on user_id
       t.string('email', { unique: true });
-      t.index(['user_id']);
     });
   },
   async down(connector) {
