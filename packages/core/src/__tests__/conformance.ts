@@ -79,6 +79,37 @@ export function runModelConformance(opts: ConformanceOptions): void {
         await cat.delete();
         expect(await Cat.findBy({ id })).toBeUndefined();
       });
+
+      it('createMany inserts a batch and returns instances', async () => {
+        const cats = await Cat.createMany([
+          { name: 'a', age: 1 },
+          { name: 'b', age: 2 },
+        ]);
+        expect(cats).toHaveLength(2);
+        expect(cats.every((c) => typeof c.id === 'number')).toBe(true);
+      });
+
+      it('reload pulls fresh state from the connector', async () => {
+        const cat = await Cat.create({ name: 'Stale', age: 1 });
+        await Cat.filterBy({ id: cat.id }).updateAll({ age: 99 });
+        await cat.reload();
+        expect(cat.age).toBe(99);
+      });
+
+      it('updateAll bulk-updates matching rows', async () => {
+        await Cat.create({ name: 'a', age: 1 });
+        await Cat.create({ name: 'b', age: 2 });
+        await Cat.filterBy({ $gt: { age: 0 } }).updateAll({ age: 10 });
+        const ages = (await Cat.all()).map((c) => c.age);
+        expect(ages.every((a) => a === 10)).toBe(true);
+      });
+
+      it('deleteAll bulk-deletes matching rows', async () => {
+        await Cat.create({ name: 'a', age: 1 });
+        await Cat.create({ name: 'b', age: 2 });
+        await Cat.filterBy({ $gt: { age: 1 } }).deleteAll();
+        expect(await Cat.count()).toBe(1);
+      });
     });
 
     describe('Query', () => {
@@ -113,6 +144,94 @@ export function runModelConformance(opts: ConformanceOptions): void {
         expect(await Cat.max('age')).toBe(3);
         expect(await Cat.avg('age')).toBe(2);
       });
+
+      it('first / last respect order', async () => {
+        const first = await Cat.orderBy({ key: 'age' }).first();
+        const last = await Cat.orderBy({ key: 'age' }).last();
+        expect(first?.age).toBe(1);
+        expect(last?.age).toBe(3);
+      });
+
+      it('exists / exists(filter)', async () => {
+        expect(await Cat.exists()).toBe(true);
+        expect(await Cat.exists({ age: 2 })).toBe(true);
+        expect(await Cat.exists({ age: 999 })).toBe(false);
+      });
+
+      it('pluck / pluckUnique / ids', async () => {
+        const names = await Cat.orderBy({ key: 'age' }).pluck('name');
+        expect(names).toEqual(['a', 'b', 'c']);
+        const ids = await Cat.ids();
+        expect(ids).toHaveLength(3);
+        await Cat.create({ name: 'a', age: 4 });
+        const unique = await Cat.pluckUnique('name');
+        expect(new Set(unique)).toEqual(new Set(['a', 'b', 'c']));
+      });
+
+      it('paginate returns page metadata', async () => {
+        const page = await Cat.orderBy({ key: 'age' }).paginate(1, 2);
+        expect(page.items).toHaveLength(2);
+        expect(page.total).toBe(3);
+        expect(page.page).toBe(1);
+        expect(page.perPage).toBe(2);
+        expect(page.totalPages).toBe(2);
+        expect(page.hasNext).toBe(true);
+        expect(page.hasPrev).toBe(false);
+      });
+
+      it('inBatchesOf yields all rows in chunks', async () => {
+        const collected: number[] = [];
+        for await (const batch of Cat.orderBy({ key: 'age' }).inBatchesOf(2)) {
+          collected.push(...batch.map((c) => c.age));
+        }
+        expect(collected).toEqual([1, 2, 3]);
+      });
+
+      it('findEach yields each row', async () => {
+        const collected: number[] = [];
+        for await (const cat of Cat.orderBy({ key: 'age' }).findEach()) {
+          collected.push(cat.age);
+        }
+        expect(collected).toEqual([1, 2, 3]);
+      });
+
+      it('countBy returns a Map of counts', async () => {
+        await Cat.create({ name: 'b', age: 2 });
+        const counts = await Cat.countBy('name');
+        expect(counts.get('b')).toBe(2);
+        expect(counts.get('a')).toBe(1);
+      });
+
+      it('groupBy returns a Map of instances', async () => {
+        await Cat.create({ name: 'b', age: 99 });
+        const groups = await Cat.groupBy('name');
+        expect(groups.get('b')).toHaveLength(2);
+        expect(groups.get('a')).toHaveLength(1);
+      });
+    });
+
+    describe('Find variants', () => {
+      it('findOrFail throws NotFoundError on miss', async () => {
+        await expect(Cat.findOrFail({ id: 99999 })).rejects.toThrow(/not found/i);
+      });
+
+      it('findOrBuild returns unsaved draft on miss', async () => {
+        const cat = await Cat.findOrBuild({ name: 'ghost' }, { name: 'ghost', age: 0 });
+        expect(cat.isNew()).toBe(true);
+      });
+
+      it('firstOrCreate persists when missing', async () => {
+        const cat = await Cat.firstOrCreate({ name: 'newbie' }, { name: 'newbie', age: 1 });
+        expect(cat.id).toBeDefined();
+        expect(await Cat.count()).toBe(1);
+      });
+
+      it('updateOrCreate updates when present', async () => {
+        const original = await Cat.create({ name: 'updated', age: 1 });
+        const cat = await Cat.updateOrCreate({ id: original.id }, { name: 'updated', age: 99 });
+        expect(cat.id).toBe(original.id);
+        expect(cat.age).toBe(99);
+      });
     });
 
     if (!opts.skipTransactions) {
@@ -134,6 +253,19 @@ export function runModelConformance(opts: ConformanceOptions): void {
           ).rejects.toThrow('boom');
           expect(await Cat.count()).toBe(0);
         });
+
+        it('nests by joining the outer transaction', async () => {
+          await expect(
+            connector.transaction(async () => {
+              await Cat.create({ name: 'outer', age: 1 });
+              await connector.transaction(async () => {
+                await Cat.create({ name: 'inner', age: 2 });
+                throw new Error('inner');
+              });
+            }),
+          ).rejects.toThrow('inner');
+          expect(await Cat.count()).toBe(0);
+        });
       });
     }
 
@@ -142,6 +274,206 @@ export function runModelConformance(opts: ConformanceOptions): void {
         expect(await connector.hasTable(tableName)).toBe(true);
         await connector.dropTable(tableName);
         expect(await connector.hasTable(tableName)).toBe(false);
+      });
+    });
+
+    describe('Dirty tracking', () => {
+      it('tracks pending changes before save', async () => {
+        const cat = await Cat.create({ name: 'orig', age: 1 });
+        cat.assign({ name: 'changed' });
+        expect(cat.isChanged()).toBe(true);
+        expect(cat.isChangedBy('name')).toBe(true);
+        expect(cat.isChangedBy('age')).toBe(false);
+        const changes = cat.changes();
+        expect(changes.name).toEqual({ from: 'orig', to: 'changed' });
+      });
+
+      it('revertChange / revertChanges undo pending edits', async () => {
+        const cat = await Cat.create({ name: 'orig', age: 1 });
+        cat.assign({ name: 'changed', age: 99 });
+        cat.revertChange('name');
+        expect(cat.name).toBe('orig');
+        expect(cat.age).toBe(99);
+        cat.revertChanges();
+        expect(cat.age).toBe(1);
+      });
+
+      it('records savedChanges after a successful save', async () => {
+        const cat = await Cat.create({ name: 'orig', age: 1 });
+        await cat.update({ age: 5 });
+        expect(cat.wasChanged()).toBe(true);
+        expect(cat.savedChanges().age).toEqual({ from: 1, to: 5 });
+      });
+    });
+
+    describe('Validators + lifecycle callbacks', () => {
+      const tableName = 'conformance_validated';
+      type Props = { name: string };
+
+      beforeEach(async () => {
+        if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+        await connector.createTable(tableName, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('name');
+        });
+      });
+
+      it('rejects save when a validator returns false', async () => {
+        class Strict extends Model({
+          tableName,
+          connector,
+          timestamps: false,
+          init: (props: Props) => props,
+          validators: [(instance: { name: string }) => instance.name.length > 0],
+        }) {}
+        await expect(Strict.create({ name: '' })).rejects.toThrow(/validation/i);
+        expect(await Strict.count()).toBe(0);
+      });
+
+      it('runs lifecycle callbacks in declared order', async () => {
+        const events: string[] = [];
+        class Tracked extends Model({
+          tableName,
+          connector,
+          timestamps: false,
+          init: (props: Props) => props,
+          callbacks: {
+            beforeCreate: [() => events.push('beforeCreate')],
+            afterCreate: [() => events.push('afterCreate')],
+            beforeSave: [() => events.push('beforeSave')],
+            afterSave: [() => events.push('afterSave')],
+          },
+        }) {}
+        await Tracked.create({ name: 'hooks' });
+        expect(events).toEqual(['beforeSave', 'beforeCreate', 'afterCreate', 'afterSave']);
+      });
+
+      it('on() subscribes a callback at runtime', async () => {
+        const seen: string[] = [];
+        class Live extends Model({
+          tableName,
+          connector,
+          timestamps: false,
+          init: (props: Props) => props,
+        }) {}
+        const off = Live.on('afterCreate', (instance: any) => seen.push(instance.name));
+        await Live.create({ name: 'first' });
+        off();
+        await Live.create({ name: 'after-off' });
+        expect(seen).toEqual(['first']);
+      });
+    });
+
+    describe('Soft delete', () => {
+      const tableName = 'conformance_soft';
+      type Props = { label: string };
+      let Doc: any;
+
+      beforeEach(async () => {
+        if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+        await connector.createTable(tableName, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('label');
+          t.timestamp('discardedAt');
+        });
+        Doc = class extends (
+          Model({
+            tableName,
+            connector,
+            timestamps: false,
+            softDelete: true,
+            init: (props: Props) => props,
+          })
+        ) {};
+      });
+
+      it('discard hides the row from the default scope', async () => {
+        const doc = await Doc.create({ label: 'a' });
+        await doc.discard();
+        expect(await Doc.count()).toBe(0);
+        expect(await Doc.withDiscarded().count()).toBe(1);
+        expect(await Doc.onlyDiscarded().count()).toBe(1);
+      });
+
+      it('restore un-hides the row', async () => {
+        const doc = await Doc.create({ label: 'a' });
+        await doc.discard();
+        await doc.restore();
+        expect(await Doc.count()).toBe(1);
+        expect(await Doc.onlyDiscarded().count()).toBe(0);
+      });
+
+      it('isDiscarded reflects current state', async () => {
+        const doc = await Doc.create({ label: 'a' });
+        expect(doc.isDiscarded()).toBe(false);
+        await doc.discard();
+        expect(doc.isDiscarded()).toBe(true);
+      });
+    });
+
+    describe('Named scopes', () => {
+      it('exposes scopes as chainable static methods', async () => {
+        class Scoped extends Model({
+          tableName,
+          connector,
+          timestamps: false,
+          init: (props: CatProps) => props,
+          scopes: {
+            adults: (self: any) => self.filterBy({ $gte: { age: 3 } }),
+            named: (self: any, name: string) => self.filterBy({ name }),
+          },
+        }) {}
+        await Scoped.create({ name: 'kit', age: 1 });
+        await Scoped.create({ name: 'mature', age: 5 });
+        await Scoped.create({ name: 'mature', age: 7 });
+        expect(await (Scoped as any).adults().count()).toBe(2);
+        expect(await (Scoped as any).adults().named('mature').count()).toBe(2);
+      });
+    });
+
+    describe('Associations', () => {
+      const postsTable = 'conformance_posts';
+      type AuthorProps = { name: string };
+      type PostProps = { title: string; authorId: number };
+      let Author: any;
+      let Post: any;
+
+      beforeEach(async () => {
+        if (await connector.hasTable(postsTable)) await connector.dropTable(postsTable);
+        await connector.createTable(postsTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('title');
+          t.integer('authorId');
+        });
+        Author = class extends (
+          Model({
+            tableName,
+            connector,
+            timestamps: false,
+            init: (props: AuthorProps) => ({ ...props, age: 0 }) as CatProps,
+          })
+        ) {};
+        Post = class extends (
+          Model({
+            tableName: postsTable,
+            connector,
+            timestamps: false,
+            init: (props: PostProps) => props,
+          })
+        ) {};
+      });
+
+      it('belongsTo / hasMany resolve cross-table relations', async () => {
+        const author = await Author.create({ name: 'ada' });
+        await Post.create({ title: 'first', authorId: author.id });
+        await Post.create({ title: 'second', authorId: author.id });
+
+        const posts = await author.hasMany(Post, { foreignKey: 'authorId' }).all();
+        expect(posts).toHaveLength(2);
+
+        const post = (await Post.all())[0];
+        const back = await post.belongsTo(Author, { foreignKey: 'authorId' });
+        expect(back?.name).toBe('ada');
       });
     });
   });

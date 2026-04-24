@@ -16,6 +16,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 - Schema DSL: `ColumnOptions.autoIncrement` now generates `t.increments(...)` on KnexConnector, so a table created via the DSL works with `KeyType.number` Models out of the box.
 - KnexConnector: `deleteAll`/`updateAll` no longer apply `limit`/`skip` to the underlying knex builder, fixing a sqlite "limit has no effect on a delete" error when the Model layer sets `limit: 1` on its single-row scope.
 - Repository documentation overhaul: new top-level `README.md`, fully rewritten READMEs for `knex-connector`, `data-api-connector`, `local-storage-connector`, and a new `migrations` README. Each connector README maps every relevant Model feature (filters, transactions, batchInsert, schema DSL, …) to that connector's specifics.
+- `runModelConformance` widened to cover Model-level features: `createMany`, `reload`, bulk `updateAll` / `deleteAll`, `first`/`last`/`exists`, `pluck`/`pluckUnique`/`ids`, `paginate`, `inBatchesOf`, `findEach`, `countBy`/`groupBy`, find variants (`findOrFail`, `findOrBuild`, `firstOrCreate`, `updateOrCreate`), dirty tracking (`isChanged`, `changes`, `revertChange`, `savedChanges`/`wasChanged`), validators + lifecycle callbacks + `Model.on`, soft delete (`discard`/`restore`/`withDiscarded`/`onlyDiscarded`), named scopes, and `belongsTo`/`hasMany` associations. Each connector's spec runs the full suite, so every supported language feature is now exercised against each backend (memory, sqlite, pg, mysql, local-storage).
 
 ### Factory & configuration
 
