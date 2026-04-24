@@ -4,6 +4,10 @@
 
 Rewritten to match the current `@next-model/core` connector interface.
 
+### Test matrix
+
+- The connector spec is now driver-agnostic and runs against sqlite3 (default), Postgres 17, and MySQL 8. CI spins up real Postgres + MySQL service containers and runs the same suite under `KNEX_TEST_CLIENT=pg` / `KNEX_TEST_CLIENT=mysql2`. Local runs default to sqlite3 in-memory.
+
 ### Filter operators
 - Added `$like`, `$async`, and `$raw` on top of existing boolean/set/range/comparison operators.
 - Consolidated `$gt`/`$gte`/`$lt`/`$lte` under a single `compareFilter` helper.
