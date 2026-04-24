@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@next-model/core': path.resolve(__dirname, '../core/src/index.ts'),
+      '@next-model/conformance': path.resolve(__dirname, '../core/src/__tests__/conformance.ts'),
     },
   },
   test: {
@@ -13,6 +14,12 @@ export default defineConfig({
     coverage: {
       include: ['src/**/*.ts'],
       exclude: ['src/__tests__/**', 'src/__mocks__/**'],
+      thresholds: {
+        lines: 85,
+        statements: 85,
+        functions: 75,
+        branches: 85,
+      },
     },
   },
 });

@@ -231,7 +231,8 @@ export class KnexConnector implements Connector {
     const clientName = this.knex.client.config.client;
     const supportsReturning =
       clientName !== 'sqlite3' && clientName !== 'mysql' && clientName !== 'mysql2';
-    const { query } = await this.collection(scope);
+    const table = this.table(scope.tableName);
+    const { query } = await this.filter(table, scope.filter);
     let rows: any;
     if (supportsReturning) {
       try {
@@ -254,7 +255,8 @@ export class KnexConnector implements Connector {
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
     const matching = await this.query(scope);
-    const { query } = await this.collection(scope);
+    const table = this.table(scope.tableName);
+    const { query } = await this.filter(table, scope.filter);
     await query.del();
     return matching;
   }
@@ -364,6 +366,11 @@ export class KnexConnector implements Connector {
     if (await this.hasTable(tableName)) return;
     await this.schemaBuilder().createTable(tableName, (table) => {
       for (const col of def.columns) {
+        if (col.autoIncrement) {
+          const auto = table.increments(col.name);
+          if (col.unique) auto.unique();
+          continue;
+        }
         const columnBuilder = buildKnexColumn(table, col);
         if (col.primary) columnBuilder.primary();
         if (col.unique) columnBuilder.unique();
