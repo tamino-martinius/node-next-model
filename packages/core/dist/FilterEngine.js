@@ -7,48 +7,29 @@ const singleKey = (filter, op) => {
     return keys[0];
 };
 async function propertyFilter(items, filter) {
-    const counts = {};
-    // biome-ignore lint/suspicious/noAssignInExpressions: concise counter init
-    items.forEach((item) => (counts[item.id] = 0));
-    for (const key in filter) {
-        items.forEach((item) => {
-            if (item[key] === filter[key]) {
-                counts[item.id] += 1;
-            }
-        });
-    }
-    const filterCount = Object.keys(filter).length;
-    return items.filter((item) => counts[item.id] === filterCount);
+    return items.filter((item) => {
+        for (const key in filter) {
+            if (item[key] !== filter[key])
+                return false;
+        }
+        return true;
+    });
 }
 async function andFilter(items, filters) {
-    const counts = items.reduce((obj, item) => {
-        obj[item.id] = 0;
-        return obj;
-    }, {});
-    await Promise.all(filters.map(async (filter) => {
-        const filterItems = await filterList(items, filter);
-        filterItems.forEach((item) => {
-            counts[item.id] += 1;
-        });
-    }));
-    const filterCount = filters.length;
-    return items.filter((item) => counts[item.id] === filterCount);
+    let result = items;
+    for (const filter of filters) {
+        result = await filterList(result, filter);
+    }
+    return result;
 }
 async function notFilter(items, filter) {
-    const array = await filterList(items, filter);
-    const exists = {};
-    array.forEach((item) => {
-        exists[item.id] = exists[item.id] || true;
-    });
-    return items.filter((item) => !exists[item.id]);
+    const excluded = new Set(await filterList(items, filter));
+    return items.filter((item) => !excluded.has(item));
 }
 async function orFilter(items, filters) {
-    const arrays = await Promise.all(filters.map(async (filter) => await filterList(items, filter)));
-    const exists = {};
-    arrays.forEach((array) => array.forEach((item) => {
-        exists[item.id] = exists[item.id] || true;
-    }));
-    return items.filter((item) => exists[item.id]);
+    const arrays = await Promise.all(filters.map((filter) => filterList(items, filter)));
+    const union = new Set(arrays.flat());
+    return items.filter((item) => union.has(item));
 }
 async function inFilter(items, filter) {
     const key = singleKey(filter, '$in');
@@ -112,6 +93,17 @@ async function lteFilter(items, filter) {
     const key = singleKey(filter, '$lte');
     return items.filter((item) => item[key] <= filter[key]);
 }
+async function likeFilter(items, filter) {
+    const key = singleKey(filter, '$like');
+    const pattern = filter[key];
+    if (typeof pattern !== 'string')
+        return [];
+    const regex = new RegExp(`^${pattern
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/%/g, '.*')
+        .replace(/_/g, '.')}$`);
+    return items.filter((item) => typeof item[key] === 'string' && regex.test(item[key]));
+}
 async function rawFilter(items, filter) {
     const fn = compileRawQuery(filter.$query);
     const params = filter.$bindings;
@@ -158,6 +150,8 @@ async function specialFilter(items, filter) {
         return ltFilter(items, filter.$lt);
     if (filter.$lte !== undefined)
         return lteFilter(items, filter.$lte);
+    if (filter.$like !== undefined)
+        return likeFilter(items, filter.$like);
     if (filter.$raw !== undefined)
         return rawFilter(items, filter.$raw);
     if (filter.$async !== undefined)

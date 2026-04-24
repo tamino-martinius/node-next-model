@@ -1,4 +1,4 @@
-import type { Connector } from '@next-model/core';
+import { type Connector, KeyType } from '@next-model/core';
 
 import {
   MigrationAlreadyAppliedError,
@@ -8,8 +8,8 @@ import {
 import type { Migration, MigrationStatus, MigratorOptions } from './types';
 
 const DEFAULT_TABLE_NAME = 'schema_migrations';
-const VERSION_COLUMN_SIZE = 255;
-const NAME_COLUMN_SIZE = 255;
+const VERSION_LIMIT = 255;
+const NAME_LIMIT = 255;
 
 function validateTableName(name: string): void {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
@@ -30,37 +30,35 @@ export class Migrator {
 
   async init(): Promise<void> {
     if (this.initialized) return;
-    await this.connector.execute(
-      `CREATE TABLE IF NOT EXISTS ${this.tableName} (version VARCHAR(${VERSION_COLUMN_SIZE}) PRIMARY KEY, name VARCHAR(${NAME_COLUMN_SIZE}), applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
-      [],
-    );
+    await this.connector.createTable(this.tableName, (t) => {
+      t.string('version', { limit: VERSION_LIMIT, primary: true, null: false });
+      t.string('name', { limit: NAME_LIMIT });
+      t.timestamp('applied_at', { null: false });
+    });
     this.initialized = true;
   }
 
   async drop(): Promise<void> {
-    await this.connector.execute(`DROP TABLE IF EXISTS ${this.tableName}`, []);
+    await this.connector.dropTable(this.tableName);
     this.initialized = false;
   }
 
   async appliedVersions(): Promise<string[]> {
-    await this.init();
-    const rows = (await this.connector.execute(
-      `SELECT version FROM ${this.tableName} ORDER BY version ASC`,
-      [],
-    )) as { version: string }[];
-    return rows.map((row) => row.version);
+    const entries = await this.appliedEntries();
+    return entries.map((entry) => entry.version);
   }
 
   async appliedEntries(): Promise<{ version: string; name: string | null; appliedAt: string }[]> {
     await this.init();
-    const rows = (await this.connector.execute(
-      `SELECT version, name, applied_at FROM ${this.tableName} ORDER BY version ASC`,
-      [],
-    )) as { version: string; name: string | null; applied_at: string }[];
+    const rows = await this.connector.query({
+      tableName: this.tableName,
+      order: [{ key: 'version' }],
+    });
     return rows.map((row) => ({
-      version: row.version,
-      name: row.name,
-      appliedAt: String(row.applied_at),
+      version: String(row.version),
+      name: row.name == null ? null : String(row.name),
+      appliedAt:
+        row.applied_at instanceof Date ? row.applied_at.toISOString() : String(row.applied_at),
     }));
   }
 
@@ -140,25 +138,23 @@ export class Migrator {
   private async runUp(migration: Migration): Promise<void> {
     await this.connector.transaction(async () => {
       await migration.up(this.connector);
-      if (migration.name !== undefined) {
-        await this.connector.execute(
-          `INSERT INTO ${this.tableName} (version, name) VALUES (?, ?)`,
-          [migration.version, migration.name],
-        );
-      } else {
-        await this.connector.execute(`INSERT INTO ${this.tableName} (version) VALUES (?)`, [
-          migration.version,
-        ]);
-      }
+      await this.connector.batchInsert(this.tableName, { version: KeyType.manual }, [
+        {
+          version: migration.version,
+          name: migration.name ?? null,
+          applied_at: new Date(),
+        },
+      ]);
     });
   }
 
   private async runDown(migration: Migration): Promise<void> {
     await this.connector.transaction(async () => {
       await migration.down(this.connector);
-      await this.connector.execute(`DELETE FROM ${this.tableName} WHERE version = ?`, [
-        migration.version,
-      ]);
+      await this.connector.deleteAll({
+        tableName: this.tableName,
+        filter: { version: migration.version },
+      });
     });
   }
 }

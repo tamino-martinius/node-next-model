@@ -6,6 +6,7 @@ import {
   MemoryConnector,
   type Scope,
   type Storage,
+  type TableBuilder,
 } from '@next-model/core';
 
 export interface WebStorageLike {
@@ -134,6 +135,25 @@ export class LocalStorageConnector extends MemoryConnector {
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
     return super.execute(query, bindings);
+  }
+
+  async hasTable(tableName: string): Promise<boolean> {
+    if (await super.hasTable(tableName)) return true;
+    return this.webStorage.getItem(this.tableKey(tableName)) !== null;
+  }
+
+  async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
+    this.hydrate(tableName);
+    await super.createTable(tableName, blueprint);
+    this.persist(tableName);
+  }
+
+  async dropTable(tableName: string): Promise<void> {
+    await super.dropTable(tableName);
+    this.hydrated.delete(tableName);
+    this.pendingPersist.delete(tableName);
+    this.webStorage.removeItem(this.tableKey(tableName));
+    this.webStorage.removeItem(this.nextIdKey(tableName));
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {

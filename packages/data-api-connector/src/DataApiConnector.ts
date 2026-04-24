@@ -1,6 +1,7 @@
 import {
   type AggregateKind,
   type BaseType,
+  type ColumnDefinition,
   type Connector,
   type Dict,
   type Filter,
@@ -9,10 +10,13 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type IndexDefinition,
   type KeyType,
   PersistenceError,
   type Scope,
   SortDirection,
+  type TableBuilder,
+  defineTable,
 } from '@next-model/core';
 import Knex from 'knex';
 
@@ -372,6 +376,94 @@ export class DataApiConnector implements Connector {
       this.activeTransactionId = undefined;
     }
   }
+
+  async hasTable(tableName: string): Promise<boolean> {
+    validateIdentifier(tableName);
+    try {
+      await this.dataApi.query(`SELECT 1 FROM ${tableName} LIMIT 0`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
+    validateIdentifier(tableName);
+    const def = defineTable(tableName, blueprint);
+    const columnSql = def.columns.map(columnToSql).join(', ');
+    await this.dataApi.query(`CREATE TABLE IF NOT EXISTS ${tableName} (${columnSql})`);
+    for (const idx of def.indexes) {
+      await this.dataApi.query(indexToSql(tableName, idx));
+    }
+  }
+
+  async dropTable(tableName: string): Promise<void> {
+    validateIdentifier(tableName);
+    await this.dataApi.query(`DROP TABLE IF EXISTS ${tableName}`);
+  }
+}
+
+function validateIdentifier(name: string): void {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new PersistenceError(`invalid SQL identifier: ${name}`);
+  }
+}
+
+function columnSqlType(col: ColumnDefinition): string {
+  switch (col.type) {
+    case 'string':
+      return `VARCHAR(${col.limit ?? 255})`;
+    case 'text':
+      return 'TEXT';
+    case 'integer':
+      return 'INTEGER';
+    case 'bigint':
+      return 'BIGINT';
+    case 'float':
+      return 'DOUBLE PRECISION';
+    case 'decimal':
+      if (col.precision !== undefined && col.scale !== undefined) {
+        return `DECIMAL(${col.precision}, ${col.scale})`;
+      }
+      return 'DECIMAL';
+    case 'boolean':
+      return 'BOOLEAN';
+    case 'date':
+      return 'DATE';
+    case 'datetime':
+    case 'timestamp':
+      return 'TIMESTAMP';
+    case 'json':
+      return 'JSON';
+  }
+}
+
+function defaultSql(value: ColumnDefinition['default']): string {
+  if (value === 'currentTimestamp') return 'CURRENT_TIMESTAMP';
+  if (value === null) return 'NULL';
+  if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  if (value instanceof Date) return `'${value.toISOString()}'`;
+  throw new PersistenceError(`unsupported default value: ${String(value)}`);
+}
+
+function columnToSql(col: ColumnDefinition): string {
+  validateIdentifier(col.name);
+  const parts = [col.name, columnSqlType(col)];
+  if (col.primary) parts.push('PRIMARY KEY');
+  if (col.unique && !col.primary) parts.push('UNIQUE');
+  if (!col.nullable && !col.primary) parts.push('NOT NULL');
+  if (col.default !== undefined) parts.push(`DEFAULT ${defaultSql(col.default)}`);
+  return parts.join(' ');
+}
+
+function indexToSql(tableName: string, idx: IndexDefinition): string {
+  for (const column of idx.columns) validateIdentifier(column);
+  const indexName = idx.name ?? `idx_${tableName}_${idx.columns.join('_')}`;
+  validateIdentifier(indexName);
+  const unique = idx.unique ? 'UNIQUE ' : '';
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${idx.columns.join(', ')})`;
 }
 
 export default DataApiConnector;

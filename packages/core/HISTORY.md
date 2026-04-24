@@ -108,6 +108,8 @@ Rolling changelog for the next major release. Items below are appended in the or
 ### Connector interface
 
 - `query`, `count`, `select`, `updateAll`, `deleteAll`, `batchInsert`, `aggregate(scope, kind, key)`, `execute(query, bindings)`, `transaction`.
+- New backend-agnostic schema DSL: `createTable(name, (t) => { ... })`, `dropTable(name)`, `hasTable(name)`. Rails-style builder with column shortcuts (`t.string`, `t.integer`, `t.bigint`, `t.float`, `t.decimal`, `t.boolean`, `t.date`, `t.datetime`, `t.timestamp`, `t.text`, `t.json`), `t.timestamps()`, `t.index()`, and shared options (`null`, `default`, `limit`, `primary`, `unique`, `precision`, `scale`). Each connector translates the table definition into its native DDL, so migrations and bootstrap code no longer embed SQL.
+- `KeyType.manual` added for caller-supplied primary key values (used by the migrations version column and any table where the PK is not auto-generated).
 - `MemoryConnector` ships in `@next-model/core`.
 - Sort-before-slice bug in `MemoryConnector` fixed, so `limitBy(1).orderBy(...)` is consistent and `last()` is correct without workarounds.
 - `KnexConnector` brought to parity: adds `$like`, `$async`, `$raw`, `aggregate`, nested `transaction`, and `execute` with driver-aware result normalization; all filter validation now throws `FilterError`.
@@ -117,7 +119,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 
 ### Migrations
 
-- New `@next-model/migrations` package ships a `Migrator` that tracks applied migrations in a `schema_migrations` table through any next-model `Connector`. Provides `migrate`, `up`, `down`, `rollback`, `status`, and `pending`; each migration runs inside `connector.transaction` so a failing `up` leaves no trace. Zero runtime dependencies beyond `@next-model/core` — the connector you already use drives the DDL.
+- New `@next-model/migrations` package ships a `Migrator` that tracks applied migrations in a `schema_migrations` table through any next-model `Connector`. Provides `migrate`, `up`, `down`, `rollback`, `status`, and `pending`; each migration runs inside `connector.transaction` so a failing `up` leaves no trace. Zero runtime dependencies beyond `@next-model/core` — the connector you already use drives the DDL via the new Rails-style schema DSL, so the same migration works across MemoryConnector, KnexConnector, DataApiConnector, LocalStorageConnector, and any future backend.
 
 ### Errors
 

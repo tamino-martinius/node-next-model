@@ -27,6 +27,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 - Positional `?` bindings in `execute` are translated to Aurora Data API `:paramN` placeholders.
 - Nested `transaction(fn)` joins the outer transaction; outer rollback discards inner writes.
 - `batchInsert` pre-fetches inserted rows by generated primary key so callers receive fully materialized rows.
+- Implemented `createTable(name, blueprint)`, `dropTable(name)`, and `hasTable(name)` by emitting portable `CREATE TABLE IF NOT EXISTS` / `DROP TABLE IF EXISTS` SQL from the core `TableBuilder` DSL. `hasTable` probes with `SELECT 1 FROM <table> LIMIT 0` and catches the failure so the check works identically on Postgres/Aurora and the sqlite-backed mock.
 
 ### Testing
 

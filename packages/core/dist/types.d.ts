@@ -1,3 +1,4 @@
+import type { TableBuilder } from './schema';
 export interface Dict<T> {
     [key: string]: T;
 }
@@ -10,7 +11,9 @@ export interface Range<T> {
 }
 export declare enum KeyType {
     uuid = 0,
-    number = 1
+    number = 1,
+    /** Caller supplies the primary key value; the connector does not generate one. */
+    manual = 2
 }
 export type Schema = Dict<any>;
 export type BaseType = number | string | boolean | Date | number[] | string[] | boolean[] | Date[];
@@ -63,6 +66,9 @@ export interface Connector {
     execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;
     transaction<T>(fn: () => Promise<T>): Promise<T>;
     aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined>;
+    hasTable(tableName: string): Promise<boolean>;
+    createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
+    dropTable(tableName: string): Promise<void>;
 }
 export interface Scope {
     tableName: string;

@@ -6,7 +6,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 
 ### Initial release
 
-- New `@next-model/migrations` package providing a connector-agnostic schema migration runner for next-model. Works with any `Connector` (Memory, Knex, DataApi, LocalStorage); migrations receive the connector and may use `connector.execute(sql, bindings)` plus the standard CRUD surface.
+- New `@next-model/migrations` package providing a connector-agnostic schema migration runner for next-model. Works with any `Connector` (Memory, Knex, DataApi, LocalStorage); migrations receive the connector and declare schema changes via the Rails-style `connector.createTable(name, (t) => { ... })` / `dropTable(name)` DSL. `connector.execute(sql, bindings)` remains available as an escape hatch for dialect-specific DDL.
 - `Migrator` tracks applied migrations in a `schema_migrations` table (table name configurable; identifier-validated to prevent injection).
 - API: `init()`, `drop()`, `appliedVersions()`, `appliedEntries()`, `pending(migrations)`, `status(migrations)`, `migrate(migrations)`, `up(migration)`, `down(migration)`, `rollback(migrations, steps?)`.
 - Each `up`/`down` runs inside `connector.transaction` so a thrown migration is rolled back atomically and the tracking row is only written after the migration body succeeds.
