@@ -18,6 +18,7 @@ import {
   type Validator,
 } from './types.js';
 import { camelize, pascalize, singularize } from './util.js';
+import { Errors } from './validators.js';
 
 export type AssociationOptions = {
   foreignKey?: string;
@@ -247,6 +248,7 @@ export class ModelClass {
    * predicate; out-of-range values fail `isValid()`.
    */
   static enums: Dict<readonly string[]> = {};
+  /**
    * When set, `save()` and `delete()` enforce optimistic locking against this
    * column. Inserts default the column to 0; updates require the in-memory
    * value to match the row's current value, otherwise throw `StaleObjectError`.
@@ -1018,6 +1020,12 @@ export class ModelClass {
   changedProps: Dict<any> = {};
   lastSavedChanges: Dict<{ from: any; to: any }> = {};
   keys: Dict<any> | undefined;
+  _errors: Errors | undefined;
+
+  get errors(): Errors {
+    if (!this._errors) this._errors = new Errors();
+    return this._errors;
+  }
 
   constructor(props: Dict<any>, keys?: Dict<any>) {
     this.persistentProps = props;
@@ -1260,15 +1268,15 @@ export class ModelClass {
 
   async isValid(): Promise<boolean> {
     const model = this.constructor as typeof ModelClass;
+    this.errors.clear();
     await this.runCallbacks('beforeValidation');
+    let valid = true;
     for (const validator of model.validators) {
-      if (!(await validator(this))) {
-        await this.runCallbacks('afterValidation');
-        return false;
-      }
+      const result = await validator(this);
+      if (!result) valid = false;
     }
     await this.runCallbacks('afterValidation');
-    return true;
+    return valid;
   }
 
   async runCallbacks(kind: keyof Callbacks<any>): Promise<void> {
@@ -1302,7 +1310,7 @@ export class ModelClass {
   async save<M extends ModelClass>(this: M) {
     const model = this.constructor as typeof ModelClass;
     if (!(await this.isValid())) {
-      throw new ValidationError('Validation failed');
+      throw new ValidationError('Validation failed', this.errors.toJSON());
     }
     const now = new Date();
     const isInsert = !this.keys;

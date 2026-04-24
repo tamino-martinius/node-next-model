@@ -858,7 +858,7 @@ describe('Model', () => {
       storage = {};
     });
 
-    it('short-circuits on the first failing validator', async () => {
+    it('runs every validator so the errors collection is complete', async () => {
       storage = {};
       let secondCalled = false;
       const Klass = Model({
@@ -874,7 +874,7 @@ describe('Model', () => {
         ],
       });
       expect(await Klass.build({}).isValid()).toBe(false);
-      expect(secondCalled).toBe(false);
+      expect(secondCalled).toBe(true);
       storage = {};
     });
   });
