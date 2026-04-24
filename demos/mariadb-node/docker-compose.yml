@@ -1,0 +1,13 @@
+services:
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: mariadb
+      MARIADB_DATABASE: nextmodel_demo
+    ports:
+      - '3306:3306'
+    healthcheck:
+      test: ['CMD', 'mariadb-admin', 'ping', '-h', 'localhost', '-pmariadb']
+      interval: 5s
+      timeout: 3s
+      retries: 20

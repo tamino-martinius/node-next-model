@@ -24,11 +24,50 @@ importers:
         specifier: workspace:*
         version: link:../../packages/local-storage-connector
 
+  demos/mariadb-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/mariadb-connector':
+        specifier: workspace:*
+        version: link:../../packages/mariadb-connector
+      '@next-model/mysql-connector':
+        specifier: workspace:*
+        version: link:../../packages/mysql-connector
+      mysql2:
+        specifier: ^3.11.5
+        version: 3.22.2(@types/node@25.6.0)
+
   demos/memory-node:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
         version: link:../../packages/core
+
+  demos/mysql-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/mysql-connector':
+        specifier: workspace:*
+        version: link:../../packages/mysql-connector
+      mysql2:
+        specifier: ^3.11.5
+        version: 3.22.2(@types/node@25.6.0)
+
+  demos/postgres-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/postgres-connector':
+        specifier: workspace:*
+        version: link:../../packages/postgres-connector
+      pg:
+        specifier: ^8.13.1
+        version: 8.20.0
 
   demos/sqlite-node:
     dependencies:

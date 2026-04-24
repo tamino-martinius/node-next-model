@@ -1,0 +1,19 @@
+{
+  "name": "@next-model-demos/postgres-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types demo.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down -v"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/postgres-connector": "workspace:*",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
