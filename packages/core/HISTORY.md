@@ -115,6 +115,10 @@ Rolling changelog for the next major release. Items below are appended in the or
 - `LocalStorageConnector` (new, client-side) now subclasses `MemoryConnector` and persists to any `Storage`-compatible backend (browser `localStorage`, injected mock, etc.). Deferred writes during transactions preserve rollback semantics. Supports `prefix`/`suffix` for namespaced keys and rehydrates on construction.
 - `FilterEngine` now implements `$like` (with `%` and `_` wildcards), closing a parity gap between `MemoryConnector` and the SQL connectors.
 
+### Migrations
+
+- New `@next-model/migrations` package ships a `Migrator` that tracks applied migrations in a `schema_migrations` table through any next-model `Connector`. Provides `migrate`, `up`, `down`, `rollback`, `status`, and `pending`; each migration runs inside `connector.transaction` so a failing `up` leaves no trace. Zero runtime dependencies beyond `@next-model/core` — the connector you already use drives the DDL.
+
 ### Errors
 
 - Typed error subclasses: `NextModelError` (base), `NotFoundError`, `PersistenceError`, `ValidationError`, `FilterError`.
