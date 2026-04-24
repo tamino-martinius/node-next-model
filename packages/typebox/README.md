@@ -4,6 +4,7 @@ Bridge a [TypeBox](https://github.com/sinclairzx81/typebox) `TObject` into a nex
 
 ```sh
 pnpm add @next-model/typebox @sinclair/typebox
+# or: npm install @next-model/typebox @sinclair/typebox
 ```
 
 ## Usage

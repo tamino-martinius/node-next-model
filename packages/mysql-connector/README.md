@@ -14,6 +14,7 @@ If you need Postgres / SQLite / MariaDB / MSSQL too, keep `@next-model/knex-conn
 
 ```sh
 pnpm add @next-model/mysql-connector mysql2
+# or: npm install @next-model/mysql-connector mysql2
 ```
 
 ## Constructing the connector

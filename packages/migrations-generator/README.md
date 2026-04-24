@@ -4,6 +4,7 @@ Scaffolds `@next-model/migrations` files — CLI + programmatic API.
 
 ```sh
 pnpm add -D @next-model/migrations-generator
+# or: npm install -D @next-model/migrations-generator
 ```
 
 ## CLI

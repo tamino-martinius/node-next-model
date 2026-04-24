@@ -17,6 +17,7 @@ If you're targeting Redis itself, use `@next-model/redis-connector` directly.
 
 ```sh
 pnpm add @next-model/valkey-connector redis
+# or: npm install @next-model/valkey-connector redis
 ```
 
 ## Constructing the connector

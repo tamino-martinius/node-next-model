@@ -14,7 +14,9 @@ Should also work against any other Knex client (MariaDB, Oracle, MSSQL, Redshift
 
 ```sh
 pnpm add @next-model/knex-connector knex
+# or: npm install @next-model/knex-connector knex
 pnpm add -D sqlite3        # or pg / mysql2 / tedious / oracledb …
+# or: npm install -D sqlite3        # or pg / mysql2 / tedious / oracledb …
 ```
 
 `knex` is a runtime dependency; the actual driver (`pg`, `mysql2`, `sqlite3`, …) you choose is yours to install per the database you target.

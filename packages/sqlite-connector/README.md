@@ -14,6 +14,7 @@ If you also need MySQL / Postgres / MariaDB / MSSQL too, keep `@next-model/knex-
 
 ```sh
 pnpm add @next-model/sqlite-connector better-sqlite3
+# or: npm install @next-model/sqlite-connector better-sqlite3
 ```
 
 ## Constructing the connector
