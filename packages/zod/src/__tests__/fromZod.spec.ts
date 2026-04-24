@@ -2,7 +2,7 @@ import { MemoryConnector, Model, ValidationError } from '@next-model/core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { fromZod } from '../index.js';
+import { fromZod } from '../fromZod.js';
 
 describe('fromZod - column derivation', () => {
   it('derives column kinds from zod primitives', () => {
