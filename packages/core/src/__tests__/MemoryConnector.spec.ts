@@ -1,6 +1,13 @@
-import { clone, type Dict, type Filter, FilterError, MemoryConnector, type Storage } from '..';
-import { KeyType, type OrderColumn, SortDirection } from '../types';
-import { context, type FilterSpecGroup, it, randomInteger } from '.';
+import {
+  clone,
+  type Dict,
+  type Filter,
+  FilterError,
+  MemoryConnector,
+  type Storage,
+} from '../index.js';
+import { KeyType, type OrderColumn, SortDirection } from '../types.js';
+import { context, type FilterSpecGroup, it, randomInteger } from './index.js';
 
 let storage: Storage = {};
 

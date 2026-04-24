@@ -2,7 +2,7 @@ import { FilterError, Model } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { KnexConnector } from '..';
+import { KnexConnector } from '../index.js';
 
 const connector = new KnexConnector({
   client: 'sqlite3',

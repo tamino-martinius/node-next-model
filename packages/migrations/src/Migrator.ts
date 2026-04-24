@@ -6,8 +6,8 @@ import {
   MigrationMissingError,
   MigrationNotAppliedError,
   MigrationParentMissingError,
-} from './errors';
-import type { MigrateOptions, Migration, MigrationStatus, MigratorOptions } from './types';
+} from './errors.js';
+import type { MigrateOptions, Migration, MigrationStatus, MigratorOptions } from './types.js';
 
 const DEFAULT_TABLE_NAME = 'schema_migrations';
 const VERSION_LIMIT = 255;

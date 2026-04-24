@@ -1,5 +1,5 @@
-import { FilterError } from './errors';
-import type { Dict, Filter, FilterBetween, FilterIn, FilterRaw, FilterSpecial } from './types';
+import { FilterError } from './errors.js';
+import type { Dict, Filter, FilterBetween, FilterIn, FilterRaw, FilterSpecial } from './types.js';
 
 const singleKey = (filter: Dict<any>, op: string): string => {
   const keys = Object.keys(filter);

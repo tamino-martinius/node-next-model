@@ -1,4 +1,4 @@
-import type { TableBuilder } from './schema';
+import type { TableBuilder } from './schema.js';
 
 export interface Dict<T> {
   [key: string]: T;

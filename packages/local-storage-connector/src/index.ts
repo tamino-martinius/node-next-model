@@ -1,1 +1,1 @@
-export * from './LocalStorageConnector';
+export * from './LocalStorageConnector.js';

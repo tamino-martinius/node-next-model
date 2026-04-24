@@ -1,4 +1,4 @@
-import type { WebStorageLike } from '../LocalStorageConnector';
+import type { WebStorageLike } from '../LocalStorageConnector.js';
 
 export class MemoryLocalStorage implements WebStorageLike {
   private store = new Map<string, string>();

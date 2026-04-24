@@ -4,10 +4,19 @@
   "description": "Browser localStorage connector for next-model. Inherits from MemoryConnector.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "jsnext:main": "./dist/index.mjs",
-  "typings": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/__tests__",
+    "!dist/**/*.map"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/tamino-martinius/node-next-model-local-storage-connector.git"
@@ -21,17 +30,17 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "watch": "tsc -w",
-    "build": "rm -rf dist/* && tsc && tsc-mjs --declaration false --target esnext --module esnext --mjs",
-    "preversion": "pnpm build && git add ."
+    "clean": "rm -rf dist",
+    "build": "pnpm clean && tsc",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.5",
-    "ts-mjs": "^3.1.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
-  },
-  "dependencies": {
-    "@next-model/core": "workspace:*"
   }
 }

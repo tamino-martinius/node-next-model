@@ -11,6 +11,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 - Migrated linter/formatter from prettier + eslint to biome (now on biome 2).
 - Replaced Travis CI with GitHub Actions (typecheck + lint + tests on every branch/PR).
 - Bumped toolchain to TypeScript 6, `@types/node` 25, and `@vitest/coverage-v8` 4 across every package. Knex connectors moved to knex 3 (from 0.19); the `data-api-client` dependency jumped to 2.x. `lib`/`target` raised to `ES2023` and `structuredClone` is now sourced via `@types/node` globals. Removed the dead `faker` / `@types/faker` / `@types/knex` dev deps (faker was never used; knex bundles its own types since 0.95). `pnpm audit` reports zero vulnerabilities.
+- Build modernization: every package is now pure ESM (`"type": "module"`, `exports` field, `.js` extensions on relative imports) built with `module: NodeNext`. Dropped the `tsc-mjs` dual-build. `dist/` is no longer tracked in git and is rebuilt via `pnpm build` / `prepublishOnly`.
 
 ### Factory & configuration
 
