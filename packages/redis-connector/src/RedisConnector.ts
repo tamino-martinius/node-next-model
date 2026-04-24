@@ -137,7 +137,76 @@ export class RedisConnector implements Connector {
     return rows;
   }
 
+  /**
+   * Fast path: when the scope's filter is exactly `{pk: value}` or
+   * `{$in: {pk: [...]}}`, Redis can resolve the row(s) via direct HGETALL on
+   * the known key instead of a full ZRANGE + scan. Returns `null` when the
+   * filter doesn't match one of those shapes so the caller falls back.
+   */
+  private async tryDirectIdLookup(scope: Scope): Promise<Dict<any>[] | null> {
+    const filter = scope.filter;
+    if (!filter || typeof filter !== 'object') return null;
+    const filterKeys = Object.keys(filter);
+    if (filterKeys.length !== 1) return null;
+
+    const primaryKey = await this.resolvePrimaryKey(scope.tableName);
+    const ids: (number | string)[] = [];
+
+    // {pk: value}
+    if (filterKeys[0] === primaryKey) {
+      const value = (filter as Dict<any>)[primaryKey];
+      if (typeof value === 'number' || typeof value === 'string') {
+        ids.push(value);
+      } else {
+        return null;
+      }
+    } else if (filterKeys[0] === '$in') {
+      const inner = (filter as Dict<any>).$in as Dict<any> | undefined;
+      if (!inner || typeof inner !== 'object') return null;
+      const innerKeys = Object.keys(inner);
+      if (innerKeys.length !== 1 || innerKeys[0] !== primaryKey) return null;
+      const values = inner[primaryKey];
+      if (!Array.isArray(values)) return null;
+      for (const v of values) {
+        if (typeof v !== 'number' && typeof v !== 'string') return null;
+        ids.push(v);
+      }
+    } else {
+      return null;
+    }
+
+    await this.ensureConnected();
+    const rows: Dict<any>[] = [];
+    for (const id of ids) {
+      const hash = await this.client.hGetAll(this.rowKey(scope.tableName, id));
+      if (Object.keys(hash).length > 0) {
+        rows.push(deserializeRow(hash as Dict<string>));
+      }
+    }
+    return rows;
+  }
+
+  private async resolvePrimaryKey(tableName: string): Promise<string> {
+    const meta = await this.client.get(this.metaKey(tableName));
+    if (meta) {
+      try {
+        const def = JSON.parse(meta) as { primaryKey?: string };
+        if (def.primaryKey) return def.primaryKey;
+      } catch {
+        // fall through
+      }
+    }
+    return 'id';
+  }
+
   private async resolveScope(scope: Scope): Promise<Dict<any>[]> {
+    const fast = await this.tryDirectIdLookup(scope);
+    if (fast !== null) {
+      // Fast path already filtered by exact match; only order/limit/skip
+      // matter for the remaining envelope.
+      const ordered = applyOrder(fast, scope.order);
+      return applyLimitSkip(ordered, scope);
+    }
     const all = await this.loadAll(scope.tableName);
     const filtered = await filterList(all, scope.filter);
     const ordered = applyOrder(filtered, scope.order);
@@ -149,6 +218,8 @@ export class RedisConnector implements Connector {
   }
 
   async count(scope: Scope): Promise<number> {
+    const fast = await this.tryDirectIdLookup(scope);
+    if (fast !== null) return fast.length;
     const all = await this.loadAll(scope.tableName);
     const filtered = await filterList(all, scope.filter);
     return filtered.length;
