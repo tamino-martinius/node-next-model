@@ -13,8 +13,7 @@
       "**/*.js",
       "**/*.mjs",
       "packages/api-router/**",
-      "packages/api-server-express/**",
-      "migrator/**"
+      "packages/api-server-express/**"
     ]
   },
   "formatter": {
