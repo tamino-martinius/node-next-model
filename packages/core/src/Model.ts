@@ -1,4 +1,5 @@
 import { NotFoundError, PersistenceError, ValidationError } from './errors.js';
+import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
 import {
   type AggregateKind,
@@ -125,6 +126,13 @@ export class ModelClass {
   /** Column used by `discard()` / `restore()` + the soft-delete scope. */
   static softDeleteColumn: string = 'discardedAt';
   static softDelete: 'active' | 'only' | false = false;
+  /**
+   * When set, `all()` / `first()` / `last()` / `find()` / `findBy()` fetch
+   * only these columns (plus every primary key) from the connector. Model
+   * instances are still returned; they just carry partial data. Set via the
+   * `fields(...keys)` chainable.
+   */
+  static selectedFields: string[] | undefined = undefined;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -192,7 +200,8 @@ export class ModelClass {
     } as M;
   }
 
-  static filterBy<M extends typeof ModelClass>(this: M, andFilter: Filter<any>) {
+  static filterBy<M extends typeof ModelClass>(this: M, andFilterInput: Filter<any>) {
+    const andFilter = normalizeFilterShape(andFilterInput);
     const hasSpecial = (f: Filter<any>) => Object.keys(f).some((k) => k.startsWith('$'));
     let filter: Filter<any> | undefined = andFilter;
     if (this.filter) {
@@ -214,7 +223,8 @@ export class ModelClass {
     } as M;
   }
 
-  static orFilterBy<M extends typeof ModelClass>(this: M, orFilter: Filter<any>) {
+  static orFilterBy<M extends typeof ModelClass>(this: M, orFilterInput: Filter<any>) {
+    const orFilter = normalizeFilterShape(orFilterInput);
     const filter =
       Object.keys(orFilter).length === 0
         ? this.filter
@@ -254,6 +264,25 @@ export class ModelClass {
       static skip = undefined;
       static order: OrderColumn<any>[] = [];
       static softDelete: 'active' | 'only' | false = false;
+      static selectedFields: string[] | undefined = undefined;
+    } as M;
+  }
+
+  /**
+   * Restrict subsequent `all()` / `first()` / `last()` / `find()` / `findBy()`
+   * fetches to the given columns. The Model's primary key(s) are always
+   * included even when omitted from the list so instances can still save,
+   * reload and delete.
+   */
+  static fields<M extends typeof ModelClass>(this: M, ...keys: string[]) {
+    return class extends (this as typeof ModelClass) {
+      static selectedFields = keys;
+    } as M;
+  }
+
+  static allFields<M extends typeof ModelClass>(this: M) {
+    return class extends (this as typeof ModelClass) {
+      static selectedFields: string[] | undefined = undefined;
     } as M;
   }
 
@@ -317,10 +346,16 @@ export class ModelClass {
   }
 
   static async all<M extends typeof ModelClass>(this: M) {
-    const items = await this.connector.query(this.modelScope());
+    const primaryKeys = Object.keys(this.keys);
+    const items = this.selectedFields
+      ? await this.connector.select(
+          this.modelScope(),
+          ...Array.from(new Set([...primaryKeys, ...this.selectedFields])),
+        )
+      : await this.connector.query(this.modelScope());
     return items.map((item) => {
       const keys: Dict<any> = {};
-      for (const key in this.keys) {
+      for (const key of primaryKeys) {
         keys[key] = item[key];
         delete item[key];
       }
