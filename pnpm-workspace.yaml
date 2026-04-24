@@ -18,6 +18,7 @@ packages:
   - "packages/zod"
   - "packages/typebox"
   - "packages/arktype"
-  - "demos/node/*"
+  - "demos/node/server/*"
+  - "demos/node/client/*"
   - "demos/react/*"
   - "demos/nextjs/*"

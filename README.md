@@ -28,25 +28,26 @@ This repository is a pnpm workspace; each published package lives under `package
 
 ## Demos
 
-End-to-end runnable projects live under [`demos/`](./demos), grouped by runtime (`node` / `react` / `nextjs`). Every demo is self-contained; node-runtime demos use Node's built-in TypeScript stripping (no `tsx` / `ts-node` / build step).
+End-to-end runnable projects live under [`demos/`](./demos), grouped by runtime. `node/` is split into `server/` (needs Node / a DB / a native dep) and `client/` (also runs in a browser).
 
 | Demo | Adapter / connector | Infra |
 |---|---|---|
-| [`node/memory`](./demos/node/memory) | `@next-model/core` (`MemoryConnector`) | none |
-| [`node/sqlite`](./demos/node/sqlite) | `@next-model/sqlite-connector` | none (in-memory db) |
-| [`node/local-storage`](./demos/node/local-storage) | `@next-model/local-storage-connector` | none (in-memory `localStorage` shim) |
-| [`node/postgres`](./demos/node/postgres) | `@next-model/postgres-connector` | `docker compose up -d` (postgres:17) |
-| [`node/mysql`](./demos/node/mysql) | `@next-model/mysql-connector` | `docker compose up -d` (mysql:8) |
-| [`node/mariadb`](./demos/node/mariadb) | `@next-model/mariadb-connector` | `docker compose up -d` (mariadb:11) |
-| [`node/redis`](./demos/node/redis) | `@next-model/redis-connector` | `docker compose up -d` (redis:7) |
-| [`node/valkey`](./demos/node/valkey) | `@next-model/valkey-connector` | `docker compose up -d` (valkey:8) |
-| [`node/mongodb`](./demos/node/mongodb) | `@next-model/mongodb-connector` | `docker compose up -d` (mongo:7) |
-| [`node/knex`](./demos/node/knex) | `@next-model/knex-connector` (sqlite default, env-switchable pg/mysql) | sqlite: none; `docker compose --profile pg|mysql up -d` |
-| [`node/aurora-data-api`](./demos/node/aurora-data-api) | `@next-model/aurora-data-api-connector` via `MockDataApiClient` | none |
-| [`node/express-rest-api`](./demos/node/express-rest-api) | Express 5 + `@next-model/express-rest-api` + `@next-model/sqlite-connector` | none (in-memory sqlite) |
-| [`node/graphql-api`](./demos/node/graphql-api) | `graphql-http` + `@next-model/graphql-api` + `@next-model/sqlite-connector` | none (in-memory sqlite) |
-| [`react/todo`](./demos/react/todo) | React 19 + Vite + `@next-model/local-storage-connector` (multi-user via per-user prefix) | none (browser) |
-| [`nextjs/todo`](./demos/nextjs/todo) | Next.js 15 App Router + `@next-model/sqlite-connector` — server components + server actions | none (sqlite file at `./.data/`) |
+| [`node/client/memory`](./demos/node/client/memory) | `@next-model/core` (`MemoryConnector`) | none |
+| [`node/client/local-storage`](./demos/node/client/local-storage) | `@next-model/local-storage-connector` | none |
+| [`node/server/sqlite`](./demos/node/server/sqlite) | `@next-model/sqlite-connector` | none (in-memory db) |
+| [`node/server/postgres`](./demos/node/server/postgres) | `@next-model/postgres-connector` | `docker compose up -d` (postgres:17) |
+| [`node/server/mysql`](./demos/node/server/mysql) | `@next-model/mysql-connector` | `docker compose up -d` (mysql:8) |
+| [`node/server/mariadb`](./demos/node/server/mariadb) | `@next-model/mariadb-connector` | `docker compose up -d` (mariadb:11) |
+| [`node/server/redis`](./demos/node/server/redis) | `@next-model/redis-connector` | `docker compose up -d` (redis:7) |
+| [`node/server/valkey`](./demos/node/server/valkey) | `@next-model/valkey-connector` | `docker compose up -d` (valkey:8) |
+| [`node/server/mongodb`](./demos/node/server/mongodb) | `@next-model/mongodb-connector` | `docker compose up -d` (mongo:7) |
+| [`node/server/knex`](./demos/node/server/knex) | `@next-model/knex-connector` | sqlite: none; `docker compose --profile pg|mysql up -d` |
+| [`node/server/aurora-data-api`](./demos/node/server/aurora-data-api) | `@next-model/aurora-data-api-connector` via `MockDataApiClient` | none |
+| [`node/server/express-rest-api`](./demos/node/server/express-rest-api) | Express 5 + `@next-model/express-rest-api` + `@next-model/sqlite-connector` | none |
+| [`node/server/graphql-api`](./demos/node/server/graphql-api) | `graphql-http` + `@next-model/graphql-api` + `@next-model/sqlite-connector` | none |
+| [`react/todo`](./demos/react/todo) | React 19 + Vite + `@next-model/local-storage-connector` | none (browser) |
+| [`nextjs/todo`](./demos/nextjs/todo) | Next.js 15 App Router + `@next-model/sqlite-connector` — server components + server actions | none |
+| [`nextjs/api`](./demos/nextjs/api) | Next.js 15 + `@next-model/nextjs-api` — REST route handlers | none |
 
 The [`demos/README.md`](./demos/README.md) covers the running convention in detail.
 
