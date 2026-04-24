@@ -32,6 +32,23 @@ export type HasManyThroughOptions = {
   targetPrimaryKey?: string;
 };
 
+function encodeCursor(value: unknown, key: string): string {
+  return Buffer.from(JSON.stringify({ [key]: value }), 'utf8').toString('base64url');
+}
+
+function decodeCursor(token: string, key: string): unknown {
+  let payload: Dict<any>;
+  try {
+    payload = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
+  } catch {
+    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
+  }
+  if (!(key in payload)) {
+    throw new PersistenceError(`Cursor is missing primary key '${key}'`);
+  }
+  return payload[key];
+}
+
 export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
 
 export type ScopeMap<Self> = Dict<ScopeFn<Self>>;
@@ -330,6 +347,54 @@ export class ModelClass {
       totalPages,
       hasNext: safePage < totalPages,
       hasPrev: safePage > 1,
+    };
+  }
+
+  /**
+   * Cursor-based ("keyset") pagination over the primary key. Avoids the
+   * O(skip) cost of `.paginate()`'s LIMIT/OFFSET path, so it stays cheap on
+   * large tables. Cursors are opaque base64-encoded JSON of the boundary
+   * row's primary key.
+   *
+   * Pass `after` to advance forward (typical "next page"), `before` to walk
+   * backward (typical "previous page"). Without either, returns the first
+   * page.
+   *
+   * The current chain's `orderBy` is preserved when present; otherwise the
+   * connector's default insertion order is used.
+   */
+  static async paginateCursor<M extends typeof ModelClass>(
+    this: M,
+    options: { after?: string; before?: string; limit?: number } = {},
+  ): Promise<{
+    items: InstanceType<M>[];
+    nextCursor?: string;
+    prevCursor?: string;
+    hasMore: boolean;
+  }> {
+    const limit = Math.max(1, Math.floor(options.limit ?? 25));
+    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    let scoped: M = this;
+    let reverse = false;
+    if (options.after !== undefined) {
+      const cursor = decodeCursor(options.after, primaryKey);
+      scoped = scoped.filterBy({ $gt: { [primaryKey]: cursor } } as Filter<any>) as M;
+    } else if (options.before !== undefined) {
+      const cursor = decodeCursor(options.before, primaryKey);
+      scoped = scoped.filterBy({ $lt: { [primaryKey]: cursor } } as Filter<any>).reverse() as M;
+      reverse = true;
+    }
+    const fetched = await scoped.limitBy(limit + 1).all<M>();
+    const hasMore = fetched.length > limit;
+    let items = hasMore ? fetched.slice(0, limit) : fetched;
+    if (reverse) items = items.reverse();
+    const first = items[0] as Dict<any> | undefined;
+    const last = items[items.length - 1] as Dict<any> | undefined;
+    return {
+      items,
+      nextCursor: hasMore && last ? encodeCursor(last[primaryKey], primaryKey) : undefined,
+      prevCursor: first ? encodeCursor(first[primaryKey], primaryKey) : undefined,
+      hasMore,
     };
   }
 
@@ -1070,6 +1135,21 @@ export function Model<
         totalPages: number;
         hasNext: boolean;
         hasPrev: boolean;
+      };
+    }
+
+    static async paginateCursor<M extends typeof ModelClass>(
+      this: M,
+      options?: { after?: string; before?: string; limit?: number },
+    ) {
+      const result = await super.paginateCursor(options);
+      return result as {
+        items: (InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
+        nextCursor?: string;
+        prevCursor?: string;
+        hasMore: boolean;
       };
     }
 
