@@ -1,14 +1,38 @@
 import { FilterError, Model } from '@next-model/core';
-import type Knex from 'knex';
+import type { Knex } from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { KnexConnector } from '../index.js';
 
-const connector = new KnexConnector({
-  client: 'sqlite3',
-  connection: { filename: ':memory:' },
-  useNullAsDefault: true,
-});
+const TEST_CLIENT = process.env.KNEX_TEST_CLIENT ?? 'sqlite3';
+
+function buildConnector(): KnexConnector {
+  switch (TEST_CLIENT) {
+    case 'sqlite3':
+      return new KnexConnector({
+        client: 'sqlite3',
+        connection: { filename: ':memory:' },
+        useNullAsDefault: true,
+      });
+    case 'pg':
+      return new KnexConnector({
+        client: 'pg',
+        connection:
+          process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/postgres',
+        pool: { min: 1, max: 1 },
+      });
+    case 'mysql2':
+      return new KnexConnector({
+        client: 'mysql2',
+        connection: process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/test',
+        pool: { min: 1, max: 1 },
+      });
+    default:
+      throw new Error(`Unknown KNEX_TEST_CLIENT: ${TEST_CLIENT}`);
+  }
+}
+
+const connector = buildConnector();
 
 const tableName = 'users';
 
@@ -45,6 +69,10 @@ async function seed(): Promise<void> {
 }
 
 const ids = (rows: { id: number }[]) => rows.map((r) => r.id);
+const sortedIds = (rows: { id: number }[]) =>
+  ids(rows)
+    .slice()
+    .sort((a, b) => a - b);
 
 afterEach(dropTable);
 afterAll(() => connector.knex.destroy());
@@ -55,25 +83,30 @@ describe('KnexConnector', () => {
 
     it('returns all rows for an empty filter', async () => {
       const rows = await connector.query({ tableName });
-      expect(ids(rows as any)).toEqual([alice.id, bob.id, carol.id]);
+      expect(sortedIds(rows as any)).toEqual([alice.id, bob.id, carol.id]);
     });
 
     it('filters by property equality', async () => {
       const rows = await connector.query({ tableName, filter: { age: 21 } });
-      expect(ids(rows as any)).toEqual([bob.id, carol.id]);
+      expect(sortedIds(rows as any)).toEqual([bob.id, carol.id]);
     });
 
     it('respects limit and skip', async () => {
-      const rows = await connector.query({ tableName, limit: 1, skip: 1 });
+      const rows = await connector.query({
+        tableName,
+        order: [{ key: 'id' }],
+        limit: 1,
+        skip: 1,
+      });
       expect(ids(rows as any)).toEqual([bob.id]);
     });
 
-    it('orders rows', async () => {
+    it('orders rows ascending by a numeric column', async () => {
       const rows = await connector.query({
         tableName,
-        order: [{ key: 'name' }],
+        order: [{ key: 'age' }, { key: 'id' }],
       });
-      expect((rows as any[]).map((r) => r.name)).toEqual([null, 'alice', 'bar']);
+      expect(ids(rows as any)).toEqual([alice.id, bob.id, carol.id]);
     });
 
     describe('filter operators', () => {
@@ -90,7 +123,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $or: [{ id: alice.id }, { id: carol.id }] },
         });
-        expect(ids(rows as any)).toEqual([alice.id, carol.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id, carol.id]);
       });
 
       it('$not', async () => {
@@ -98,7 +131,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $not: { id: bob.id } },
         });
-        expect(ids(rows as any)).toEqual([alice.id, carol.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id, carol.id]);
       });
 
       it('$in', async () => {
@@ -106,7 +139,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $in: { id: [alice.id, carol.id] } },
         });
-        expect(ids(rows as any)).toEqual([alice.id, carol.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id, carol.id]);
       });
 
       it('$notIn', async () => {
@@ -114,17 +147,17 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $notIn: { id: [alice.id] } },
         });
-        expect(ids(rows as any)).toEqual([bob.id, carol.id]);
+        expect(sortedIds(rows as any)).toEqual([bob.id, carol.id]);
       });
 
       it('$null', async () => {
         const rows = await connector.query({ tableName, filter: { $null: 'name' } });
-        expect(ids(rows as any)).toEqual([bob.id]);
+        expect(sortedIds(rows as any)).toEqual([bob.id]);
       });
 
       it('$notNull', async () => {
         const rows = await connector.query({ tableName, filter: { $notNull: 'name' } });
-        expect(ids(rows as any)).toEqual([alice.id, carol.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id, carol.id]);
       });
 
       it('$between', async () => {
@@ -132,7 +165,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $between: { age: { from: 20, to: 30 } } },
         });
-        expect(ids(rows as any)).toEqual([bob.id, carol.id]);
+        expect(sortedIds(rows as any)).toEqual([bob.id, carol.id]);
       });
 
       it('$notBetween', async () => {
@@ -140,21 +173,21 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $notBetween: { age: { from: 20, to: 30 } } },
         });
-        expect(ids(rows as any)).toEqual([alice.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id]);
       });
 
       it('$gt / $gte / $lt / $lte', async () => {
         expect(
-          ids((await connector.query({ tableName, filter: { $gt: { age: 20 } } })) as any),
+          sortedIds((await connector.query({ tableName, filter: { $gt: { age: 20 } } })) as any),
         ).toEqual([bob.id, carol.id]);
         expect(
-          ids((await connector.query({ tableName, filter: { $gte: { age: 21 } } })) as any),
+          sortedIds((await connector.query({ tableName, filter: { $gte: { age: 21 } } })) as any),
         ).toEqual([bob.id, carol.id]);
         expect(
-          ids((await connector.query({ tableName, filter: { $lt: { age: 21 } } })) as any),
+          sortedIds((await connector.query({ tableName, filter: { $lt: { age: 21 } } })) as any),
         ).toEqual([alice.id]);
         expect(
-          ids((await connector.query({ tableName, filter: { $lte: { age: 18 } } })) as any),
+          sortedIds((await connector.query({ tableName, filter: { $lte: { age: 18 } } })) as any),
         ).toEqual([alice.id]);
       });
 
@@ -163,7 +196,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $like: { name: 'ali%' } },
         });
-        expect(ids(rows as any)).toEqual([alice.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id]);
       });
 
       it('$raw', async () => {
@@ -171,7 +204,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $raw: { $query: 'age = ?', $bindings: [18] } },
         });
-        expect(ids(rows as any)).toEqual([alice.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id]);
       });
 
       it('$async resolves lazy filters', async () => {
@@ -179,7 +212,7 @@ describe('KnexConnector', () => {
           tableName,
           filter: { $async: Promise.resolve({ age: 18 }) },
         });
-        expect(ids(rows as any)).toEqual([alice.id]);
+        expect(sortedIds(rows as any)).toEqual([alice.id]);
       });
 
       it('rejects filter with multiple keys in $gt with FilterError', async () => {
@@ -220,13 +253,13 @@ describe('KnexConnector', () => {
     beforeEach(seed);
 
     it('returns only the requested columns', async () => {
-      const rows = await connector.select({ tableName }, 'name');
+      const rows = await connector.select({ tableName, order: [{ key: 'id' }] }, 'name');
       expect(rows).toEqual([{ name: 'alice' }, { name: null }, { name: 'bar' }]);
     });
 
     it('respects filter and order', async () => {
       const rows = await connector.select(
-        { tableName, filter: { age: 21 }, order: [{ key: 'name' }] },
+        { tableName, filter: { age: 21 }, order: [{ key: 'id' }] },
         'name',
         'age',
       );
@@ -271,9 +304,9 @@ describe('KnexConnector', () => {
 
     it('deletes matching rows and returns what was deleted', async () => {
       const deleted = await connector.deleteAll({ tableName, filter: { age: 21 } });
-      expect(ids(deleted as any).sort()).toEqual([bob.id, carol.id].sort());
+      expect(sortedIds(deleted as any)).toEqual([bob.id, carol.id]);
       const remaining = await connector.query({ tableName });
-      expect(ids(remaining as any)).toEqual([alice.id]);
+      expect(sortedIds(remaining as any)).toEqual([alice.id]);
     });
 
     it('returns an empty array when no rows match', async () => {
