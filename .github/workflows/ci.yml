@@ -27,6 +27,7 @@ jobs:
       mongodb: ${{ steps.filter.outputs.mongodb }}
       express-rest-api: ${{ steps.filter.outputs.express-rest-api }}
       graphql-api: ${{ steps.filter.outputs.graphql-api }}
+      nextjs-api: ${{ steps.filter.outputs.nextjs-api }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -92,6 +93,9 @@ jobs:
             graphql-api:
               - 'packages/graphql-api/**'
               - '!packages/graphql-api/**/*.md'
+            nextjs-api:
+              - 'packages/nextjs-api/**'
+              - '!packages/nextjs-api/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -263,6 +267,26 @@ jobs:
         with:
           name: coverage-graphql-api
           path: packages/graphql-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-nextjs-api:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.nextjs-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/nextjs-api -r build
+      - run: pnpm --filter @next-model/nextjs-api coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-nextjs-api
+          path: packages/nextjs-api/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations:
@@ -551,6 +575,7 @@ jobs:
       - test-sqlite-connector
       - test-express-rest-api
       - test-graphql-api
+      - test-nextjs-api
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
