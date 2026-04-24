@@ -472,7 +472,7 @@ Any object implementing the `Connector` interface works. The package ships with:
 
 - `MemoryConnector` — in-memory storage for tests, local development, and quick scripts. Exported from the package root.
 
-Writing your own is mostly a matter of mapping `Scope` to your driver's query builder. See `packages/knex-connector` or `packages/data-api-connector` for full examples.
+Writing your own is mostly a matter of mapping `Scope` to your driver's query builder. See `packages/knex-connector` or `packages/aurora-data-api-connector` for full examples.
 
 ## Errors
 

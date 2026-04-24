@@ -14,10 +14,10 @@
   },
   "packageManager": "pnpm@9.12.0",
   "scripts": {
-    "build": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' run build",
-    "test": "pnpm -r --filter './packages/core' --filter './packages/data-api-connector' --filter './packages/local-storage-connector' run test",
-    "test:all": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' run test",
-    "typecheck": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' run typecheck",
+    "build": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' run build",
+    "test": "pnpm -r --filter './packages/core' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' run test",
+    "test:all": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' run test",
+    "typecheck": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
     "ci": "pnpm lint && pnpm typecheck && pnpm test"

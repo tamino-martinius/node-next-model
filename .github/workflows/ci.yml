@@ -15,7 +15,7 @@ jobs:
     outputs:
       core: ${{ steps.filter.outputs.core }}
       knex: ${{ steps.filter.outputs.knex }}
-      data-api: ${{ steps.filter.outputs.data-api }}
+      aurora-data-api: ${{ steps.filter.outputs.aurora-data-api }}
       local-storage: ${{ steps.filter.outputs.local-storage }}
       sqlite: ${{ steps.filter.outputs.sqlite }}
       migrations: ${{ steps.filter.outputs.migrations }}
@@ -48,9 +48,9 @@ jobs:
             knex:
               - 'packages/knex-connector/**'
               - '!packages/knex-connector/**/*.md'
-            data-api:
-              - 'packages/data-api-connector/**'
-              - '!packages/data-api-connector/**/*.md'
+            aurora-data-api:
+              - 'packages/aurora-data-api-connector/**'
+              - '!packages/aurora-data-api-connector/**/*.md'
             local-storage:
               - 'packages/local-storage-connector/**'
               - '!packages/local-storage-connector/**/*.md'
@@ -157,9 +157,9 @@ jobs:
           path: packages/knex-connector/coverage/coverage-summary.json
           if-no-files-found: ignore
 
-  test-data-api-connector:
+  test-aurora-data-api-connector:
     needs: changes
-    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.data-api == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.aurora-data-api == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -169,12 +169,12 @@ jobs:
           node-version: 22.x
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @next-model/core --filter @next-model/data-api-connector -r build
-      - run: pnpm --filter @next-model/data-api-connector coverage
+      - run: pnpm --filter @next-model/core --filter @next-model/aurora-data-api-connector -r build
+      - run: pnpm --filter @next-model/aurora-data-api-connector coverage
       - uses: actions/upload-artifact@v7
         with:
-          name: coverage-data-api-connector
-          path: packages/data-api-connector/coverage/coverage-summary.json
+          name: coverage-aurora-data-api-connector
+          path: packages/aurora-data-api-connector/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-local-storage-connector:
@@ -498,7 +498,7 @@ jobs:
     needs:
       - test-core
       - test-knex-connector
-      - test-data-api-connector
+      - test-aurora-data-api-connector
       - test-local-storage-connector
       - test-sqlite-connector
       - test-migrations

@@ -1,5 +1,5 @@
 {
-  "name": "@next-model/data-api-connector",
+  "name": "@next-model/aurora-data-api-connector",
   "version": "1.0.0-alpha.3",
   "description": "Connector for AWS Aurora Data API.",
   "author": "Tamino Martinius <dev@zaku.eu>",
@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tamino-martinius/node-next-model-data-api-connector.git"
+    "url": "https://github.com/tamino-martinius/node-next-model-aurora-data-api-connector.git"
   },
   "engines": {
     "node": ">=22"
