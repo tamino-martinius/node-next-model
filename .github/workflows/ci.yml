@@ -6,15 +6,19 @@ on:
 
 jobs:
   changes:
-    # Detect which packages were touched so the per-package real-DB jobs can
-    # skip themselves when nothing they depend on has changed. `core` is the
+    # Detect which packages were touched so the per-package jobs can skip
+    # themselves when nothing they depend on has changed. `core` is the
     # transitive dependency of every connector, so a core change fans out to
     # every job. CI/workflow changes also fan out — we always want to verify
-    # the workflow itself still works against the real services.
+    # the workflow itself still works against every package.
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
       knex: ${{ steps.filter.outputs.knex }}
+      data-api: ${{ steps.filter.outputs.data-api }}
+      local-storage: ${{ steps.filter.outputs.local-storage }}
+      sqlite: ${{ steps.filter.outputs.sqlite }}
+      migrations: ${{ steps.filter.outputs.migrations }}
       postgres: ${{ steps.filter.outputs.postgres }}
       mysql: ${{ steps.filter.outputs.mysql }}
       mariadb: ${{ steps.filter.outputs.mariadb }}
@@ -36,6 +40,15 @@ jobs:
               - 'biome.json'
             knex:
               - 'packages/knex-connector/**'
+            data-api:
+              - 'packages/data-api-connector/**'
+            local-storage:
+              - 'packages/local-storage-connector/**'
+            sqlite:
+              - 'packages/sqlite-connector/**'
+            migrations:
+              - 'packages/migrations/**'
+              - 'packages/knex-connector/**'
             postgres:
               - 'packages/postgres-connector/**'
             mysql:
@@ -53,10 +66,10 @@ jobs:
             ci:
               - '.github/**'
 
-  test:
-    # Workspace-wide lint + build + typecheck + the in-memory / mocked
-    # coverage runs. Always runs because lint/typecheck need the whole
-    # workspace.
+  validate:
+    # Workspace-wide checks that always run: lint, build, typecheck across
+    # the supported Node versions. Failures here surface as `validate` so
+    # they're never confused with a per-package coverage failure.
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -72,14 +85,125 @@ jobs:
       - run: pnpm lint
       - run: pnpm -r build
       - run: pnpm typecheck
-      # native db connectors require live services; covered by their dedicated jobs
-      - run: pnpm -r --filter '!@next-model/postgres-connector' --filter '!@next-model/mysql-connector' --filter '!@next-model/mariadb-connector' --filter '!@next-model/redis-connector' --filter '!@next-model/valkey-connector' --filter '!@next-model/mongodb-connector' coverage
-      - name: Upload coverage summaries (default suite)
-        if: matrix.node-version == '22.x'
-        uses: actions/upload-artifact@v4
+
+  test-core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          name: coverage-summaries-default
-          path: packages/*/coverage/coverage-summary.json
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core build
+      - run: pnpm --filter @next-model/core coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-core
+          path: packages/core/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-knex-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.knex == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/knex-connector -r build
+      - run: pnpm --filter @next-model/knex-connector coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-knex-connector
+          path: packages/knex-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-data-api-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.data-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/data-api-connector -r build
+      - run: pnpm --filter @next-model/data-api-connector coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-api-connector
+          path: packages/data-api-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-local-storage-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.local-storage == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/local-storage-connector -r build
+      - run: pnpm --filter @next-model/local-storage-connector coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-local-storage-connector
+          path: packages/local-storage-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-sqlite-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.sqlite == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/sqlite-connector -r build
+      - run: pnpm --filter @next-model/sqlite-connector coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-sqlite-connector
+          path: packages/sqlite-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-migrations:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.migrations == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/knex-connector --filter @next-model/migrations -r build
+      - run: pnpm --filter @next-model/migrations coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-migrations
+          path: packages/migrations/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-postgres-connector:
@@ -341,7 +465,12 @@ jobs:
 
   coverage-report:
     needs:
-      - test
+      - test-core
+      - test-knex-connector
+      - test-data-api-connector
+      - test-local-storage-connector
+      - test-sqlite-connector
+      - test-migrations
       - test-postgres-connector
       - test-mysql-connector
       - test-mariadb-connector
