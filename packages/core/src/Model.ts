@@ -1,4 +1,5 @@
 import { NotFoundError, PersistenceError, ValidationError } from './errors.js';
+import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
 import {
   type AggregateKind,
@@ -199,7 +200,8 @@ export class ModelClass {
     } as M;
   }
 
-  static filterBy<M extends typeof ModelClass>(this: M, andFilter: Filter<any>) {
+  static filterBy<M extends typeof ModelClass>(this: M, andFilterInput: Filter<any>) {
+    const andFilter = normalizeFilterShape(andFilterInput);
     const hasSpecial = (f: Filter<any>) => Object.keys(f).some((k) => k.startsWith('$'));
     let filter: Filter<any> | undefined = andFilter;
     if (this.filter) {
@@ -221,7 +223,8 @@ export class ModelClass {
     } as M;
   }
 
-  static orFilterBy<M extends typeof ModelClass>(this: M, orFilter: Filter<any>) {
+  static orFilterBy<M extends typeof ModelClass>(this: M, orFilterInput: Filter<any>) {
+    const orFilter = normalizeFilterShape(orFilterInput);
     const filter =
       Object.keys(orFilter).length === 0
         ? this.filter
