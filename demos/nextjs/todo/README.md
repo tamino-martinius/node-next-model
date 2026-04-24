@@ -19,4 +19,22 @@ The database file is created at `./.data/nextjs-todo.sqlite` on first run; delet
 
 ## Why no API route?
 
-Because you don't need one. Server components run on the server, the connector runs on the server, the database lives on the server — wrapping that round-trip in an HTTP API would just add a hop. Use `@next-model/express-rest-api` (coming in a follow-up PR) when something *outside* Next.js wants to talk to the same data.
+Because you don't need one for this UI. Server components run on the server, the connector runs on the server, the database lives on the server — wrapping that round-trip in an HTTP API would just add a hop. When something *outside* Next.js needs to talk to the same data, use `@next-model/express-rest-api` or the sibling [`demos/nextjs/api`](../api) demo (which uses `@next-model/nextjs-api` to expose a REST resource from route handlers).
+
+## Troubleshooting
+
+`pnpm dev` can fail with a `NODE_MODULE_VERSION` mismatch on `better-sqlite3`:
+
+```
+The module 'better_sqlite3.node' was compiled against a different Node.js
+version using NODE_MODULE_VERSION 141. This version of Node.js requires
+NODE_MODULE_VERSION 127.
+```
+
+The cause is a prebuilt binding that targets a different Node ABI than the one you're running. From the repo root:
+
+```sh
+pnpm rebuild better-sqlite3
+```
+
+That re-runs `prebuild-install` / `node-gyp` against your current Node and drops a matching `.node` file into `better-sqlite3/build/Release/`. Switching Node versions (e.g. via `nvm use`) after an install will require a rebuild.

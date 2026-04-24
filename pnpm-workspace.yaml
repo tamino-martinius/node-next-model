@@ -15,6 +15,7 @@ packages:
   - "packages/graphql-api"
   - "packages/nextjs-api"
   - "packages/migrations-generator"
-  - "demos/node/*"
+  - "demos/node/server/*"
+  - "demos/node/client/*"
   - "demos/react/*"
   - "demos/nextjs/*"

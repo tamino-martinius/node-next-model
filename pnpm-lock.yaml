@@ -15,6 +15,43 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  demos/nextjs/api:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@next-model/nextjs-api':
+        specifier: workspace:*
+        version: link:../../../packages/nextjs-api
+      '@next-model/sqlite-connector':
+        specifier: workspace:*
+        version: link:../../../packages/sqlite-connector
+      better-sqlite3:
+        specifier: ^11.6.0
+        version: 11.10.0
+      next:
+        specifier: ^15.1.0
+        version: 15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.5(react@19.2.5)
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   demos/nextjs/todo:
     dependencies:
       '@next-model/core':
@@ -49,14 +86,29 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  demos/node/aurora-data-api:
+  demos/node/client/local-storage:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@next-model/local-storage-connector':
+        specifier: workspace:*
+        version: link:../../../../packages/local-storage-connector
+
+  demos/node/client/memory:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+
+  demos/node/server/aurora-data-api:
     dependencies:
       '@next-model/aurora-data-api-connector':
         specifier: workspace:*
-        version: link:../../../packages/aurora-data-api-connector
+        version: link:../../../../packages/aurora-data-api-connector
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       knex:
         specifier: ^3.2.9
         version: 3.2.9(mysql2@3.22.2(@types/node@25.6.0))(pg@8.20.0)(sqlite3@6.0.1)
@@ -64,17 +116,17 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
 
-  demos/node/express-rest-api:
+  demos/node/server/express-rest-api:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/express-rest-api':
         specifier: workspace:*
-        version: link:../../../packages/express-rest-api
+        version: link:../../../../packages/express-rest-api
       '@next-model/sqlite-connector':
         specifier: workspace:*
-        version: link:../../../packages/sqlite-connector
+        version: link:../../../../packages/sqlite-connector
       express:
         specifier: ^5.0.0
         version: 5.2.1
@@ -89,20 +141,20 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  demos/node/graphql-api:
+  demos/node/server/graphql-api:
     dependencies:
       '@graphql-tools/schema':
         specifier: ^10.0.6
         version: 10.0.33(graphql@16.13.2)
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/graphql-api':
         specifier: workspace:*
-        version: link:../../../packages/graphql-api
+        version: link:../../../../packages/graphql-api
       '@next-model/sqlite-connector':
         specifier: workspace:*
-        version: link:../../../packages/sqlite-connector
+        version: link:../../../../packages/sqlite-connector
       express:
         specifier: ^5.0.0
         version: 5.2.1
@@ -123,14 +175,14 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  demos/node/knex:
+  demos/node/server/knex:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/knex-connector':
         specifier: workspace:*
-        version: link:../../../packages/knex-connector
+        version: link:../../../../packages/knex-connector
       knex:
         specifier: ^3.2.9
         version: 3.2.9(mysql2@3.22.2(@types/node@25.6.0))(pg@8.20.0)(sqlite3@6.0.1)
@@ -144,107 +196,92 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
 
-  demos/node/local-storage:
+  demos/node/server/mariadb:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
-      '@next-model/local-storage-connector':
-        specifier: workspace:*
-        version: link:../../../packages/local-storage-connector
-
-  demos/node/mariadb:
-    dependencies:
-      '@next-model/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/mariadb-connector':
         specifier: workspace:*
-        version: link:../../../packages/mariadb-connector
+        version: link:../../../../packages/mariadb-connector
       '@next-model/mysql-connector':
         specifier: workspace:*
-        version: link:../../../packages/mysql-connector
+        version: link:../../../../packages/mysql-connector
       mysql2:
         specifier: ^3.11.5
         version: 3.22.2(@types/node@25.6.0)
 
-  demos/node/memory:
+  demos/node/server/mongodb:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
-
-  demos/node/mongodb:
-    dependencies:
-      '@next-model/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/mongodb-connector':
         specifier: workspace:*
-        version: link:../../../packages/mongodb-connector
+        version: link:../../../../packages/mongodb-connector
       mongodb:
         specifier: ^6.10.0
         version: 6.21.0
 
-  demos/node/mysql:
+  demos/node/server/mysql:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/mysql-connector':
         specifier: workspace:*
-        version: link:../../../packages/mysql-connector
+        version: link:../../../../packages/mysql-connector
       mysql2:
         specifier: ^3.11.5
         version: 3.22.2(@types/node@25.6.0)
 
-  demos/node/postgres:
+  demos/node/server/postgres:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/postgres-connector':
         specifier: workspace:*
-        version: link:../../../packages/postgres-connector
+        version: link:../../../../packages/postgres-connector
       pg:
         specifier: ^8.13.1
         version: 8.20.0
 
-  demos/node/redis:
+  demos/node/server/redis:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/redis-connector':
         specifier: workspace:*
-        version: link:../../../packages/redis-connector
+        version: link:../../../../packages/redis-connector
       redis:
         specifier: ^4.7.0
         version: 4.7.1
 
-  demos/node/sqlite:
+  demos/node/server/sqlite:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/sqlite-connector':
         specifier: workspace:*
-        version: link:../../../packages/sqlite-connector
+        version: link:../../../../packages/sqlite-connector
       better-sqlite3:
         specifier: ^11.6.0
         version: 11.10.0
 
-  demos/node/valkey:
+  demos/node/server/valkey:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
-        version: link:../../../packages/core
+        version: link:../../../../packages/core
       '@next-model/redis-connector':
         specifier: workspace:*
-        version: link:../../../packages/redis-connector
+        version: link:../../../../packages/redis-connector
       '@next-model/valkey-connector':
         specifier: workspace:*
-        version: link:../../../packages/valkey-connector
+        version: link:../../../../packages/valkey-connector
       redis:
         specifier: ^4.7.0
         version: 4.7.1
