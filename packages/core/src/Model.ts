@@ -36,6 +36,21 @@ function encodeCursor(value: unknown, key: string): string {
   return Buffer.from(JSON.stringify({ [key]: value }), 'utf8').toString('base64url');
 }
 
+function encodeCompositeCursor(fields: Dict<unknown>): string {
+  return Buffer.from(JSON.stringify(fields), 'utf8').toString('base64url');
+}
+
+function decodeCompositeCursor(token: string): Dict<unknown> {
+  try {
+    const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
+    if (parsed && typeof parsed === 'object') return parsed as Dict<unknown>;
+    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
+  } catch (err) {
+    if (err instanceof PersistenceError) throw err;
+    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
+  }
+}
+
 function decodeCursor(token: string, key: string): unknown {
   let payload: Dict<any>;
   try {
@@ -351,17 +366,19 @@ export class ModelClass {
   }
 
   /**
-   * Cursor-based ("keyset") pagination over the primary key. Avoids the
-   * O(skip) cost of `.paginate()`'s LIMIT/OFFSET path, so it stays cheap on
-   * large tables. Cursors are opaque base64-encoded JSON of the boundary
-   * row's primary key.
+   * Cursor-based ("keyset") pagination. Avoids the O(skip) cost of
+   * `.paginate()`'s LIMIT/OFFSET path, so it stays cheap on large tables.
    *
-   * Pass `after` to advance forward (typical "next page"), `before` to walk
-   * backward (typical "previous page"). Without either, returns the first
-   * page.
+   * Pass `after` to advance forward ("next page"), `before` to walk
+   * backward ("previous page"). Without either, returns the first page.
    *
-   * The current chain's `orderBy` is preserved when present; otherwise the
-   * connector's default insertion order is used.
+   * The chain's lead `orderBy` column is used as the cursor key; the
+   * primary key is always included as a tie-breaker so rows with identical
+   * sort values paginate deterministically. Descending orders flip the
+   * `$gt` / `$lt` semantics so `after` always advances in the order
+   * direction the caller asked for.
+   *
+   * When no `orderBy` is set, cursor pagination uses the primary key.
    */
   static async paginateCursor<M extends typeof ModelClass>(
     this: M,
@@ -374,14 +391,43 @@ export class ModelClass {
   }> {
     const limit = Math.max(1, Math.floor(options.limit ?? 25));
     const primaryKey = Object.keys(this.keys)[0] ?? 'id';
+    const leadOrder = this.order[0];
+    const orderKey = (leadOrder?.key as string | undefined) ?? primaryKey;
+    const orderDir = leadOrder?.dir ?? SortDirection.Asc;
+    const usesPrimaryOnly = orderKey === primaryKey;
     let scoped: M = this;
     let reverse = false;
+
+    const stepDirection = (walk: 'after' | 'before'): 'forward' | 'backward' => {
+      const forward = walk === 'after';
+      if (orderDir === SortDirection.Desc) return forward ? 'backward' : 'forward';
+      return forward ? 'forward' : 'backward';
+    };
+
+    const buildFilter = (token: string, walk: 'after' | 'before'): Filter<any> => {
+      const payload = decodeCompositeCursor(token);
+      const orderValue = payload[orderKey];
+      const primaryValue = payload[primaryKey];
+      const direction = stepDirection(walk);
+      const cmp = direction === 'forward' ? '$gt' : '$lt';
+      if (usesPrimaryOnly) {
+        return { [cmp]: { [primaryKey]: primaryValue } } as Filter<any>;
+      }
+      // (orderKey <cmp> value) OR (orderKey == value AND primaryKey <cmp> id)
+      return {
+        $or: [
+          { [cmp]: { [orderKey]: orderValue } },
+          {
+            $and: [{ [orderKey]: orderValue }, { [cmp]: { [primaryKey]: primaryValue } }],
+          },
+        ],
+      } as Filter<any>;
+    };
+
     if (options.after !== undefined) {
-      const cursor = decodeCursor(options.after, primaryKey);
-      scoped = scoped.filterBy({ $gt: { [primaryKey]: cursor } } as Filter<any>) as M;
+      scoped = scoped.filterBy(buildFilter(options.after, 'after')) as M;
     } else if (options.before !== undefined) {
-      const cursor = decodeCursor(options.before, primaryKey);
-      scoped = scoped.filterBy({ $lt: { [primaryKey]: cursor } } as Filter<any>).reverse() as M;
+      scoped = scoped.filterBy(buildFilter(options.before, 'before')).reverse() as M;
       reverse = true;
     }
     const fetched = await scoped.limitBy(limit + 1).all<M>();
@@ -390,10 +436,17 @@ export class ModelClass {
     if (reverse) items = items.reverse();
     const first = items[0] as Dict<any> | undefined;
     const last = items[items.length - 1] as Dict<any> | undefined;
+    const tokenFor = (row: Dict<any>): string =>
+      usesPrimaryOnly
+        ? encodeCursor(row[primaryKey], primaryKey)
+        : encodeCompositeCursor({
+            [orderKey]: row[orderKey],
+            [primaryKey]: row[primaryKey],
+          });
     return {
       items,
-      nextCursor: hasMore && last ? encodeCursor(last[primaryKey], primaryKey) : undefined,
-      prevCursor: first ? encodeCursor(first[primaryKey], primaryKey) : undefined,
+      nextCursor: hasMore && last ? tokenFor(last) : undefined,
+      prevCursor: first ? tokenFor(first) : undefined,
       hasMore,
     };
   }
