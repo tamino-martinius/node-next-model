@@ -1,555 +1,104 @@
-# AWS Aurora Data API Connector
+# @next-model/data-api-connector
 
-Data API connector for [NextModel](https://github.com/tamino-martinius/node-next-model). [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model-data-api-connector.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model-data-api-connector)
+Connector for [`@next-model/core`](../core) that targets the [AWS RDS Data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html) — the HTTP-based query interface for Aurora Serverless v1 (PostgreSQL or MySQL flavour).
 
-Allows you to use **Knex** as Database Connector for NextModel:
+The connector uses [Knex 3](https://knexjs.org/) only as a query builder (`client: 'pg'`); it never opens a real DB connection. SQL strings + named parameters are produced locally and shipped to the Data API by an injectable client adapter, which keeps the package fully usable in cold-start-sensitive environments such as AWS Lambda.
 
-Supports:
+## Installation
 
-- AWS Data API for PostgreSQL
-- AWS Data API for MySQL (**not** tested)
+```sh
+pnpm add @next-model/data-api-connector
+```
 
-## Roadmap / Where can i contribute
+The default client wraps [`data-api-client`](https://www.npmjs.com/package/data-api-client) — install it if you don't bring your own:
 
-See [GitHub](https://github.com/tamino-martinius/node-next-model-data-api-connector/projects/1) project for current progress/tasks
+```sh
+pnpm add data-api-client
+```
 
-- Fix Typos
-- CI is missing for some Databases
-- Add more **examples**
-- Add **exists**, **join** and **subqueries**
-- There are already some **tests**, but not every test case is covered.
+## Constructing the connector
 
-## TOC
-
-- [AWS Aurora Data API Connector](#aws-aurora-data-api-connector)
-  - [Roadmap / Where can i contribute](#roadmap--where-can-i-contribute)
-  - [TOC](#toc)
-  - [Example](#example)
-    - [Create Connector](#create-connector)
-    - [Use Connector](#use-connector)
-  - [Build Queries](#build-queries)
-    - [Query](#query)
-    - [And](#and)
-    - [Or](#or)
-    - [Not](#not)
-    - [Nesting](#nesting)
-    - [Null](#null)
-    - [NotNull](#notnull)
-    - [Equation](#equation)
-    - [In](#in)
-    - [NotIn](#notin)
-    - [Between](#between)
-    - [NotBetween](#notbetween)
-    - [Raw](#raw)
-  - [Changelog](#changelog)
-
-## Example
-
-### Create Connector
-
-```js
-import DataApiConnector from '@next-model/data-api-connector';
+```ts
+import { DataApiConnector } from '@next-model/data-api-connector';
 
 const connector = new DataApiConnector({
-  secretArn: 'arn:aws:secretsmanager:us-east-1:XXXXXXXXXXXX:secret:mySecret',
-  resourceArn: 'arn:aws:rds:us-east-1:XXXXXXXXXXXX:cluster:my-cluster-name',
-  database: 'myDatabase', // default database
+  secretArn: process.env.AURORA_SECRET_ARN,
+  resourceArn: process.env.AURORA_CLUSTER_ARN,
+  database: 'app_production',
+  debug: false,
 });
 ```
 
-### Use Connector
+For tests or alternative transports, inject your own `DataApiClient` and skip the `data-api-client` dep entirely:
 
-The connector is used to connect your models to a database.
-
-```js
-const User = class User extends NextModel<UserSchema>() {
-  static get connector() {
-    return connector;
-  }
-
-  static get modelName() {
-    return 'User';
-  }
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-}
-```
-
-Create an base model with the connector to use it with multiple models.
-
-```js
-function BaseModel<T extends Identifiable>() {
-  return class extends NextModel<T>() {
-    static get connector() {
-      return new Connector<T>();
-    }
-  }
-};
-
-const User = class User extends BaseModel<UserSchema>() {
-  static get modelName() {
-    return 'User';
-  }
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-}
-
-const Address = class Address extends BaseModel<AddressSchema>() {
-  static get modelName() {
-    return 'Address';
-  }
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      street: { type: 'string' },
-    };
-  }
-}
-```
-
-## Build Queries
-
-This connector uses Knex to query SQL databases, but the query syntax is different from the Knex documentation. Samples of possible queries are listed below.
-
-### Query
-
-An object passed to `query` will filter for object property and value.
-
-```js
-User.query({ name: 'foo' });
-```
-
-```sql
-select "users".* from "users" where ("name" = 'foo')
-```
-
-If the Object has multiple properties the properties are connected with `and`.
-
-```js
-User.query({ name: 'foo', age: 18 });
-```
-
-```sql
-select "users".* from "users" where ("name" = 'foo' and "age" = 18)
-```
-
-An `query` connected with another `query`. A second query will encapsulate the query on the topmost layer.
-
-```js
-User.query({ name: 'foo', age: 18 }).query({ name: 'bar' });
-```
-
-```sql
-select "users".* from "users" where (("name" = 'foo' and "age" = 18) and ("name" = 'bar'))
-```
-
-### And
-
-Special properties are starting with an `$` sign. The `$and` property connects all values which are passed as `Array` with an SQL `and` operator.
-
-```js
-User.query({ $and: [{ name: 'foo' }] });
-```
-
-```sql
-select "users".* from "users" where (("name" = 'foo'))
-```
-
-```js
-User.query({ $and: [{ name: 'foo' }, { age: 18 }] });
-```
-
-```sql
-select "users".* from "users" where (("name" = 'foo') and ("age" = 18))
-```
-
-The special properties can also chained with other `where` queries.
-
-```js
-User.query({ $and: [{ name: 'foo' }, { age: 18 }] }).query({
-  $and: [{ name: 'bar' }, { age: 21 }],
-});
-```
-
-```sql
-select "users".* from "users" where ((("name" = 'foo') and ("age" = 18)) and (("name" = 'bar') and ("age" = 21)))
-```
-
-### Or
-
-The `$or` property works similar to the `$and` property and connects all values with `or`.
-
-```js
-User.query({ $or: [{ name: 'foo' }] });
-```
-
-```sql
-select "users".* from "users" where (("name" = 'foo'))
-```
-
-```js
-User.query({ $or: [{ name: 'foo' }, { name: 'bar' }] });
-```
-
-```sql
-select "users".* from "users" where (("name" = 'foo') or ("name" = 'bar'))
-```
-
-```js
-User.query({ $or: [{ name: 'foo' }, { age: 18 }] }).query({ $or: [{ name: 'bar' }, { age: 21 }] });
-```
-
-```sql
-select "users".* from "users" where ((("name" = 'foo') or ("age" = 18)) and (("name" = 'bar') or ("age" = 21)))
-```
-
-### Not
-
-The child object of an `$not` property will be inverted.
-
-```js
-User.query({
-  $not: {
-    name: 'foo',
+```ts
+const connector = new DataApiConnector({
+  client: {
+    async query(sql, params) { /* return { records, insertId, numberOfRecordsUpdated } */ },
+    async beginTransaction() { /* … */ },
+    async commitTransaction(id) { /* … */ },
+    async rollbackTransaction(id) { /* … */ },
   },
 });
 ```
 
-```sql
-select "users".* from "users" where (not ("name" = 'foo'))
-```
+## Wiring a Model
 
-```js
-User.query({
-  $not: {
-    name: 'foo',
-    age: 18,
-  },
+```ts
+import { Model } from '@next-model/core';
+import { DataApiConnector } from '@next-model/data-api-connector';
+
+const connector = new DataApiConnector({
+  secretArn: process.env.AURORA_SECRET_ARN,
+  resourceArn: process.env.AURORA_CLUSTER_ARN,
+  database: 'app_production',
 });
+
+class User extends Model({
+  tableName: 'users',
+  connector,
+  init: (props: { name: string; age: number }) => props,
+}) {}
 ```
 
-```sql
-select "users".* from "users" where (not ("name" = 'foo' and "age" = 18))
-```
-
-```js
-User.query({
-  $not: {
-    name: 'foo',
-    age: 18,
-  },
-}).query({
-  $not: {
-    name: 'bar',
-    age: 21,
-  },
-});
-```
-
-```sql
-select "users".* from "users" where ((not ("name" = 'foo' and "age" = 18)) and (not ("name" = 'bar' and "age" = 21)))
-```
-
-### Nesting
-
-The `$and`, `$or` and `$not` properties can be nested as deeply as needed.
-
-```js
-User.query({
-  $not: {
-    $or: [{ name: 'foo' }, { age: 21 }],
-  },
-});
-```
-
-```sql
-select "users".* from "users" where (not (("name" = 'foo') or ("age" = 21)))
-```
-
-```js
-User.query({
-  $not: {
-    $and: [{ name: 'foo' }, { $or: [{ age: 18 }, { age: 21 }] }],
-  },
-});
-```
+## Feature → connector specifics
 
-```sql
-select "users".* from "users" where (not (("name" = 'foo') and (("age" = 18) or ("age" = 21))))
-```
-
-### Null
-
-The `$null` property checks for unset columns and takes the column name as value.
-
-```js
-User.query({ $null: 'name' });
-```
-
-```sql
-select "users".* from "users" where ("name" is null)
-```
-
-### NotNull
-
-The `$notNull` property checks if an column is set and takes the column name as value.
-
-```js
-User.query({ $notNull: 'name' });
-```
+### Query compilation
 
-```sql
-select "users".* from "users" where ("name" is not null)
-```
-
-### Equation
-
-There are five different equation properties available.
-
-- `$eq` checks for equal
-- `$lt` checks for lower
-- `$gt` checks for greater
-- `$lte` checks for lower or equal
-- `$gte` checks for greater or equal
+Each scope is built with `knex({ client: 'pg' })` and converted to SQL + a parameter dict via `query.toSQL().toNative()`. The compiled SQL uses **named bindings** (`:p1, :p2, …`) — the format the Data API expects — and parameters are sent as a `{ name: value }` map.
 
-The property needs to be an object as value with the column name as key and the equation as value.
+### Filter operators
 
-```js
-User.query({ $lt: { age: 18 } });
-```
-
-```sql
-select "users".* from "users" where ("age" < 18)
-```
-
-```js
-User.query({ $lte: { age: 18 } });
-```
-
-```sql
-select "users".* from "users" where ("age" <= 18)
-```
+Same vocabulary as every other connector (`$and`, `$or`, `$not`, `$in`, `$notIn`, `$null`, `$notNull`, `$between`, `$notBetween`, `$gt/$gte/$lt/$lte`, `$like`, `$async`, `$raw`). All compile to PostgreSQL via knex' `pg` dialect and land at the Data API as parameterised SQL. `FilterError` is thrown for malformed special filters (multiple keys in `$gt`, empty `$in`, …).
 
-_Please note:_ Just one propery is allowed!
+### `execute(query, bindings)`
 
-This is invalid:
+Bindings can be a positional array or a named dict; the connector forwards them as-is. Result records are returned as a flat `Dict<any>[]`.
 
-```js
-User.query({
-  $lt: {
-    age: 18,
-    size: 180,
-  },
-});
-```
+### Transactions
 
-This is valid:
+`connector.transaction(fn)` wraps the callback in `beginTransaction` / `commitTransaction` (or `rollbackTransaction` on throw), pinning the transaction id to `activeTransactionId` so any nested calls participate. Re-entrant transactions join the outer one — there are no savepoints, so an inner throw rolls back the whole outer transaction.
 
-```js
-User.query({ $and: [{ $lt: { age: 18 } }, { $lt: { size: 180 } }] });
-```
+### `batchInsert`
 
-```sql
-select "users".* from "users" where ("age" < 18 and "size" < 180)
-```
+The Data API does not return inserted rows. The connector inserts items one at a time, capturing `insertId` per row, then re-fetches the inserted records by primary key. For `KeyType.manual` it skips the `insertId` step and re-fetches by the caller-supplied key. `PersistenceError` is raised if a re-fetch turns up empty.
 
-### In
+### `updateAll` / `deleteAll`
 
-The `$in` property needs an object as value with the column name as key and the `Array` of values as value.
+Both build a SELECT for the affected rows first (so the methods can return them), then issue the mutation against the same WHERE clause without any `LIMIT` / `OFFSET` — Aurora Postgres rejects `DELETE … LIMIT`, so the scope's limit/skip are ignored at this layer.
 
-```js
-User.query({
-  $in: {
-    name: ['foo', 'bar'],
-  },
-});
-```
+### Schema DSL
 
-```sql
-select "users".* from "users" where ("name" in ('foo', 'bar'))
-```
+`createTable`/`dropTable`/`hasTable` map the [core schema DSL](../core/README.md) onto Postgres DDL via knex' `pg` schema builder; the resulting DDL is executed through the Data API. `defineTable` is used to validate column definitions before generating SQL.
 
-_Please note:_ Just one propery is allowed!
+### Auto-increment
 
-This is invalid:
+Set `{ autoIncrement: true }` on an integer column to get a Postgres `SERIAL` (knex `table.increments(name)`). Required when you use `KeyType.number` (the default) — otherwise insert SQL provides no value for the PK column.
 
-```js
-User.query({
-  $in: {
-    name: ['foo', 'bar'],
-    age: [18, 19, 20, 21],
-  },
-});
-```
+## Aurora MySQL Data API
 
-This is valid:
-
-```js
-User.query({ $and: [{ $in: { name: ['foo', 'bar'] } }, { $in: { age: [18, 19, 20, 21] } }] });
-```
-
-```sql
-select "users".* from "users" where ("name" in ('foo', 'bar') and "age" in (18, 19, 20, 21))
-```
-
-### NotIn
-
-`$notIn` works same as `$in` but inverts the result.
-
-```js
-User.query({
-  $notIn: {
-    name: ['foo', 'bar'],
-  },
-});
-```
-
-```sql
-select "users".* from "users" where ("name" not in ('foo', 'bar'))
-```
-
-_Please note:_ Just one propery is allowed!
-
-This is invalid:
-
-```js
-User.query({
-  $notIn: {
-    name: ['foo', 'bar'],
-    age: [18, 19, 20, 21],
-  },
-});
-```
-
-This is valid:
-
-```js
-User.query({ $and: [{ $notIn: { name: ['foo', 'bar'] } }, { $notIn: { age: [18, 19, 20, 21] } }] });
-```
-
-```sql
-select "users".* from "users" where ("name" not in ('foo', 'bar') and "age" not in (18, 19, 20, 21))
-```
-
-### Between
-
-The `$between` property needs an object as value with the column name as key and an `Array` with the min and max values as value.
-
-```js
-User.query({
-  $between: {
-    age: [18, 21],
-  },
-});
-```
-
-```sql
-select "users".* from "users" where ("age" between 18 and 21)
-```
-
-_Please note:_ Just one propery is allowed!
-
-This is invalid:
-
-```js
-User.query({
-  $between: {
-    age: [18, 21],
-    size: [160, 185],
-  },
-});
-```
-
-This is valid:
-
-```js
-User.query({ $and: [{ $between: { age: [18, 21] } }, { $between: { size: [160, 185] } }] });
-```
-
-```sql
-select "users".* from "users" where ("age" between 18 and 21 and "size" between 160 and 165)
-```
-
-### NotBetween
-
-`$notBetween` works same as `$between` but inverts the result.
-
-```js
-User.query({
-  $notBetween: {
-    age: [18, 21],
-  },
-});
-```
-
-```sql
-select "users".* from "users" where ("age" not between 18 and 21)
-```
-
-_Please note:_ Just one propery is allowed!
-
-This is invalid:
-
-```js
-User.query({
-  $notBetween: {
-    age: [18, 21],
-    size: [160, 185],
-  },
-});
-```
-
-This is valid:
-
-```js
-User.query({ $and: [{ $notBetween: { age: [18, 21] } }, { $notBetween: { size: [160, 185] } }] });
-```
-
-```sql
-select "users".* from "users" where ("age" not between 18 and 21 and "size" not between 160 and 165)
-```
-
-### Raw
-
-The `$raw` property allows to write custom and database specific queries. Pass queries as object, where key is the query and value are the bindings.
-
-_Note: See [Knex documentation](http://knexjs.org/#Raw-Bindings) for more details about bindings._
-
-```js
-User.query({
-  $raw: {
-    $query: 'age = ?',
-    $bindings: 18,
-  },
-});
-```
-
-```js
-User.query({
-  $raw: {
-    $query: 'age = :age',
-    $bindings: { age: 18 },
-  },
-});
-```
-
-```sql
-select "users".* from "users" where ("age" = 18)
-```
+The compiled SQL targets PostgreSQL syntax. If you point the connector at a MySQL Aurora cluster you'll need to verify quoting/keywords match your queries — this path is not part of CI.
 
 ## Changelog
 
-See [history](HISTORY.md) for more details.
-
-- `1.0.0` **2020-01-06** Initial Release
+See [`HISTORY.md`](./HISTORY.md).

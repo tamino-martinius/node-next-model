@@ -15,6 +15,7 @@ Rolling changelog for the next major release. Items below are appended in the or
 - Shared `runModelConformance` test helper (`@next-model/conformance`) gives every connector the same Model-level CRUD/Query/Transactions/Schema-DSL coverage. Wired into MemoryConnector, KnexConnector (sqlite/pg/mysql) and LocalStorageConnector specs. CI now runs `pnpm -r coverage` and each package's vitest config enforces coverage thresholds.
 - Schema DSL: `ColumnOptions.autoIncrement` now generates `t.increments(...)` on KnexConnector, so a table created via the DSL works with `KeyType.number` Models out of the box.
 - KnexConnector: `deleteAll`/`updateAll` no longer apply `limit`/`skip` to the underlying knex builder, fixing a sqlite "limit has no effect on a delete" error when the Model layer sets `limit: 1` on its single-row scope.
+- Repository documentation overhaul: new top-level `README.md`, fully rewritten READMEs for `knex-connector`, `data-api-connector`, `local-storage-connector`, and a new `migrations` README. Each connector README maps every relevant Model feature (filters, transactions, batchInsert, schema DSL, …) to that connector's specifics.
 
 ### Factory & configuration
 

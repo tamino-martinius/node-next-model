@@ -1,615 +1,158 @@
-# KnexConnector
+# @next-model/knex-connector
 
-SQL connector for [NextModel](https://github.com/tamino-martinius/node-next-model) package using [Knex](http://knexjs.org/). [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model-knex-connector.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model-knex-connector)
+SQL connector for [`@next-model/core`](../core), backed by [Knex 3](https://knexjs.org/).
 
-Allows you to use **Knex** as Database Connector for NextModel:
+Tested in CI against:
 
-Supports:
+- **sqlite3** — in-memory, every push.
+- **PostgreSQL 17** — service container, every push.
+- **MySQL 8** — service container, every push.
 
-* pg
-* sqlite3
-* mysql
-* mysql2
-* mariasql (**not** tested)
-* strong-oracle (**not** tested)
-* oracle
-* mssql (**not** tested)
+Should also work against any other Knex client (MariaDB, Oracle, MSSQL, Redshift) but those are not part of the CI matrix.
 
-## Roadmap / Where can i contribute
+## Installation
 
-See [GitHub](https://github.com/tamino-martinius/node-next-model-knex-connector/projects/1) project for current progress/tasks
+```sh
+pnpm add @next-model/knex-connector knex
+pnpm add -D sqlite3        # or pg / mysql2 / tedious / oracledb …
+```
 
-* Fix Typos
-* CI is missing for some Databases
-* Add more **examples**
-* Add **exists**, **join** and **subqueries**
-* There are already some **tests**, but not every test case is covered.
+`knex` is a runtime dependency; the actual driver (`pg`, `mysql2`, `sqlite3`, …) you choose is yours to install per the database you target.
 
-## TOC
+## Constructing the connector
 
-* [Example](#example)
-  * [Create Connector](#create-connector)
-  * [Use Connector](#use-connector)
-* [Build Queries](#build-queries)
-  * [query](#query)
-  * [find](#find)
-  * [And](#and)
-  * [Or](#or)
-  * [Not](#not)
-  * [Nesting](#nesting)
-  * [Null](#null)
-  * [NotNull](#notnull)
-  * [Equation](#equation)
-  * [In](#in)
-  * [NotIn](#notin)
-  * [Between](#between)
-  * [NotBetween](#notbetween)
-  * [Raw](#raw)
-  * [Execute](#execute)
-* [Changelog](#changelog)
+The constructor takes the same options object as `knex({...})`:
 
-## Example
+```ts
+import { KnexConnector } from '@next-model/knex-connector';
 
-### Create Connector
-
-Constructor options are passed to [Knex](http://knexjs.org/).
-
-Its recommended to set `useNullAsDefault` to true unless all model attributes are set.
-
-The client parameter is required and determines which client adapter will be used with the library.
-
-The connection options are passed directly to the appropriate database client to create the connection, and may be either an object, or a connection string
-
-~~~js
-import KnexConnector from '@next-model/knex-connector';
-
-const connector = new KnexConnector({
-  client: 'mysql',
-  connection: {
-    host : '127.0.0.1',
-    user : 'your_database_user',
-    password : 'your_database_password',
-    database : 'myapp_test'
-  },
+// sqlite (file or :memory:)
+const sqlite = new KnexConnector({
+  client: 'sqlite3',
+  connection: { filename: ':memory:' },
+  useNullAsDefault: true,
 });
-~~~
 
-~~~js
-import KnexConnector from '@next-model/knex-connector';
+// Postgres
+const pg = new KnexConnector({
+  client: 'pg',
+  connection: process.env.DATABASE_URL,
+});
+
+// MySQL
+const mysql = new KnexConnector({
+  client: 'mysql2',
+  connection: 'mysql://root:secret@127.0.0.1:3306/myapp',
+  pool: { min: 1, max: 10 },
+});
+```
+
+The underlying knex instance is exposed as `connector.knex` if you need to drop down to raw query-building or call `connector.knex.destroy()` on shutdown.
+
+## Wiring a Model
+
+```ts
+import { Model } from '@next-model/core';
+import { KnexConnector } from '@next-model/knex-connector';
 
 const connector = new KnexConnector({
   client: 'pg',
-  connection: process.env.PG_CONNECTION_STRING,
-  searchPath: 'knex,public'
+  connection: process.env.DATABASE_URL,
 });
-~~~
 
-_Note: When you use the SQLite3 adapter, there is a filename required, not a network connection. For example:_
+class User extends Model({
+  tableName: 'users',
+  connector,
+  init: (props: { name: string; age: number }) => props,
+}) {}
+```
 
-~~~js
-import KnexConnector from '@next-model/knex-connector';
+Every Model feature (filters, aggregates, transactions, soft deletes, associations, schema DSL) flows through the `Connector` interface — so the rest of your code is identical regardless of which driver you picked.
 
-const connector = new KnexConnector({
-  client: 'sqlite3',
-  connection: {
-    filename: "./mydb.sqlite"
-  }
-});
-~~~
+## Feature → connector specifics
 
-### Use Connector
+### Schema DSL → SQL DDL
 
-The connector is used to connect your models to a database.
+`connector.createTable(name, t => …)` accepts the [core schema DSL](../core/README.md). The connector translates each column kind to the matching knex schema-builder method:
 
-~~~js
-const User = class User extends NextModel<UserSchema>() {
-  static get connector() {
-    return connector;
-  }
+| Core DSL                         | Knex call                |
+|----------------------------------|--------------------------|
+| `t.integer('id', { autoIncrement: true })` | `table.increments('id')` |
+| `t.string('name')`               | `table.string('name', limit ?? 255)` |
+| `t.text('body')`                 | `table.text('body')`     |
+| `t.bigint('count')`              | `table.bigInteger('count')` |
+| `t.float('rate')`                | `table.float('rate')`    |
+| `t.decimal('price', { precision, scale })` | `table.decimal('price', precision, scale)` |
+| `t.boolean('active')`            | `table.boolean('active')` |
+| `t.date('day')`                  | `table.date('day')`      |
+| `t.datetime / t.timestamp(...)`  | `table.timestamp(name)`  |
+| `t.json('payload')`              | `table.json('payload')`  |
+| `t.timestamps()`                 | two `timestamp` columns + `now()` defaults |
+| `t.index(cols, { unique })`      | `table.index` / `table.unique` |
 
-  static get modelName() {
-    return 'User';
-  }
+`{ default: 'currentTimestamp' }` becomes `defaultTo(knex.fn.now())`. Every other `default:` value is passed through to `defaultTo()` verbatim.
 
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-}
-~~~
+### Filter operators → WHERE clauses
 
-Create an base model with the connector to use it with multiple models.
+| Filter | SQL produced |
+|--------|--------------|
+| `{ name: 'Ada' }` | `name = ?` |
+| `{ $or: [a, b] }` | `(... ) OR (...)` (recursive) |
+| `{ $not: f }`     | `NOT (...)` |
+| `{ $in: { col: [...] } }`  | `col IN (?, ?, …)` |
+| `{ $notIn: { col: [...] } }` | `col NOT IN (?, ?, …)` |
+| `{ $null: 'col' }` / `{ $notNull: 'col' }` | `col IS NULL` / `col IS NOT NULL` |
+| `{ $between: { col: { from, to } } }` | `col BETWEEN ? AND ?` |
+| `{ $gt / $gte / $lt / $lte: { col: v } }` | `col > ?` etc. |
+| `{ $like: { col: 'pat%' } }` | `col LIKE ?` (case sensitivity follows the driver — Postgres is case-sensitive, MySQL/SQLite default to insensitive). |
+| `{ $async: Promise<Filter> }` | the inner filter is `await`-ed and re-applied recursively. |
+| `{ $raw: { $query, $bindings } }` | `whereRaw($query, $bindings)`. `?` placeholders are translated to driver-specific positional markers (Postgres `$1`, MySQL `?`). |
 
-~~~js
-function BaseModel<T extends Identifiable>() {
-  return class extends NextModel<T>() {
-    static get connector() {
-      return new Connector<T>();
-    }
-  }
-};
+`FilterError` is thrown for malformed special filters (multiple keys in `$gt`, empty `$in`, …).
 
-const User = class User extends BaseModel<UserSchema>() {
-  static get modelName() {
-    return 'User';
-  }
+### Aggregates
 
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-}
+`connector.aggregate(scope, kind, key)` issues a single `SELECT kind(key) AS kind_result` query. The result is coerced via `Number()`, so Postgres' `AVG → numeric (string)` is normalised to a JS number.
 
-const Address = class Address extends BaseModel<AddressSchema>() {
-  static get modelName() {
-    return 'Address';
-  }
+### `execute(query, bindings)`
 
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      street: { type: 'string' },
-    };
-  }
-}
-~~~
+Runs raw SQL via `knex.raw` (joining the active transaction if any). The result is normalised so callers always see a flat `Dict<any>[]`:
 
-## Build Queries
+| Driver          | Source                  |
+|-----------------|-------------------------|
+| sqlite3         | `result` itself         |
+| pg / postgres   | `result.rows`           |
+| mysql / mysql2  | `result[0]` (knex returns `[rows, fields]`) |
 
-This connector uses Knex to query SQL databases, but the query syntax is different from the Knex documentation. Samples of possible queries are listed below.
+### Transactions
 
-### Query
+`connector.transaction(fn)` opens a real `knex.transaction` and pins it to `activeTransaction` so every nested call (including schema operations and `execute`) participates. Re-entrant calls *join* the outer transaction rather than nesting savepoints — the inner callback runs inside the outer one and a thrown error rolls the entire outer back. Errors thrown inside `fn` propagate after the rollback.
 
-An object passed to `query` will filter for object property and value.
+### `batchInsert`
 
-~~~js
-User.query({ name: 'foo' });
-~~~
+The connector picks a strategy per driver because not every driver supports `RETURNING *`:
 
-~~~sql
-select "users".* from "users" where ("name" = 'foo')
-~~~
+- **sqlite3** — inserts items one-by-one, then re-fetches each by primary key.
+- **pg** — `INSERT … RETURNING *` returns the full inserted rows in one round-trip.
+- **mysql / mysql2** — bulk `INSERT` returns only the first auto-increment id; the connector expands it to consecutive ids (safe under InnoDB's contiguous lock for a single statement) and re-fetches all rows in one `whereIn(id)` query.
+- **`KeyType.manual`** — short-circuits the re-fetch and echoes the items back as-is.
 
-If the Object has multiple properties the properties are connected with `and`.
+### `updateAll` / `deleteAll`
 
-~~~js
-User.query({ name: 'foo', age: 18 });
-~~~
+Both build the WHERE clause directly from `scope.filter` and ignore `scope.limit` / `scope.skip`, which sqlite rejects (`limit has no effect on a delete/update`). The current row set is captured by an explicit `query()` call before the mutation so the methods can return the affected rows even when the driver lacks `RETURNING`.
 
-~~~sql
-select "users".* from "users" where ("name" = 'foo' and "age" = 18)
-~~~
+## Test matrix
 
-An `query` connected with another `query`. A second query will encapsulate the query on the topmost layer.
+The package's spec is driver-agnostic and selects its backend via env vars:
 
-~~~js
-User.query({ name: 'foo', age: 18 }).query({ name: 'bar' });
-~~~
+```sh
+KNEX_TEST_CLIENT=sqlite3 pnpm test               # default
+KNEX_TEST_CLIENT=pg DATABASE_URL=postgres://… pnpm test
+KNEX_TEST_CLIENT=mysql2 DATABASE_URL=mysql://… pnpm test
+```
 
-~~~sql
-select "users".* from "users" where (("name" = 'foo' and "age" = 18) and ("name" = 'bar'))
-~~~
-
-### And
-
-Special properties are starting with an `$` sign. The `$and` property connects all values which are passed as `Array` with an SQL `and` operator.
-
-~~~js
-User.query({ $and: [
-  { name: 'foo' },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where (("name" = 'foo'))
-~~~
-
-~~~js
-User.query({ $and: [
-  { name: 'foo' },
-  { age: 18 },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where (("name" = 'foo') and ("age" = 18))
-~~~
-
-The special properties can also chained with other `where` queries.
-
-~~~js
-User.query({ $and: [
-  { name: 'foo' },
-  { age: 18 },
-]}).query({ $and: [
-  { name: 'bar' },
-  { age: 21 },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ((("name" = 'foo') and ("age" = 18)) and (("name" = 'bar') and ("age" = 21)))
-~~~
-
-### Or
-
-The `$or` property works similar to the `$and` property and connects all values with `or`.
-
-~~~js
-User.query({ $or: [
-  { name: 'foo' },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where (("name" = 'foo'))
-~~~
-
-~~~js
-User.query({ $or: [
-  { name: 'foo' },
-  { name: 'bar' },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where (("name" = 'foo') or ("name" = 'bar'))
-~~~
-
-~~~js
-User.query({ $or: [
-  { name: 'foo' },
-  { age: 18 },
-]}).query({ $or: [
-  { name: 'bar' },
-  { age: 21 },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ((("name" = 'foo') or ("age" = 18)) and (("name" = 'bar') or ("age" = 21)))
-~~~
-
-### Not
-
-The child object of an `$not` property will be inverted.
-
-~~~js
-User.query({ $not: {
-  name: 'foo'
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where (not ("name" = 'foo'))
-~~~
-
-~~~js
-User.query({ $not: {
-  name: 'foo',
-  age: 18,
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where (not ("name" = 'foo' and "age" = 18))
-~~~
-
-~~~js
-User.query({ $not: {
-  name: 'foo',
-  age: 18,
-}}).query({ $not: {
-  name: 'bar',
-  age: 21,
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where ((not ("name" = 'foo' and "age" = 18)) and (not ("name" = 'bar' and "age" = 21)))
-~~~
-
-### Nesting
-
-The `$and`, `$or` and `$not` properties can be nested as deeply as needed.
-
-~~~js
-User.query({ $not: {
-  $or: [
-    { name: 'foo' },
-    { age: 21 },
-  ],
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where (not (("name" = 'foo') or ("age" = 21)))
-~~~
-
-~~~js
-User.query({ $not: {
-  $and: [
-    { name: 'foo' },
-    { $or: [
-      { age: 18 },
-      { age: 21 },
-    ]},
-  ],
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where (not (("name" = 'foo') and (("age" = 18) or ("age" = 21))))
-~~~
-
-### Null
-
-The `$null` property checks for unset columns and takes the column name as value.
-
-~~~js
-User.query({ $null: 'name' });
-~~~
-
-~~~sql
-select "users".* from "users" where ("name" is null)
-~~~
-
-### NotNull
-
-The `$notNull` property checks if an column is set and takes the column name as value.
-
-~~~js
-User.query({ $notNull: 'name' });
-~~~
-
-~~~sql
-select "users".* from "users" where ("name" is not null)
-~~~
-
-### Equation
-
-There are five different equation properties available.
-
-* `$eq` checks for equal
-* `$lt` checks for lower
-* `$gt` checks for greater
-* `$lte` checks for lower or equal
-* `$gte` checks for greater or equal
-
-The property needs to be an object as value with the column name as key and the equation as value.
-
-~~~js
-User.query({ $lt: { age: 18 } });
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" < 18)
-~~~
-
-~~~js
-User.query({ $lte: { age: 18 } });
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" <= 18)
-~~~
-
-*Please note:* Just one propery is allowed!
-
-This is invalid:
-
-~~~js
-User.query({ $lt: {
-  age: 18,
-  size: 180,
-}});
-~~~
-
-This is valid:
-
-~~~js
-User.query({ $and: [
-  { $lt: { age: 18 } },
-  { $lt: { size: 180 } },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" < 18 and "size" < 180)
-~~~
-
-### In
-
-The `$in` property needs an object as value with the column name as key and the `Array` of values as value.
-
-~~~js
-User.query({ $in: {
-  name: ['foo', 'bar'],
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where ("name" in ('foo', 'bar'))
-~~~
-
-*Please note:* Just one propery is allowed!
-
-This is invalid:
-
-~~~js
-User.query({ $in: {
-  name: ['foo', 'bar'],
-  age: [18, 19, 20, 21],
-}});
-~~~
-
-This is valid:
-
-~~~js
-User.query({ $and: [
-  { $in: { name: ['foo', 'bar'] } },
-  { $in: { age: [18, 19, 20, 21] } },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ("name" in ('foo', 'bar') and "age" in (18, 19, 20, 21))
-~~~
-
-### NotIn
-
-`$notIn` works same as `$in` but inverts the result.
-
-~~~js
-User.query({ $notIn: {
-  name: ['foo', 'bar'],
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where ("name" not in ('foo', 'bar'))
-~~~
-
-*Please note:* Just one propery is allowed!
-
-This is invalid:
-
-~~~js
-User.query({ $notIn: {
-  name: ['foo', 'bar'],
-  age: [18, 19, 20, 21],
-}});
-~~~
-
-This is valid:
-
-~~~js
-User.query({ $and: [
-  { $notIn: { name: ['foo', 'bar'] } },
-  { $notIn: { age: [18, 19, 20, 21] } },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ("name" not in ('foo', 'bar') and "age" not in (18, 19, 20, 21))
-~~~
-
-### Between
-
-The `$between` property needs an object as value with the column name as key and an  `Array` with the min and max values as value.
-
-~~~js
-User.query({ $between: {
-  age: [18, 21],
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" between 18 and 21)
-~~~
-
-*Please note:* Just one propery is allowed!
-
-This is invalid:
-
-~~~js
-User.query({ $between: {
-  age: [18, 21],
-  size: [160, 185],
-}});
-~~~
-
-This is valid:
-
-~~~js
-User.query({ $and: [
-  { $between: { age: [18, 21] } },
-  { $between: { size: [160, 185] } },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" between 18 and 21 and "size" between 160 and 165)
-~~~
-
-### NotBetween
-
-`$notBetween` works same as `$between` but inverts the result.
-
-~~~js
-User.query({ $notBetween: {
-  age: [18, 21],
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" not between 18 and 21)
-~~~
-
-*Please note:* Just one propery is allowed!
-
-This is invalid:
-
-~~~js
-User.query({ $notBetween: {
-  age: [18, 21],
-  size: [160, 185],
-}});
-~~~
-
-This is valid:
-
-~~~js
-User.query({ $and: [
-  { $notBetween: { age: [18, 21] } },
-  { $notBetween: { size: [160, 185] } },
-]});
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" not between 18 and 21 and "size" not between 160 and 165)
-~~~
-
-### Raw
-
-The `$raw` property allows to write custom and database specific queries. Pass queries as object, where key is the query and value are the bindings.
-
-_Note: See [Knex documentation](http://knexjs.org/#Raw-Bindings) for more details about bindings._
-
-~~~js
-User.query({ $raw: {
-  $query: 'age = ?',
-  $bindings: 18,
-}});
-~~~
-
-~~~js
-User.query({ $raw: {
-  $query: 'age = :age',
-  $bindings: { age: 18 },
-}});
-~~~
-
-~~~sql
-select "users".* from "users" where ("age" = 18)
-~~~
+CI runs all three.
 
 ## Changelog
 
-See [history](HISTORY.md) for more details.
-
-* `1.0.0` **2018-xx-xx** Complete rewrite based on TypeScript
-* `0.3.3` **2017-04-05** Updated next-model dependency
-* `0.3.2` **2017-02-28** Updated next-model dependency
-* `0.3.1` **2017-02-27** Updated next-model dependency
-* `0.3.0` **2017-02-22** Added Node 4 Support
-* `0.2.0` **2017-02-21** Added new query types
-* `0.1.0` **2017-02-18** Used next-model from npm instead of Github repo
-* `0.0.4` **2017-02-16** Updated to NextModel v0.0.4
-* `0.0.3` **2017-02-12** Added CI
-* `0.0.2` **2017-02-12** Added more complex query types
-* `0.0.1` **2017-02-05** First release compatible with NextModel 0.0.1
+See [`HISTORY.md`](./HISTORY.md).
