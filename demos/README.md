@@ -16,6 +16,7 @@ Self-contained scripts that show NextModel against each connector. Every demo is
 | [`knex-node`](./knex-node) | `@next-model/knex-connector` against sqlite (default), or pg / mysql via the `KNEX_DEMO_CLIENT` env var | none for sqlite; `docker compose --profile pg \| mysql up -d` for the others |
 | [`aurora-data-api-node`](./aurora-data-api-node) | `@next-model/aurora-data-api-connector` against the bundled `MockDataApiClient` (in-memory sqlite) | none |
 | [`react-todo`](./react-todo) | React 19 + Vite UI on top of `@next-model/local-storage-connector` (multi-user via per-user prefix) | none (browser) |
+| [`nextjs-todo`](./nextjs-todo) | Next.js 15 App Router; server components call `@next-model/sqlite-connector` directly, server actions handle every mutation. User → tasks foreign key, multi-user via cookie. | none (sqlite file at `./.data/`) |
 
 Service-backed demos all expose two helper scripts:
 
