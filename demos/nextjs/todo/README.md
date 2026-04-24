@@ -11,7 +11,9 @@ pnpm build && pnpm start
 ## What it shows
 
 - **Server components calling the connector directly** — `app/page.tsx` is an async component that does `await Task.filterBy({ userId }).all()` inline. No fetch, no API route in between.
-- **Server actions** for every mutation (`addTask`, `toggleTask`, `deleteTask`, `setCurrentUser`). The page is automatically revalidated after each action via `revalidatePath('/')`.
+- **Server actions** for every mutation (`createUser`, `renameUser`, `deleteUser`, `addTask`, `toggleTask`, `deleteTask`, `setCurrentUser`). Every action ends with `revalidatePath('/')` so the server-rendered view matches the database.
+- **User CRUD** — add, inline rename (double-click or pencil, Enter/Esc commit/cancel), delete with confirm. Deleting a user cascades via `Task.filterBy({ userId }).deleteAll()`.
+- **Optimistic updates on the client** — `UserList` and `TaskList` are client components that wrap `useOptimistic` around the server-rendered data. Mutations are applied locally before the server round-trip completes; React reconciles them against the canonical list when `revalidatePath` reruns.
 - **Multi-user via cookie + foreign key** (`Task.userId → User.id`). The current user lives in a `nm-todo-user` cookie; switching is one server action call. Each user only sees their own tasks.
 - **Connector lives on `globalThis`** so HMR reloads in `next dev` don't re-open the sqlite file every time.
 
