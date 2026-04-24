@@ -247,6 +247,7 @@ export class ModelClass {
    * predicate; out-of-range values fail `isValid()`.
    */
   static enums: Dict<readonly string[]> = {};
+  /**
    * When set, `save()` and `delete()` enforce optimistic locking against this
    * column. Inserts default the column to 0; updates require the in-memory
    * value to match the row's current value, otherwise throw `StaleObjectError`.
@@ -270,6 +271,22 @@ export class ModelClass {
    * aggregation. Configured via `having(...)`; cleared by `unscoped()`.
    */
   static havingPredicate: ((count: number) => boolean) | undefined = undefined;
+  /**
+   * Single Table Inheritance — name of the column that stores the subclass
+   * discriminator. Set on the base Model via the `inheritColumn` factory
+   * option. When set, `all()` / `find()` inspect this column and route each
+   * row to the registered subclass.
+   */
+  static inheritColumn: string | undefined = undefined;
+  /**
+   * Value the `inheritColumn` is set to for this Model. Non-undefined on
+   * subclasses created via `Base.inherit({ type: ... })`; undefined on the
+   * base. Insert-time the column is auto-populated; read-time it becomes a
+   * default filter.
+   */
+  static inheritType: string | undefined = undefined;
+  /** On the base Model, maps inheritColumn values → subclass constructors. */
+  static inheritRegistry: Map<string, typeof ModelClass> | undefined = undefined;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -284,6 +301,10 @@ export class ModelClass {
       filter = filter ? { $and: [{ $null: softColumn }, filter] } : { $null: softColumn };
     } else if (this.softDelete === 'only') {
       filter = filter ? { $and: [{ $notNull: softColumn }, filter] } : { $notNull: softColumn };
+    }
+    if (this.inheritColumn && this.inheritType !== undefined) {
+      const typeFilter = { [this.inheritColumn]: this.inheritType };
+      filter = filter ? { $and: [typeFilter, filter] } : typeFilter;
     }
     return {
       tableName: this.tableName,
@@ -611,6 +632,50 @@ export class ModelClass {
     return this.filterBy({ $async: asyncFilter } as Filter<any>) as M;
   }
 
+  /**
+   * Declare a subclass for Single Table Inheritance. The base Model must have
+   * been created with `inheritColumn: '...'`. Returns a new Model class that
+   * shares the base's table / keys / connector / init but:
+   *
+   *   - auto-sets `{ [inheritColumn]: type }` on insert,
+   *   - auto-filters reads to that type,
+   *   - is registered on the base so `Base.find(id)` / `Base.all()` on a row
+   *     whose type matches this subclass returns an instance of the subclass.
+   *
+   * Additional `validators` / `callbacks` are concatenated with the base's.
+   */
+  static inherit<M extends typeof ModelClass>(
+    this: M,
+    options: {
+      type: string;
+      validators?: Validator<any>[];
+      callbacks?: Callbacks<any>;
+    },
+  ): M {
+    if (!this.inheritColumn) {
+      throw new Error(
+        `${this.name || 'Model'}.inherit() requires the base to be declared with inheritColumn: '...'`,
+      );
+    }
+
+    const mergedValidators = [...this.validators, ...(options.validators ?? [])];
+    const mergedCallbacks: Callbacks<any> = { ...(this.callbacks as any) };
+    for (const key in options.callbacks ?? {}) {
+      const existing = ((mergedCallbacks as any)[key] ?? []) as any[];
+      const added = ((options.callbacks as any)[key] ?? []) as any[];
+      (mergedCallbacks as any)[key] = [...existing, ...added];
+    }
+    const Sub = class extends (this as typeof ModelClass) {
+      static inheritType = options.type;
+      static inheritRegistry: Map<string, typeof ModelClass> | undefined = undefined;
+      static validators = mergedValidators as Validator<any>[];
+      static callbacks = mergedCallbacks;
+    };
+    if (!this.inheritRegistry) this.inheritRegistry = new Map();
+    this.inheritRegistry.set(options.type, Sub as unknown as typeof ModelClass);
+    return Sub as M;
+  }
+
   static async all<M extends typeof ModelClass>(this: M) {
     const primaryKeys = Object.keys(this.keys);
     const items = this.selectedFields
@@ -625,7 +690,13 @@ export class ModelClass {
         keys[key] = item[key];
         delete item[key];
       }
-      return new this(item, keys) as InstanceType<M>;
+      let Constructor: typeof ModelClass = this as typeof ModelClass;
+      if (this.inheritColumn && this.inheritRegistry) {
+        const typeValue = item[this.inheritColumn];
+        const registered = typeValue != null ? this.inheritRegistry.get(typeValue) : undefined;
+        if (registered) Constructor = registered;
+      }
+      return new (Constructor as any)(item, keys) as InstanceType<M>;
     });
     if (this.selectedIncludes) {
       await applyIncludes(records, this.selectedIncludes);
@@ -1368,6 +1439,9 @@ export class ModelClass {
       if (model.lockVersionColumn && insertProps[model.lockVersionColumn] === undefined) {
         insertProps[model.lockVersionColumn] = 0;
       }
+      if (model.inheritColumn && model.inheritType !== undefined) {
+        insertProps[model.inheritColumn] = model.inheritType;
+      }
       const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
       if (item) {
@@ -1534,6 +1608,12 @@ export function Model<
    * Snake_case values map to camelCase scopes / PascalCase predicates.
    */
   enums?: Dict<readonly string[]>;
+  /**
+   * Enable Single Table Inheritance on this Model. Pass the column name used
+   * for the subclass discriminator. Subclasses are declared via
+   * `Base.inherit({ type: 'Dog' })`.
+   */
+  inheritColumn?: string;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -1578,6 +1658,10 @@ export function Model<
     static softDeleteColumn = softDeleteColumn;
     static enums = enumDefs;
     static lockVersionColumn = lockVersionColumn;
+    static inheritColumn = props.inheritColumn;
+    static inheritRegistry: Map<string, typeof ModelClass> | undefined = props.inheritColumn
+      ? new Map<string, typeof ModelClass>()
+      : undefined;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
