@@ -51,6 +51,49 @@ function decodeCompositeCursor(token: string): Dict<unknown> {
   }
 }
 
+type TimestampsOption = boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+
+type SoftDeleteOption = boolean | string | { column?: string };
+
+function resolveTimestampColumn(
+  value: boolean | string | undefined,
+  defaultName: string,
+): string | undefined {
+  if (value === false) return undefined;
+  if (value === undefined || value === true) return defaultName;
+  return value;
+}
+
+export function resolveTimestampColumns(option: TimestampsOption | undefined): {
+  createdAtColumn: string | undefined;
+  updatedAtColumn: string | undefined;
+} {
+  if (option === false) return { createdAtColumn: undefined, updatedAtColumn: undefined };
+  if (option === undefined || option === true) {
+    return { createdAtColumn: 'createdAt', updatedAtColumn: 'updatedAt' };
+  }
+  return {
+    createdAtColumn: resolveTimestampColumn(option.createdAt, 'createdAt'),
+    updatedAtColumn: resolveTimestampColumn(option.updatedAt, 'updatedAt'),
+  };
+}
+
+export function resolveSoftDelete(option: SoftDeleteOption | undefined): {
+  softDeleteMode: 'active' | 'only' | false;
+  softDeleteColumn: string;
+} {
+  if (option === undefined || option === false) {
+    return { softDeleteMode: false, softDeleteColumn: 'discardedAt' };
+  }
+  if (option === true) {
+    return { softDeleteMode: 'active', softDeleteColumn: 'discardedAt' };
+  }
+  if (typeof option === 'string') {
+    return { softDeleteMode: 'active', softDeleteColumn: option };
+  }
+  return { softDeleteMode: 'active', softDeleteColumn: option.column ?? 'discardedAt' };
+}
+
 function decodeCursor(token: string, key: string): unknown {
   let payload: Dict<any>;
   try {
@@ -81,7 +124,19 @@ export class ModelClass {
   static keys: Dict<KeyType>;
   static connector: Connector;
   static init: (props: any) => Dict<any>;
-  static timestamps = true;
+  /**
+   * When set, the Model writes the current timestamp to this column on
+   * create. Set to `undefined` (via `timestamps: false` or
+   * `timestamps: { createdAt: false }`) to disable.
+   */
+  static createdAtColumn: string | undefined = 'createdAt';
+  /**
+   * When set, the Model writes the current timestamp to this column on
+   * create, save, and `touch()`. `undefined` to disable.
+   */
+  static updatedAtColumn: string | undefined = 'updatedAt';
+  /** Column used by `discard()` / `restore()` + the soft-delete scope. */
+  static softDeleteColumn: string = 'discardedAt';
   static softDelete: 'active' | 'only' | false = false;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
@@ -92,12 +147,11 @@ export class ModelClass {
 
   static modelScope() {
     let filter = this.filter;
+    const softColumn = this.softDeleteColumn;
     if (this.softDelete === 'active') {
-      filter = filter ? { $and: [{ $null: 'discardedAt' }, filter] } : { $null: 'discardedAt' };
+      filter = filter ? { $and: [{ $null: softColumn }, filter] } : { $null: softColumn };
     } else if (this.softDelete === 'only') {
-      filter = filter
-        ? { $and: [{ $notNull: 'discardedAt' }, filter] }
-        : { $notNull: 'discardedAt' };
+      filter = filter ? { $and: [{ $notNull: softColumn }, filter] } : { $notNull: softColumn };
     }
     return {
       tableName: this.tableName,
@@ -256,12 +310,12 @@ export class ModelClass {
 
   static async createMany<M extends typeof ModelClass>(this: M, propsList: any[]) {
     const now = new Date();
+    const createdCol = this.createdAtColumn;
+    const updatedCol = this.updatedAtColumn;
     const insertProps = propsList.map((p) => {
       const base = this.init(p) as Dict<any>;
-      if (this.timestamps) {
-        if (base.createdAt === undefined) base.createdAt = now;
-        if (base.updatedAt === undefined) base.updatedAt = now;
-      }
+      if (createdCol && base[createdCol] === undefined) base[createdCol] = now;
+      if (updatedCol && base[updatedCol] === undefined) base[updatedCol] = now;
       return base;
     });
     const items = await this.connector.batchInsert(this.tableName, this.keys, insertProps);
@@ -589,8 +643,9 @@ export class ModelClass {
 
   static async updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>) {
     const effectiveAttrs = { ...attrs };
-    if (this.timestamps && effectiveAttrs.updatedAt === undefined) {
-      effectiveAttrs.updatedAt = new Date();
+    const updatedCol = this.updatedAtColumn;
+    if (updatedCol && effectiveAttrs[updatedCol] === undefined) {
+      effectiveAttrs[updatedCol] = new Date();
     }
     return await this.connector.updateAll(this.modelScope(), effectiveAttrs);
   }
@@ -901,8 +956,8 @@ export class ModelClass {
     if (this.keys) {
       const changedKeys = Object.keys(this.changedProps);
       if (changedKeys.length > 0) {
-        if (model.timestamps) {
-          this.changedProps.updatedAt = now;
+        if (model.updatedAtColumn) {
+          this.changedProps[model.updatedAtColumn] = now;
         }
         for (const key in this.changedProps) {
           snapshot[key] = { from: this.persistentProps[key], to: this.changedProps[key] };
@@ -922,9 +977,11 @@ export class ModelClass {
       }
     } else {
       const insertProps = { ...this.persistentProps, ...this.changedProps };
-      if (model.timestamps) {
-        if (insertProps.createdAt === undefined) insertProps.createdAt = now;
-        if (insertProps.updatedAt === undefined) insertProps.updatedAt = now;
+      if (model.createdAtColumn && insertProps[model.createdAtColumn] === undefined) {
+        insertProps[model.createdAtColumn] = now;
+      }
+      if (model.updatedAtColumn && insertProps[model.updatedAtColumn] === undefined) {
+        insertProps[model.updatedAtColumn] = now;
       }
       const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
@@ -965,8 +1022,12 @@ export class ModelClass {
       throw new PersistenceError('Cannot touch a record that has not been saved');
     }
     const model = this.constructor as typeof ModelClass;
+    const updatedCol = model.updatedAtColumn;
+    if (!updatedCol) {
+      throw new PersistenceError('Cannot touch a record whose Model has no updatedAt column');
+    }
     const now = new Date();
-    const items = await model.connector.updateAll(this.itemScope(), { updatedAt: now });
+    const items = await model.connector.updateAll(this.itemScope(), { [updatedCol]: now });
     const item = items.pop();
     if (!item) throw new NotFoundError('Item not found');
     for (const key in model.keys) delete item[key];
@@ -1007,7 +1068,8 @@ export class ModelClass {
   }
 
   isDiscarded(): boolean {
-    const value = (this.attributes() as Dict<any>).discardedAt;
+    const model = this.constructor as typeof ModelClass;
+    const value = (this.attributes() as Dict<any>)[model.softDeleteColumn];
     return value !== null && value !== undefined;
   }
 
@@ -1015,7 +1077,8 @@ export class ModelClass {
     if (!this.keys) {
       throw new PersistenceError('Cannot discard a record that has not been saved');
     }
-    (this as ModelClass).assign({ discardedAt: new Date() } as Dict<any>);
+    const model = this.constructor as typeof ModelClass;
+    (this as ModelClass).assign({ [model.softDeleteColumn]: new Date() } as Dict<any>);
     return (this as ModelClass).save() as Promise<M>;
   }
 
@@ -1023,7 +1086,8 @@ export class ModelClass {
     if (!this.keys) {
       throw new PersistenceError('Cannot restore a record that has not been saved');
     }
-    (this as ModelClass).assign({ discardedAt: null } as Dict<any>);
+    const model = this.constructor as typeof ModelClass;
+    (this as ModelClass).assign({ [model.softDeleteColumn]: null } as Dict<any>);
     return (this as ModelClass).save() as Promise<M>;
   }
 }
@@ -1046,8 +1110,8 @@ export function Model<
   >;
   connector?: Connector;
   keys?: Keys;
-  timestamps?: boolean;
-  softDelete?: boolean;
+  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+  softDelete?: boolean | string | { column?: string };
   validators?: Validator<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >[];
@@ -1059,8 +1123,8 @@ export function Model<
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
-  const timestamps = props.timestamps ?? true;
-  const softDelete: 'active' | 'only' | false = props.softDelete ? 'active' : false;
+  const { createdAtColumn, updatedAtColumn } = resolveTimestampColumns(props.timestamps);
+  const { softDeleteMode, softDeleteColumn } = resolveSoftDelete(props.softDelete);
   const validators = props.validators || [];
   const callbacks = props.callbacks || {};
   const scopeDefs = props.scopes || ({} as Scopes);
@@ -1074,8 +1138,10 @@ export function Model<
     static keys = keyDefinitions;
     static connector = connector;
     static init = props.init as any;
-    static timestamps = timestamps;
-    static softDelete = softDelete;
+    static createdAtColumn = createdAtColumn;
+    static updatedAtColumn = updatedAtColumn;
+    static softDelete = softDeleteMode;
+    static softDeleteColumn = softDeleteColumn;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
