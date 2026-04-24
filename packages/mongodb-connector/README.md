@@ -6,6 +6,7 @@ Native MongoDB connector for [`@next-model/core`](../core), built directly on th
 
 ```sh
 pnpm add @next-model/mongodb-connector mongodb
+# or: npm install @next-model/mongodb-connector mongodb
 ```
 
 ## Constructing the connector

@@ -8,6 +8,7 @@
 
 ```sh
 pnpm add @next-model/redis-connector redis
+# or: npm install @next-model/redis-connector redis
 ```
 
 ## Constructing the connector

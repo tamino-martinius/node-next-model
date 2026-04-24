@@ -10,6 +10,7 @@ Zero runtime dependencies beyond `@next-model/core`. Connector packages are cons
 
 ```sh
 pnpm add @next-model/migrations @next-model/core
+# or: npm install @next-model/migrations @next-model/core
 ```
 
 ## A migration

@@ -4,6 +4,7 @@ Bridge an [arktype](https://arktype.io) object type into a next-model `Model`'s 
 
 ```sh
 pnpm add @next-model/arktype arktype
+# or: npm install @next-model/arktype arktype
 ```
 
 ## Usage
