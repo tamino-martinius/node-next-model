@@ -10,8 +10,11 @@ Self-contained scripts that show NextModel against each connector. Every demo is
 | [`postgres-node`](./postgres-node) | `@next-model/postgres-connector` | `docker compose up -d` (postgres:17) |
 | [`mysql-node`](./mysql-node) | `@next-model/mysql-connector` | `docker compose up -d` (mysql:8) |
 | [`mariadb-node`](./mariadb-node) | `@next-model/mariadb-connector` | `docker compose up -d` (mariadb:11) |
+| [`redis-node`](./redis-node) | `@next-model/redis-connector` | `docker compose up -d` (redis:7) |
+| [`valkey-node`](./valkey-node) | `@next-model/valkey-connector` | `docker compose up -d` (valkey/valkey:8) |
+| [`mongodb-node`](./mongodb-node) | `@next-model/mongodb-connector` | `docker compose up -d` (mongo:7) |
 
-> Demos backed by Redis / Valkey / MongoDB / Aurora Data API plus the knex-on-multiple-backends matrix ship in follow-up PRs.
+> Demos for the Aurora Data API and the knex-on-multiple-backends matrix ship in follow-up PRs.
 
 Service-backed demos all expose two helper scripts:
 
