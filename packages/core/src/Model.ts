@@ -26,6 +26,13 @@ export type AssociationOptions = {
   typeValue?: string;
 };
 
+export type IncludeSpec =
+  | { belongsTo: typeof ModelClass; foreignKey: string; primaryKey?: string }
+  | { hasMany: typeof ModelClass; foreignKey: string; primaryKey?: string }
+  | { hasOne: typeof ModelClass; foreignKey: string; primaryKey?: string };
+
+export type IncludeMap = Record<string, IncludeSpec>;
+
 export type HasManyThroughOptions = {
   throughForeignKey?: string;
   targetForeignKey?: string;
@@ -77,6 +84,45 @@ export function resolveTimestampColumns(option: TimestampsOption | undefined): {
     createdAtColumn: resolveTimestampColumn(option.createdAt, 'createdAt'),
     updatedAtColumn: resolveTimestampColumn(option.updatedAt, 'updatedAt'),
   };
+}
+
+async function applyIncludes(records: ModelClass[], map: IncludeMap): Promise<void> {
+  if (records.length === 0) return;
+  for (const [name, spec] of Object.entries(map)) {
+    if ('belongsTo' in spec) {
+      const preloaded = await (spec.belongsTo as typeof ModelClass).preloadBelongsTo(records, {
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+      });
+      for (const record of records) {
+        const attrs = record.attributes() as Dict<any>;
+        const fk = attrs[spec.foreignKey];
+        (record as unknown as Dict<unknown>)[name] = fk == null ? undefined : preloaded.get(fk);
+      }
+    } else if ('hasMany' in spec) {
+      const selfPk = spec.primaryKey ?? 'id';
+      const preloaded = await (spec.hasMany as typeof ModelClass).preloadHasMany(records, {
+        foreignKey: spec.foreignKey,
+        primaryKey: selfPk,
+      });
+      for (const record of records) {
+        const attrs = record.attributes() as Dict<any>;
+        const id = attrs[selfPk];
+        (record as unknown as Dict<unknown>)[name] = preloaded.get(id) ?? [];
+      }
+    } else if ('hasOne' in spec) {
+      const selfPk = spec.primaryKey ?? 'id';
+      const preloaded = await (spec.hasOne as typeof ModelClass).preloadHasMany(records, {
+        foreignKey: spec.foreignKey,
+        primaryKey: selfPk,
+      });
+      for (const record of records) {
+        const attrs = record.attributes() as Dict<any>;
+        const id = attrs[selfPk];
+        (record as unknown as Dict<unknown>)[name] = preloaded.get(id)?.[0];
+      }
+    }
+  }
 }
 
 export function resolveSoftDelete(option: SoftDeleteOption | undefined): {
@@ -133,6 +179,12 @@ export class ModelClass {
    * `fields(...keys)` chainable.
    */
   static selectedFields: string[] | undefined = undefined;
+  /**
+   * When set, `all()` eager-loads the declared associations after the main
+   * fetch and attaches them as properties on every returned instance. See
+   * `Model.includes({...})` for details.
+   */
+  static selectedIncludes: IncludeMap | undefined = undefined;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -265,6 +317,7 @@ export class ModelClass {
       static order: OrderColumn<any>[] = [];
       static softDelete: 'active' | 'only' | false = false;
       static selectedFields: string[] | undefined = undefined;
+      static selectedIncludes: IncludeMap | undefined = undefined;
     } as M;
   }
 
@@ -345,6 +398,39 @@ export class ModelClass {
     });
   }
 
+  /**
+   * Declare associations to eager-load alongside subsequent `all()` / `first()`
+   * / `last()` / `find()` calls. Each map entry names the property to attach
+   * on each returned instance and how to load it.
+   *
+   * @example
+   * const posts = await Post.includes({
+   *   user: { belongsTo: User, foreignKey: 'userId' },
+   *   comments: { hasMany: Comment, foreignKey: 'postId' },
+   * }).all();
+   * posts[0].user       // User instance (pre-loaded; no extra round-trip)
+   * posts[0].comments   // Comment[]    (pre-loaded)
+   *
+   * Without `includes(...)` the same associations work as before — the
+   * Rails-style `this.belongsTo(User)` / `this.hasMany(Comment)` helpers
+   * on each instance still return a `Promise` (lazy load). `includes(...)`
+   * is the opt-in to eager-load and cut N+1 round-trips when you know up
+   * front which associations every row needs.
+   */
+  static includes<M extends typeof ModelClass>(this: M, map: IncludeMap): M {
+    const previous = this.selectedIncludes ?? {};
+    const next = { ...previous, ...map };
+    return class extends (this as typeof ModelClass) {
+      static selectedIncludes = next;
+    } as M;
+  }
+
+  static withoutIncludes<M extends typeof ModelClass>(this: M): M {
+    return class extends (this as typeof ModelClass) {
+      static selectedIncludes: IncludeMap | undefined = undefined;
+    } as M;
+  }
+
   static async all<M extends typeof ModelClass>(this: M) {
     const primaryKeys = Object.keys(this.keys);
     const items = this.selectedFields
@@ -353,7 +439,7 @@ export class ModelClass {
           ...Array.from(new Set([...primaryKeys, ...this.selectedFields])),
         )
       : await this.connector.query(this.modelScope());
-    return items.map((item) => {
+    const records = items.map((item) => {
       const keys: Dict<any> = {};
       for (const key of primaryKeys) {
         keys[key] = item[key];
@@ -361,6 +447,10 @@ export class ModelClass {
       }
       return new this(item, keys) as InstanceType<M>;
     });
+    if (this.selectedIncludes) {
+      await applyIncludes(records, this.selectedIncludes);
+    }
+    return records;
   }
 
   static async first<M extends typeof ModelClass>(this: M) {
