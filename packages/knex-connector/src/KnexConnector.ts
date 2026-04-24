@@ -305,7 +305,12 @@ export class KnexConnector implements Connector {
     if (typeof idsOrRows[0] === 'object') {
       return idsOrRows as Dict<any>[];
     }
-    const ids = idsOrRows as number[];
+    const returnedIds = idsOrRows as number[];
+    const isMysql = clientName === 'mysql' || clientName === 'mysql2';
+    const ids =
+      isMysql && returnedIds.length === 1 && items.length > 1
+        ? items.map((_, i) => returnedIds[0] + i)
+        : returnedIds;
     const rows = (await this.table(tableName).whereIn(primaryKey, ids).select('*')) as Dict<any>[];
     const rowDict: Dict<Dict<any>> = {};
     for (const row of rows) {
