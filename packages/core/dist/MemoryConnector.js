@@ -1,4 +1,5 @@
 import { filterList } from './FilterEngine';
+import { defineTable } from './schema';
 import { KeyType, SortDirection, } from './types';
 import { clone, uuid } from './util';
 const globalStorage = {};
@@ -107,6 +108,8 @@ export class MemoryConnector {
                     case KeyType.number:
                         keyValues[key] = this.nextId(tableName);
                         break;
+                    case KeyType.manual:
+                        break;
                 }
             }
             const attributes = { ...item, ...keyValues };
@@ -114,6 +117,19 @@ export class MemoryConnector {
             result.push(clone(attributes));
         }
         return result;
+    }
+    async hasTable(tableName) {
+        return Object.prototype.hasOwnProperty.call(this.storage, tableName);
+    }
+    async createTable(tableName, blueprint) {
+        defineTable(tableName, blueprint);
+        if (!Object.prototype.hasOwnProperty.call(this.storage, tableName)) {
+            this.storage[tableName] = [];
+        }
+    }
+    async dropTable(tableName) {
+        delete this.storage[tableName];
+        delete this.lastIds[tableName];
     }
     async aggregate(scope, kind, key) {
         const items = await this.items(scope);

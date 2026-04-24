@@ -1,4 +1,5 @@
 import { filterList } from './FilterEngine';
+import { type TableBuilder, defineTable } from './schema';
 import {
   type AggregateKind,
   type BaseType,
@@ -147,6 +148,8 @@ export class MemoryConnector implements Connector {
           case KeyType.number:
             keyValues[key] = this.nextId(tableName);
             break;
+          case KeyType.manual:
+            break;
         }
       }
       const attributes = { ...item, ...keyValues };
@@ -154,6 +157,22 @@ export class MemoryConnector implements Connector {
       result.push(clone(attributes));
     }
     return result;
+  }
+
+  async hasTable(tableName: string): Promise<boolean> {
+    return Object.prototype.hasOwnProperty.call(this.storage, tableName);
+  }
+
+  async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
+    defineTable(tableName, blueprint);
+    if (!Object.prototype.hasOwnProperty.call(this.storage, tableName)) {
+      this.storage[tableName] = [];
+    }
+  }
+
+  async dropTable(tableName: string): Promise<void> {
+    delete this.storage[tableName];
+    delete this.lastIds[tableName];
   }
 
   async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {

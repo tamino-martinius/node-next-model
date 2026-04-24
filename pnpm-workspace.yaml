@@ -3,3 +3,4 @@ packages:
   - "packages/knex-connector"
   - "packages/data-api-connector"
   - "packages/local-storage-connector"
+  - "packages/migrations"

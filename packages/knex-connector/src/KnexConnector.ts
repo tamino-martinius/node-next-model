@@ -6,6 +6,7 @@ try {
 import {
   type AggregateKind,
   type BaseType,
+  type ColumnDefinition,
   type Connector,
   type Dict,
   type Filter,
@@ -14,10 +15,12 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
-  type KeyType,
+  KeyType,
   PersistenceError,
   type Scope,
   SortDirection,
+  type TableBuilder,
+  defineTable,
 } from '@next-model/core';
 import Knex from 'knex';
 
@@ -263,6 +266,7 @@ export class KnexConnector implements Connector {
   ): Promise<Dict<any>[]> {
     if (items.length === 0) return [];
     const primaryKey = Object.keys(keys)[0];
+    const isManualKey = keys[primaryKey] === KeyType.manual;
     const clientName = this.knex.client.config.client;
     const isSqlite = clientName === 'sqlite3';
 
@@ -270,6 +274,10 @@ export class KnexConnector implements Connector {
       const results: Dict<any>[] = [];
       for (const item of items) {
         const insertResult = await this.table(tableName).insert(item);
+        if (isManualKey) {
+          results.push({ ...item });
+          continue;
+        }
         const insertedId = Array.isArray(insertResult) ? insertResult[0] : insertResult;
         const row = (await this.table(tableName).where(primaryKey, insertedId).first()) as
           | Dict<any>
@@ -280,6 +288,14 @@ export class KnexConnector implements Connector {
         results.push(row);
       }
       return results;
+    }
+
+    if (isManualKey) {
+      const rows = await this.table(tableName).insert(items).returning(`${tableName}.*`);
+      if (Array.isArray(rows) && rows.length > 0 && typeof rows[0] === 'object') {
+        return rows as Dict<any>[];
+      }
+      return items.map((item) => ({ ...item }));
     }
 
     const idsOrRows = await this.table(tableName).insert(items).returning(`${tableName}.*`);
@@ -328,6 +344,72 @@ export class KnexConnector implements Connector {
         this.activeTransaction = undefined;
       }
     });
+  }
+
+  private schemaBuilder(): Knex.SchemaBuilder {
+    return this.activeTransaction?.schema ?? this.knex.schema;
+  }
+
+  async hasTable(tableName: string): Promise<boolean> {
+    return this.schemaBuilder().hasTable(tableName);
+  }
+
+  async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
+    const def = defineTable(tableName, blueprint);
+    if (await this.hasTable(tableName)) return;
+    await this.schemaBuilder().createTable(tableName, (table) => {
+      for (const col of def.columns) {
+        const columnBuilder = buildKnexColumn(table, col);
+        if (col.primary) columnBuilder.primary();
+        if (col.unique) columnBuilder.unique();
+        if (col.nullable) columnBuilder.nullable();
+        else columnBuilder.notNullable();
+        if (col.default !== undefined) {
+          if (col.default === 'currentTimestamp') {
+            columnBuilder.defaultTo(this.knex.fn.now());
+          } else {
+            columnBuilder.defaultTo(col.default as any);
+          }
+        }
+      }
+      for (const idx of def.indexes) {
+        if (idx.unique) table.unique(idx.columns, idx.name);
+        else table.index(idx.columns, idx.name);
+      }
+    });
+  }
+
+  async dropTable(tableName: string): Promise<void> {
+    await this.schemaBuilder().dropTableIfExists(tableName);
+  }
+}
+
+function buildKnexColumn(
+  table: Knex.CreateTableBuilder,
+  col: ColumnDefinition,
+): Knex.ColumnBuilder {
+  switch (col.type) {
+    case 'string':
+      return table.string(col.name, col.limit ?? 255);
+    case 'text':
+      return table.text(col.name);
+    case 'integer':
+      return table.integer(col.name);
+    case 'bigint':
+      return table.bigInteger(col.name);
+    case 'float':
+      return table.float(col.name);
+    case 'decimal':
+      return table.decimal(col.name, col.precision, col.scale);
+    case 'boolean':
+      return table.boolean(col.name);
+    case 'date':
+      return table.date(col.name);
+    case 'datetime':
+    case 'timestamp':
+      return table.timestamp(col.name);
+    case 'json':
+      return table.json(col.name);
   }
 }
 

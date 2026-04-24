@@ -10,58 +10,31 @@ const singleKey = (filter: Dict<any>, op: string): string => {
 };
 
 async function propertyFilter(items: Dict<any>[], filter: Dict<any>): Promise<Dict<any>[]> {
-  const counts: { [key: string]: number } = {};
-  // biome-ignore lint/suspicious/noAssignInExpressions: concise counter init
-  items.forEach((item) => (counts[item.id] = 0));
-  for (const key in filter) {
-    items.forEach((item) => {
-      if (item[key] === filter[key]) {
-        counts[item.id] += 1;
-      }
-    });
-  }
-  const filterCount = Object.keys(filter).length;
-  return items.filter((item) => counts[item.id] === filterCount);
+  return items.filter((item) => {
+    for (const key in filter) {
+      if (item[key] !== filter[key]) return false;
+    }
+    return true;
+  });
 }
 
 async function andFilter(items: Dict<any>[], filters: Filter<Dict<any>>[]): Promise<Dict<any>[]> {
-  const counts: { [key: string]: number } = items.reduce(
-    (obj, item) => {
-      obj[item.id] = 0;
-      return obj;
-    },
-    <{ [key: string]: number }>{},
-  );
-  await Promise.all(
-    filters.map(async (filter) => {
-      const filterItems = await filterList(items, filter);
-      filterItems.forEach((item) => {
-        counts[item.id] += 1;
-      });
-    }),
-  );
-  const filterCount = filters.length;
-  return items.filter((item) => counts[item.id] === filterCount);
+  let result = items;
+  for (const filter of filters) {
+    result = await filterList(result, filter);
+  }
+  return result;
 }
 
 async function notFilter(items: Dict<any>[], filter: Filter<Dict<any>>): Promise<Dict<any>[]> {
-  const array = await filterList(items, filter);
-  const exists: { [key: string]: boolean } = {};
-  array.forEach((item) => {
-    exists[item.id] = exists[item.id] || true;
-  });
-  return items.filter((item) => !exists[item.id]);
+  const excluded = new Set(await filterList(items, filter));
+  return items.filter((item) => !excluded.has(item));
 }
 
 async function orFilter(items: Dict<any>[], filters: Filter<Dict<any>>[]): Promise<Dict<any>[]> {
-  const arrays = await Promise.all(filters.map(async (filter) => await filterList(items, filter)));
-  const exists: { [key: string]: boolean } = {};
-  arrays.forEach((array) =>
-    array.forEach((item) => {
-      exists[item.id] = exists[item.id] || true;
-    }),
-  );
-  return items.filter((item) => exists[item.id]);
+  const arrays = await Promise.all(filters.map((filter) => filterList(items, filter)));
+  const union = new Set(arrays.flat());
+  return items.filter((item) => union.has(item));
 }
 
 async function inFilter(

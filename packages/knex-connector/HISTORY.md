@@ -13,7 +13,8 @@ Rewritten to match the current `@next-model/core` connector interface.
 - Implemented `aggregate(scope, kind, key)` driving `sum`/`min`/`max`/`avg` through a single query.
 - Implemented `transaction(fn)` with nesting (inner calls join the outer Knex transaction via an `activeTransaction` instance field).
 - Implemented `execute(query, bindings)` with driver-aware result normalization (sqlite3, postgres/pg, mysql array-of-arrays).
-- `updateAll` and `batchInsert` fall back to a re-fetch path when the driver doesn't support `.returning()` (sqlite3, mysql).
+- Implemented `createTable(name, blueprint)`, `dropTable(name)`, and `hasTable(name)` by translating the core `TableBuilder` DSL into Knex schema-builder calls (runs on `activeTransaction.schema` when inside a transaction). Column kinds supported: `string`, `text`, `integer`, `bigint`, `float`, `decimal`, `boolean`, `date`, `datetime`/`timestamp`, `json`.
+- `updateAll` and `batchInsert` fall back to a re-fetch path when the driver doesn't support `.returning()` (sqlite3, mysql). `batchInsert` short-circuits the re-fetch when the primary key is `KeyType.manual` (caller-supplied).
 - `count` coerces the driver's string/number result to a `number`.
 - Persistence errors now throw `PersistenceError`.
 

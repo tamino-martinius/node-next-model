@@ -19,6 +19,10 @@ Rolling changelog for the next major release. Items below are appended in the or
 
 - `transaction(fn)` defers `localStorage` writes until commit; on rollback, the underlying storage and `localStorage` both stay untouched. Nested transactions join the outer transaction.
 
+### Schema DSL
+
+- Implemented `createTable(name, blueprint)`, `dropTable(name)`, and `hasTable(name)` on top of the inherited `MemoryConnector` behaviour, adding `localStorage` (de)hydration so tables survive a page reload and drops clear both the row collection and the `__nextId` counter from the backing `Storage`.
+
 ### Testing
 
 - Ships `MemoryLocalStorage` mock implementing the minimal `Storage` surface so the vitest suite runs headlessly in Node.
