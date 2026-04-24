@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
-import { dbReady, Task } from './db';
+import { dbReady, Task, User } from './db';
 
 const USER_COOKIE = 'nm-todo-user';
 
@@ -14,27 +14,55 @@ export async function setCurrentUser(name: string): Promise<void> {
   revalidatePath('/');
 }
 
-export async function addTask(formData: FormData): Promise<void> {
+export async function createUser(name: string): Promise<void> {
   await dbReady;
-  const userId = Number(formData.get('userId'));
-  const title = String(formData.get('title') ?? '').trim();
-  if (!title || !Number.isFinite(userId)) return;
-  await Task.create({ title, done: false, userId });
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await User.create({ name: trimmed });
   revalidatePath('/');
 }
 
-export async function toggleTask(formData: FormData): Promise<void> {
+export async function renameUser(id: number, name: string): Promise<void> {
   await dbReady;
-  const id = Number(formData.get('id'));
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const user = await User.find(id);
+  if (!user) return;
+  await user.update({ name: trimmed });
+  revalidatePath('/');
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  await dbReady;
+  // Cascade: wipe the user's tasks first, then the user itself.
+  await Task.filterBy({ userId: id }).deleteAll();
+  const user = await User.find(id);
+  if (user) await user.delete();
+  const jar = await cookies();
+  const current = jar.get(USER_COOKIE)?.value;
+  const deleted = user?.name;
+  if (deleted && current === deleted) jar.delete(USER_COOKIE);
+  revalidatePath('/');
+}
+
+export async function addTask(userId: number, title: string): Promise<void> {
+  await dbReady;
+  const trimmed = title.trim();
+  if (!trimmed || !Number.isFinite(userId)) return;
+  await Task.create({ title: trimmed, done: false, userId });
+  revalidatePath('/');
+}
+
+export async function toggleTask(id: number): Promise<void> {
+  await dbReady;
   if (!Number.isFinite(id)) return;
   const task = await Task.find(id);
   if (task) await task.update({ done: !task.done });
   revalidatePath('/');
 }
 
-export async function deleteTask(formData: FormData): Promise<void> {
+export async function deleteTask(id: number): Promise<void> {
   await dbReady;
-  const id = Number(formData.get('id'));
   if (!Number.isFinite(id)) return;
   const task = await Task.find(id);
   if (task) await task.delete();
