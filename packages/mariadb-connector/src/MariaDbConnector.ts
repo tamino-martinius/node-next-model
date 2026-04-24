@@ -12,13 +12,14 @@ import { MysqlConnector, quoteIdent } from '@next-model/mysql-connector';
 /**
  * MariaDB connector. Wire-compatible with the MySQL protocol so it reuses
  * `MysqlConnector`'s pool, identifier quoting, and filter compilation, but
- * overrides the DML methods to use MariaDB's `RETURNING` clause (10.5+) so
- * we skip the up-front SELECT capture and the auto-increment id-expansion
- * trick the MySQL connector needs.
+ * overrides `batchInsert` and `deleteAll` to use MariaDB's `RETURNING`
+ * clause — `INSERT … RETURNING *` (10.5+) and `DELETE … RETURNING *`
+ * (10.0+). MariaDB does **not** support `UPDATE … RETURNING`, so
+ * `updateAll` falls through to the parent's SELECT-then-UPDATE approach.
  *
  * Schema DDL is also tweaked: MariaDB's `JSON` is an alias for `LONGTEXT`,
  * so the connector emits `LONGTEXT CHECK (JSON_VALID(...))` to get the
- * same validation guarantees you get from MySQL's native JSON type.
+ * same validation guarantee you get from MySQL's native JSON type.
  */
 export class MariaDbConnector extends MysqlConnector {
   async batchInsert(
@@ -52,22 +53,6 @@ export class MariaDbConnector extends MysqlConnector {
       throw new PersistenceError(`batchInsert into ${tableName} returned no rows`);
     }
     return rows;
-  }
-
-  async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]> {
-    const attrKeys = Object.keys(attrs);
-    if (attrKeys.length === 0) return this.query(scope);
-    const params: BaseType[] = [];
-    const setFragments = attrKeys.map((k) => {
-      params.push(attrs[k] as BaseType);
-      return `${quoteIdent(k)} = ?`;
-    });
-    const where = this.buildWhere(scope.filter);
-    for (const p of where.params) params.push(p);
-    let sql = `UPDATE ${quoteIdent(scope.tableName)} SET ${setFragments.join(', ')}`;
-    if (where.sql) sql += ` WHERE ${where.sql}`;
-    sql += ' RETURNING *';
-    return (await this.run(sql, params)) as Dict<any>[];
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {

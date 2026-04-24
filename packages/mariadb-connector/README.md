@@ -6,7 +6,8 @@ Native MariaDB connector for [`@next-model/core`](../core), built as a thin exte
 
 MariaDB is wire-compatible with MySQL, so [`mysql2`](https://github.com/sidorares/node-mysql2) connects to it without modification. The reason this connector exists is what MariaDB lets us do *server-side* that MySQL doesn't:
 
-- **`INSERT … RETURNING *` / `UPDATE … RETURNING *` / `DELETE … RETURNING *`** (MariaDB 10.5+). The MySQL connector has to issue an extra `SELECT` to capture affected rows and then expand `insertId` to consecutive ids for `batchInsert`; this connector skips that whole dance.
+- **`INSERT … RETURNING *`** (MariaDB 10.5+) and **`DELETE … RETURNING *`** (MariaDB 10.0+). The MySQL connector has to issue an extra `SELECT` to capture affected rows and expand `insertId` to consecutive ids for `batchInsert`; this connector skips that dance for those two cases.
+- `UPDATE` is the gap: MariaDB does **not** support `UPDATE … RETURNING`, so `updateAll` falls through to the inherited SELECT-then-UPDATE.
 - **JSON validation** without a native `JSON` type — MariaDB's `JSON` is an alias for `LONGTEXT`, so we emit `LONGTEXT CHECK (JSON_VALID(...))`, which gives back the validation guarantee.
 
 Everything else (identifier quoting, filter compilation, transactions, the rest of the schema DSL) is inherited from `@next-model/mysql-connector`.
@@ -45,12 +46,10 @@ class MariaDbConnector extends MysqlConnector {
   async batchInsert(table, _keys, items) {
     // INSERT … RETURNING * — one round-trip, no consecutive-id trick
   }
-  async updateAll(scope, attrs) {
-    // UPDATE … RETURNING * — no SELECT capture
-  }
   async deleteAll(scope) {
     // DELETE … RETURNING * — no SELECT capture
   }
+  // updateAll is inherited (MariaDB has no UPDATE ... RETURNING).
 }
 ```
 

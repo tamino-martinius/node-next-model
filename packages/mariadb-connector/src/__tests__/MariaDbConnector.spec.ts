@@ -43,8 +43,8 @@ describe('MariaDbConnector', () => {
     await connector.dropTable(tableName);
   });
 
-  it('updateAll returns the updated rows via RETURNING', async () => {
-    const tableName = 'mariadb_update_returning';
+  it('updateAll still works (inherited SELECT-then-UPDATE)', async () => {
+    const tableName = 'mariadb_update_inherited';
     if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
     await connector.createTable(tableName, (t) => {
       t.integer('id', { primary: true, autoIncrement: true });
