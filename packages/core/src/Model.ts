@@ -1,4 +1,4 @@
-import { NotFoundError, PersistenceError, ValidationError } from './errors.js';
+import { NotFoundError, PersistenceError, StaleObjectError, ValidationError } from './errors.js';
 import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
 import {
@@ -172,6 +172,12 @@ export class ModelClass {
   /** Column used by `discard()` / `restore()` + the soft-delete scope. */
   static softDeleteColumn: string = 'discardedAt';
   static softDelete: 'active' | 'only' | false = false;
+  /**
+   * When set, `save()` and `delete()` enforce optimistic locking against this
+   * column. Inserts default the column to 0; updates require the in-memory
+   * value to match the row's current value, otherwise throw `StaleObjectError`.
+   */
+  static lockVersionColumn: string | undefined = undefined;
   /**
    * When set, `all()` / `first()` / `last()` / `find()` / `findBy()` fetch
    * only these columns (plus every primary key) from the connector. Model
@@ -1071,10 +1077,18 @@ export class ModelClass {
         if (model.updatedAtColumn) {
           this.changedProps[model.updatedAtColumn] = now;
         }
+        let scope = this.itemScope();
+        const lockColumn = model.lockVersionColumn;
+        let expectedLock: number | undefined;
+        if (lockColumn) {
+          expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+          scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
+          this.changedProps[lockColumn] = (expectedLock as number) + 1;
+        }
         for (const key in this.changedProps) {
           snapshot[key] = { from: this.persistentProps[key], to: this.changedProps[key] };
         }
-        const items = await model.connector.updateAll(this.itemScope(), this.changedProps);
+        const items = await model.connector.updateAll(scope, this.changedProps);
         const item = items.pop();
         if (item) {
           for (const key in model.keys) {
@@ -1083,6 +1097,10 @@ export class ModelClass {
           }
           this.persistentProps = item;
           this.changedProps = {};
+        } else if (lockColumn) {
+          throw new StaleObjectError(
+            `Stale ${model.name || 'record'} (${lockColumn} expected ${expectedLock})`,
+          );
         } else {
           throw new NotFoundError('Item not found');
         }
@@ -1094,6 +1112,9 @@ export class ModelClass {
       }
       if (model.updatedAtColumn && insertProps[model.updatedAtColumn] === undefined) {
         insertProps[model.updatedAtColumn] = now;
+      }
+      if (model.lockVersionColumn && insertProps[model.lockVersionColumn] === undefined) {
+        insertProps[model.lockVersionColumn] = 0;
       }
       const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
@@ -1168,8 +1189,20 @@ export class ModelClass {
     }
     const model = this.constructor as typeof ModelClass;
     await this.runCallbacks('beforeDelete');
-    const items = await model.connector.deleteAll(this.itemScope());
+    let scope = this.itemScope();
+    const lockColumn = model.lockVersionColumn;
+    let expectedLock: number | undefined;
+    if (lockColumn) {
+      expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+      scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
+    }
+    const items = await model.connector.deleteAll(scope);
     if (items.length === 0) {
+      if (lockColumn) {
+        throw new StaleObjectError(
+          `Stale ${model.name || 'record'} (${lockColumn} expected ${expectedLock})`,
+        );
+      }
       throw new NotFoundError('Item not found');
     }
     this.persistentProps = { ...this.persistentProps, ...this.changedProps, ...this.keys };
@@ -1224,6 +1257,13 @@ export function Model<
   keys?: Keys;
   timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
   softDelete?: boolean | string | { column?: string };
+  /**
+   * Enable optimistic locking. `true` uses the column `lockVersion`; pass a
+   * string to use a custom column name. Inserts default the column to 0 and
+   * `save()` / `delete()` throw `StaleObjectError` when the in-memory value
+   * no longer matches the row.
+   */
+  lockVersion?: boolean | string;
   validators?: Validator<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >[];
@@ -1237,6 +1277,12 @@ export function Model<
   const keyDefinitions = props.keys || { id: KeyType.number };
   const { createdAtColumn, updatedAtColumn } = resolveTimestampColumns(props.timestamps);
   const { softDeleteMode, softDeleteColumn } = resolveSoftDelete(props.softDelete);
+  const lockVersionColumn =
+    props.lockVersion === true
+      ? 'lockVersion'
+      : typeof props.lockVersion === 'string'
+        ? props.lockVersion
+        : undefined;
   const validators = props.validators || [];
   const callbacks = props.callbacks || {};
   const scopeDefs = props.scopes || ({} as Scopes);
@@ -1254,6 +1300,7 @@ export function Model<
     static updatedAtColumn = updatedAtColumn;
     static softDelete = softDeleteMode;
     static softDeleteColumn = softDeleteColumn;
+    static lockVersionColumn = lockVersionColumn;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
