@@ -12,6 +12,7 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.{test,spec}.ts'],
     coverage: {
+      reporter: ['text', 'json-summary'],
       include: ['src/**/*.ts'],
       exclude: ['src/__tests__/**'],
       thresholds: {
