@@ -6,6 +6,7 @@ packages:
   - "packages/mysql-connector"
   - "packages/mariadb-connector"
   - "packages/redis-connector"
+  - "packages/valkey-connector"
   - "packages/data-api-connector"
   - "packages/local-storage-connector"
   - "packages/migrations"
