@@ -20,7 +20,15 @@ function inferPackageName(filePath) {
   // Prefer `packages/<name>/...` since that's the canonical workspace layout.
   const pkgIdx = parts.indexOf('packages');
   if (pkgIdx !== -1 && parts[pkgIdx + 1]) return parts[pkgIdx + 1];
-  // Fallback: artifact directory name (strip a leading `coverage-`).
+  // upload-artifact strips the longest common prefix, so `packages/` is gone
+  // when several files share it. Fall back to the parent of the `coverage`
+  // directory: `<artifactDir>/<name>/coverage/coverage-summary.json`.
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i] === 'coverage' && parts[i - 1] && !parts[i - 1].startsWith('coverage-')) {
+      return parts[i - 1];
+    }
+  }
+  // Single-file artifacts (`coverage-<name>/coverage-summary.json`).
   const artifactDir = parts[1] ?? 'unknown';
   return artifactDir.replace(/^coverage-/, '');
 }
