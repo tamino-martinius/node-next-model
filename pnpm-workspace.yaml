@@ -11,3 +11,4 @@ packages:
   - "packages/aurora-data-api-connector"
   - "packages/local-storage-connector"
   - "packages/migrations"
+  - "demos/*"

@@ -1,0 +1,16 @@
+{
+  "name": "@next-model-demos/local-storage-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types demo.ts"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/local-storage-connector": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

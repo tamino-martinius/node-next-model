@@ -15,6 +15,33 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  demos/local-storage-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/local-storage-connector':
+        specifier: workspace:*
+        version: link:../../packages/local-storage-connector
+
+  demos/memory-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
+  demos/sqlite-node:
+    dependencies:
+      '@next-model/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@next-model/sqlite-connector':
+        specifier: workspace:*
+        version: link:../../packages/sqlite-connector
+      better-sqlite3:
+        specifier: ^11.6.0
+        version: 11.10.0
+
   packages/aurora-data-api-connector:
     dependencies:
       data-api-client:
