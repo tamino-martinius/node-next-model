@@ -34,7 +34,7 @@ interface SqlFragment {
   params: BaseType[];
 }
 
-function quoteIdent(name: string): string {
+export function quoteIdent(name: string): string {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
     throw new PersistenceError(`Refusing to quote unsafe identifier: ${name}`);
   }
@@ -72,7 +72,7 @@ export class MysqlConnector implements Connector {
     await this.pool.end();
   }
 
-  private async run(sql: string, params: BaseType[] = []): Promise<RowDataPacket[]> {
+  protected async run(sql: string, params: BaseType[] = []): Promise<RowDataPacket[]> {
     const bindings = params.map(normaliseValue);
     if (this.activeConnection) {
       const [rows] = await this.activeConnection.query(sql, bindings);
@@ -82,7 +82,7 @@ export class MysqlConnector implements Connector {
     return rows as RowDataPacket[];
   }
 
-  private async runMutation(sql: string, params: BaseType[] = []): Promise<ResultSetHeader> {
+  protected async runMutation(sql: string, params: BaseType[] = []): Promise<ResultSetHeader> {
     const bindings = params.map(normaliseValue);
     if (this.activeConnection) {
       const [info] = await this.activeConnection.query(sql, bindings);
@@ -92,7 +92,7 @@ export class MysqlConnector implements Connector {
     return info as ResultSetHeader;
   }
 
-  private buildWhere(filter: Filter<any> | undefined): SqlFragment {
+  protected buildWhere(filter: Filter<any> | undefined): SqlFragment {
     const params: BaseType[] = [];
     const sql = filter === undefined ? '' : this.compileFilter(filter, params);
     return { sql, params };

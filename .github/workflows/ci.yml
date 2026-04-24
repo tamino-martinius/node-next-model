@@ -21,8 +21,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm -r build
       - run: pnpm typecheck
-      # postgres-connector / mysql-connector require live DBs; covered by their dedicated jobs
-      - run: pnpm -r --filter '!@next-model/postgres-connector' --filter '!@next-model/mysql-connector' coverage
+      # postgres / mysql / mariadb connectors require live DBs; covered by their dedicated jobs
+      - run: pnpm -r --filter '!@next-model/postgres-connector' --filter '!@next-model/mysql-connector' --filter '!@next-model/mariadb-connector' coverage
 
   test-postgres-connector:
     runs-on: ubuntu-latest
@@ -82,6 +82,35 @@ jobs:
         env:
           DATABASE_URL: mysql://root:mysql@127.0.0.1:3306/test
         run: pnpm --filter @next-model/mysql-connector coverage
+
+  test-mariadb-connector:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: mariadb
+          MARIADB_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h localhost -pmariadb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/mysql-connector --filter @next-model/mariadb-connector -r build
+      - name: Test mariadb-connector against MariaDB 11
+        env:
+          DATABASE_URL: mysql://root:mariadb@127.0.0.1:3306/test
+        run: pnpm --filter @next-model/mariadb-connector coverage
 
   test-knex-real-db:
     runs-on: ubuntu-latest
