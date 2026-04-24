@@ -1,426 +1,84 @@
-# NextModelLocalStorageConnector
+# @next-model/local-storage-connector
 
-LocalStorage connector for [NextModel](https://github.com/tamino-martinius/node-next-model) package.
+Browser `localStorage` connector for [`@next-model/core`](../core).
 
- [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model-local-storage-connector.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model-local-storage-connector)
+`LocalStorageConnector` extends `MemoryConnector`, so every behaviour you get from the in-memory store (filter operators, ordering, aggregates, transactions with rollback, schema DSL, JS-expression `execute`) carries over verbatim. The only differences are persistence and id management.
 
-Special keys for queries:
-* $and
-* $or
-* $not
-* $null
-* $notNull
-* $in
-* $notIn
-* $between
-* $notBetween
-* $eq
-* $lt
-* $lte
-* $gt
-* $gte
-* $match
-* $filter
+## Installation
 
-### Roadmap / Where can i contribute
+```sh
+pnpm add @next-model/local-storage-connector
+```
 
-See [GitHub project](https://github.com/tamino-martinius/node-next-model-local-storage-connector/projects/1) for current progress/tasks
+No other peer dependencies.
 
-* Fix Typos
-* Add more **examples**
-* Add **exists**, **join** and **subqueries**
-* There are already some **tests**, but not every test case is covered.
+## Constructing the connector
 
-## TOC
+```ts
+import { LocalStorageConnector } from '@next-model/local-storage-connector';
 
-* [Example](#example)
-  * [Create Connector](#create-connector)
-  * [Use Connector](#use-connector)
-* [Build Queries](#build-queries)
-  * [Where](#where)
-  * [And](#and)
-  * [Or](#or)
-  * [Not](#not)
-  * [Nesting](#nesting)
-  * [Null](#null)
-  * [NotNull](#notnull)
-  * [Equation](#equation)
-  * [In](#in)
-  * [NotIn](#notin)
-  * [Between](#between)
-  * [NotBetween](#notbetween)
-  * [Match](#match)
-  * [Filter](#filter)
-* [Changelog](#changelog)
+// Browser: picks up globalThis.localStorage automatically
+const connector = new LocalStorageConnector();
 
-## Example
+// With an injected store (Node tests, sandboxed environments)
+import { MemoryLocalStorage } from '@next-model/local-storage-connector/dist/__mocks__/MemoryLocalStorage.js';
+const connector = new LocalStorageConnector({ localStorage: new MemoryLocalStorage() });
 
-### Create Connector
-
-The constructor allows to pass an prefix or postfix.
-
-~~~js
-const connector = new NextModelKnexConnector({
-  prefix: 'app_',
+// Namespacing keys
+const connector = new LocalStorageConnector({
+  prefix: 'app:',
+  suffix: ':v2',
 });
-~~~
-
-~~~js
-const connector = new NextModelKnexConnector({
-  postfix: '_test',
-});
-~~~
-
-~~~js
-const connector = new NextModelKnexConnector({
-  prefix: 'app_',
-  postfix: '_test',
-});
-~~~
-
-### Use Connector
-
-The connector is used to connect your models to a database.
-
-~~~js
-const User = class User extends NextModel {
-  static get connector() {
-    return connector;
-  }
-
-  static get modelName() {
-    return 'User';
-  }
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-}
-~~~
-
-Create an base model with the connector to use it with multiple models.
-
-~~~js
-const BaseModel = class BaseModel extends NextModel {
-  static get connector() {
-    return connector;
-  }
-});
-
-const User = class User extends BaseModel {
-  static get modelName() {
-    return 'User';
-  }
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-    };
-  }
-}
-
-const Address = class Address extends BaseModel {
-  static get modelName() {
-    return 'Address';
-  }
-
-  static get schema() {
-    return {
-      id: { type: 'integer' },
-      street: { type: 'string' },
-    };
-  }
-}
-~~~
-
-## Build Queries
-
-This connector allows to filter the data. Samples of possible queries are listed below.
-
-### Where
-
-An object passed as `where` clause will query for object property and value.
-
-~~~js
-User.where({ name: 'foo' });
-~~~
-
-If the Object has multiple properties the properties are connected with `and`.
-
-~~~js
-User.where({ name: 'foo', age: 18 });
-~~~
-
-An `where` query can be connected with another `where` or an `orWhere`. A second query will encapsulate the query on the topmost layer.
-
-~~~js
-User.where({ name: 'foo', age: 18 }).orWhere({ name: 'bar' });
-~~~
-
-### And
-
-Special properties are starting with an `$` sign. The `$and` property connects all values which are passed as `Array` with an SQL `and` operator.
-
-~~~js
-User.where({ $and: [
-  { name: 'foo' },
-]});
-~~~
-
-~~~js
-User.where({ $and: [
-  { name: 'foo' },
-  { age: 18 },
-]});
-~~~
-
-The special properties can also chained with other `where` queries.
-
-~~~js
-User.where({ $and: [
-  { name: 'foo' },
-  { age: 18 },
-]}).orWhere({ $and: [
-  { name: 'bar' },
-  { age: 21 },
-]});
-~~~
-
-### Or
-
-The `$or` property works similar to the `$and` property and connects all values with `or`.
-
-~~~js
-User.where({ $or: [
-  { name: 'foo' },
-]});
-~~~
-
-~~~js
-User.where({ $or: [
-  { name: 'foo' },
-  { name: 'bar' },
-]});
-~~~
-
-~~~js
-User.where({ $or: [
-  { name: 'foo' },
-  { age: 18 },
-]}).where({ $or: [
-  { name: 'bar' },
-  { age: 21 },
-]});
-~~~
-
-### Not
-
-The child object of an `$not` property will be inverted.
-
-~~~js
-User.where({ $not: {
-  name: 'foo'
-}});
-~~~
-
-~~~js
-User.where({ $not: {
-  name: 'foo',
-  age: 18,
-}});
-~~~
-
-~~~js
-User.where({ $not: {
-  name: 'foo',
-  age: 18,
-}}).where({ $not: {
-  name: 'bar',
-  age: 21,
-}});
-~~~
-
-### Nesting
-
-The `$and`, `$or` and `$not` properties can be nested as deeply as needed.
-
-~~~js
-User.where({ $not: {
-  $or: [
-    { name: 'foo' },
-    { age: 21 },
-  ],
-}});
-~~~
-
-~~~js
-User.where({ $not: {
-  $and: [
-    { name: 'foo' },
-    { $or: [
-      { age: 18 },
-      { age: 21 },
-    ]},
-  ],
-}});
-~~~
-
-### Null
-
-The `$null` property checks for unset columns and takes the column name as value.
-
-~~~js
-User.where({ $null: 'name' });
-~~~
-
-### NotNull
-
-The `$notNull` property checks if an column is set and takes the column name as value.
-
-~~~js
-User.where({ $notNull: 'name' });
-~~~
-
-### Equation
-
-There are five different equation properties available.
-* `$eq` checks for equal
-* `$lt` checks for lower
-* `$gt` checks for greater
-
-`$lt`, `$gt` also allows equal values.
-
-The property needs to be an object as value with the column name as key and the equation as value.
-
-~~~js
-User.where({ $lt: { age: 18 } });
-~~~
-
-~~~js
-User.where({ $lt: { age: 18, size: 180 } });
-~~~
-
-~~~js
-User.where({ $lte: { age: 18 } });
-~~~
-
-~~~js
-User.where({ $lte: { age: 18, size: 180 } });
-~~~
-
-### In
-
-The `$in` property needs an object as value with the column name as key and the `Array` of values as value.
-
-~~~js
-User.where({ $in: {
-  name: ['foo', 'bar'],
-}});
-~~~
-
-If multiple properties are present they get connected by an `and` operator.
-
-~~~js
-User.where({ $in: {
-  name: ['foo', 'bar'],
-  age: [18, 19, 20, 21],
-}});
-~~~
-
-### NotIn
-
-`$notIn` works same as `$in` but inverts the result.
-
-~~~js
-User.where({ $notIn: {
-  name: ['foo', 'bar'],
-}});
-~~~
-
-~~~js
-User.where({ $notIn: {
-  name: ['foo', 'bar'],
-  age: [18, 19, 20, 21],
-}});
-~~~
-
-### Between
-
-The `$between` property needs an object as value with the column name as key and an  `Array` with the min and max values as value.
-
-~~~js
-User.where({ $between: {
-  age: [18, 21],
-}});
-~~~
-
-If multiple properties are present they get connected by an `and` operator.
-
-~~~js
-User.where({ $between: {
-  age: [18, 21],
-  size: [160, 185],
-}});
-~~~
-
-### NotBetween
-
-`$notBetween` works same as `$between` but inverts the result.
-
-~~~js
-User.where({ $notBetween: {
-  age: [18, 21],
-}});
-~~~
-
-~~~js
-User.where({ $notBetween: {
-  age: [18, 21],
-  size: [160, 185],
-}});
-~~~
-
-### Match
-
-The `$match` property needs an object as value with the column name as key and an `regex` with the min and max values as value.
-
-~~~js
-User.where({ $between: {
-  age: [18, 21],
-}});
-~~~
-
-If multiple properties are present they get connected by an `and` operator.
-
-~~~js
-User.where({ $between: {
-  age: [18, 21],
-  size: [160, 185],
-}});
-~~~
-
-### Filter
-
-The `$filter` property allows to write custom filter queries. Pass an function to filter the items.
-
-~~~js
-User.where({ $filter: (item) => {
-  return ...
-}});
-~~~
+```
+
+When neither `localStorage` (option) nor `globalThis.localStorage` is available, the constructor throws — letting you fail fast in environments where the Web Storage API is not present.
+
+## Wiring a Model
+
+```ts
+import { Model } from '@next-model/core';
+import { LocalStorageConnector } from '@next-model/local-storage-connector';
+
+const connector = new LocalStorageConnector();
+
+class Note extends Model({
+  tableName: 'notes',
+  connector,
+  init: (props: { title: string; body: string }) => props,
+}) {}
+
+await Note.create({ title: 'Hello', body: 'world' });
+await Note.count();           // 1
+```
+
+## Feature → connector specifics
+
+### Storage layout
+
+Each table is stored under `${prefix}${tableName}${suffix}` as a JSON-serialised array. A sidecar key `${prefix}${tableName}${suffix}__nextId` tracks the next auto-increment id so deleted rows never have their id reused.
+
+Reads load the table on first access of a request; writes serialise back after every mutation. There is no in-memory cache, so swapping `localStorage` between tabs (e.g. browser sync) is observed on the next call.
+
+### Filter operators, aggregates, ordering
+
+Inherited from `MemoryConnector`. All operators (`$and`, `$or`, `$not`, `$in`, `$notIn`, `$null`, `$notNull`, `$between`, `$notBetween`, `$gt/$gte/$lt/$lte`, `$like`, `$async`, `$raw`) and the same ordering / limit / skip semantics apply. `$like` uses the `MemoryConnector`'s pattern matcher, not SQL `LIKE`.
+
+### `execute(query, bindings)`
+
+Inherited from `MemoryConnector`: the `query` string is evaluated as a JavaScript expression over the in-memory rows. Use it only with code you control — there is no SQL parser or sanitiser between the string and the JS engine.
+
+### Transactions
+
+Inherited from `MemoryConnector`: `transaction(fn)` snapshots `storage` and `lastIds` (via `structuredClone`), runs `fn`, and either commits in place or rolls back to the snapshot on throw. The whole `localStorage` tree is *not* synchronised across tabs during the transaction, so concurrent writers from another tab can race a rollback.
+
+### `batchInsert`
+
+Each row is pushed to the in-memory table array, then the table is serialised back to `localStorage`. Auto-increment ids come from the per-table `__nextId` counter (incremented even after deletes).
+
+### Schema DSL
+
+`createTable(name, blueprint)` initialises an empty table array; `dropTable(name)` removes both the data array and the `__nextId` counter; `hasTable(name)` checks whether the data key exists. Column types declared in the blueprint are validated up-front via `defineTable` but not enforced at runtime — `localStorage` has no schema layer.
 
 ## Changelog
 
-See [history](HISTORY.md) for more details.
-
-* `0.1.0` **2017-02-25** First release compatible with NextModel 0.2.0
-* `0.2.0` **2017-02-25** Added missing dependency for CI
-* `0.3.0` **2017-02-25** Improved browser compatibility
-* `0.4.0` **2017-02-27** Stored nextId separately
-* `0.4.1` **2017-02-27** Updated next-model dependency
-* `0.4.2` **2017-02-28** Updated next-model dependency
-* `0.4.3` **2017-04-05** Updated next-model dependency
+See [`HISTORY.md`](./HISTORY.md).
