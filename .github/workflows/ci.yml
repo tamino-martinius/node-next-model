@@ -29,6 +29,7 @@ jobs:
       graphql-api: ${{ steps.filter.outputs.graphql-api }}
       nextjs-api: ${{ steps.filter.outputs.nextjs-api }}
       migrations-generator: ${{ steps.filter.outputs.migrations-generator }}
+      zod: ${{ steps.filter.outputs.zod }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -100,6 +101,9 @@ jobs:
             migrations-generator:
               - 'packages/migrations-generator/**'
               - '!packages/migrations-generator/**/*.md'
+            zod:
+              - 'packages/zod/**'
+              - '!packages/zod/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -291,6 +295,26 @@ jobs:
         with:
           name: coverage-nextjs-api
           path: packages/nextjs-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-zod:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.zod == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/zod -r build
+      - run: pnpm --filter @next-model/zod coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-zod
+          path: packages/zod/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations-generator:
@@ -601,6 +625,7 @@ jobs:
       - test-graphql-api
       - test-nextjs-api
       - test-migrations-generator
+      - test-zod
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
