@@ -11,8 +11,13 @@ const ROOT = 'coverage-artifacts';
 const FIELDS = ['statements', 'branches', 'functions', 'lines'];
 
 function pct(n) {
-  if (n === undefined || n === null || Number.isNaN(n)) return '—';
-  return `${n.toFixed(2)}%`;
+  // vitest's json-summary reporter can emit the literal string "Unknown" for
+  // files with no statements/branches/functions/lines — treat anything that
+  // can't be parsed as a number as "no data".
+  if (n === undefined || n === null) return '—';
+  const num = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(num)) return '—';
+  return `${num.toFixed(2)}%`;
 }
 
 function inferPackageName(filePath) {
