@@ -21,8 +21,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm -r build
       - run: pnpm typecheck
-      # postgres-connector requires a real Postgres; covered by test-postgres-connector
-      - run: pnpm -r --filter '!@next-model/postgres-connector' coverage
+      # postgres-connector / mysql-connector require live DBs; covered by their dedicated jobs
+      - run: pnpm -r --filter '!@next-model/postgres-connector' --filter '!@next-model/mysql-connector' coverage
 
   test-postgres-connector:
     runs-on: ubuntu-latest
@@ -53,6 +53,35 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
         run: pnpm --filter @next-model/postgres-connector coverage
+
+  test-mysql-connector:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -pmysql"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/mysql-connector -r build
+      - name: Test mysql-connector against MySQL 8
+        env:
+          DATABASE_URL: mysql://root:mysql@127.0.0.1:3306/test
+        run: pnpm --filter @next-model/mysql-connector coverage
 
   test-knex-real-db:
     runs-on: ubuntu-latest
