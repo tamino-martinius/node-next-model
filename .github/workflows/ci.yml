@@ -28,6 +28,7 @@ jobs:
       express-rest-api: ${{ steps.filter.outputs.express-rest-api }}
       graphql-api: ${{ steps.filter.outputs.graphql-api }}
       nextjs-api: ${{ steps.filter.outputs.nextjs-api }}
+      migrations-generator: ${{ steps.filter.outputs.migrations-generator }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -96,6 +97,9 @@ jobs:
             nextjs-api:
               - 'packages/nextjs-api/**'
               - '!packages/nextjs-api/**/*.md'
+            migrations-generator:
+              - 'packages/migrations-generator/**'
+              - '!packages/migrations-generator/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -287,6 +291,26 @@ jobs:
         with:
           name: coverage-nextjs-api
           path: packages/nextjs-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-migrations-generator:
+    needs: changes
+    if: needs.changes.outputs.migrations-generator == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/migrations-generator build
+      - run: pnpm --filter @next-model/migrations-generator coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-migrations-generator
+          path: packages/migrations-generator/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations:
@@ -576,6 +600,7 @@ jobs:
       - test-express-rest-api
       - test-graphql-api
       - test-nextjs-api
+      - test-migrations-generator
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
