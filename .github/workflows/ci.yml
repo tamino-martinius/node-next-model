@@ -26,50 +26,81 @@ jobs:
       valkey: ${{ steps.filter.outputs.valkey }}
       mongodb: ${{ steps.filter.outputs.mongodb }}
       ci: ${{ steps.filter.outputs.ci }}
+      code: ${{ steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          # Each per-package filter excludes `**/*.md` so documentation-only
+          # commits (HISTORY.md / README.md edits) don't trigger that
+          # package's tests. The `code` filter aggregates every non-markdown
+          # source change across the workspace and gates the always-on
+          # `validate` job — docs-only PRs skip the entire workflow.
           filters: |
             core:
               - 'packages/core/**'
+              - '!packages/core/**/*.md'
               - 'tsconfig.base.json'
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
               - 'biome.json'
             knex:
               - 'packages/knex-connector/**'
+              - '!packages/knex-connector/**/*.md'
             data-api:
               - 'packages/data-api-connector/**'
+              - '!packages/data-api-connector/**/*.md'
             local-storage:
               - 'packages/local-storage-connector/**'
+              - '!packages/local-storage-connector/**/*.md'
             sqlite:
               - 'packages/sqlite-connector/**'
+              - '!packages/sqlite-connector/**/*.md'
             migrations:
               - 'packages/migrations/**'
+              - '!packages/migrations/**/*.md'
               - 'packages/knex-connector/**'
+              - '!packages/knex-connector/**/*.md'
             postgres:
               - 'packages/postgres-connector/**'
+              - '!packages/postgres-connector/**/*.md'
             mysql:
               - 'packages/mysql-connector/**'
+              - '!packages/mysql-connector/**/*.md'
             mariadb:
               - 'packages/mariadb-connector/**'
+              - '!packages/mariadb-connector/**/*.md'
               - 'packages/mysql-connector/**'
+              - '!packages/mysql-connector/**/*.md'
             redis:
               - 'packages/redis-connector/**'
+              - '!packages/redis-connector/**/*.md'
             valkey:
               - 'packages/valkey-connector/**'
+              - '!packages/valkey-connector/**/*.md'
               - 'packages/redis-connector/**'
+              - '!packages/redis-connector/**/*.md'
             mongodb:
               - 'packages/mongodb-connector/**'
+              - '!packages/mongodb-connector/**/*.md'
             ci:
               - '.github/**'
+            code:
+              - 'packages/**'
+              - '!packages/**/*.md'
+              - 'tsconfig.base.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'biome.json'
 
   validate:
-    # Workspace-wide checks that always run: lint, build, typecheck across
-    # the supported Node versions. Failures here surface as `validate` so
+    # Workspace-wide checks that run whenever any non-markdown source moves:
+    # lint, build, typecheck across the supported Node versions. Docs-only
+    # PRs skip this job entirely. Failures here surface as `validate` so
     # they're never confused with a per-package coverage failure.
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
