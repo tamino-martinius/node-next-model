@@ -35,6 +35,22 @@ describe('MongoDbConnector', () => {
     expect(await connector.count({ tableName })).toBe(1);
   });
 
+  it('creates collection indexes declared via t.index / t.references', async () => {
+    const tableName = 'mongo_indexed';
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.string('email', { null: false });
+      t.index('email', { unique: true });
+      t.references('author');
+    });
+    const collection = connector.db.collection(tableName);
+    const indexes = await collection.indexes();
+    const byColumnKey = (col: string) =>
+      indexes.find((idx) => idx.key && Object.keys(idx.key).join(',') === col);
+    expect(byColumnKey('email')).toMatchObject({ unique: true });
+    expect(byColumnKey('authorId')).toBeTruthy();
+  });
+
   it('compiles $like to a regex', async () => {
     const tableName = 'mongo_like';
     await connector.createTable(tableName, (t) => {
