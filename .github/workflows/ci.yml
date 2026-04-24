@@ -25,6 +25,7 @@ jobs:
       redis: ${{ steps.filter.outputs.redis }}
       valkey: ${{ steps.filter.outputs.valkey }}
       mongodb: ${{ steps.filter.outputs.mongodb }}
+      express-rest-api: ${{ steps.filter.outputs.express-rest-api }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -84,6 +85,9 @@ jobs:
             mongodb:
               - 'packages/mongodb-connector/**'
               - '!packages/mongodb-connector/**/*.md'
+            express-rest-api:
+              - 'packages/express-rest-api/**'
+              - '!packages/express-rest-api/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -215,6 +219,26 @@ jobs:
         with:
           name: coverage-sqlite-connector
           path: packages/sqlite-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-express-rest-api:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.express-rest-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/express-rest-api -r build
+      - run: pnpm --filter @next-model/express-rest-api coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-express-rest-api
+          path: packages/express-rest-api/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations:
@@ -501,6 +525,7 @@ jobs:
       - test-aurora-data-api-connector
       - test-local-storage-connector
       - test-sqlite-connector
+      - test-express-rest-api
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
