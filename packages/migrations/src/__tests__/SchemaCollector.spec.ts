@@ -147,6 +147,51 @@ describe('SchemaCollector', () => {
     expect(Object.keys(collector.snapshot().tables)).not.toContain('users');
   });
 
+  it('forwards every data-path method to the inner connector', async () => {
+    const { inner, collector } = newCollector();
+    await collector.createTable('users', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('name');
+      t.integer('age');
+    });
+    await collector.batchInsert('users', { id: 1 } as any, [
+      { name: 'Ada', age: 36 },
+      { name: 'Linus', age: 12 },
+      { name: 'Old', age: 99 },
+    ]);
+
+    const scope = { tableName: 'users' };
+    expect(await collector.count(scope)).toBe(3);
+    expect(await collector.hasTable('users')).toBe(true);
+
+    const all = await collector.query(scope);
+    expect(all.map((r) => r.name).sort()).toEqual(['Ada', 'Linus', 'Old']);
+
+    const partial = await collector.select(scope, 'name');
+    expect(partial.every((r) => Object.keys(r).length === 1)).toBe(true);
+
+    const avg = await collector.aggregate(scope, 'avg', 'age');
+    expect(avg).toBeGreaterThan(0);
+
+    await collector.updateAll({ tableName: 'users', filter: { name: 'Ada' } }, { age: 37 });
+    const ada = (await collector.query({ tableName: 'users', filter: { name: 'Ada' } }))[0];
+    expect(ada.age).toBe(37);
+
+    await collector.deleteAll({ tableName: 'users', filter: { name: 'Old' } });
+    expect(await collector.count(scope)).toBe(2);
+
+    // transaction must run the callback and propagate its return value.
+    const result = await collector.transaction(async () => 'ok');
+    expect(result).toBe('ok');
+
+    // execute is a raw passthrough; MemoryConnector throws for unknown SQL,
+    // but reaching that throw proves the forward worked.
+    await expect(collector.execute('noop', [])).rejects.toBeTruthy();
+
+    // Sanity: the inner connector saw every mutation we issued through the wrapper.
+    expect(await inner.count(scope)).toBe(2);
+  });
+
   it('readSchemaFile rejects snapshots from a future version', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'nm-schema-'));
     const path = join(dir, 'schema.json');
