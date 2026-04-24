@@ -1,7 +1,7 @@
 try {
   const pg = require('pg');
   pg.types.setTypeParser(20, 'text', Number.parseInt);
-} catch (e) {}
+} catch {}
 
 import {
   type AggregateKind,
@@ -9,6 +9,7 @@ import {
   type ColumnDefinition,
   type Connector,
   type Dict,
+  defineTable,
   type Filter,
   type FilterBetween,
   FilterError,
@@ -20,9 +21,8 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
-  defineTable,
 } from '@next-model/core';
-import Knex from 'knex';
+import { knex as createKnex, type Knex } from 'knex';
 
 function requireSingleKey(filter: Dict<any>, operator: string): string {
   const keys = Object.keys(filter);
@@ -37,7 +37,7 @@ export class KnexConnector implements Connector {
   private activeTransaction: Knex.Transaction | undefined;
 
   constructor(options: Knex.Config) {
-    this.knex = Knex(options);
+    this.knex = createKnex(options);
   }
 
   private table(tableName: string): Knex.QueryBuilder {

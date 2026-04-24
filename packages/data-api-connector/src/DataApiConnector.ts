@@ -4,6 +4,7 @@ import {
   type ColumnDefinition,
   type Connector,
   type Dict,
+  defineTable,
   type Filter,
   type FilterBetween,
   FilterError,
@@ -16,9 +17,8 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
-  defineTable,
 } from '@next-model/core';
-import Knex from 'knex';
+import { knex as createKnex, type Knex } from 'knex';
 
 export interface DataApiQueryResult {
   records?: Dict<any>[];
@@ -51,7 +51,7 @@ function requireSingleKey(filter: Dict<any>, operator: string): string {
 
 export class DataApiConnector implements Connector {
   dataApi: DataApiClient;
-  knex = Knex({ client: 'pg' });
+  knex: Knex = createKnex({ client: 'pg' });
   debug: boolean;
   private activeTransactionId: unknown;
 

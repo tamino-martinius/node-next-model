@@ -1,5 +1,5 @@
 import { filterList } from './FilterEngine';
-import { type TableBuilder, defineTable } from './schema';
+import { defineTable, type TableBuilder } from './schema';
 import {
   type AggregateKind,
   type BaseType,
@@ -160,12 +160,12 @@ export class MemoryConnector implements Connector {
   }
 
   async hasTable(tableName: string): Promise<boolean> {
-    return Object.prototype.hasOwnProperty.call(this.storage, tableName);
+    return Object.hasOwn(this.storage, tableName);
   }
 
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     defineTable(tableName, blueprint);
-    if (!Object.prototype.hasOwnProperty.call(this.storage, tableName)) {
+    if (!Object.hasOwn(this.storage, tableName)) {
       this.storage[tableName] = [];
     }
   }

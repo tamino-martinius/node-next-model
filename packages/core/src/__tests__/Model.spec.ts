@@ -1,4 +1,3 @@
-import { context, it } from '.';
 import {
   type Dict,
   type Filter,
@@ -8,6 +7,7 @@ import {
   type Order,
   type Storage,
 } from '..';
+import { context, it } from '.';
 
 describe('Model', () => {
   let storage: Storage = {};
@@ -48,7 +48,7 @@ describe('Model', () => {
   const attributesOf = (items: any[]) => items.map((item) => item.attributes() as Dict<any>);
 
   const CreateModel = () =>
-    ///@ts-ignore
+    ///@ts-expect-error
     Model({
       tableName,
       init,
