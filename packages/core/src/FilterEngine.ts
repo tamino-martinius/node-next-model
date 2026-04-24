@@ -9,6 +9,122 @@ const singleKey = (filter: Dict<any>, op: string): string => {
   return keys[0];
 };
 
+/**
+ * Operators that, when used at the top level, treat their value as-is:
+ * `$and` / `$or` accept filter arrays; `$not` / `$async` / `$raw` accept a
+ * filter or primitive. The shape normalizer never descends into these.
+ */
+const COMPOSITION_OPS = new Set(['$and', '$or', '$not', '$async', '$raw']);
+
+/**
+ * Column-level operators that can appear inside a `{column: {...}}` object.
+ * Each one is rewritten to its top-level `{$op: {column: value}}` form so
+ * the rest of the engine and every connector keep seeing a single shape.
+ */
+const COLUMN_OP_NAMES = [
+  '$gt',
+  '$gte',
+  '$lt',
+  '$lte',
+  '$in',
+  '$notIn',
+  '$null',
+  '$notNull',
+  '$between',
+  '$notBetween',
+  '$like',
+  '$not',
+] as const;
+const COLUMN_OPS = new Set<string>(COLUMN_OP_NAMES);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !(value instanceof Date) &&
+    !(value instanceof RegExp)
+  );
+}
+
+function isColumnOpMap(value: unknown): value is Record<string, unknown> {
+  if (!isPlainObject(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length === 0) return false;
+  return keys.every((k) => COLUMN_OPS.has(k));
+}
+
+/**
+ * Accepts both filter shapes and returns the legacy `{$op: {col: v}}` shape:
+ *
+ *   { age: { $gt: 18 } }                      -> { $gt: { age: 18 } }
+ *   { age: { $gt: 18, $lt: 65 } }             -> { $and: [{ $gt: { age: 18 } }, { $lt: { age: 65 } }] }
+ *   { name: { $not: 'john' } }                -> { $not: { name: 'john' } }
+ *   { active: true }                          -> { active: true }        (unchanged)
+ *   { $and: [{ age: { $gt: 18 } }, ...] }     -> { $and: [<normalized>, ...] }
+ *   { $raw: '...' } / { $async: promise }     -> unchanged
+ *
+ * Equality against nested objects (e.g. `{ metadata: { source: 'web' } }`)
+ * still works — a key is only treated as a column operator map when every
+ * one of its keys starts with `$` and is in the known column-operator set.
+ */
+export function normalizeFilterShape<T extends Filter<any>>(filter: T): T {
+  if (!isPlainObject(filter)) return filter;
+
+  const normalized: Record<string, unknown> = {};
+  const andPieces: unknown[] = [];
+
+  for (const [key, value] of Object.entries(filter)) {
+    if (COMPOSITION_OPS.has(key)) {
+      if (key === '$and' || key === '$or') {
+        normalized[key] = (value as unknown[]).map((child) =>
+          normalizeFilterShape(child as Filter<any>),
+        );
+      } else if (key === '$not') {
+        normalized[key] = isPlainObject(value) ? normalizeFilterShape(value as Filter<any>) : value;
+      } else {
+        normalized[key] = value;
+      }
+      continue;
+    }
+
+    if (key.startsWith('$')) {
+      // Legacy `{$op: {col: v}}` — leave as-is.
+      normalized[key] = value;
+      continue;
+    }
+
+    if (isColumnOpMap(value)) {
+      const ops = value as Record<string, unknown>;
+      const opKeys = Object.keys(ops);
+      if (opKeys.length === 1) {
+        const op = opKeys[0];
+        normalized[op] ??= {} as Record<string, unknown>;
+        (normalized[op] as Record<string, unknown>)[key] = ops[op];
+      } else {
+        for (const op of opKeys) {
+          andPieces.push({ [op]: { [key]: ops[op] } });
+        }
+      }
+      continue;
+    }
+
+    // Plain equality (possibly against a nested object literal — kept unchanged).
+    normalized[key] = value;
+  }
+
+  if (andPieces.length > 0) {
+    const existing = Object.keys(normalized);
+    if (existing.length === 0 && andPieces.length === 1) {
+      return andPieces[0] as T;
+    }
+    const rest = existing.length > 0 ? [normalized] : [];
+    return { $and: [...rest, ...andPieces] } as unknown as T;
+  }
+
+  return normalized as T;
+}
+
 async function propertyFilter(items: Dict<any>[], filter: Dict<any>): Promise<Dict<any>[]> {
   return items.filter((item) => {
     for (const key in filter) {
