@@ -25,3 +25,25 @@ export class MigrationMissingError extends MigrationError {
     this.name = 'MigrationMissingError';
   }
 }
+
+export class MigrationParentMissingError extends MigrationError {
+  readonly version: string;
+  readonly parent: string;
+
+  constructor(version: string, parent: string) {
+    super(`migration ${version} declares parent ${parent} which is not in the provided list`);
+    this.name = 'MigrationParentMissingError';
+    this.version = version;
+    this.parent = parent;
+  }
+}
+
+export class MigrationCycleError extends MigrationError {
+  readonly versions: string[];
+
+  constructor(versions: string[]) {
+    super(`migration dependency cycle detected involving: ${versions.join(', ')}`);
+    this.name = 'MigrationCycleError';
+    this.versions = versions;
+  }
+}
