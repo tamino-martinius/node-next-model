@@ -57,6 +57,7 @@ function normaliseValue(value: unknown): unknown {
 export class SqliteConnector implements Connector {
   db: DatabaseType;
   private inTransaction = false;
+  private jsonColumns = new Map<string, Set<string>>();
 
   constructor(config: SqliteConfig = ':memory:') {
     if (typeof config === 'string') {
@@ -65,6 +66,40 @@ export class SqliteConnector implements Connector {
       this.db = new Database(config.filename ?? ':memory:', config.options);
     }
     this.db.pragma('foreign_keys = ON');
+  }
+
+  private jsonColumnsFor(tableName: string): Set<string> | undefined {
+    return this.jsonColumns.get(tableName);
+  }
+
+  private serializeRow<T extends Dict<any>>(tableName: string, row: T): T {
+    const jsonCols = this.jsonColumnsFor(tableName);
+    if (!jsonCols || jsonCols.size === 0) return row;
+    const out: Dict<any> = { ...row };
+    for (const col of jsonCols) {
+      const v = out[col];
+      if (v !== undefined && v !== null && typeof v !== 'string') {
+        out[col] = JSON.stringify(v);
+      }
+    }
+    return out as T;
+  }
+
+  private hydrateRow<T extends Dict<any>>(tableName: string, row: T): T {
+    const jsonCols = this.jsonColumnsFor(tableName);
+    if (!jsonCols || jsonCols.size === 0) return row;
+    const out: Dict<any> = { ...row };
+    for (const col of jsonCols) {
+      const v = out[col];
+      if (typeof v === 'string') {
+        try {
+          out[col] = JSON.parse(v);
+        } catch {
+          // Leave non-JSON strings alone — tolerates pre-existing rows.
+        }
+      }
+    }
+    return out as T;
   }
 
   destroy(): void {
@@ -197,7 +232,7 @@ export class SqliteConnector implements Connector {
     sql += this.buildOrder(scope.order);
     if (scope.limit !== undefined) sql += ` LIMIT ${Number(scope.limit)}`;
     if (scope.skip !== undefined) sql += ` OFFSET ${Number(scope.skip)}`;
-    return this.all(sql, where.params);
+    return this.all(sql, where.params).map((r) => this.hydrateRow(scope.tableName, r));
   }
 
   async count(scope: Scope): Promise<number> {
@@ -216,15 +251,16 @@ export class SqliteConnector implements Connector {
     sql += this.buildOrder(scope.order);
     if (scope.limit !== undefined) sql += ` LIMIT ${Number(scope.limit)}`;
     if (scope.skip !== undefined) sql += ` OFFSET ${Number(scope.skip)}`;
-    return this.all(sql, where.params);
+    return this.all(sql, where.params).map((r) => this.hydrateRow(scope.tableName, r));
   }
 
   async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]> {
     const attrKeys = Object.keys(attrs);
     if (attrKeys.length === 0) return this.query(scope);
+    const serialized = this.serializeRow(scope.tableName, attrs);
     const params: BaseType[] = [];
     const setFragments = attrKeys.map((k) => {
-      params.push(attrs[k] as BaseType);
+      params.push(serialized[k] as BaseType);
       return `${quoteIdent(k)} = ?`;
     });
     const where = this.buildWhere(scope.filter);
@@ -232,7 +268,7 @@ export class SqliteConnector implements Connector {
     let sql = `UPDATE ${quoteIdent(scope.tableName)} SET ${setFragments.join(', ')}`;
     if (where.sql) sql += ` WHERE ${where.sql}`;
     sql += ' RETURNING *';
-    return this.all(sql, params);
+    return this.all(sql, params).map((r) => this.hydrateRow(scope.tableName, r));
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
@@ -240,7 +276,7 @@ export class SqliteConnector implements Connector {
     let sql = `DELETE FROM ${quoteIdent(scope.tableName)}`;
     if (where.sql) sql += ` WHERE ${where.sql}`;
     sql += ' RETURNING *';
-    return this.all(sql, where.params);
+    return this.all(sql, where.params).map((r) => this.hydrateRow(scope.tableName, r));
   }
 
   async batchInsert(
@@ -253,19 +289,22 @@ export class SqliteConnector implements Connector {
     for (const item of items) for (const k of Object.keys(item)) allKeys.add(k);
     const cols = Array.from(allKeys);
     if (cols.length === 0) {
-      return this.all(`INSERT INTO ${quoteIdent(tableName)} DEFAULT VALUES RETURNING *`);
+      return this.all(`INSERT INTO ${quoteIdent(tableName)} DEFAULT VALUES RETURNING *`).map((r) =>
+        this.hydrateRow(tableName, r),
+      );
     }
     const params: BaseType[] = [];
     const valueRows: string[] = [];
     for (const item of items) {
+      const serialized = this.serializeRow(tableName, item);
       const placeholders = cols.map((c) => {
-        params.push(item[c] as BaseType);
+        params.push(serialized[c] as BaseType);
         return '?';
       });
       valueRows.push(`(${placeholders.join(', ')})`);
     }
     const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES ${valueRows.join(', ')} RETURNING *`;
-    return this.all(sql, params);
+    return this.all(sql, params).map((r) => this.hydrateRow(tableName, r));
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
@@ -313,6 +352,8 @@ export class SqliteConnector implements Connector {
 
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
+    const jsonCols = new Set(def.columns.filter((c) => c.type === 'json').map((c) => c.name));
+    if (jsonCols.size > 0) this.jsonColumns.set(tableName, jsonCols);
     if (await this.hasTable(tableName)) return;
     const colSql: string[] = [];
     for (const col of def.columns) colSql.push(this.columnDdl(col));
@@ -322,6 +363,7 @@ export class SqliteConnector implements Connector {
 
   async dropTable(tableName: string): Promise<void> {
     this.runStatement(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
+    this.jsonColumns.delete(tableName);
   }
 
   private columnDdl(col: ColumnDefinition): string {

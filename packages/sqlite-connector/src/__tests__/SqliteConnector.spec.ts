@@ -70,6 +70,30 @@ describe('SqliteConnector', () => {
     expect(rows[0].n).toBe(7);
   });
 
+  it('round-trips objects in json columns (insert + query + update)', async () => {
+    const tableName = 'lite_json';
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.json('profile');
+      t.json('tags');
+    });
+    const profile = { nickname: 'ada', settings: { theme: 'dark', notifications: [1, 2, 3] } };
+    const tags = ['admin', 'ops'];
+    await connector.batchInsert(tableName, { id: 1 } as any, [{ profile, tags }]);
+    const [row] = await connector.query({ tableName });
+    expect(row.profile).toEqual(profile);
+    expect(row.tags).toEqual(tags);
+
+    const [updated] = await connector.updateAll({ tableName, filter: { id: row.id } as any }, {
+      profile: { nickname: 'ada2', settings: null },
+    } as any);
+    expect(updated.profile).toEqual({ nickname: 'ada2', settings: null });
+    expect(updated.tags).toEqual(tags);
+
+    await connector.dropTable(tableName);
+  });
+
   it('coerces Date and boolean parameters when binding', async () => {
     const tableName = 'lite_coerce';
     if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
