@@ -19,6 +19,10 @@ This repository is a pnpm workspace; each published package lives under `package
 | [`@next-model/local-storage-connector`](./packages/local-storage-connector) | Browser `localStorage` connector. Inherits from `MemoryConnector`. |
 | [`@next-model/migrations`](./packages/migrations) | Connector-agnostic schema migration runner with optional dependency graph. |
 
+## Demos
+
+End-to-end runnable scripts live under [`demos/`](./demos). Each demo is one self-contained `demo.ts` runnable via `pnpm start` (Node's experimental type-stripping does the TS work — no `tsx` / `ts-node`). The first wave covers the zero-infrastructure connectors (`memory`, `sqlite`, `local-storage`); native database demos with `docker-compose` ship in follow-ups.
+
 ## Quick start
 
 ```ts
