@@ -23,6 +23,7 @@ This repository is a pnpm workspace; each published package lives under `package
 | [`@next-model/nextjs-api`](./packages/nextjs-api) | Next.js App Router adapter — `{ GET, POST, PATCH, DELETE }` route-handler exports with the same auth + mapping hook surface. |
 | [`@next-model/migrations-generator`](./packages/migrations-generator) | CLI (`nm-generate-migration`) + library for scaffolding timestamped migration files. |
 | [`@next-model/zod`](./packages/zod) | Bridge zod schemas into a Model's `init`, `validators`, and `createTable` columns — one schema, three consumers. |
+| [`@next-model/typebox`](./packages/typebox) | TypeBox variant of `@next-model/zod`. |
 
 ## Demos
 

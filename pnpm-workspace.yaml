@@ -16,6 +16,7 @@ packages:
   - "packages/nextjs-api"
   - "packages/migrations-generator"
   - "packages/zod"
+  - "packages/typebox"
   - "demos/node/*"
   - "demos/react/*"
   - "demos/nextjs/*"

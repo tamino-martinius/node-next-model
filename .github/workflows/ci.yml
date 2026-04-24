@@ -30,6 +30,7 @@ jobs:
       nextjs-api: ${{ steps.filter.outputs.nextjs-api }}
       migrations-generator: ${{ steps.filter.outputs.migrations-generator }}
       zod: ${{ steps.filter.outputs.zod }}
+      typebox: ${{ steps.filter.outputs.typebox }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -104,6 +105,9 @@ jobs:
             zod:
               - 'packages/zod/**'
               - '!packages/zod/**/*.md'
+            typebox:
+              - 'packages/typebox/**'
+              - '!packages/typebox/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -315,6 +319,26 @@ jobs:
         with:
           name: coverage-zod
           path: packages/zod/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-typebox:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.typebox == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/typebox -r build
+      - run: pnpm --filter @next-model/typebox coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-typebox
+          path: packages/typebox/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations-generator:
@@ -626,6 +650,7 @@ jobs:
       - test-nextjs-api
       - test-migrations-generator
       - test-zod
+      - test-typebox
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
