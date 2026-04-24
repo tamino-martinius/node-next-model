@@ -1,0 +1,158 @@
+import {
+  type AggregateKind,
+  type BaseType,
+  type Dict,
+  type KeyType,
+  MemoryConnector,
+  type Scope,
+  type Storage,
+} from '@next-model/core';
+
+export interface WebStorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export interface LocalStorageConnectorOptions {
+  localStorage?: WebStorageLike;
+  prefix?: string;
+  suffix?: string;
+}
+
+export class LocalStorageConnector extends MemoryConnector {
+  private readonly webStorage: WebStorageLike;
+  private readonly prefix: string;
+  private readonly suffix: string;
+  private readonly storageRef: Storage;
+  private readonly lastIdsRef: Dict<number>;
+  private readonly hydrated = new Set<string>();
+  private deferPersist = false;
+  private pendingPersist = new Set<string>();
+
+  constructor(options: LocalStorageConnectorOptions = {}) {
+    const storage: Storage = {};
+    const lastIds: Dict<number> = {};
+    super({ storage, lastIds });
+    this.storageRef = storage;
+    this.lastIdsRef = lastIds;
+    const ls =
+      options.localStorage ?? (globalThis as { localStorage?: WebStorageLike }).localStorage;
+    if (!ls) {
+      throw new Error(
+        'LocalStorageConnector requires a localStorage implementation (pass one via options.localStorage when not running in a browser)',
+      );
+    }
+    this.webStorage = ls;
+    this.prefix = options.prefix ?? '';
+    this.suffix = options.suffix ?? '';
+  }
+
+  private tableKey(tableName: string): string {
+    return `${this.prefix}${tableName}${this.suffix}`;
+  }
+
+  private nextIdKey(tableName: string): string {
+    return `${this.tableKey(tableName)}__nextId`;
+  }
+
+  private hydrate(tableName: string): void {
+    if (this.hydrated.has(tableName)) return;
+    const data = this.webStorage.getItem(this.tableKey(tableName));
+    if (data !== null) {
+      try {
+        const rows = JSON.parse(data);
+        if (Array.isArray(rows)) this.storageRef[tableName] = rows;
+      } catch {
+        // corrupt payload — start fresh
+      }
+    }
+    const nextIdRaw = this.webStorage.getItem(this.nextIdKey(tableName));
+    if (nextIdRaw !== null) {
+      const n = Number(nextIdRaw);
+      if (Number.isFinite(n)) this.lastIdsRef[tableName] = n;
+    }
+    this.hydrated.add(tableName);
+  }
+
+  private persist(tableName: string): void {
+    if (this.deferPersist) {
+      this.pendingPersist.add(tableName);
+      return;
+    }
+    const rows = this.storageRef[tableName] ?? [];
+    this.webStorage.setItem(this.tableKey(tableName), JSON.stringify(rows));
+    if (this.lastIdsRef[tableName] !== undefined) {
+      this.webStorage.setItem(this.nextIdKey(tableName), String(this.lastIdsRef[tableName]));
+    }
+  }
+
+  async query(scope: Scope): Promise<Dict<any>[]> {
+    this.hydrate(scope.tableName);
+    return super.query(scope);
+  }
+
+  async count(scope: Scope): Promise<number> {
+    this.hydrate(scope.tableName);
+    return super.count(scope);
+  }
+
+  async select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]> {
+    this.hydrate(scope.tableName);
+    return super.select(scope, ...keys);
+  }
+
+  async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
+    this.hydrate(scope.tableName);
+    return super.aggregate(scope, kind, key);
+  }
+
+  async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]> {
+    this.hydrate(scope.tableName);
+    const result = await super.updateAll(scope, attrs);
+    this.persist(scope.tableName);
+    return result;
+  }
+
+  async deleteAll(scope: Scope): Promise<Dict<any>[]> {
+    this.hydrate(scope.tableName);
+    const result = await super.deleteAll(scope);
+    this.persist(scope.tableName);
+    return result;
+  }
+
+  async batchInsert(
+    tableName: string,
+    keys: Dict<KeyType>,
+    items: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    this.hydrate(tableName);
+    const result = await super.batchInsert(tableName, keys, items);
+    this.persist(tableName);
+    return result;
+  }
+
+  async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
+    return super.execute(query, bindings);
+  }
+
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.deferPersist) return super.transaction(fn);
+    this.deferPersist = true;
+    this.pendingPersist.clear();
+    try {
+      const result = await super.transaction(fn);
+      this.deferPersist = false;
+      const pending = this.pendingPersist;
+      this.pendingPersist = new Set<string>();
+      for (const tableName of pending) this.persist(tableName);
+      return result;
+    } catch (err) {
+      this.deferPersist = false;
+      this.pendingPersist = new Set<string>();
+      throw err;
+    }
+  }
+}
+
+export default LocalStorageConnector;
