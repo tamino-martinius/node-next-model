@@ -393,6 +393,55 @@ export class ModelClass {
     return result;
   }
 
+  static async preloadBelongsTo<M extends typeof ModelClass>(
+    this: M,
+    records: any[],
+    options: { foreignKey: string; primaryKey?: string },
+  ): Promise<Map<any, InstanceType<M>>> {
+    const fk = options.foreignKey;
+    const pk = options.primaryKey ?? Object.keys(this.keys)[0] ?? 'id';
+    const ids = new Set<any>();
+    for (const record of records) {
+      const attrs = typeof record?.attributes === 'function' ? record.attributes() : record;
+      const value = attrs?.[fk];
+      if (value !== undefined && value !== null) ids.add(value);
+    }
+    if (ids.size === 0) return new Map();
+    const related = await this.filterBy({ $in: { [pk]: [...ids] } } as Filter<any>).all<M>();
+    const result = new Map<any, InstanceType<M>>();
+    for (const r of related) {
+      const key = (r.attributes() as Dict<any>)[pk];
+      result.set(key, r);
+    }
+    return result;
+  }
+
+  static async preloadHasMany<M extends typeof ModelClass>(
+    this: M,
+    records: any[],
+    options: { foreignKey: string; primaryKey?: string },
+  ): Promise<Map<any, InstanceType<M>[]>> {
+    const fk = options.foreignKey;
+    const pk = options.primaryKey ?? 'id';
+    const ids = new Set<any>();
+    for (const record of records) {
+      const attrs = typeof record?.attributes === 'function' ? record.attributes() : record;
+      const value = attrs?.[pk];
+      if (value !== undefined && value !== null) ids.add(value);
+    }
+    const result = new Map<any, InstanceType<M>[]>();
+    for (const id of ids) result.set(id, []);
+    if (ids.size === 0) return result;
+    const related = await this.filterBy({ $in: { [fk]: [...ids] } } as Filter<any>).all<M>();
+    for (const r of related) {
+      const key = (r.attributes() as Dict<any>)[fk];
+      const list = result.get(key);
+      if (list) list.push(r);
+      else result.set(key, [r]);
+    }
+    return result;
+  }
+
   static async aggregate<M extends typeof ModelClass>(
     this: M,
     kind: AggregateKind,
@@ -1038,6 +1087,34 @@ export function Model<
       key: keyof Keys | keyof PersistentProps,
     ) {
       const result = await super.groupBy(key as string);
+      return result as Map<
+        any,
+        (InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[]
+      >;
+    }
+
+    static async preloadBelongsTo<M extends typeof ModelClass>(
+      this: M,
+      records: any[],
+      options: { foreignKey: string; primaryKey?: keyof Keys & string },
+    ) {
+      const result = await super.preloadBelongsTo(records, options);
+      return result as Map<
+        any,
+        InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
+      >;
+    }
+
+    static async preloadHasMany<M extends typeof ModelClass>(
+      this: M,
+      records: any[],
+      options: { foreignKey: keyof PersistentProps & string; primaryKey?: string },
+    ) {
+      const result = await super.preloadHasMany(records, options);
       return result as Map<
         any,
         (InstanceType<M> &

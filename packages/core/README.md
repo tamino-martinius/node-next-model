@@ -430,6 +430,30 @@ class Post extends Model({ ... }) {
 
 Override the defaults via `foreignKey`, `primaryKey`, `typeKey`, `typeValue` as needed.
 
+### Eager loading
+
+Instance-level association helpers query lazily, which is fine for a single record but produces N+1 queries when iterating a collection. Use `preloadBelongsTo` / `preloadHasMany` on the related model to batch-load in a single query and look up per record:
+
+```ts
+// belongsTo: one parent per child
+const posts = await Post.all();
+const authorsByKey = await User.preloadBelongsTo(posts, { foreignKey: 'userId' });
+for (const post of posts) {
+  const author = authorsByKey.get(post.userId);
+  // ...
+}
+
+// hasMany: many children per parent
+const users = await User.all();
+const postsByUser = await Post.preloadHasMany(users, { foreignKey: 'userId' });
+for (const user of users) {
+  const posts = postsByUser.get(user.id) ?? [];
+  // ...
+}
+```
+
+Both helpers accept an optional `primaryKey` for non-`id` parent keys. `preloadHasMany` pre-seeds empty buckets for every parent, so `.get(parent.id)` always returns an array.
+
 ## Transactions
 
 ```ts
