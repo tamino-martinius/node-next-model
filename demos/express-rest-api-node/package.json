@@ -1,0 +1,23 @@
+{
+  "name": "@next-model-demos/express-rest-api-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types demo.ts"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/express-rest-api": "workspace:*",
+    "@next-model/sqlite-connector": "workspace:*",
+    "express": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
