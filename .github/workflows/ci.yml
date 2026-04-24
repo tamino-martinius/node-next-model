@@ -22,7 +22,7 @@ jobs:
       - run: pnpm -r build
       - run: pnpm typecheck
       # native db connectors require live services; covered by their dedicated jobs
-      - run: pnpm -r --filter '!@next-model/postgres-connector' --filter '!@next-model/mysql-connector' --filter '!@next-model/mariadb-connector' --filter '!@next-model/redis-connector' --filter '!@next-model/valkey-connector' coverage
+      - run: pnpm -r --filter '!@next-model/postgres-connector' --filter '!@next-model/mysql-connector' --filter '!@next-model/mariadb-connector' --filter '!@next-model/redis-connector' --filter '!@next-model/valkey-connector' --filter '!@next-model/mongodb-connector' coverage
 
   test-postgres-connector:
     runs-on: ubuntu-latest
@@ -163,6 +163,32 @@ jobs:
         env:
           VALKEY_URL: redis://127.0.0.1:6379
         run: pnpm --filter @next-model/valkey-connector coverage
+
+  test-mongodb-connector:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/mongodb-connector -r build
+      - name: Test mongodb-connector against MongoDB 7
+        env:
+          MONGODB_URL: mongodb://127.0.0.1:27017
+        run: pnpm --filter @next-model/mongodb-connector coverage
 
   test-knex-real-db:
     runs-on: ubuntu-latest
