@@ -8,6 +8,7 @@ Browser `localStorage` connector for [`@next-model/core`](../core).
 
 ```sh
 pnpm add @next-model/local-storage-connector
+# or: npm install @next-model/local-storage-connector
 ```
 
 No other peer dependencies.

@@ -4,6 +4,7 @@ Bridge a [zod](https://zod.dev) object schema into the three places a next-model
 
 ```sh
 pnpm add @next-model/zod zod
+# or: npm install @next-model/zod zod
 ```
 
 ## Usage

@@ -4,6 +4,7 @@ Next.js App Router adapter for next-model. Emits `{ GET, POST, PATCH, DELETE }` 
 
 ```sh
 pnpm add @next-model/nextjs-api
+# or: npm install @next-model/nextjs-api
 ```
 
 ## Getting started

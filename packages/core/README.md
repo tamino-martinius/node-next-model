@@ -38,6 +38,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 
 ```sh
 pnpm add @next-model/core
+# or: npm install @next-model/core
 ```
 
 `@next-model/core` ships with an in-memory `MemoryConnector` for development and tests. Production adapters (Knex, Data API) live in sibling packages.
