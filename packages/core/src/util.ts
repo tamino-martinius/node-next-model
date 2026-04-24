@@ -22,3 +22,31 @@ export function singularize(word: string): string {
   if (word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
   return word;
 }
+
+function tokenize(str: string): string[] {
+  return str
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+    .replace(/[_\-\s]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((s) => s.length > 0)
+    .map((s) => s.toLowerCase());
+}
+
+export function camelize(str: string): string {
+  const parts = tokenize(str);
+  if (parts.length === 0) return '';
+  return (
+    parts[0] +
+    parts
+      .slice(1)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join('')
+  );
+}
+
+export function pascalize(str: string): string {
+  return tokenize(str)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join('');
+}
