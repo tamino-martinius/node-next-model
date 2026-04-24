@@ -14,7 +14,12 @@ export default defineConfig({
     coverage: {
       reporter: ['text', 'json-summary'],
       include: ['src/**/*.ts'],
-      exclude: ['src/__benchmark__/**', 'src/__tests__/**', 'src/__mocks__/**'],
+      exclude: [
+        'src/__benchmark__/**',
+        'src/__tests__/**',
+        'src/__mocks__/**',
+        'src/MockDataApiClient.ts',
+      ],
       thresholds: {
         lines: 70,
         statements: 70,

@@ -13,8 +13,8 @@ Self-contained scripts that show NextModel against each connector. Every demo is
 | [`redis-node`](./redis-node) | `@next-model/redis-connector` | `docker compose up -d` (redis:7) |
 | [`valkey-node`](./valkey-node) | `@next-model/valkey-connector` | `docker compose up -d` (valkey/valkey:8) |
 | [`mongodb-node`](./mongodb-node) | `@next-model/mongodb-connector` | `docker compose up -d` (mongo:7) |
-
-> Demos for the Aurora Data API and the knex-on-multiple-backends matrix ship in follow-up PRs.
+| [`knex-node`](./knex-node) | `@next-model/knex-connector` against sqlite (default), or pg / mysql via the `KNEX_DEMO_CLIENT` env var | none for sqlite; `docker compose --profile pg \| mysql up -d` for the others |
+| [`aurora-data-api-node`](./aurora-data-api-node) | `@next-model/aurora-data-api-connector` against the bundled `MockDataApiClient` (in-memory sqlite) | none |
 
 Service-backed demos all expose two helper scripts:
 
