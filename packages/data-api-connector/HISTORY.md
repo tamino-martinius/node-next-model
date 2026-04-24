@@ -2,8 +2,36 @@
 
 ## vNext
 
-Add new queries for
-* `$exists`
+Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
+
+### Rewrite
+
+- Full TypeScript rewrite on top of the modern `@next-model/core` `Connector` interface. Matches `KnexConnector` parity.
+- Constructor accepts either an Aurora Data API config (`{ secretArn, resourceArn, database, debug? }`, delegated to `data-api-client`) or an injected `client` for testing/custom transports.
+
+### Filter operators
+
+- Boolean composition: `$and`, `$or`, `$not`.
+- Set membership: `$in`, `$notIn`.
+- Null checks: `$null`, `$notNull`.
+- Range: `$between`, `$notBetween`.
+- Comparisons: `$gt`, `$gte`, `$lt`, `$lte`.
+- Pattern: `$like`.
+- Lazy filter resolution: `$async`.
+- Raw SQL + bindings: `$raw`.
+- All filter validation raises `FilterError`.
+
+### Connector surface
+
+- `query`, `count`, `select`, `updateAll`, `deleteAll`, `batchInsert`, `aggregate(scope, kind, key)`, `execute(query, bindings)`, `transaction(fn)`.
+- Positional `?` bindings in `execute` are translated to Aurora Data API `:paramN` placeholders.
+- Nested `transaction(fn)` joins the outer transaction; outer rollback discards inner writes.
+- `batchInsert` pre-fetches inserted rows by generated primary key so callers receive fully materialized rows.
+
+### Testing
+
+- Ships `MockDataApiClient` backed by sqlite3 via knex so test SQL actually executes end-to-end.
+- Vitest suite covering all filter operators, aggregate kinds, transactions (commit/rollback/nested), `execute`, `batchInsert`, and error paths.
 
 ## v0.?.?
 

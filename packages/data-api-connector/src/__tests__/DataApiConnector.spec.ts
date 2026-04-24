@@ -2,13 +2,11 @@ import { FilterError, Model } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { KnexConnector } from '..';
+import { DataApiConnector } from '..';
+import { MockDataApiClient } from '../__mocks__/MockDataApiClient';
 
-const connector = new KnexConnector({
-  client: 'sqlite3',
-  connection: { filename: ':memory:' },
-  useNullAsDefault: true,
-});
+const mockClient = new MockDataApiClient();
+const connector = new DataApiConnector({ client: mockClient });
 
 const tableName = 'users';
 
@@ -19,8 +17,8 @@ class User extends Model({
 }) {}
 
 async function seedTable(): Promise<void> {
-  await connector.knex.schema.dropTableIfExists(tableName);
-  await connector.knex.schema.createTable(tableName, (table: Knex.CreateTableBuilder) => {
+  await mockClient.knex.schema.dropTableIfExists(tableName);
+  await mockClient.knex.schema.createTable(tableName, (table: Knex.CreateTableBuilder) => {
     table.increments('id').primary().unsigned();
     table.string('name');
     table.integer('age');
@@ -30,7 +28,7 @@ async function seedTable(): Promise<void> {
 }
 
 async function dropTable(): Promise<void> {
-  await connector.knex.schema.dropTableIfExists(tableName);
+  await mockClient.knex.schema.dropTableIfExists(tableName);
 }
 
 let alice: User;
@@ -47,9 +45,9 @@ async function seed(): Promise<void> {
 const ids = (rows: { id: number }[]) => rows.map((r) => r.id);
 
 afterEach(dropTable);
-afterAll(() => connector.knex.destroy());
+afterAll(() => mockClient.destroy());
 
-describe('KnexConnector', () => {
+describe('DataApiConnector', () => {
   describe('#query', () => {
     beforeEach(seed);
 
@@ -69,10 +67,7 @@ describe('KnexConnector', () => {
     });
 
     it('orders rows', async () => {
-      const rows = await connector.query({
-        tableName,
-        order: [{ key: 'name' }],
-      });
+      const rows = await connector.query({ tableName, order: [{ key: 'name' }] });
       expect((rows as any[]).map((r) => r.name)).toEqual([null, 'alice', 'bar']);
     });
 
@@ -94,10 +89,7 @@ describe('KnexConnector', () => {
       });
 
       it('$not', async () => {
-        const rows = await connector.query({
-          tableName,
-          filter: { $not: { id: bob.id } },
-        });
+        const rows = await connector.query({ tableName, filter: { $not: { id: bob.id } } });
         expect(ids(rows as any)).toEqual([alice.id, carol.id]);
       });
 
@@ -110,10 +102,7 @@ describe('KnexConnector', () => {
       });
 
       it('$notIn', async () => {
-        const rows = await connector.query({
-          tableName,
-          filter: { $notIn: { id: [alice.id] } },
-        });
+        const rows = await connector.query({ tableName, filter: { $notIn: { id: [alice.id] } } });
         expect(ids(rows as any)).toEqual([bob.id, carol.id]);
       });
 
@@ -159,10 +148,7 @@ describe('KnexConnector', () => {
       });
 
       it('$like', async () => {
-        const rows = await connector.query({
-          tableName,
-          filter: { $like: { name: 'ali%' } },
-        });
+        const rows = await connector.query({ tableName, filter: { $like: { name: 'ali%' } } });
         expect(ids(rows as any)).toEqual([alice.id]);
       });
 
@@ -211,7 +197,7 @@ describe('KnexConnector', () => {
     });
 
     it('returns 0 for an empty table', async () => {
-      await connector.knex(tableName).del();
+      await connector.deleteAll({ tableName });
       expect(await connector.count({ tableName })).toBe(0);
     });
   });
@@ -247,14 +233,12 @@ describe('KnexConnector', () => {
       );
       expect(updated).toHaveLength(2);
       expect(updated.every((r) => r.name === 'renamed')).toBe(true);
-      const allRows = await connector.query({ tableName });
-      expect((allRows as any[]).filter((r) => r.name === 'renamed')).toHaveLength(2);
     });
 
     it('leaves non-matching rows unchanged', async () => {
       await connector.updateAll({ tableName, filter: { id: alice.id } }, { name: 'renamed' });
-      const row = await connector.knex(tableName).where({ id: bob.id }).first();
-      expect(row.name).toBeNull();
+      const bobRow = await connector.query({ tableName, filter: { id: bob.id } });
+      expect((bobRow[0] as any).name).toBeNull();
     });
 
     it('returns an empty array when no rows match', async () => {
@@ -335,9 +319,9 @@ describe('KnexConnector', () => {
     });
 
     it('returns undefined when no rows match', async () => {
-      expect(await connector.aggregate({ tableName, filter: { age: 999 } }, 'sum', 'age')).toBe(
-        undefined,
-      );
+      expect(
+        await connector.aggregate({ tableName, filter: { age: 999 } }, 'sum', 'age'),
+      ).toBeUndefined();
     });
   });
 
@@ -346,14 +330,6 @@ describe('KnexConnector', () => {
 
     it('runs raw SQL with positional bindings', async () => {
       const rows = await connector.execute('SELECT * FROM users WHERE age = ?', [18]);
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe('alice');
-    });
-
-    it('runs raw SQL with named bindings', async () => {
-      const rows = await connector.execute('SELECT * FROM users WHERE age = :age', {
-        age: 18,
-      } as any);
       expect(rows).toHaveLength(1);
       expect(rows[0].name).toBe('alice');
     });

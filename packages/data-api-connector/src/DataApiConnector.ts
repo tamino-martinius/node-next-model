@@ -1,66 +1,96 @@
 import {
+  type AggregateKind,
   type BaseType,
   type Connector,
   type Dict,
   type Filter,
   type FilterBetween,
+  FilterError,
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
   type KeyType,
+  PersistenceError,
   type Scope,
   SortDirection,
 } from '@next-model/core';
 import Knex from 'knex';
 
+export interface DataApiQueryResult {
+  records?: Dict<any>[];
+  insertId?: number;
+  numberOfRecordsUpdated?: number;
+}
+
+export interface DataApiClient {
+  query(sql: string, params?: Dict<any>): Promise<DataApiQueryResult>;
+  beginTransaction?(): Promise<unknown>;
+  commitTransaction?(id: unknown): Promise<void>;
+  rollbackTransaction?(id: unknown): Promise<void>;
+}
+
 export interface DataApiConfig {
-  secretArn: string;
-  resourceArn: string;
-  database: string;
-  debug: boolean;
+  secretArn?: string;
+  resourceArn?: string;
+  database?: string;
+  debug?: boolean;
+  client?: DataApiClient;
+}
+
+function requireSingleKey(filter: Dict<any>, operator: string): string {
+  const keys = Object.keys(filter);
+  if (keys.length !== 1) {
+    throw new FilterError(`${operator} expects exactly one key, received ${keys.length}`);
+  }
+  return keys[0];
 }
 
 export class DataApiConnector implements Connector {
-  dataApi: any;
+  dataApi: DataApiClient;
   knex = Knex({ client: 'pg' });
   debug: boolean;
+  private activeTransactionId: unknown;
 
   constructor(options: DataApiConfig) {
-    this.dataApi = require('data-api-client')(options);
-    if (options.debug !== undefined) this.debug = options.debug;
+    if (options.client) {
+      this.dataApi = options.client;
+    } else {
+      this.dataApi = require('data-api-client')(options);
+    }
+    this.debug = options.debug ?? false;
   }
 
-  private currentMilliseconds() {
+  private currentMilliseconds(): number {
     const hrTime = process.hrtime();
     return hrTime[0] * 1000 + hrTime[1] / 1000000;
   }
 
-  private async queryDataApi(query: Knex.QueryBuilder) {
-    const startTime = this.currentMilliseconds();
+  private toSqlAndParams(query: Knex.QueryBuilder): { sql: string; params: Dict<any> } {
     const sql = query.toSQL();
-    if (sql.bindings.length !== (sql.sql.match(/\?/g) || []).length) {
-      console.log('Possible SQL injection', sql);
-      return [];
+    const bindings = sql.bindings as any[];
+    if (bindings.length !== (sql.sql.match(/\?/g) || []).length) {
+      throw new PersistenceError('Mismatched bindings and placeholders in generated SQL');
     }
     let i = 0;
     const params: Dict<any> = {};
     const sqlStatement = sql.sql.replace(/\?/g, () => {
       const key = `param${i}`;
-      params[key] = sql.bindings[i];
+      params[key] = bindings[i];
       i += 1;
       return `:${key}`;
     });
+    return { sql: sqlStatement, params };
+  }
 
-    const result = await this.dataApi.query(sqlStatement, params);
-
+  private async runQuery(query: Knex.QueryBuilder): Promise<DataApiQueryResult> {
+    const { sql, params } = this.toSqlAndParams(query);
+    const startTime = this.currentMilliseconds();
+    const result = await this.dataApi.query(sql, params);
     if (this.debug) {
-      const endTime = this.currentMilliseconds();
-      const elapsedTime = endTime - startTime;
-      console.log(
-        [sqlStatement, JSON.stringify(params), `${elapsedTime.toFixed(3)} ms\n`].join(' | '),
-      );
+      const elapsed = this.currentMilliseconds() - startTime;
+      console.log([sql, JSON.stringify(params), `${elapsed.toFixed(3)} ms\n`].join(' | '));
     }
-    return result.records as Dict<any>[];
+    return result;
   }
 
   private table(tableName: string): Knex.QueryBuilder {
@@ -85,7 +115,7 @@ export class DataApiConnector implements Connector {
   private async notFilter(query: Knex.QueryBuilder, filter: Filter<Dict<any>>) {
     const self = this;
     query = query.whereNot(async function () {
-      (await self.filter(this, filter)).query;
+      await self.filter(this, filter);
     });
     return { query };
   }
@@ -101,19 +131,13 @@ export class DataApiConnector implements Connector {
   }
 
   private async inFilter(query: Knex.QueryBuilder, filter: Partial<FilterIn<Dict<any>>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      return { query: query.whereIn(key, <any>filter[key]) };
-    }
-    throw '[TODO] Should not reach error';
+    const key = requireSingleKey(filter, '$in');
+    return { query: query.whereIn(key, filter[key] as any) };
   }
 
   private async notInFilter(query: Knex.QueryBuilder, filter: Partial<FilterIn<Dict<any>>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      return { query: query.whereNotIn(key, <any>filter[key]) };
-    }
-    throw '[TODO] Should not reach error';
+    const key = requireSingleKey(filter, '$notIn');
+    return { query: query.whereNotIn(key, filter[key] as any) };
   }
 
   private async nullFilter(query: Knex.QueryBuilder, key: string) {
@@ -125,71 +149,39 @@ export class DataApiConnector implements Connector {
   }
 
   private async betweenFilter(query: Knex.QueryBuilder, filter: Partial<FilterBetween<Dict<any>>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      const filterBetween = filter[key];
-      if (filterBetween !== undefined) {
-        return { query: query.andWhereBetween(key, [filterBetween.from, filterBetween.to]) };
-      }
+    const key = requireSingleKey(filter, '$between');
+    const range = filter[key];
+    if (range === undefined) {
+      throw new FilterError(`$between missing range for key ${key}`);
     }
-    throw '[TODO] Should not reach error';
+    return { query: query.andWhereBetween(key, [range.from, range.to] as any) };
   }
 
   private async notBetweenFilter(
     query: Knex.QueryBuilder,
     filter: Partial<FilterBetween<Dict<any>>>,
   ) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      const filterBetween = filter[key];
-      if (filterBetween !== undefined) {
-        return {
-          query: query.andWhereNotBetween(key, [<any>filterBetween.from, <any>filterBetween.to]),
-        };
-      }
+    const key = requireSingleKey(filter, '$notBetween');
+    const range = filter[key];
+    if (range === undefined) {
+      throw new FilterError(`$notBetween missing range for key ${key}`);
     }
-    throw '[TODO] Should not reach error';
+    return { query: query.andWhereNotBetween(key, [range.from, range.to] as any) };
   }
 
-  private async gtFilter(query: Knex.QueryBuilder, filter: Partial<Dict<any>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      return { query: query.where(key, '>', <any>filter[key]) };
-    }
-    throw '[TODO] Should not reach error';
+  private async compareFilter(
+    query: Knex.QueryBuilder,
+    filter: Partial<Dict<any>>,
+    operator: '>' | '>=' | '<' | '<=',
+    name: string,
+  ) {
+    const key = requireSingleKey(filter, name);
+    return { query: query.where(key, operator, filter[key] as any) };
   }
 
-  private async gteFilter(query: Knex.QueryBuilder, filter: Partial<Dict<any>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      const value: BaseType = <any>filter[key];
-      if (value !== undefined) {
-        return { query: query.where(key, '>=', value) };
-      }
-    }
-    throw '[TODO] Should not reach error';
-  }
-
-  private async ltFilter(query: Knex.QueryBuilder, filter: Partial<Dict<any>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      const value: BaseType = <any>filter[key];
-      if (value !== undefined) {
-        return { query: query.where(key, '<', value) };
-      }
-    }
-    throw '[TODO] Should not reach error';
-  }
-
-  private async lteFilter(query: Knex.QueryBuilder, filter: Partial<Dict<any>>) {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
-    for (const key in filter) {
-      const value: BaseType = <any>filter[key];
-      if (value !== undefined) {
-        return { query: query.where(key, '<=', value) };
-      }
-    }
-    throw '[TODO] Should not reach error';
+  private async likeFilter(query: Knex.QueryBuilder, filter: Partial<Dict<any>>) {
+    const key = requireSingleKey(filter, '$like');
+    return { query: query.where(key, 'like', filter[key] as any) };
   }
 
   private async rawFilter(query: Knex.QueryBuilder, filter: FilterRaw) {
@@ -206,7 +198,12 @@ export class DataApiConnector implements Connector {
     query: Knex.QueryBuilder,
     filter: FilterSpecial<Dict<any>>,
   ): Promise<{ query: Knex.QueryBuilder }> {
-    if (Object.keys(filter).length !== 1) throw '[TODO] Return proper error';
+    const keys = Object.keys(filter);
+    if (keys.length !== 1) {
+      throw new FilterError(
+        `Special filter expects exactly one operator, received [${keys.join(', ')}]`,
+      );
+    }
     if (filter.$and !== undefined) return this.andFilter(query, filter.$and);
     if (filter.$or !== undefined) return this.orFilter(query, filter.$or);
     if (filter.$not !== undefined) return this.notFilter(query, filter.$not);
@@ -216,13 +213,14 @@ export class DataApiConnector implements Connector {
     if (filter.$notNull !== undefined) return this.notNullFilter(query, filter.$notNull as string);
     if (filter.$between !== undefined) return this.betweenFilter(query, filter.$between);
     if (filter.$notBetween !== undefined) return this.notBetweenFilter(query, filter.$notBetween);
-    if (filter.$gt !== undefined) return this.gtFilter(query, filter.$gt);
-    if (filter.$gte !== undefined) return this.gteFilter(query, filter.$gte);
-    if (filter.$lt !== undefined) return this.ltFilter(query, filter.$lt);
-    if (filter.$lte !== undefined) return this.lteFilter(query, filter.$lte);
+    if (filter.$gt !== undefined) return this.compareFilter(query, filter.$gt, '>', '$gt');
+    if (filter.$gte !== undefined) return this.compareFilter(query, filter.$gte, '>=', '$gte');
+    if (filter.$lt !== undefined) return this.compareFilter(query, filter.$lt, '<', '$lt');
+    if (filter.$lte !== undefined) return this.compareFilter(query, filter.$lte, '<=', '$lte');
+    if (filter.$like !== undefined) return this.likeFilter(query, filter.$like);
     if (filter.$async !== undefined) return this.asyncFilter(query, filter.$async);
     if (filter.$raw !== undefined) return this.rawFilter(query, filter.$raw);
-    throw '[TODO] Should not reach error';
+    throw new FilterError(`Unsupported filter operator: ${keys[0]}`);
   }
 
   private async filter(query: Knex.QueryBuilder, filter: Filter<Dict<any>> | undefined) {
@@ -231,10 +229,18 @@ export class DataApiConnector implements Connector {
     }
     for (const key in filter) {
       if (key.startsWith('$')) {
-        return this.specialFilter(query, <FilterSpecial<Dict<any>>>filter);
+        return this.specialFilter(query, filter as FilterSpecial<Dict<any>>);
       }
     }
-    return await this.propertyFilter(query, <Partial<Dict<any>>>filter);
+    return await this.propertyFilter(query, filter as Partial<Dict<any>>);
+  }
+
+  private applyOrder(query: Knex.QueryBuilder, order: Scope['order']): Knex.QueryBuilder {
+    for (const column of order || []) {
+      const direction = (column.dir ?? SortDirection.Asc) === SortDirection.Asc ? 'asc' : 'desc';
+      query = query.orderBy(column.key as string, direction);
+    }
+    return query;
   }
 
   private async collection(scope: Scope) {
@@ -251,45 +257,41 @@ export class DataApiConnector implements Connector {
 
   async query(scope: Scope): Promise<Dict<any>[]> {
     let { query } = await this.collection(scope);
-    for (const order of scope.order || []) {
-      const direction = order.dir === SortDirection.Asc ? 'asc' : 'desc';
-      query = query.orderBy(order.key, direction);
-    }
-    const rows = await this.queryDataApi(query.select('*'));
-    return rows;
+    query = this.applyOrder(query, scope.order);
+    const result = await this.runQuery(query.select('*'));
+    return result.records ?? [];
   }
 
   async count(scope: Scope): Promise<number> {
     const { query } = await this.collection(scope);
-    const rows = await this.queryDataApi(query.count());
-    if (rows.length >= 0) {
-      for (const key in rows[0]) {
-        return <any>rows[0][key];
-      }
+    const result = await this.runQuery(query.count('* as count'));
+    const rows = result.records ?? [];
+    if (rows.length === 0) return 0;
+    for (const key in rows[0]) {
+      return Number(rows[0][key]);
     }
-    throw '[TODO] Should not reach error';
+    return 0;
   }
 
   async select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]> {
     let { query } = await this.collection(scope);
-    for (const order of scope.order || []) {
-      const direction = order.dir === SortDirection.Asc ? 'asc' : 'desc';
-      query = query.orderBy(order.key, direction);
-    }
-    const rows = await this.queryDataApi(query.select(...keys));
-    return rows;
+    query = this.applyOrder(query, scope.order);
+    const result = await this.runQuery(query.select(...keys));
+    return result.records ?? [];
   }
 
   async updateAll(scope: Scope, attrs: Dict<any>): Promise<Dict<any>[]> {
-    const { query } = await this.collection(scope);
-    const rows = await this.queryDataApi(query.update(attrs).returning(`${scope.tableName}.*`));
-    return rows;
+    const { query: updateQuery } = await this.collection(scope);
+    await this.runQuery(updateQuery.update(attrs));
+    const updated = await this.query(scope);
+    return updated;
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
+    const matching = await this.query(scope);
     const { query } = await this.collection(scope);
-    const rows = await this.queryDataApi(query.del().returning(`${scope.tableName}.*`));
-    return rows;
+    await this.runQuery(query.del());
+    return matching;
   }
 
   async batchInsert(
@@ -297,14 +299,78 @@ export class DataApiConnector implements Connector {
     keys: Dict<KeyType>,
     items: Dict<any>[],
   ): Promise<Dict<any>[]> {
+    if (items.length === 0) return [];
     const primaryKey = Object.keys(keys)[0];
-    const table = this.table(tableName);
-    const rows = await this.queryDataApi(table.insert(items).returning(`${tableName}.*`));
-    return rows;
+    const inserted: Dict<any>[] = [];
+    for (const item of items) {
+      const builder = this.table(tableName).insert(item);
+      const result = await this.runQuery(builder);
+      const insertId = result.insertId;
+      if (insertId === undefined) {
+        throw new PersistenceError(`insert into ${tableName} did not return an insertId`);
+      }
+      const fetched = await this.runQuery(
+        this.table(tableName).where(primaryKey, insertId).select('*'),
+      );
+      const row = fetched.records?.[0];
+      if (row === undefined) {
+        throw new PersistenceError(
+          `insert into ${tableName} row with ${primaryKey}=${insertId} not found`,
+        );
+      }
+      inserted.push(row);
+    }
+    return inserted;
+  }
+
+  async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
+    const { query } = await this.collection(scope);
+    const column = `${kind}_result`;
+    const result = await this.runQuery(query[kind](`${key} as ${column}`));
+    const rows = result.records ?? [];
+    if (rows.length === 0) return undefined;
+    const value = rows[0][column];
+    if (value === null || value === undefined) return undefined;
+    return Number(value);
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
-    throw new Error('Not implemented');
+    const bindingsArray = Array.isArray(bindings) ? bindings : [bindings];
+    const params: Dict<any> = {};
+    let i = 0;
+    const sqlStatement = query.replace(/\?/g, () => {
+      const paramKey = `param${i}`;
+      params[paramKey] = bindingsArray[i];
+      i += 1;
+      return `:${paramKey}`;
+    });
+    const result = await this.dataApi.query(sqlStatement, params);
+    return result.records ?? [];
+  }
+
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.activeTransactionId !== undefined) {
+      return fn();
+    }
+    if (
+      !this.dataApi.beginTransaction ||
+      !this.dataApi.commitTransaction ||
+      !this.dataApi.rollbackTransaction
+    ) {
+      throw new PersistenceError('Data API client does not support transactions');
+    }
+    const id = await this.dataApi.beginTransaction();
+    this.activeTransactionId = id;
+    try {
+      const result = await fn();
+      await this.dataApi.commitTransaction(id);
+      return result;
+    } catch (err) {
+      await this.dataApi.rollbackTransaction(id);
+      throw err;
+    } finally {
+      this.activeTransactionId = undefined;
+    }
   }
 }
 
