@@ -20,6 +20,23 @@ import {
 import { camelize, pascalize, singularize } from './util.js';
 import { Errors } from './validators.js';
 
+/**
+ * Generate a URL-safe random token. `length` is the byte count fed into the
+ * platform RNG; the returned base64url string is `Math.ceil(length * 4 / 3)`
+ * characters long (no padding). Default 24 bytes → 32-character token.
+ *
+ * Uses the Web Crypto API (`globalThis.crypto.getRandomValues`), which is
+ * available in browsers and in Node 19+ as a global, so this stays
+ * browser-bundle-safe (no `node:crypto` import).
+ */
+export function generateSecureToken(length = 24): string {
+  const bytes = new Uint8Array(length);
+  globalThis.crypto.getRandomValues(bytes);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 interface TransactionContext {
   afterCommit: Array<() => Promise<void>>;
   afterRollback: Array<() => Promise<void>>;
@@ -363,6 +380,17 @@ export class ModelClass {
    * `dependent: 'destroy' | 'deleteAll' | 'nullify' | 'restrict'`.
    */
   static cascadeMap: CascadeMap | undefined = undefined;
+  /**
+   * Map of column → normalizer function. When `assign()` writes this column,
+   * the input value is passed through the function before being stored.
+   * Runs both for direct setters and for `update(...)` / `build({...})`.
+   */
+  static normalizers: Dict<(value: any) => any> = {};
+  /**
+   * Columns that should be auto-populated with a random URL-safe token on
+   * insert if blank. Configured via the `secureTokens` factory option.
+   */
+  static secureTokenColumns: Dict<{ length: number }> = {};
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -1399,9 +1427,12 @@ export class ModelClass {
   }
 
   assign<M extends ModelClass>(this: M, props: Dict<any>) {
+    const model = this.constructor as typeof ModelClass;
+    const normalizers = model.normalizers;
     for (const key in props) {
-      if (this.persistentProps[key] !== props[key]) {
-        this.changedProps[key] = props[key];
+      const value = normalizers[key] ? normalizers[key](props[key]) : props[key];
+      if (this.persistentProps[key] !== value) {
+        this.changedProps[key] = value;
       } else {
         delete this.changedProps[key];
       }
@@ -1682,6 +1713,12 @@ export class ModelClass {
       }
       if (model.inheritColumn && model.inheritType !== undefined) {
         insertProps[model.inheritColumn] = model.inheritType;
+      }
+      for (const column in model.secureTokenColumns) {
+        const current = insertProps[column];
+        if (current === undefined || current === null || current === '') {
+          insertProps[column] = generateSecureToken(model.secureTokenColumns[column].length);
+        }
       }
       const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
@@ -1967,6 +2004,19 @@ export function Model<
    */
   cascade?: CascadeMap;
   /**
+   * Per-column normalizers run on `assign(...)` (and so also on `build` /
+   * `update`). Useful for trimming whitespace, lowercasing emails, stripping
+   * non-digits from phone numbers, etc.
+   */
+  normalizes?: Dict<(value: any) => any>;
+  /**
+   * Columns to auto-populate with a random URL-safe token on insert when
+   * the value is blank. Pass column names directly or per-column options
+   * (`{ apiKey: { length: 24 } }`); default length is 24 bytes →
+   * 32-character base64-url tokens.
+   */
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  /**
    * Counter cache configuration. Each entry declares a `belongsTo` parent
    * Model, the foreign-key column on this Model, and a counter column on
    * the parent. The Model auto-maintains the counter via afterCreate /
@@ -2023,6 +2073,19 @@ export function Model<
       : undefined;
     static storeAccessors = props.storeAccessors ?? {};
     static cascadeMap = props.cascade;
+    static normalizers = (props.normalizes ?? {}) as Dict<(value: any) => any>;
+    static secureTokenColumns = (() => {
+      const tokens = props.secureTokens;
+      if (!tokens) return {};
+      if (Array.isArray(tokens)) {
+        const map: Dict<{ length: number }> = {};
+        for (const col of tokens) map[col] = { length: 24 };
+        return map;
+      }
+      const map: Dict<{ length: number }> = {};
+      for (const col in tokens) map[col] = { length: tokens[col].length ?? 24 };
+      return map;
+    })();
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
@@ -2374,15 +2437,8 @@ export function Model<
       >;
     }
 
-    assign<M extends ModelClass>(this: M, props: Partial<PersistentProps>) {
-      for (const key in props) {
-        if (this.persistentProps[key] !== props[key]) {
-          this.changedProps[key] = props[key];
-        } else {
-          delete this.changedProps[key];
-        }
-      }
-      return this as M;
+    assign<M extends ModelClass>(this: M, props: Partial<PersistentProps>): M {
+      return super.assign(props as Dict<any>) as M;
     }
 
     isChangedBy(key: keyof PersistentProps): boolean {
