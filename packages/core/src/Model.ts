@@ -98,11 +98,11 @@ export type IncludeOptions = {
    * main fetch (`preloadBelongsTo` / `preloadHasMany`); works on every connector.
    *
    * `'join'` — folds each association into a `LEFT JOIN` on the main fetch via
-   * `Connector.queryWithJoins`. Requires `connector.supportsJoins`; throws if
-   * the connector lacks the capability.
+   * `Connector.queryWithJoins`. Requires the connector to implement
+   * `queryWithJoins`; throws if it doesn't.
    *
-   * `'auto'` — uses `'join'` when the connector advertises `supportsJoins` and
-   * falls back to `'preload'` otherwise.
+   * `'auto'` — uses `'join'` when the connector implements `queryWithJoins`
+   * and falls back to `'preload'` otherwise.
    */
   strategy?: IncludeStrategy;
 };
@@ -484,7 +484,7 @@ export class ModelClass {
    *  - `'preload'` (default): one batched query per association via the existing
    *    `preloadBelongsTo` / `preloadHasMany` primitives — works on every connector.
    *  - `'join'`: routes through `Connector.queryWithJoins` with `mode: 'includes'` —
-   *    one round-trip per `all()` call. Requires `connector.supportsJoins`.
+   *    one round-trip per `all()` call. Requires `connector.queryWithJoins`.
    *  - `'auto'`: prefers `'join'` when supported, falls back to `'preload'` otherwise.
    */
   static includeStrategy: IncludeStrategy = 'preload';
@@ -498,8 +498,8 @@ export class ModelClass {
   /**
    * Pending JOIN clauses accumulated by `joins(...)`, `whereMissing(...)`, and
    * cross-association `filterBy(...)` calls. Resolved at terminal time:
-   * connectors with `supportsJoins` route the chain through `queryWithJoins`;
-   * others fall back to subquery `$async` filters or post-fetch preloads.
+   * connectors that implement `queryWithJoins` route the chain through it;
+   * others fall back to a Model-resolved `$in` / `$notIn` filter.
    */
   static pendingJoins: JoinClause[] = [];
   /**
@@ -611,8 +611,8 @@ export class ModelClass {
     // `$notIn` filter by issuing the child query right now. Resolving on
     // the Model side keeps native connectors (sqlite/pg/mysql/mariadb,
     // which reject `$async` at the connector boundary) working, while
-    // connectors with `supportsJoins` skip this entirely via the fast
-    // path in `all()`.
+    // connectors that implement `queryWithJoins` skip this entirely via
+    // the fast path in `all()`.
     const joinFilters: Filter<any>[] = [];
     const fallbackConnector = this.connector;
     for (const join of this.pendingJoins) {
@@ -986,8 +986,9 @@ export class ModelClass {
    * Add an explicit `INNER JOIN` (default) or `LEFT JOIN` to the chain. Filters
    * the parent rows down to those with at least one matching child row when
    * `kind: 'inner'` (the default) — equivalent to Rails' `User.joins(:posts)`.
-   * On connectors with `supportsJoins`, runs as a single `INNER JOIN`; on
-   * others, falls back to a `$async` + `$in` subquery against the child table.
+   * On connectors that implement `queryWithJoins`, runs as a single
+   * `INNER JOIN`; on others, falls back to a Model-resolved `$in` filter
+   * against the child table.
    *
    *   const active = await User
    *     .joins({ hasMany: Post, foreignKey: 'userId', filter: { status: 'published' } })
@@ -1054,7 +1055,7 @@ export class ModelClass {
   /**
    * Filter the chain to records that have no matching child rows. Mirrors
    * Rails' `User.where.missing(:posts)`. On connectors that advertise
-   * `supportsJoins` (Knex), runs as a single `LEFT JOIN child ON … WHERE
+   * `queryWithJoins` (Knex), runs as a single `LEFT JOIN child ON … WHERE
    * child.id IS NULL`. On every other connector, falls back to the original
    * subquery shape — `pluckUnique(foreignKey)` followed by
    * `$notIn: { [pk]: [...] }` — so the chain composes with `filterBy` /
@@ -1134,13 +1135,13 @@ export class ModelClass {
 
   static async all<M extends typeof ModelClass>(this: M) {
     const primaryKeys = Object.keys(this.keys);
-    const supportsJoins = !!(this.connector.supportsJoins && this.connector.queryWithJoins);
+    const supportsJoins = typeof this.connector.queryWithJoins === 'function';
     const wantsIncludesViaJoin =
       this.selectedIncludes !== undefined &&
       (this.includeStrategy === 'join' || (this.includeStrategy === 'auto' && supportsJoins));
     if (this.includeStrategy === 'join' && this.selectedIncludes && !supportsJoins) {
       throw new PersistenceError(
-        `Model.includes(..., { strategy: 'join' }) requires a connector with 'supportsJoins'. Use 'preload' or 'auto' for connectors without JOIN execution.`,
+        `Model.includes(..., { strategy: 'join' }) requires a connector that implements 'queryWithJoins'. Use 'preload' or 'auto' for connectors without JOIN execution.`,
       );
     }
     const includesViaJoin: Array<{ name: string; spec: IncludeSpec; cardinality: 'many' | 'one' }> =

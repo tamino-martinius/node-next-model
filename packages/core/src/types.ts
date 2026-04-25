@@ -96,18 +96,15 @@ export interface Connector {
   dropTable(tableName: string): Promise<void>;
 
   /**
-   * Capability bit. Connectors that can execute a parent scope JOINed against
-   * one or more child tables in a single statement set this and implement
-   * `queryWithJoins`. The Model layer routes `whereMissing` / `joins(...)` /
-   * `includes({...}, { strategy: 'join' })` through the JOIN path when this is
-   * present, and falls back to subquery + filter for connectors without it.
-   */
-  supportsJoins?: true;
-
-  /**
    * Run `spec.parent`'s base query JOINed against one or more child tables.
    * Returns parent rows only; rows whose `joins[i].mode === 'includes'` carry
    * the matched children inside a `__includes` dict keyed by `attachAs`.
+   *
+   * Presence of this method IS the capability bit: the Model layer routes
+   * `whereMissing` / `joins(...)` / `includes({...}, { strategy: 'join' })`
+   * through it when it's defined, and falls back to subquery + filter
+   * resolution otherwise. Connectors that can't honour the spec simply
+   * leave `queryWithJoins` undefined.
    */
   queryWithJoins?(spec: JoinQuerySpec): Promise<Dict<any>[]>;
 }

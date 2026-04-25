@@ -370,8 +370,8 @@ Multiple `whereMissing` calls AND together. Custom `primaryKey` is
 respected. Works against any connector that already understands `$async` +
 `$notIn` (every shipped connector does).
 
-> Connectors that advertise `supportsJoins` (KnexConnector today) skip the
-> subquery and resolve `whereMissing` as a single
+> Connectors that implement `Connector.queryWithJoins` (KnexConnector
+> today) skip the subquery and resolve `whereMissing` as a single
 > `WHERE NOT EXISTS (SELECT 1 FROM child WHERE child.fk = parent.pk)` on
 > the same parent query. Memory / Redis / Mongo / native sqlite-pg-mysql-
 > mariadb stay on the subquery path. See
@@ -952,8 +952,9 @@ original throw propagates intact.
 and cross-association `filterBy({ <assoc>: {...} })` all collect their JOINs
 in a `pendingJoins` queue on the chain. At terminal time:
 
-- Connectors that advertise `supportsJoins` (KnexConnector today) consume
-  the whole queue in one `Connector.queryWithJoins({ parent, joins })` call
+- Connectors that implement `Connector.queryWithJoins` (KnexConnector
+  today) consume the whole queue in one
+  `Connector.queryWithJoins({ parent, joins })` call
   — `'select'` clauses become `WHERE EXISTS (...)`, `'antiJoin'` becomes
   `WHERE NOT EXISTS (...)`, and `'includes'` clauses batch-fetch children
   and attach them under `record.<name>`.
@@ -973,7 +974,7 @@ class User extends Model({ ... }) {
 }
 
 // Single round-trip on KnexConnector (one INNER JOIN); two queries on
-// connectors without `supportsJoins`.
+// connectors without `queryWithJoins`.
 await User.joins({ hasMany: Post, foreignKey: 'userId',
                    filter: { status: 'published' } }).all();
 
@@ -987,7 +988,7 @@ await User.includes({ posts: { hasMany: Post, foreignKey: 'userId' } },
 
 `includes` accepts `{ strategy: 'preload' | 'join' | 'auto' }`:
 `'preload'` (default) is the existing one-batched-query-per-association
-behaviour. `'join'` requires `supportsJoins` and throws otherwise.
+behaviour. `'join'` requires `queryWithJoins` and throws otherwise.
 `'auto'` picks `'join'` when supported, `'preload'` when not — a safe
 default for libraries that don't know which connector they'll run against.
 

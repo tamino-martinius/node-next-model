@@ -40,12 +40,6 @@ function requireSingleKey(filter: Dict<any>, operator: string): string {
 }
 
 export class KnexConnector implements Connector {
-  /**
-   * Connectors with this bit set route `Model.whereMissing` / `Model.joins(...)`
-   * / `Model.includes({...}, { strategy: 'join' | 'auto' })` through
-   * `queryWithJoins` instead of the subquery + `$async` fallback.
-   */
-  readonly supportsJoins = true as const;
   knex: Knex;
   private activeTransaction: Knex.Transaction | undefined;
 
