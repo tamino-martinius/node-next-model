@@ -108,6 +108,8 @@ export type Validator<T> = (instance: T) => boolean | Promise<boolean>;
 
 export type Callback<T> = (instance: T) => void | Promise<void>;
 
+export type AroundCallback<T> = (instance: T, next: () => Promise<void>) => Promise<void>;
+
 export interface Callbacks<T> {
   beforeSave?: Callback<T>[];
   afterSave?: Callback<T>[];
@@ -117,4 +119,12 @@ export interface Callbacks<T> {
   afterUpdate?: Callback<T>[];
   beforeDelete?: Callback<T>[];
   afterDelete?: Callback<T>[];
+  afterInitialize?: Callback<T>[];
+  afterFind?: Callback<T>[];
+  beforeValidation?: Callback<T>[];
+  afterValidation?: Callback<T>[];
+  aroundSave?: AroundCallback<T>[];
+  aroundCreate?: AroundCallback<T>[];
+  aroundUpdate?: AroundCallback<T>[];
+  aroundDelete?: AroundCallback<T>[];
 }
