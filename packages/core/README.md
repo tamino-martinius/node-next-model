@@ -837,7 +837,40 @@ Override the defaults via `foreignKey`, `primaryKey`, `typeKey`, `typeValue` as 
 
 ### Eager loading
 
-Instance-level association helpers query lazily, which is fine for a single record but produces N+1 queries when iterating a collection. Use `preloadBelongsTo` / `preloadHasMany` on the related model to batch-load in a single query and look up per record:
+Instance-level association helpers query lazily, which is fine for a single record but produces N+1 queries when iterating a collection.
+
+#### `Model.includes({...})`
+
+The high-level chainable: declare which associations to preload alongside the
+main fetch and they're attached to every returned instance. Each entry names
+the property to attach and whether it's a `belongsTo`, `hasMany`, or `hasOne`.
+One batched query per association — no N+1.
+
+```ts
+const posts = await Post.includes({
+  user:     { belongsTo: User,    foreignKey: 'userId' },
+  comments: { hasMany:   Comment, foreignKey: 'postId' },
+  cover:    { hasOne:    Image,   foreignKey: 'postId' },
+}).all();
+
+posts[0].user;      // User instance — pre-loaded, no extra query
+posts[0].comments;  // Comment[]    — pre-loaded
+posts[0].cover;     // Image | undefined
+```
+
+Without `includes(...)`, instance-level helpers (`this.belongsTo(User)` /
+`this.hasMany(Comment)` / `this.hasOne(Image)`) keep returning a Promise — the
+lazy path. `includes(...)` is the explicit opt-in to eager-load.
+
+Each entry accepts an optional `primaryKey` for non-`id` parent keys.
+Consecutive `includes({})` calls merge. `Model.withoutIncludes()` clears the
+chain; `unscoped()` clears the includes map alongside everything else it
+already clears.
+
+#### Lower-level: `preloadBelongsTo` / `preloadHasMany`
+
+When you need the lookup map directly (instead of attaching properties to
+instances), use the connector-level primitives the chainable is built on:
 
 ```ts
 // belongsTo: one parent per child
