@@ -403,6 +403,51 @@ user.pick(['firstName', 'lastName']);
 user.omit(['createdAt', 'updatedAt']);
 ```
 
+## Attribute boundary helpers
+
+### normalizes
+
+Run a normalizer function whenever a column is written through `assign(...)`
+(which covers direct setters, `update(...)`, and round-trips through the
+property accessor). Useful for trimming whitespace, lowercasing emails,
+stripping non-digits from phone numbers, etc.
+
+```ts
+const User = Model({
+  // ...
+  normalizes: {
+    email: (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
+    phone: (v) => (typeof v === 'string' ? v.replace(/\D/g, '') : v),
+  },
+});
+
+const u: any = User.build({});
+u.email = '  Foo@BAR.com\n';   // → 'foo@bar.com'
+u.phone = '+1 (555) 123-4567';  // → '15551234567'
+```
+
+### secureTokens
+
+Auto-fill a column with a URL-safe random base64url token on insert, when
+the value is blank. Default length is 24 bytes (32-character output).
+Explicit values are preserved.
+
+```ts
+const Invite = Model({
+  // ...
+  secureTokens: ['token'],
+  // OR with options:
+  // secureTokens: { token: { length: 32 } },
+});
+
+const invite = await Invite.create({});
+invite.token;   // 'r4nd0m_url_s4f3_token_string'
+```
+
+The underlying primitive is exported as `generateSecureToken(length?)` for
+ad-hoc use. Uses Web Crypto (`globalThis.crypto.getRandomValues`) so it
+stays browser-bundle-safe.
+
 ## Validators
 
 ```ts
