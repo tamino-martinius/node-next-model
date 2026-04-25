@@ -1,4 +1,4 @@
-import { NotFoundError, PersistenceError, ValidationError } from './errors.js';
+import { NotFoundError, PersistenceError, StaleObjectError, ValidationError } from './errors.js';
 import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
 import {
@@ -17,7 +17,7 @@ import {
   SortDirection,
   type Validator,
 } from './types.js';
-import { singularize } from './util.js';
+import { camelize, pascalize, singularize } from './util.js';
 
 export type AssociationOptions = {
   foreignKey?: string;
@@ -142,6 +142,74 @@ export function resolveSoftDelete(option: SoftDeleteOption | undefined): {
   return { softDeleteMode: 'active', softDeleteColumn: option.column ?? 'discardedAt' };
 }
 
+/**
+ * A read-only connector whose every query returns an empty result. Used by
+ * `Model.none()` so an empty scope short-circuits without hitting the
+ * underlying connector. Writes are silent no-ops (matches Rails' `.none`
+ * which makes mutations on an empty scope no-op as well).
+ */
+export class NullConnector implements Connector {
+  async query() {
+    return [];
+  }
+  async count() {
+    return 0;
+  }
+  async select() {
+    return [];
+  }
+  async updateAll() {
+    return [];
+  }
+  async deleteAll() {
+    return [];
+  }
+  async batchInsert() {
+    return [];
+  }
+  async execute() {
+    return [];
+  }
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    return fn();
+  }
+  async aggregate() {
+    return undefined;
+  }
+  async hasTable() {
+    return false;
+  }
+  async createTable() {
+    return;
+  }
+  async dropTable() {
+    return;
+  }
+}
+
+export type HavingPredicate = ((count: number) => boolean) | { count?: HavingComparison };
+export type HavingComparison = {
+  $eq?: number;
+  $gt?: number;
+  $gte?: number;
+  $lt?: number;
+  $lte?: number;
+};
+
+function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
+  if (typeof predicate === 'function') return predicate;
+  const cmp = predicate.count;
+  if (!cmp) return () => true;
+  return (count: number) => {
+    if (cmp.$eq !== undefined && !(count === cmp.$eq)) return false;
+    if (cmp.$gt !== undefined && !(count > cmp.$gt)) return false;
+    if (cmp.$gte !== undefined && !(count >= cmp.$gte)) return false;
+    if (cmp.$lt !== undefined && !(count < cmp.$lt)) return false;
+    if (cmp.$lte !== undefined && !(count <= cmp.$lte)) return false;
+    return true;
+  };
+}
+
 export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
 
 export type ScopeMap<Self> = Dict<ScopeFn<Self>>;
@@ -174,6 +242,17 @@ export class ModelClass {
   static softDeleteColumn: string = 'discardedAt';
   static softDelete: 'active' | 'only' | false = false;
   /**
+   * Map of column → allowed enum values, populated by the `enums: {...}` factory
+   * option. Each value generates a chainable class scope and an instance
+   * predicate; out-of-range values fail `isValid()`.
+   */
+  static enums: Dict<readonly string[]> = {};
+   * When set, `save()` and `delete()` enforce optimistic locking against this
+   * column. Inserts default the column to 0; updates require the in-memory
+   * value to match the row's current value, otherwise throw `StaleObjectError`.
+   */
+  static lockVersionColumn: string | undefined = undefined;
+  /**
    * When set, `all()` / `first()` / `last()` / `find()` / `findBy()` fetch
    * only these columns (plus every primary key) from the connector. Model
    * instances are still returned; they just carry partial data. Set via the
@@ -186,6 +265,11 @@ export class ModelClass {
    * `Model.includes({...})` for details.
    */
   static selectedIncludes: IncludeMap | undefined = undefined;
+  /**
+   * When set, `countBy(...)` filters the result map by this predicate after
+   * aggregation. Configured via `having(...)`; cleared by `unscoped()`.
+   */
+  static havingPredicate: ((count: number) => boolean) | undefined = undefined;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -319,6 +403,45 @@ export class ModelClass {
       static softDelete: 'active' | 'only' | false = false;
       static selectedFields: string[] | undefined = undefined;
       static selectedIncludes: IncludeMap | undefined = undefined;
+      static havingPredicate: ((count: number) => boolean) | undefined = undefined;
+    } as M;
+  }
+
+  /**
+   * Combine another scope's filter / order / limit / skip into this chain.
+   * Filters AND-combine; the merged scope's order / limit / skip override
+   * this chain's when set. Mirrors Rails' `relation.merge`.
+   */
+  static merge<M extends typeof ModelClass>(this: M, other: typeof ModelClass): M {
+    let scoped: typeof ModelClass = this;
+    if (other.filter) scoped = scoped.filterBy(other.filter);
+    if (other.order && other.order.length > 0) scoped = scoped.reorder(other.order);
+    if (other.limit !== undefined) scoped = scoped.limitBy(other.limit);
+    if (other.skip !== undefined) scoped = scoped.skipBy(other.skip);
+    return scoped as M;
+  }
+
+  /**
+   * Return a chainable scope that resolves to zero rows without hitting the
+   * underlying connector. Useful as a guard when you'd otherwise return an
+   * unfiltered scope (`user.banned ? Post.none() : Post.filterBy({...})`).
+   */
+  static none<M extends typeof ModelClass>(this: M): M {
+    const nullConnector = new NullConnector();
+    return class extends (this as typeof ModelClass) {
+      static connector = nullConnector;
+    } as unknown as M;
+  }
+
+  /**
+   * Add a HAVING-style filter applied to the post-aggregation result of
+   * `countBy(...)`. Accepts either a function predicate or a comparison
+   * object (`{ count: { $gt: 5 } }`).
+   */
+  static having<M extends typeof ModelClass>(this: M, predicate: HavingPredicate): M {
+    const fn = compileHaving(predicate);
+    return class extends (this as typeof ModelClass) {
+      static havingPredicate = fn;
     } as M;
   }
 
@@ -454,6 +577,38 @@ export class ModelClass {
     return class extends (this as typeof ModelClass) {
       static selectedIncludes: IncludeMap | undefined = undefined;
     } as M;
+  }
+
+  /**
+   * Filter the chain to records that have no matching child rows. Mirrors
+   * Rails' `User.where.missing(:posts)` without requiring SQL JOIN support:
+   * runs a child-table subquery (`pluckUnique(foreignKey)`) and excludes
+   * those primary-key values from the parent. The check is wrapped in
+   * `$async` so it composes with `filterBy` / `orderBy` / `limitBy` and
+   * resolves at terminal time.
+   *
+   *   await User
+   *     .whereMissing({ hasMany: Post, foreignKey: 'userId' })
+   *     .filterBy({ active: true })
+   *     .all();
+   */
+  static whereMissing<M extends typeof ModelClass>(
+    this: M,
+    spec:
+      | { hasMany: typeof ModelClass; foreignKey: string; primaryKey?: string }
+      | { hasOne: typeof ModelClass; foreignKey: string; primaryKey?: string },
+  ): M {
+    const target = 'hasMany' in spec ? spec.hasMany : spec.hasOne;
+    const fk = spec.foreignKey;
+    const pk = spec.primaryKey ?? Object.keys(this.keys)[0] ?? 'id';
+    const asyncFilter = (async () => {
+      const presentForeignKeys = await target.pluckUnique(fk);
+      // Use the op-first shape so the resolved $async filter feeds the
+      // FilterEngine directly (the column-first shape is only normalized at
+      // `filterBy` entry, not inside `$async`).
+      return { $notIn: { [pk]: presentForeignKeys } } as Filter<any>;
+    })();
+    return this.filterBy({ $async: asyncFilter } as Filter<any>) as M;
   }
 
   static async all<M extends typeof ModelClass>(this: M) {
@@ -658,9 +813,14 @@ export class ModelClass {
     return items;
   }
 
-  static async pluck(key: string) {
-    const items = await this.select(key as any);
-    return items.map((item) => item[key]);
+  static async pluck(...keys: string[]): Promise<any[]> {
+    if (keys.length === 0) return [];
+    const items = await this.select(...(keys as any[]));
+    if (keys.length === 1) {
+      const [key] = keys;
+      return items.map((item) => item[key]);
+    }
+    return items.map((item) => keys.map((k) => item[k]));
   }
 
   static async pluckUnique(key: string) {
@@ -685,6 +845,11 @@ export class ModelClass {
     const result = new Map<any, number>();
     for (const value of values) {
       result.set(value, (result.get(value) ?? 0) + 1);
+    }
+    if (this.havingPredicate) {
+      for (const [bucket, count] of result) {
+        if (!this.havingPredicate(count)) result.delete(bucket);
+      }
     }
     return result;
   }
@@ -948,12 +1113,27 @@ export class ModelClass {
     return result;
   }
 
+  changeBy(key: string): { from: any; to: any } | undefined {
+    if (!(key in this.changedProps)) return undefined;
+    return { from: this.persistentProps[key], to: this.changedProps[key] };
+  }
+
+  was(key: string): any {
+    if (key in this.changedProps) return this.persistentProps[key];
+    return this.attributes()[key];
+  }
+
   savedChanges(): Dict<{ from: any; to: any }> {
     return { ...this.lastSavedChanges };
   }
 
   savedChangeBy(key: string): { from: any; to: any } | undefined {
     return this.lastSavedChanges[key];
+  }
+
+  savedWas(key: string): any {
+    if (key in this.lastSavedChanges) return this.lastSavedChanges[key].from;
+    return this.attributes()[key];
   }
 
   wasChanged(): boolean {
@@ -1149,10 +1329,18 @@ export class ModelClass {
         if (model.updatedAtColumn) {
           this.changedProps[model.updatedAtColumn] = now;
         }
+        let scope = this.itemScope();
+        const lockColumn = model.lockVersionColumn;
+        let expectedLock: number | undefined;
+        if (lockColumn) {
+          expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+          scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
+          this.changedProps[lockColumn] = (expectedLock as number) + 1;
+        }
         for (const key in this.changedProps) {
           snapshot[key] = { from: this.persistentProps[key], to: this.changedProps[key] };
         }
-        const items = await model.connector.updateAll(this.itemScope(), this.changedProps);
+        const items = await model.connector.updateAll(scope, this.changedProps);
         const item = items.pop();
         if (item) {
           for (const key in model.keys) {
@@ -1161,6 +1349,10 @@ export class ModelClass {
           }
           this.persistentProps = item;
           this.changedProps = {};
+        } else if (lockColumn) {
+          throw new StaleObjectError(
+            `Stale ${model.name || 'record'} (${lockColumn} expected ${expectedLock})`,
+          );
         } else {
           throw new NotFoundError('Item not found');
         }
@@ -1172,6 +1364,9 @@ export class ModelClass {
       }
       if (model.updatedAtColumn && insertProps[model.updatedAtColumn] === undefined) {
         insertProps[model.updatedAtColumn] = now;
+      }
+      if (model.lockVersionColumn && insertProps[model.lockVersionColumn] === undefined) {
+        insertProps[model.lockVersionColumn] = 0;
       }
       const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
@@ -1252,8 +1447,20 @@ export class ModelClass {
   async _deleteCore(): Promise<void> {
     const model = this.constructor as typeof ModelClass;
     await this.runCallbacks('beforeDelete');
-    const items = await model.connector.deleteAll(this.itemScope());
+    let scope = this.itemScope();
+    const lockColumn = model.lockVersionColumn;
+    let expectedLock: number | undefined;
+    if (lockColumn) {
+      expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+      scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
+    }
+    const items = await model.connector.deleteAll(scope);
     if (items.length === 0) {
+      if (lockColumn) {
+        throw new StaleObjectError(
+          `Stale ${model.name || 'record'} (${lockColumn} expected ${expectedLock})`,
+        );
+      }
       throw new NotFoundError('Item not found');
     }
     this.persistentProps = { ...this.persistentProps, ...this.changedProps, ...this.keys };
@@ -1307,6 +1514,13 @@ export function Model<
   keys?: Keys;
   timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
   softDelete?: boolean | string | { column?: string };
+  /**
+   * Enable optimistic locking. `true` uses the column `lockVersion`; pass a
+   * string to use a custom column name. Inserts default the column to 0 and
+   * `save()` / `delete()` throw `StaleObjectError` when the in-memory value
+   * no longer matches the row.
+   */
+  lockVersion?: boolean | string;
   validators?: Validator<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >[];
@@ -1314,13 +1528,38 @@ export function Model<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
   scopes?: Scopes;
+  /**
+   * Map of column → allowed string values. Each value becomes a chainable
+   * class scope (`Post.draft()`) plus an instance predicate (`post.isDraft()`).
+   * Snake_case values map to camelCase scopes / PascalCase predicates.
+   */
+  enums?: Dict<readonly string[]>;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
   const { createdAtColumn, updatedAtColumn } = resolveTimestampColumns(props.timestamps);
   const { softDeleteMode, softDeleteColumn } = resolveSoftDelete(props.softDelete);
-  const validators = props.validators || [];
+  const enumDefs = props.enums || {};
+  const builtInValidators: Validator<any>[] = [];
+  if (Object.keys(enumDefs).length > 0) {
+    builtInValidators.push((record) => {
+      const attrs = record.attributes() as Dict<any>;
+      for (const column in enumDefs) {
+        const value = attrs[column];
+        if (value === undefined || value === null) continue;
+        if (!enumDefs[column].includes(value)) return false;
+      }
+      return true;
+    });
+  }
+  const validators = [...(props.validators || []), ...builtInValidators];
+  const lockVersionColumn =
+    props.lockVersion === true
+      ? 'lockVersion'
+      : typeof props.lockVersion === 'string'
+        ? props.lockVersion
+        : undefined;
   const callbacks = props.callbacks || {};
   const scopeDefs = props.scopes || ({} as Scopes);
 
@@ -1337,6 +1576,8 @@ export function Model<
     static updatedAtColumn = updatedAtColumn;
     static softDelete = softDeleteMode;
     static softDeleteColumn = softDeleteColumn;
+    static enums = enumDefs;
+    static lockVersionColumn = lockVersionColumn;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
@@ -1391,8 +1632,8 @@ export function Model<
       >[];
     }
 
-    static async pluck(key: keyof Keys | keyof PersistentProps) {
-      return super.pluck(key as string);
+    static async pluck<K extends Array<keyof Keys | keyof PersistentProps>>(...keys: K) {
+      return super.pluck(...(keys as unknown as string[])) as Promise<any[]>;
     }
 
     static async pluckUnique(key: keyof Keys | keyof PersistentProps) {
@@ -1703,6 +1944,22 @@ export function Model<
       return super.isChangedBy(key as string);
     }
 
+    changeBy<K extends keyof PersistentProps>(
+      key: K,
+    ): { from: PersistentProps[K]; to: PersistentProps[K] } | undefined {
+      return super.changeBy(key as string) as
+        | { from: PersistentProps[K]; to: PersistentProps[K] }
+        | undefined;
+    }
+
+    was<K extends keyof PersistentProps>(key: K): PersistentProps[K] {
+      return super.was(key as string) as PersistentProps[K];
+    }
+
+    savedWas<K extends keyof PersistentProps>(key: K): PersistentProps[K] {
+      return super.savedWas(key as string) as PersistentProps[K];
+    }
+
     revertChange<M extends ModelClass>(this: M, key: keyof PersistentProps): M {
       return super.revertChange(key as string) as M;
     }
@@ -1716,6 +1973,31 @@ export function Model<
     (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
       return scopeDefs[name](this, ...args);
     };
+  }
+
+  for (const column in enumDefs) {
+    const values = enumDefs[column];
+    (ModelSubclass as any)[`${column}Values`] = values;
+    for (const value of values) {
+      const scopeName = camelize(value);
+      const predicateName = `is${pascalize(value)}`;
+      if (scopeName in ModelSubclass) {
+        throw new Error(
+          `Enum value '${value}' for column '${column}' collides with existing static method '${scopeName}' on the Model`,
+        );
+      }
+      if (predicateName in ModelSubclass.prototype) {
+        throw new Error(
+          `Enum value '${value}' for column '${column}' collides with existing instance method '${predicateName}' on the Model`,
+        );
+      }
+      (ModelSubclass as any)[scopeName] = function (this: typeof ModelSubclass) {
+        return this.filterBy({ [column]: value } as any);
+      };
+      (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
+        return (this.attributes() as Dict<any>)[column] === value;
+      };
+    }
   }
 
   return ModelSubclass as typeof ModelSubclass & ScopesToMethods<typeof ModelSubclass, Scopes>;
