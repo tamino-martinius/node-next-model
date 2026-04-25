@@ -155,6 +155,32 @@ await user.reload();                              // refetch from connector
 await User.filterBy({ active: false }).updateAll({ active: true });
 ```
 
+### upsert / upsertAll
+
+Insert-or-update against a unique-key set (defaults to the primary key).
+
+```ts
+await Post.upsert({ id: 1, title: 'Hello' });
+await Tag.upsert({ slug: 'js', name: 'JS' }, { onConflict: 'slug' });
+await Slot.upsert(
+  { tenantId: 1, key: 'home', value: 'new' },
+  { onConflict: ['tenantId', 'key'] },
+);
+
+// Bulk: one SELECT to find existing, one batched INSERT for new rows,
+// one UPDATE per match. Returns instances in input order.
+await Post.upsertAll(
+  [
+    { id: 1, title: 'A2' },
+    { id: 99, title: 'New' },
+    { id: 2, title: 'B2' },
+  ],
+  { onConflict: 'id' },
+);
+```
+
+> **Atomicity caveat.** Implemented at the Model layer over SELECT + INSERT/UPDATE primitives, so the operation is **not** atomic at the database level. Wrap calls in `Model.transaction(...)` if you need stronger guarantees.
+
 ## Deleting
 
 ```ts
