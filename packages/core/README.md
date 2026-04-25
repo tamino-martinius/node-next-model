@@ -28,6 +28,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Lifecycle callbacks](#lifecycle-callbacks)
 - [Timestamps](#timestamps)
 - [Soft deletes](#soft-deletes)
+- [Single Table Inheritance](#single-table-inheritance)
 - [Associations](#associations)
 - [Transactions](#transactions)
 - [Connectors](#connectors)
@@ -364,6 +365,64 @@ await new User({ email: 'bad', age: 10 }).isValid(); // false
 await user.save();                                   // throws ValidationError if invalid
 ```
 
+### Built-in validator factories
+
+Eight Rails-style factories ship from `@next-model/core` for the common
+constraints — drop them into the same `validators: [...]` array next to your
+function-form validators.
+
+```ts
+import {
+  validatePresence,
+  validateFormat,
+  validateLength,
+  validateInclusion,
+  validateExclusion,
+  validateNumericality,
+  validateUniqueness,
+  validateConfirmation,
+} from '@next-model/core';
+
+const User = Model({
+  // ...
+  validators: [
+    validatePresence(['email', 'name']),
+    validateFormat('email', { with: /^[^@\s]+@[^@\s]+\.[^@\s]+$/ }),
+    validateLength('name', { min: 3, max: 50 }),
+    validateInclusion('role', ['admin', 'user', 'guest']),
+    validateExclusion('username', ['admin', 'root']),
+    validateNumericality('age', { integer: true, min: 0, max: 120 }),
+    validateUniqueness('email', { caseSensitive: false }),
+    validateConfirmation('password'), // requires `passwordConfirmation` to match
+  ],
+});
+```
+
+Every factory accepts `{ message?, allowNull?, allowBlank?, if?, unless? }` for
+the usual ergonomics. `validateUniqueness` runs through `Model.unscoped()` so
+soft-deleted rows still count, excludes the current record by primary key on
+updates, and supports `scope` (multi-column uniqueness).
+
+### Errors collection
+
+Every Model instance carries an `errors` collection populated by `isValid()`:
+
+```ts
+const u = User.build({});
+await u.isValid();       // false — runs every validator (no short-circuit)
+u.errors.on('email');    // ['cannot be blank']
+u.errors.full();         // ['email cannot be blank', 'name cannot be blank']
+u.errors.any();          // true
+u.errors.count();        // 2
+u.errors.toJSON();       // { email: [...], name: [...] }
+
+try { await u.save(); }
+catch (e) {
+  e instanceof ValidationError;
+  e.errors;              // same structured payload
+}
+```
+
 ## Lifecycle callbacks
 
 Declare at factory time:
@@ -422,6 +481,42 @@ await Post.onlyDiscarded().all();   // only discarded
 
 await post.restore();           // clears discardedAt
 ```
+
+## Single Table Inheritance
+
+Declare a base Model with `inheritColumn`, then create subclasses via
+`Base.inherit({ type: '...' })`. Each subclass shares the base's table /
+keys / connector / init, auto-fills the discriminator column on insert, and
+auto-filters reads to its own type.
+
+```ts
+const Animal = Model({
+  tableName: 'animals',
+  keys: { id: KeyType.number },
+  init: (p: { name?: string }) => ({ name: p.name ?? '' }),
+  inheritColumn: 'type',
+});
+
+const Dog = Animal.inherit({ type: 'Dog' });
+const Cat = Animal.inherit({
+  type: 'Cat',
+  validators: [(r) => /* cat-specific */ true],   // appended to base validators
+});
+
+await Dog.create({ name: 'Rex' });   // inserts row with type='Dog'
+
+const rex = await Animal.find(1);    // returns a Dog instance
+rex instanceof Dog;                  // true
+rex instanceof Animal;               // true
+
+await Dog.all();                     // only type='Dog' rows
+await Animal.all();                  // mixed Dog / Cat / base instances
+```
+
+`Base.find(id)` and `Base.all()` inspect the discriminator column on each row
+and return an instance of the registered subclass; rows whose type doesn't
+match a registered subclass fall back to the base. Subclass filters / scopes
+compose on top of the auto-type filter.
 
 ## Associations
 
