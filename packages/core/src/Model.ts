@@ -554,6 +554,38 @@ export class ModelClass {
     } as M;
   }
 
+  /**
+   * Filter the chain to records that have no matching child rows. Mirrors
+   * Rails' `User.where.missing(:posts)` without requiring SQL JOIN support:
+   * runs a child-table subquery (`pluckUnique(foreignKey)`) and excludes
+   * those primary-key values from the parent. The check is wrapped in
+   * `$async` so it composes with `filterBy` / `orderBy` / `limitBy` and
+   * resolves at terminal time.
+   *
+   *   await User
+   *     .whereMissing({ hasMany: Post, foreignKey: 'userId' })
+   *     .filterBy({ active: true })
+   *     .all();
+   */
+  static whereMissing<M extends typeof ModelClass>(
+    this: M,
+    spec:
+      | { hasMany: typeof ModelClass; foreignKey: string; primaryKey?: string }
+      | { hasOne: typeof ModelClass; foreignKey: string; primaryKey?: string },
+  ): M {
+    const target = 'hasMany' in spec ? spec.hasMany : spec.hasOne;
+    const fk = spec.foreignKey;
+    const pk = spec.primaryKey ?? Object.keys(this.keys)[0] ?? 'id';
+    const asyncFilter = (async () => {
+      const presentForeignKeys = await target.pluckUnique(fk);
+      // Use the op-first shape so the resolved $async filter feeds the
+      // FilterEngine directly (the column-first shape is only normalized at
+      // `filterBy` entry, not inside `$async`).
+      return { $notIn: { [pk]: presentForeignKeys } } as Filter<any>;
+    })();
+    return this.filterBy({ $async: asyncFilter } as Filter<any>) as M;
+  }
+
   static async all<M extends typeof ModelClass>(this: M) {
     const primaryKeys = Object.keys(this.keys);
     const items = this.selectedFields
