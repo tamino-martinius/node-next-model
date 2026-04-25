@@ -373,4 +373,156 @@ describe('DataApiConnector', () => {
       expect(names).not.toContain('inner');
     });
   });
+
+  describe('#queryWithJoins', () => {
+    const postsTable = 'posts';
+
+    async function seedJoinTables(): Promise<void> {
+      await seedTable();
+      await mockClient.knex.schema.dropTableIfExists(postsTable);
+      await mockClient.knex.schema.createTable(postsTable, (table: Knex.CreateTableBuilder) => {
+        table.increments('id').primary().unsigned();
+        table.string('title');
+        table.integer('userId');
+        table.string('status');
+      });
+      alice = await User.create({ name: 'alice', age: 18 });
+      bob = await User.create({ name: 'bob', age: 21 });
+      carol = await User.create({ name: 'carol', age: 21 });
+      await mockClient.knex(postsTable).insert([
+        { title: 'a1', userId: alice.id, status: 'published' },
+        { title: 'a2', userId: alice.id, status: 'draft' },
+        { title: 'b1', userId: bob.id, status: 'draft' },
+      ]);
+    }
+
+    async function dropJoinTables(): Promise<void> {
+      await mockClient.knex.schema.dropTableIfExists(postsTable);
+    }
+
+    beforeEach(seedJoinTables);
+    afterEach(dropJoinTables);
+
+    it('mode "select" keeps parents with at least one matching child (EXISTS)', async () => {
+      const rows = await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }] },
+        joins: [
+          {
+            kind: 'inner',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'select',
+          },
+        ],
+      });
+      expect(ids(rows as any)).toEqual([alice.id, bob.id]);
+    });
+
+    it('mode "select" honours the child filter (only "published" posts)', async () => {
+      const rows = await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }] },
+        joins: [
+          {
+            kind: 'inner',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'select',
+            filter: { status: 'published' },
+          },
+        ],
+      });
+      expect(ids(rows as any)).toEqual([alice.id]);
+    });
+
+    it('mode "antiJoin" keeps parents with no matching child (NOT EXISTS)', async () => {
+      const rows = await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }] },
+        joins: [
+          {
+            kind: 'left',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'antiJoin',
+          },
+        ],
+      });
+      expect(ids(rows as any)).toEqual([carol.id]);
+    });
+
+    it('mode "antiJoin" composes with the parent filter', async () => {
+      const rows = await connector.queryWithJoins({
+        parent: { tableName, filter: { age: 21 }, order: [{ key: 'id' }] },
+        joins: [
+          {
+            kind: 'left',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'antiJoin',
+          },
+        ],
+      });
+      expect(ids(rows as any)).toEqual([carol.id]);
+    });
+
+    it('mode "includes" attaches matched children under __includes', async () => {
+      const rows = (await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }] },
+        joins: [
+          {
+            kind: 'left',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'includes',
+            attachAs: 'posts',
+          },
+        ],
+      })) as any[];
+      expect(ids(rows)).toEqual([alice.id, bob.id, carol.id]);
+      expect(rows[0].__includes.posts.map((p: any) => p.title).sort()).toEqual(['a1', 'a2']);
+      expect(rows[1].__includes.posts.map((p: any) => p.title)).toEqual(['b1']);
+      expect(rows[2].__includes.posts).toEqual([]);
+    });
+
+    it('mode "includes" honours the child filter', async () => {
+      const rows = (await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }] },
+        joins: [
+          {
+            kind: 'left',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'includes',
+            attachAs: 'posts',
+            filter: { status: 'published' },
+          },
+        ],
+      })) as any[];
+      expect(rows[0].__includes.posts.map((p: any) => p.title)).toEqual(['a1']);
+      expect(rows[1].__includes.posts).toEqual([]);
+      expect(rows[2].__includes.posts).toEqual([]);
+    });
+
+    it('passes the parent ORDER BY / LIMIT through to the SQL', async () => {
+      const rows = await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }], limit: 2 },
+        joins: [
+          {
+            kind: 'inner',
+            childTableName: postsTable,
+            on: { parentColumn: 'id', childColumn: 'userId' },
+            mode: 'select',
+          },
+        ],
+      });
+      expect(ids(rows as any)).toEqual([alice.id, bob.id]);
+    });
+
+    it('returns parent rows unchanged when the joins array is empty', async () => {
+      const rows = await connector.queryWithJoins({
+        parent: { tableName, order: [{ key: 'id' }] },
+        joins: [],
+      });
+      expect(ids(rows as any)).toEqual([alice.id, bob.id, carol.id]);
+    });
+  });
 });
