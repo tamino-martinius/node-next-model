@@ -37,11 +37,11 @@ describe('normalizes', () => {
     expect(u.phone).toBe('15551234567');
   });
 
-  it('round-tripping the value through the setter normalizes', async () => {
+  it('writing through the setter normalizes (build() leaves init output untouched)', async () => {
     const User = makeUser();
     const u: any = User.build({ email: '  ALICE@EXAMPLE.com ' });
-    // build() stores whatever init returned untouched. Round-tripping through
-    // the setter runs the normalizer.
+    // build() stores whatever init returned untouched — the setter is what
+    // runs the normalizer. Re-assigning the raw value triggers it.
     const raw = u.email;
     u.email = raw;
     expect(u.email).toBe('alice@example.com');
