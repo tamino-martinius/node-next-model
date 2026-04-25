@@ -96,19 +96,14 @@ export interface Connector {
   dropTable(tableName: string): Promise<void>;
 
   /**
-   * Capability flag — connectors that perform native single-statement
-   * INSERT-or-UPDATE set this to `true`. Model-layer call sites use it to
-   * pick the atomic native path over the SELECT-then-INSERT-or-UPDATE
-   * fallback.
-   */
-  supportsUpsert?: true;
-
-  /**
-   * Insert `rows`; on conflict against `conflictTarget` (column names that
-   * match a unique constraint or PRIMARY KEY) update `updateColumns` (or all
-   * non-conflict columns when omitted). Returns the resulting rows in the
-   * same order as `rows`. When `ignoreOnly` is set the conflict path is
-   * `DO NOTHING` and the existing row is returned for skipped inputs.
+   * Capability — when defined, the Model layer routes `upsert` /
+   * `upsertAll` through this single-statement atomic path instead of the
+   * SELECT-then-INSERT-or-UPDATE fallback. Insert `rows`; on conflict
+   * against `conflictTarget` (column names that match a unique constraint
+   * or PRIMARY KEY) update `updateColumns` (or all non-conflict columns
+   * when omitted). Returns the resulting rows in the same order as `rows`.
+   * When `ignoreOnly` is set the conflict path is `DO NOTHING` and the
+   * existing row is returned for skipped inputs.
    */
   upsert?(spec: UpsertSpec): Promise<Dict<any>[]>;
 }

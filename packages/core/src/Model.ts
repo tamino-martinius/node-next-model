@@ -1307,7 +1307,7 @@ export class ModelClass {
     conflictKeys: string[],
     options: { updateColumns?: string[]; ignoreOnly?: boolean },
   ): Promise<InstanceType<M>[]> {
-    if (this.connector.supportsUpsert && this.connector.upsert) {
+    if (this.connector.upsert) {
       return this.nativeUpsertAll<M>(propsList, conflictKeys, options);
     }
     return this.fallbackUpsertAll<M>(propsList, conflictKeys, options);

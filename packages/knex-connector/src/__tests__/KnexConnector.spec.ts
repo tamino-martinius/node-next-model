@@ -361,8 +361,8 @@ describe('KnexConnector', () => {
       await connector.knex.schema.dropTableIfExists(upsertTable);
     });
 
-    it('reports supportsUpsert capability', () => {
-      expect(connector.supportsUpsert).toBe(true);
+    it('exposes the upsert capability', () => {
+      expect(typeof connector.upsert).toBe('function');
     });
 
     it('inserts new rows, returns them with generated ids', async () => {

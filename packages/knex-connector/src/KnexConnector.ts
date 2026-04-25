@@ -39,7 +39,6 @@ function requireSingleKey(filter: Dict<any>, operator: string): string {
 }
 
 export class KnexConnector implements Connector {
-  readonly supportsUpsert = true as const;
   knex: Knex;
   private activeTransaction: Knex.Transaction | undefined;
 

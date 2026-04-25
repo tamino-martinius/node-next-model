@@ -197,7 +197,7 @@ await Slot.upsert(
   { onConflict: ['tenantId', 'key'] },
 );
 
-// Bulk: with a connector that reports `supportsUpsert` (Memory + Knex),
+// Bulk: with a connector that exposes a native `upsert` (Memory + Knex),
 // the entire batch runs in a single atomic INSERT … ON CONFLICT statement.
 // Without that capability, one bulk SELECT + one batched INSERT + one
 // UPDATE per match. Returns instances in input order either way.
@@ -220,13 +220,14 @@ await Tag.upsert(
 );
 ```
 
-> **Atomicity.** When the connector reports `supportsUpsert` (the bundled
-> `MemoryConnector` and `KnexConnector` both do — pg/sqlite/mysql/mariadb),
-> a single atomic statement (`INSERT … ON CONFLICT … DO UPDATE` / `ON
-> DUPLICATE KEY UPDATE`) handles the operation; concurrent callers can
-> never observe a duplicate insert. Connectors without the capability fall
-> back to the SELECT + INSERT/UPDATE Model-layer path — wrap those in
-> `Model.transaction(...)` for stronger guarantees.
+> **Atomicity.** When the connector exposes a native `upsert(spec)` method
+> (the bundled `MemoryConnector` and `KnexConnector` both do —
+> pg/sqlite/mysql/mariadb), a single atomic statement (`INSERT … ON
+> CONFLICT … DO UPDATE` / `ON DUPLICATE KEY UPDATE`) handles the
+> operation; concurrent callers can never observe a duplicate insert.
+> Connectors without the capability fall back to the SELECT + INSERT/UPDATE
+> Model-layer path — wrap those in `Model.transaction(...)` for stronger
+> guarantees.
 >
 > **Callbacks & validators.** The native path mirrors Rails' `upsert` /
 > `upsert_all` and **skips per-row lifecycle callbacks and validators** —

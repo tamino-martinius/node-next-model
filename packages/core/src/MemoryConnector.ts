@@ -19,7 +19,6 @@ const globalStorage: Storage = {};
 const globalLastIds: Dict<number> = {};
 
 export class MemoryConnector implements Connector {
-  readonly supportsUpsert = true as const;
   private storage: Storage;
   private lastIds: Dict<number>;
   private inTransaction = false;
