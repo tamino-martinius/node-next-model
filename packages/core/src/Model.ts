@@ -20,6 +20,43 @@ import {
 import { camelize, pascalize, singularize } from './util.js';
 import { Errors } from './validators.js';
 
+interface TransactionContext {
+  afterCommit: Array<() => Promise<void>>;
+  afterRollback: Array<() => Promise<void>>;
+}
+
+/**
+ * Module-level "current transaction" pointer. JavaScript is single-threaded
+ * so a plain variable suffices for sequential transactions:
+ * `Model.transaction` writes its context here, every save/delete inside reads
+ * it, and the wrapper restores the previous value in a `finally`.
+ *
+ * Limitation: parallel transactions on overlapping async timelines
+ * (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
+ * contexts. Wrap one in `await` before the next when correctness matters.
+ * Browser bundles can't use `node:async_hooks`, so the stack-style approach
+ * works in every runtime we ship to.
+ */
+let activeContext: TransactionContext | undefined;
+
+async function withTransactionContext<T>(
+  ctx: TransactionContext,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = activeContext;
+  activeContext = ctx;
+  try {
+    return await fn();
+  } finally {
+    activeContext = prev;
+  }
+}
+
+/** Returns the active transaction context if any code path above is inside `Model.transaction(...)`. */
+function activeTransaction(): TransactionContext | undefined {
+  return activeContext;
+}
+
 export type AssociationOptions = {
   foreignKey?: string;
   primaryKey?: string;
@@ -292,7 +329,31 @@ export class ModelClass {
   static callbacks: Callbacks<any> = {};
 
   static async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    return this.connector.transaction(fn);
+    // Nested call: reuse the outer context so child saves register their
+    // commit/rollback hooks against the outermost transaction.
+    if (activeTransaction()) {
+      return this.connector.transaction(fn);
+    }
+    const ctx: TransactionContext = { afterCommit: [], afterRollback: [] };
+    return withTransactionContext(ctx, async () => {
+      let result: T;
+      try {
+        result = await this.connector.transaction(fn);
+      } catch (err) {
+        for (const cb of ctx.afterRollback) {
+          try {
+            await cb();
+          } catch {
+            /* swallow per-callback errors so the original throws */
+          }
+        }
+        throw err;
+      }
+      for (const cb of ctx.afterCommit) {
+        await cb();
+      }
+      return result;
+    });
   }
 
   static modelScope() {
@@ -1592,6 +1653,39 @@ export class ModelClass {
 
     await this.runCallbacks(isInsert ? 'afterCreate' : 'afterUpdate');
     await this.runCallbacks('afterSave');
+
+    await this._scheduleCommitCallbacks(isInsert ? 'create' : 'update');
+  }
+
+  async _scheduleCommitCallbacks(kind: 'create' | 'update' | 'delete'): Promise<void> {
+    const commitEvent = (
+      kind === 'create'
+        ? 'afterCreateCommit'
+        : kind === 'update'
+          ? 'afterUpdateCommit'
+          : 'afterDeleteCommit'
+    ) as keyof Callbacks<any>;
+    const rollbackEvent = (
+      kind === 'create'
+        ? 'afterCreateRollback'
+        : kind === 'update'
+          ? 'afterUpdateRollback'
+          : 'afterDeleteRollback'
+    ) as keyof Callbacks<any>;
+    const ctx = activeTransaction();
+    if (ctx) {
+      ctx.afterCommit.push(async () => {
+        await this.runCallbacks(commitEvent);
+        await this.runCallbacks('afterCommit');
+      });
+      ctx.afterRollback.push(async () => {
+        await this.runCallbacks(rollbackEvent);
+        await this.runCallbacks('afterRollback');
+      });
+    } else {
+      await this.runCallbacks(commitEvent);
+      await this.runCallbacks('afterCommit');
+    }
   }
 
   async update<M extends ModelClass>(this: M, attrs: Dict<any>) {
@@ -1666,6 +1760,7 @@ export class ModelClass {
     this.changedProps = {};
     this.keys = undefined;
     await this.runCallbacks('afterDelete');
+    await this._scheduleCommitCallbacks('delete');
   }
 
   isDiscarded(): boolean {
