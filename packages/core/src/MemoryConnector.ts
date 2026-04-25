@@ -2,6 +2,7 @@ import { filterList } from './FilterEngine.js';
 import { defineTable, type TableBuilder } from './schema.js';
 import {
   type AggregateKind,
+  type AtomicUpdateSpec,
   type BaseType,
   type Connector,
   type Dict,
@@ -115,6 +116,24 @@ export class MemoryConnector implements Connector {
       }
     });
     return clone(items);
+  }
+
+  supportsAtomicUpdate = true as const;
+
+  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+    const items = await this.items({ tableName: spec.tableName, filter: spec.filter });
+    for (const item of items) {
+      for (const { column, by } of spec.deltas) {
+        const current = Number(item[column] ?? 0);
+        item[column] = current + by;
+      }
+      if (spec.set) {
+        for (const key in spec.set) {
+          item[key] = spec.set[key];
+        }
+      }
+    }
+    return items.length;
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {

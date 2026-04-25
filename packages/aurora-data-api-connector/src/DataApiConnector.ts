@@ -1,5 +1,6 @@
 import {
   type AggregateKind,
+  type AtomicUpdateSpec,
   type BaseType,
   type ColumnDefinition,
   type Connector,
@@ -301,6 +302,25 @@ export class DataApiConnector implements Connector {
     const { query } = await this.collection(scope);
     await this.runQuery(query.del());
     return matching;
+  }
+
+  supportsAtomicUpdate = true as const;
+
+  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const update: Dict<any> = {};
+    for (const { column, by } of spec.deltas) {
+      update[column] = this.knex.raw('COALESCE(??, 0) + ?', [column, by]);
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) update[k] = spec.set[k];
+    }
+    const { query } = await this.collection({
+      tableName: spec.tableName,
+      filter: spec.filter,
+    } as Scope);
+    const result = await this.runQuery(query.update(update));
+    return Number(result.numberOfRecordsUpdated ?? 0);
   }
 
   async batchInsert(

@@ -265,6 +265,10 @@ export class NullConnector implements Connector {
   async dropTable() {
     return;
   }
+  supportsAtomicUpdate = true as const;
+  async atomicUpdate() {
+    return 0;
+  }
 }
 
 export type HavingPredicate = ((count: number) => boolean) | { count?: HavingComparison };
@@ -1172,6 +1176,52 @@ export class ModelClass {
     return await this.connector.updateAll(this.modelScope(), effectiveAttrs);
   }
 
+  /**
+   * Apply an atomic delta to `column` for every row matching the current
+   * scope, in a single round-trip when the connector supports it. Returns the
+   * number of affected rows. Falls back to load-modify-save (which is racy
+   * under concurrency) when the connector does not declare
+   * `supportsAtomicUpdate`.
+   */
+  static async increment<M extends typeof ModelClass>(
+    this: M,
+    column: string,
+    by = 1,
+  ): Promise<number> {
+    const updatedCol = this.updatedAtColumn;
+    const scope = this.modelScope();
+    if (this.connector.supportsAtomicUpdate && this.connector.atomicUpdate) {
+      const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
+      return await this.connector.atomicUpdate({
+        tableName: scope.tableName,
+        filter: scope.filter,
+        deltas: [{ column, by }],
+        set,
+      });
+    }
+    const records = await this.connector.query(scope);
+    for (const row of records) {
+      const current = Number((row as Dict<any>)[column] ?? 0);
+      const next: Dict<any> = { [column]: current + by };
+      if (updatedCol) next[updatedCol] = new Date();
+      const itemFilter: Dict<any> = {};
+      for (const k in this.keys) itemFilter[k] = (row as Dict<any>)[k];
+      await this.connector.updateAll(
+        { tableName: scope.tableName, filter: itemFilter, limit: 1 },
+        next,
+      );
+    }
+    return records.length;
+  }
+
+  static async decrement<M extends typeof ModelClass>(
+    this: M,
+    column: string,
+    by = 1,
+  ): Promise<number> {
+    return this.increment(column, -by);
+  }
+
   static async findBy<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
     return await this.filterBy(filter).first<M>();
   }
@@ -1607,6 +1657,38 @@ export class ModelClass {
   async increment<M extends ModelClass>(this: M, key: string, by = 1) {
     if (!this.keys) {
       throw new PersistenceError('Cannot increment a record that has not been saved');
+    }
+    const model = this.constructor as typeof ModelClass;
+    if (model.connector.supportsAtomicUpdate && model.connector.atomicUpdate) {
+      const updatedCol = model.updatedAtColumn;
+      const now = new Date();
+      const set: Dict<any> = {};
+      if (updatedCol) set[updatedCol] = now;
+      const affected = await model.connector.atomicUpdate({
+        tableName: model.tableName,
+        filter: this.keys,
+        deltas: [{ column: key, by }],
+        set: updatedCol ? set : undefined,
+      });
+      if (affected === 0) throw new NotFoundError('Item not found');
+      const before = Number((this.persistentProps as Dict<any>)[key] ?? 0);
+      const after = before + by;
+      const snapshot: Dict<{ from: unknown; to: unknown }> = {
+        [key]: { from: before, to: after },
+      };
+      (this.persistentProps as Dict<any>)[key] = after;
+      if (updatedCol) {
+        snapshot[updatedCol] = {
+          from: (this.persistentProps as Dict<any>)[updatedCol],
+          to: now,
+        };
+        (this.persistentProps as Dict<any>)[updatedCol] = now;
+      }
+      delete (this.changedProps as Dict<any>)[key];
+      this.lastSavedChanges = snapshot;
+      await this.runCallbacks('afterUpdate');
+      await this._scheduleCommitCallbacks('update');
+      return this as M;
     }
     const current = Number((this.attributes() as Dict<any>)[key] ?? 0);
     return this.update({ [key]: current + by });
@@ -2540,6 +2622,16 @@ export function Model<
       if (fkValue === undefined || fkValue === null) return;
       const target = resolveTarget(spec);
       const pk = spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id';
+      if (target.connector.supportsAtomicUpdate && target.connector.atomicUpdate) {
+        const updatedCol = target.updatedAtColumn;
+        await target.connector.atomicUpdate({
+          tableName: target.tableName,
+          filter: { [pk]: fkValue } as Filter<any>,
+          deltas: [{ column: spec.column, by: delta }],
+          set: updatedCol ? { [updatedCol]: new Date() } : undefined,
+        });
+        return;
+      }
       const parent = (await target.findBy({ [pk]: fkValue } as Filter<any>)) as
         | (ModelClass & { increment: (k: string, by?: number) => Promise<unknown> })
         | undefined;

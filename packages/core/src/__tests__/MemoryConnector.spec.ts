@@ -1187,6 +1187,103 @@ describe('Connector', () => {
   });
 });
 
+describe('#atomicUpdate(spec)', () => {
+  beforeEach(() => {
+    storage = {
+      [tableName]: [
+        { id: 1, count: 0 },
+        { id: 2, count: 0 },
+        { id: 3, count: 5 },
+      ],
+    };
+  });
+
+  it('declares supportsAtomicUpdate', () => {
+    expect(connector().supportsAtomicUpdate).toBe(true);
+    expect(typeof connector().atomicUpdate).toBe('function');
+  });
+
+  it('applies a positive delta and returns the affected row count', async () => {
+    const affected = await connector().atomicUpdate?.({
+      tableName,
+      filter: { id: 1 },
+      deltas: [{ column: 'count', by: 3 }],
+    });
+    expect(affected).toBe(1);
+    expect(storage[tableName].find((r) => r.id === 1)?.count).toBe(3);
+  });
+
+  it('applies a negative delta', async () => {
+    const affected = await connector().atomicUpdate?.({
+      tableName,
+      filter: { id: 3 },
+      deltas: [{ column: 'count', by: -2 }],
+    });
+    expect(affected).toBe(1);
+    expect(storage[tableName].find((r) => r.id === 3)?.count).toBe(3);
+  });
+
+  it('treats null/undefined columns as 0 for the delta', async () => {
+    storage[tableName] = [{ id: 1 }];
+    const affected = await connector().atomicUpdate?.({
+      tableName,
+      filter: { id: 1 },
+      deltas: [{ column: 'count', by: 7 }],
+    });
+    expect(affected).toBe(1);
+    expect(storage[tableName][0].count).toBe(7);
+  });
+
+  it('applies absolute set fields alongside deltas', async () => {
+    const affected = await connector().atomicUpdate?.({
+      tableName,
+      filter: { id: 1 },
+      deltas: [{ column: 'count', by: 1 }],
+      set: { foo: 'bar' },
+    });
+    expect(affected).toBe(1);
+    const row = storage[tableName].find((r) => r.id === 1);
+    expect(row?.count).toBe(1);
+    expect(row?.foo).toBe('bar');
+  });
+
+  it('updates every matching row when filter is broader', async () => {
+    const affected = await connector().atomicUpdate?.({
+      tableName,
+      filter: {},
+      deltas: [{ column: 'count', by: 1 }],
+    });
+    expect(affected).toBe(3);
+    expect(storage[tableName].map((r) => r.count)).toEqual([1, 1, 6]);
+  });
+
+  it('returns 0 when no row matches', async () => {
+    const affected = await connector().atomicUpdate?.({
+      tableName,
+      filter: { id: 9999 },
+      deltas: [{ column: 'count', by: 1 }],
+    });
+    expect(affected).toBe(0);
+    expect(storage[tableName].map((r) => r.count)).toEqual([0, 0, 5]);
+  });
+
+  it('1000 concurrent increments converge to the correct value', async () => {
+    storage[tableName] = [{ id: 1, count: 0 }];
+    const c = connector();
+    const N = 1000;
+    await Promise.all(
+      Array.from({ length: N }, () =>
+        c.atomicUpdate?.({
+          tableName,
+          filter: { id: 1 },
+          deltas: [{ column: 'count', by: 1 }],
+        }),
+      ),
+    );
+    expect(storage[tableName][0].count).toBe(N);
+  });
+});
+
 import { runModelConformance } from './conformance.js';
 
 runModelConformance({

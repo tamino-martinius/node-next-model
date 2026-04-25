@@ -1,5 +1,6 @@
 import {
   type AggregateKind,
+  type AtomicUpdateSpec,
   type BaseType,
   type Connector,
   type Dict,
@@ -226,6 +227,24 @@ export class MongoDbConnector implements Connector {
     if (matching.length === 0) return [];
     await this.collection(scope.tableName).deleteMany(this.compileFilter(scope.filter));
     return matching;
+  }
+
+  supportsAtomicUpdate = true as const;
+
+  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const update: Dict<any> = {};
+    if (spec.deltas.length > 0) {
+      const inc: Dict<number> = {};
+      for (const { column, by } of spec.deltas) inc[column] = by;
+      update.$inc = inc;
+    }
+    if (spec.set && Object.keys(spec.set).length > 0) {
+      update.$set = spec.set;
+    }
+    const filter = this.compileFilter(spec.filter);
+    const result = await this.collection(spec.tableName).updateMany(filter, update);
+    return result.matchedCount;
   }
 
   async batchInsert(

@@ -81,6 +81,19 @@ export type Order<PersistentProps extends Schema> =
 
 export type AggregateKind = 'sum' | 'min' | 'max' | 'avg';
 
+export interface AtomicUpdateDelta {
+  column: string;
+  by: number;
+}
+
+export interface AtomicUpdateSpec {
+  tableName: string;
+  filter?: Filter<any>;
+  deltas: AtomicUpdateDelta[];
+  /** Optional absolute sets applied alongside the deltas (e.g. `updatedAt = now`). */
+  set?: Dict<any>;
+}
+
 export interface Connector {
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
@@ -94,6 +107,20 @@ export interface Connector {
   hasTable(tableName: string): Promise<boolean>;
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
+  /**
+   * Optional capability flag. Connectors that implement `atomicUpdate` set
+   * this to `true` so callers (counter caches, `record.increment`, etc.) can
+   * route through the atomic path and skip the load-modify-save fallback.
+   */
+  supportsAtomicUpdate?: true;
+  /**
+   * Apply per-column numeric deltas to every row matching `filter` in a single
+   * round-trip. Each delta `{ column, by }` adds `by` to the current value
+   * (negative `by` decrements). Returns the number of affected rows.
+   *
+   * Connectors that declare `supportsAtomicUpdate = true` MUST implement this.
+   */
+  atomicUpdate?(spec: AtomicUpdateSpec): Promise<number>;
 }
 
 export interface Scope {

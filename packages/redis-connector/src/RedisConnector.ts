@@ -1,5 +1,6 @@
 import {
   type AggregateKind,
+  type AtomicUpdateSpec,
   type BaseType,
   type Connector,
   type Dict,
@@ -262,6 +263,39 @@ export class RedisConnector implements Connector {
       await this.client.zRem(idsKey, String(id));
     }
     return rows;
+  }
+
+  supportsAtomicUpdate = true as const;
+
+  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const rows = await this.resolveScope({
+      tableName: spec.tableName,
+      filter: spec.filter,
+    } as Scope);
+    if (rows.length === 0) return 0;
+    const primaryKey = await this.detectPrimaryKey(spec.tableName, rows);
+    const setFields: Dict<string> | undefined = spec.set
+      ? Object.fromEntries(Object.keys(spec.set).map((k) => [k, encode(spec.set?.[k])]))
+      : undefined;
+    for (const row of rows) {
+      const id = row[primaryKey];
+      if (id === undefined) continue;
+      const key = this.rowKey(spec.tableName, id);
+      // Per-row MULTI: queue deltas + absolute sets and dispatch atomically.
+      // Cross-row atomicity is not provided (would require a Lua script).
+      const tx = this.client.multi();
+      for (const { column, by } of spec.deltas) {
+        if (Number.isInteger(by)) {
+          tx.hIncrBy(key, column, by);
+        } else {
+          tx.hIncrByFloat(key, column, by);
+        }
+      }
+      if (setFields) tx.hSet(key, setFields);
+      await (tx as { exec: () => Promise<unknown[]> }).exec();
+    }
+    return rows.length;
   }
 
   async batchInsert(

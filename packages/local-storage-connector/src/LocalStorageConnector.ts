@@ -1,5 +1,6 @@
 import {
   type AggregateKind,
+  type AtomicUpdateSpec,
   type BaseType,
   type Dict,
   type KeyType,
@@ -113,6 +114,13 @@ export class LocalStorageConnector extends MemoryConnector {
     const result = await super.updateAll(scope, attrs);
     this.persist(scope.tableName);
     return result;
+  }
+
+  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+    this.hydrate(spec.tableName);
+    const affected = await super.atomicUpdate(spec);
+    if (affected > 0) this.persist(spec.tableName);
+    return affected;
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
