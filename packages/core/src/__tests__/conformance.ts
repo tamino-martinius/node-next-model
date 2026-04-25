@@ -499,5 +499,127 @@ export function runModelConformance(opts: ConformanceOptions): void {
         expect(back?.name).toBe('ada');
       });
     });
+
+    describe('JOIN capability (fast path + fallback parity)', () => {
+      const parentTable = 'conformance_join_users';
+      const childTable = 'conformance_join_posts';
+      type UserProps = { name: string };
+      type PostProps = { title: string; userId: number; status: string };
+      let User: any;
+      let Post: any;
+
+      beforeEach(async () => {
+        for (const t of [parentTable, childTable]) {
+          if (await connector.hasTable(t)) await connector.dropTable(t);
+        }
+        await connector.createTable(parentTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('name');
+        });
+        await connector.createTable(childTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('title');
+          t.integer('userId');
+          t.string('status');
+        });
+        User = class extends (
+          Model({
+            tableName: parentTable,
+            connector,
+            timestamps: false,
+            init: (props: UserProps) => props,
+          })
+        ) {};
+        Post = class extends (
+          Model({
+            tableName: childTable,
+            connector,
+            timestamps: false,
+            init: (props: PostProps) => props,
+          })
+        ) {};
+      });
+
+      it('whereMissing returns parents with zero matching children', async () => {
+        const alice = await User.create({ name: 'alice' });
+        const bob = await User.create({ name: 'bob' });
+        await User.create({ name: 'carol' });
+        await Post.create({ title: 'a1', userId: alice.id, status: 'draft' });
+        await Post.create({ title: 'b1', userId: bob.id, status: 'draft' });
+        const result = await User.whereMissing({
+          hasMany: Post,
+          foreignKey: 'userId',
+        }).all();
+        expect(result.map((u: any) => u.name).sort()).toEqual(['carol']);
+      });
+
+      it('whereMissing composes with filterBy and orderBy', async () => {
+        const alice = await User.create({ name: 'alice' });
+        await User.create({ name: 'bob' });
+        await User.create({ name: 'carol' });
+        await Post.create({ title: 'a1', userId: alice.id, status: 'draft' });
+        const result = await User.whereMissing({ hasMany: Post, foreignKey: 'userId' })
+          .filterBy({ $like: { name: '%o%' } })
+          .orderBy({ key: 'name' })
+          .all();
+        expect(result.map((u: any) => u.name)).toEqual(['bob', 'carol']);
+      });
+
+      it('joins(...) keeps parents with at least one matching child (filtered)', async () => {
+        const alice = await User.create({ name: 'alice' });
+        const bob = await User.create({ name: 'bob' });
+        await User.create({ name: 'carol' });
+        await Post.create({ title: 'a1', userId: alice.id, status: 'published' });
+        await Post.create({ title: 'b1', userId: bob.id, status: 'draft' });
+        const result = await User.joins({
+          hasMany: Post,
+          foreignKey: 'userId',
+          filter: { status: 'published' },
+        }).all();
+        expect(result.map((u: any) => u.name).sort()).toEqual(['alice']);
+      });
+
+      it('cross-association filterBy via static associations', async () => {
+        const alice = await User.create({ name: 'alice' });
+        const bob = await User.create({ name: 'bob' });
+        await Post.create({ title: 'a1', userId: alice.id, status: 'published' });
+        await Post.create({ title: 'b1', userId: bob.id, status: 'draft' });
+        const ScopedUser = class extends User {
+          static associations = {
+            posts: { hasMany: Post, foreignKey: 'userId', primaryKey: 'id' },
+          };
+        };
+        const result = await ScopedUser.filterBy({
+          posts: { status: 'published' },
+        } as any).all();
+        expect(result.map((u: any) => u.name).sort()).toEqual(['alice']);
+      });
+
+      it('includes with strategy: "auto" attaches children on every connector', async () => {
+        const alice = await User.create({ name: 'alice' });
+        const bob = await User.create({ name: 'bob' });
+        await Post.create({ title: 'a1', userId: alice.id, status: 'published' });
+        await Post.create({ title: 'a2', userId: alice.id, status: 'draft' });
+        await Post.create({ title: 'b1', userId: bob.id, status: 'published' });
+        const result = await User.includes(
+          { posts: { hasMany: Post, foreignKey: 'userId' } },
+          { strategy: 'auto' as const },
+        )
+          .orderBy({ key: 'id' })
+          .all();
+        expect(result.map((u: any) => u.name)).toEqual(['alice', 'bob']);
+        expect(result[0].posts.map((p: any) => p.title).sort()).toEqual(['a1', 'a2']);
+        expect(result[1].posts.map((p: any) => p.title)).toEqual(['b1']);
+      });
+
+      it('whereMissing + filterBy returns the same shape as the chained $async path', async () => {
+        const alice = await User.create({ name: 'alice' });
+        await User.create({ name: 'bob' });
+        await User.create({ name: 'carol' });
+        await Post.create({ title: 'a1', userId: alice.id, status: 'draft' });
+        const count = await User.whereMissing({ hasMany: Post, foreignKey: 'userId' }).count();
+        expect(count).toBe(2);
+      });
+    });
   });
 }

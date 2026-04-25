@@ -94,6 +94,22 @@ export interface Connector {
   hasTable(tableName: string): Promise<boolean>;
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
+
+  /**
+   * Capability bit. Connectors that can execute a parent scope JOINed against
+   * one or more child tables in a single statement set this and implement
+   * `queryWithJoins`. The Model layer routes `whereMissing` / `joins(...)` /
+   * `includes({...}, { strategy: 'join' })` through the JOIN path when this is
+   * present, and falls back to subquery + filter for connectors without it.
+   */
+  supportsJoins?: true;
+
+  /**
+   * Run `spec.parent`'s base query JOINed against one or more child tables.
+   * Returns parent rows only; rows whose `joins[i].mode === 'includes'` carry
+   * the matched children inside a `__includes` dict keyed by `attachAs`.
+   */
+  queryWithJoins?(spec: JoinQuerySpec): Promise<Dict<any>[]>;
 }
 
 export interface Scope {
@@ -102,6 +118,56 @@ export interface Scope {
   limit?: number;
   skip?: number;
   order?: OrderColumn<any>[];
+}
+
+/**
+ * Join behaviour:
+ *  - `'select'`: keep parents that have at least one matching child row
+ *    (INNER JOIN, distinct parents).
+ *  - `'antiJoin'`: keep parents that have NO matching child row
+ *    (LEFT JOIN with `child IS NULL`). Powers `Model.whereMissing(...)`.
+ *  - `'includes'`: keep all parents and attach the matched children under
+ *    `__includes[attachAs]`. Powers `Model.includes({...}, { strategy: 'join' })`.
+ */
+export type JoinMode = 'select' | 'antiJoin' | 'includes';
+
+export interface JoinClause {
+  /** SQL JOIN kind. `mode: 'antiJoin'` and `mode: 'includes'` always run as `'left'`. */
+  kind: 'inner' | 'left';
+  childTableName: string;
+  on: { parentColumn: string; childColumn: string };
+  /** Optional filter applied to the child rows. Bare-column form keys resolve against the child table. */
+  filter?: Filter<any>;
+  mode?: JoinMode;
+  /**
+   * Required when `mode === 'includes'` — the property name on each returned
+   * parent row's `__includes` dict that the matched children attach under.
+   */
+  attachAs?: string;
+  /**
+   * Required when `mode === 'antiJoin'` — column on the child table that the
+   * `IS NULL` check targets. Defaults to the child's primary key.
+   */
+  childPrimaryKey?: string;
+  /**
+   * When `mode === 'includes'`, controls whether a single matching child is
+   * expected (`belongsTo` / `hasOne`) — the connector still returns an array,
+   * but the Model layer flattens to the first element.
+   */
+  includesCardinality?: 'many' | 'one';
+  /**
+   * Connector-opaque hook for the Model layer's fallback path: when set, the
+   * Model resolves the child rows through this object's `connector` instead
+   * of the parent's. Typed as `unknown` here so `types.ts` stays free of the
+   * circular `Model` import; the Model layer casts to `typeof ModelClass`.
+   * Connectors must ignore this field.
+   */
+  target?: unknown;
+}
+
+export interface JoinQuerySpec {
+  parent: Scope;
+  joins: JoinClause[];
 }
 
 export type Validator<T> = (instance: T) => boolean | Promise<boolean>;

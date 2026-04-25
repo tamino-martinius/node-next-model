@@ -370,10 +370,13 @@ Multiple `whereMissing` calls AND together. Custom `primaryKey` is
 respected. Works against any connector that already understands `$async` +
 `$notIn` (every shipped connector does).
 
-> The current implementation always runs as a subquery. Connectors that
-> support a JOIN concept (e.g. SQL via Knex) could in principle resolve
-> this in a single LEFT JOIN ... IS NULL query for better performance —
-> see the [JOIN follow-up](#join-strategy-followup) note below.
+> Connectors that advertise `supportsJoins` (KnexConnector today) skip the
+> subquery and resolve `whereMissing` as a single
+> `WHERE NOT EXISTS (SELECT 1 FROM child WHERE child.fk = parent.pk)` on
+> the same parent query. Memory / Redis / Mongo / native sqlite-pg-mysql-
+> mariadb stay on the subquery path. See
+> [Joins and JOIN-capable connectors](#joins-and-join-capable-connectors)
+> for the full surface.
 
 ### Filter operators
 
@@ -941,16 +944,52 @@ original throw propagates intact.
 > contexts. `await` one before starting the next when correctness matters.
 
 <a id="join-strategy-followup"></a>
+<a id="joins-and-join-capable-connectors"></a>
 
-> **Connector JOIN strategy (follow-up).** Today every chainable that
-> involves a "lookup against another table" (`whereMissing`,
-> `validateUniqueness`'s `scope`, `belongsTo` / `hasMany` lazy loaders)
-> issues a separate subquery and stitches the result through the existing
-> filter DSL. This works against every connector unchanged but isn't the
-> most efficient shape on SQL backends, where a single `LEFT JOIN ... IS
-> NULL` would do. A future Connector capability bit will let SQL
-> connectors opt into a join-based execution; the Memory / Redis / Mongo
-> path stays on the subquery fallback.
+### Joins and JOIN-capable connectors
+
+`Model.joins(...)`, `Model.whereMissing(...)`, `Model.includes({...}, { strategy })`,
+and cross-association `filterBy({ <assoc>: {...} })` all collect their JOINs
+in a `pendingJoins` queue on the chain. At terminal time:
+
+- Connectors that advertise `supportsJoins` (KnexConnector today) consume
+  the whole queue in one `Connector.queryWithJoins({ parent, joins })` call
+  — `'select'` clauses become `WHERE EXISTS (...)`, `'antiJoin'` becomes
+  `WHERE NOT EXISTS (...)`, and `'includes'` clauses batch-fetch children
+  and attach them under `record.<name>`.
+- Every other connector (Memory / Redis / Mongo / native sqlite-pg-mysql-
+  mariadb) falls back to a subquery: the parent's scope picks up
+  `{ $in | $notIn: { [parentColumn]: [...child keys...] } }` and includes
+  go through the existing `preloadBelongsTo` / `preloadHasMany` primitives.
+  `$async` is fully resolved at the Model layer, so connectors that reject
+  `$async` (native sqlite/pg/mysql/mariadb) keep working transparently.
+
+```ts
+class User extends Model({ ... }) {
+  // Optional: declarative associations enable cross-association filterBy.
+  static associations = {
+    posts: { hasMany: () => Post, foreignKey: 'userId' },
+  };
+}
+
+// Single round-trip on KnexConnector (one INNER JOIN); two queries on
+// connectors without `supportsJoins`.
+await User.joins({ hasMany: Post, foreignKey: 'userId',
+                   filter: { status: 'published' } }).all();
+
+// Same shape via the cross-association `filterBy` form.
+await User.filterBy({ posts: { status: 'published' } } as any).all();
+
+// Eager-load posts in one round-trip per association — explicit opt-in.
+await User.includes({ posts: { hasMany: Post, foreignKey: 'userId' } },
+                    { strategy: 'auto' }).all();
+```
+
+`includes` accepts `{ strategy: 'preload' | 'join' | 'auto' }`:
+`'preload'` (default) is the existing one-batched-query-per-association
+behaviour. `'join'` requires `supportsJoins` and throws otherwise.
+`'auto'` picks `'join'` when supported, `'preload'` when not — a safe
+default for libraries that don't know which connector they'll run against.
 
 ## Connectors
 
