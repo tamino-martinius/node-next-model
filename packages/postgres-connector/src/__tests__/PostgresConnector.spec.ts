@@ -1,4 +1,5 @@
 import { runModelConformance } from '@next-model/conformance';
+import { defineAlter } from '@next-model/core';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { PostgresConnector } from '../index.js';
@@ -71,6 +72,139 @@ describe('PostgresConnector', () => {
   it('execute() accepts a single binding (not just arrays)', async () => {
     const rows = await connector.execute('SELECT $1::int AS n', 7 as any);
     expect(rows[0].n).toBe(7);
+  });
+});
+
+describe('PostgresConnector.alterTable', () => {
+  async function setupUsers(tableName: string): Promise<void> {
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.string('name', { null: false });
+    });
+    await connector.batchInsert(
+      tableName,
+      { id: 1 } as any,
+      [{ name: 'Ada' }, { name: 'Linus' }],
+    );
+  }
+
+  it('addColumn / removeColumn / renameColumn', async () => {
+    const tableName = 'pg_alter_cols';
+    await setupUsers(tableName);
+    await connector.alterTable(
+      defineAlter(tableName, (a) => {
+        a.addColumn('role', 'string', { default: 'member' });
+        a.renameColumn('name', 'fullName');
+      }),
+    );
+    let rows = await connector.query({ tableName });
+    expect(rows[0].role).toBe('member');
+    expect(typeof rows[0].fullName).toBe('string');
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.removeColumn('role')),
+    );
+    rows = await connector.query({ tableName });
+    expect('role' in rows[0]).toBe(false);
+    await connector.dropTable(tableName);
+  });
+
+  it('changeColumn updates type, nullability, and default', async () => {
+    const tableName = 'pg_alter_change';
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.text('label');
+    });
+    await connector.alterTable(
+      defineAlter(tableName, (a) =>
+        a.changeColumn('label', 'string', { null: false, limit: 64, default: 'unknown' }),
+      ),
+    );
+    await connector.batchInsert(tableName, { id: 1 } as any, [{}]);
+    const rows = await connector.query({ tableName });
+    expect(rows[0].label).toBe('unknown');
+    // and back the other way — drop the default + relax nullability
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.changeColumn('label', 'string', { null: true })),
+    );
+    await connector.dropTable(tableName);
+  });
+
+  it('addIndex / removeIndex / renameIndex round-trip', async () => {
+    const tableName = 'pg_alter_idx';
+    await setupUsers(tableName);
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.addIndex('name', { name: 'idx_pg_alter_idx_name' })),
+    );
+    const before = (await connector.execute(
+      "SELECT indexname FROM pg_indexes WHERE tablename = $1",
+      [tableName] as any,
+    )) as { indexname: string }[];
+    expect(before.map((r) => r.indexname)).toContain('idx_pg_alter_idx_name');
+
+    await connector.alterTable(
+      defineAlter(tableName, (a) =>
+        a.renameIndex('idx_pg_alter_idx_name', 'idx_pg_alter_idx_renamed'),
+      ),
+    );
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.removeIndex('idx_pg_alter_idx_renamed')),
+    );
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.addIndex(['name'])),
+    );
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.removeIndex(['name'])),
+    );
+    await connector.dropTable(tableName);
+  });
+
+  it('addForeignKey + removeForeignKey with stable default name', async () => {
+    const parent = 'pg_alter_parent';
+    const child = 'pg_alter_child';
+    if (await connector.hasTable(child)) await connector.dropTable(child);
+    if (await connector.hasTable(parent)) await connector.dropTable(parent);
+    await connector.createTable(parent, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+    });
+    await connector.createTable(child, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.integer('parentId');
+    });
+    await connector.alterTable(
+      defineAlter(child, (a) =>
+        a.addForeignKey(parent, { column: 'parentId', onDelete: 'cascade', onUpdate: 'noAction' }),
+      ),
+    );
+    await connector.alterTable(
+      defineAlter(child, (a) => a.removeForeignKey(parent)),
+    );
+    await connector.dropTable(child);
+    await connector.dropTable(parent);
+  });
+
+  it('addCheckConstraint / removeCheckConstraint enforce predicates', async () => {
+    const tableName = 'pg_alter_check';
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true });
+      t.integer('age', { null: false });
+    });
+    await connector.alterTable(
+      defineAlter(tableName, (a) =>
+        a.addCheckConstraint('age >= 0', { name: 'chk_age_non_negative' }),
+      ),
+    );
+    await expect(
+      connector.batchInsert(tableName, { id: 1 } as any, [{ age: -1 }]),
+    ).rejects.toBeTruthy();
+    await connector.alterTable(
+      defineAlter(tableName, (a) => a.removeCheckConstraint('chk_age_non_negative')),
+    );
+    const inserted = await connector.batchInsert(tableName, { id: 1 } as any, [{ age: -1 }]);
+    expect(inserted.length).toBe(1);
+    await connector.dropTable(tableName);
   });
 });
 

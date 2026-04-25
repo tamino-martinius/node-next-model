@@ -358,7 +358,7 @@ export class MongoDbConnector implements Connector {
       }
       case 'removeIndex': {
         const target = Array.isArray(op.nameOrColumns)
-          ? op.nameOrColumns.join('_1_') + '_1'
+          ? `${op.nameOrColumns.join('_1_')}_1`
           : op.nameOrColumns;
         await collection.dropIndex(target).catch(() => {});
         return;
