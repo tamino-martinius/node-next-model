@@ -20,6 +20,60 @@ import {
 import { camelize, pascalize, singularize } from './util.js';
 import { Errors } from './validators.js';
 
+/**
+ * Generate a URL-safe random token. `length` is the byte count fed into the
+ * platform RNG; the returned base64url string is `Math.ceil(length * 4 / 3)`
+ * characters long (no padding). Default 24 bytes → 32-character token.
+ *
+ * Uses the Web Crypto API (`globalThis.crypto.getRandomValues`), which is
+ * available in browsers and in Node 19+ as a global, so this stays
+ * browser-bundle-safe (no `node:crypto` import).
+ */
+export function generateSecureToken(length = 24): string {
+  const bytes = new Uint8Array(length);
+  globalThis.crypto.getRandomValues(bytes);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+interface TransactionContext {
+  afterCommit: Array<() => Promise<void>>;
+  afterRollback: Array<() => Promise<void>>;
+}
+
+/**
+ * Module-level "current transaction" pointer. JavaScript is single-threaded
+ * so a plain variable suffices for sequential transactions:
+ * `Model.transaction` writes its context here, every save/delete inside reads
+ * it, and the wrapper restores the previous value in a `finally`.
+ *
+ * Limitation: parallel transactions on overlapping async timelines
+ * (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
+ * contexts. Wrap one in `await` before the next when correctness matters.
+ * Browser bundles can't use `node:async_hooks`, so the stack-style approach
+ * works in every runtime we ship to.
+ */
+let activeContext: TransactionContext | undefined;
+
+async function withTransactionContext<T>(
+  ctx: TransactionContext,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = activeContext;
+  activeContext = ctx;
+  try {
+    return await fn();
+  } finally {
+    activeContext = prev;
+  }
+}
+
+/** Returns the active transaction context if any code path above is inside `Model.transaction(...)`. */
+function activeTransaction(): TransactionContext | undefined {
+  return activeContext;
+}
+
 export type AssociationOptions = {
   foreignKey?: string;
   primaryKey?: string;
@@ -34,6 +88,31 @@ export type IncludeSpec =
   | { hasOne: typeof ModelClass; foreignKey: string; primaryKey?: string };
 
 export type IncludeMap = Record<string, IncludeSpec>;
+
+export type CascadeAction = 'destroy' | 'deleteAll' | 'nullify' | 'restrict';
+
+export type CascadeSpec =
+  | {
+      hasMany: typeof ModelClass | (() => typeof ModelClass);
+      foreignKey: string;
+      primaryKey?: string;
+      dependent: CascadeAction;
+    }
+  | {
+      hasOne: typeof ModelClass | (() => typeof ModelClass);
+      foreignKey: string;
+      primaryKey?: string;
+      dependent: CascadeAction;
+    };
+
+export type CascadeMap = Record<string, CascadeSpec>;
+
+export interface CounterCacheSpec {
+  belongsTo: typeof ModelClass | (() => typeof ModelClass);
+  foreignKey: string;
+  column: string;
+  primaryKey?: string;
+}
 
 export type HasManyThroughOptions = {
   throughForeignKey?: string;
@@ -288,11 +367,59 @@ export class ModelClass {
   static inheritType: string | undefined = undefined;
   /** On the base Model, maps inheritColumn values → subclass constructors. */
   static inheritRegistry: Map<string, typeof ModelClass> | undefined = undefined;
+  /**
+   * Map of JSON-column name → sub-keys to expose as instance accessors.
+   * Reads/writes proxy into the JSON column, so `user.theme = 'dark'`
+   * actually mutates `user.settings.theme`. Configured via the
+   * `storeAccessors` factory option.
+   */
+  static storeAccessors: Dict<readonly string[]> = {};
+  /**
+   * Cascade declarations consulted by `delete()` to clean up children.
+   * Populated via the `cascade` factory option. Entries support
+   * `dependent: 'destroy' | 'deleteAll' | 'nullify' | 'restrict'`.
+   */
+  static cascadeMap: CascadeMap | undefined = undefined;
+  /**
+   * Map of column → normalizer function. When `assign()` writes this column,
+   * the input value is passed through the function before being stored.
+   * Runs both for direct setters and for `update(...)` / `build({...})`.
+   */
+  static normalizers: Dict<(value: any) => any> = {};
+  /**
+   * Columns that should be auto-populated with a random URL-safe token on
+   * insert if blank. Configured via the `secureTokens` factory option.
+   */
+  static secureTokenColumns: Dict<{ length: number }> = {};
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
   static async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    return this.connector.transaction(fn);
+    // Nested call: reuse the outer context so child saves register their
+    // commit/rollback hooks against the outermost transaction.
+    if (activeTransaction()) {
+      return this.connector.transaction(fn);
+    }
+    const ctx: TransactionContext = { afterCommit: [], afterRollback: [] };
+    return withTransactionContext(ctx, async () => {
+      let result: T;
+      try {
+        result = await this.connector.transaction(fn);
+      } catch (err) {
+        for (const cb of ctx.afterRollback) {
+          try {
+            await cb();
+          } catch {
+            /* swallow per-callback errors so the original throws */
+          }
+        }
+        throw err;
+      }
+      for (const cb of ctx.afterCommit) {
+        await cb();
+      }
+      return result;
+    });
   }
 
   static modelScope() {
@@ -1260,6 +1387,23 @@ export class ModelClass {
         }
       }
     }
+
+    for (const column in model.storeAccessors) {
+      const subKeys = model.storeAccessors[column];
+      for (const subKey of subKeys) {
+        if (Object.getOwnPropertyDescriptor(this, subKey)) continue;
+        Object.defineProperty(this, subKey, {
+          get: () => {
+            const bag = (this.attributes() as Dict<any>)[column];
+            return bag != null ? bag[subKey] : undefined;
+          },
+          set: (value) => {
+            const current = ((this.attributes() as Dict<any>)[column] ?? {}) as Dict<any>;
+            this.assign({ [column]: { ...current, [subKey]: value } });
+          },
+        });
+      }
+    }
   }
 
   isPersistent() {
@@ -1298,9 +1442,12 @@ export class ModelClass {
   }
 
   assign<M extends ModelClass>(this: M, props: Dict<any>) {
+    const model = this.constructor as typeof ModelClass;
+    const normalizers = model.normalizers;
     for (const key in props) {
-      if (this.persistentProps[key] !== props[key]) {
-        this.changedProps[key] = props[key];
+      const value = normalizers[key] ? normalizers[key](props[key]) : props[key];
+      if (this.persistentProps[key] !== value) {
+        this.changedProps[key] = value;
       } else {
         delete this.changedProps[key];
       }
@@ -1582,6 +1729,12 @@ export class ModelClass {
       if (model.inheritColumn && model.inheritType !== undefined) {
         insertProps[model.inheritColumn] = model.inheritType;
       }
+      for (const column in model.secureTokenColumns) {
+        const current = insertProps[column];
+        if (current === undefined || current === null || current === '') {
+          insertProps[column] = generateSecureToken(model.secureTokenColumns[column].length);
+        }
+      }
       const items = await model.connector.batchInsert(model.tableName, model.keys, [insertProps]);
       const item = items.pop();
       if (item) {
@@ -1607,6 +1760,39 @@ export class ModelClass {
 
     await this.runCallbacks(isInsert ? 'afterCreate' : 'afterUpdate');
     await this.runCallbacks('afterSave');
+
+    await this._scheduleCommitCallbacks(isInsert ? 'create' : 'update');
+  }
+
+  async _scheduleCommitCallbacks(kind: 'create' | 'update' | 'delete'): Promise<void> {
+    const commitEvent = (
+      kind === 'create'
+        ? 'afterCreateCommit'
+        : kind === 'update'
+          ? 'afterUpdateCommit'
+          : 'afterDeleteCommit'
+    ) as keyof Callbacks<any>;
+    const rollbackEvent = (
+      kind === 'create'
+        ? 'afterCreateRollback'
+        : kind === 'update'
+          ? 'afterUpdateRollback'
+          : 'afterDeleteRollback'
+    ) as keyof Callbacks<any>;
+    const ctx = activeTransaction();
+    if (ctx) {
+      ctx.afterCommit.push(async () => {
+        await this.runCallbacks(commitEvent);
+        await this.runCallbacks('afterCommit');
+      });
+      ctx.afterRollback.push(async () => {
+        await this.runCallbacks(rollbackEvent);
+        await this.runCallbacks('afterRollback');
+      });
+    } else {
+      await this.runCallbacks(commitEvent);
+      await this.runCallbacks('afterCommit');
+    }
   }
 
   async update<M extends ModelClass>(this: M, attrs: Dict<any>) {
@@ -1655,6 +1841,61 @@ export class ModelClass {
     return this as M;
   }
 
+  /**
+   * Run cascade declarations for this record's parent before its own delete.
+   * `restrict` throws if any matching child exists; `destroy` calls `.delete()`
+   * on each child (recursively cascading); `deleteAll` is a bulk delete that
+   * skips child callbacks; `nullify` updates the foreign-key column to null.
+   */
+  async _runCascade(): Promise<void> {
+    const model = this.constructor as typeof ModelClass;
+    const map = model.cascadeMap;
+    if (!map) return;
+    for (const name in map) {
+      const spec = map[name];
+      const target = (
+        'hasMany' in spec
+          ? typeof spec.hasMany === 'function' && !(spec.hasMany as any).tableName
+            ? (spec.hasMany as () => typeof ModelClass)()
+            : (spec.hasMany as typeof ModelClass)
+          : typeof spec.hasOne === 'function' && !(spec.hasOne as any).tableName
+            ? (spec.hasOne as () => typeof ModelClass)()
+            : (spec.hasOne as typeof ModelClass)
+      ) as typeof ModelClass;
+      const fk = spec.foreignKey;
+      const pkName = spec.primaryKey ?? Object.keys(model.keys)[0] ?? 'id';
+      const pkValue = (this.attributes() as Dict<any>)[pkName];
+      if (pkValue === undefined || pkValue === null) continue;
+      const childScope = target.filterBy({ [fk]: pkValue } as Filter<any>);
+      switch (spec.dependent) {
+        case 'restrict': {
+          const count = await childScope.count();
+          if (count > 0) {
+            throw new PersistenceError(
+              `Cannot delete ${model.name || 'record'}: '${name}' association has ${count} child row(s) (cascade='restrict')`,
+            );
+          }
+          break;
+        }
+        case 'destroy': {
+          const children = await childScope.all();
+          for (const child of children) {
+            await (child as any).delete();
+          }
+          break;
+        }
+        case 'deleteAll': {
+          await childScope.deleteAll();
+          break;
+        }
+        case 'nullify': {
+          await childScope.updateAll({ [fk]: null } as Dict<any>);
+          break;
+        }
+      }
+    }
+  }
+
   async delete<M extends ModelClass>(
     this: M,
     options: { skipCallbacks?: boolean } = {},
@@ -1672,6 +1913,7 @@ export class ModelClass {
   async _deleteCore(options: { skipCallbacks?: boolean } = {}): Promise<void> {
     const model = this.constructor as typeof ModelClass;
     if (!options.skipCallbacks) await this.runCallbacks('beforeDelete');
+    await this._runCascade();
     let scope = this.itemScope();
     const lockColumn = model.lockVersionColumn;
     let expectedLock: number | undefined;
@@ -1692,6 +1934,7 @@ export class ModelClass {
     this.changedProps = {};
     this.keys = undefined;
     if (!options.skipCallbacks) await this.runCallbacks('afterDelete');
+    await this._scheduleCommitCallbacks('delete');
   }
 
   isDiscarded(): boolean {
@@ -1765,6 +2008,47 @@ export function Model<
    * `Base.inherit({ type: 'Dog' })`.
    */
   inheritColumn?: string;
+  /**
+   * Map of JSON column → list of sub-keys to expose as instance accessors.
+   * `storeAccessors: { settings: ['theme', 'locale'] }` makes `user.theme`
+   * read/write `user.settings.theme`. Sub-keys must not collide with
+   * Model.keys, persistentProps, or any prototype method.
+   */
+  storeAccessors?: Dict<readonly string[]>;
+  /**
+   * Cascade configuration. Each entry declares a child association and what
+   * to do with its rows when the parent is deleted:
+   *
+   *   - `'destroy'`: load each child and call `.delete()` (callbacks fire)
+   *   - `'deleteAll'`: bulk delete via the connector (no child callbacks)
+   *   - `'nullify'`: bulk update children's foreign-key column to null
+   *   - `'restrict'`: throw `PersistenceError` if any matching child exists
+   *
+   * Cascades run BEFORE the parent's own delete, so a `restrict` failure
+   * leaves the parent intact. Use a function for `hasMany` / `hasOne` to
+   * defer model resolution past circular imports.
+   */
+  cascade?: CascadeMap;
+  /**
+   * Per-column normalizers run on `assign(...)` (and so also on `build` /
+   * `update`). Useful for trimming whitespace, lowercasing emails, stripping
+   * non-digits from phone numbers, etc.
+   */
+  normalizes?: Dict<(value: any) => any>;
+  /**
+   * Columns to auto-populate with a random URL-safe token on insert when
+   * the value is blank. Pass column names directly or per-column options
+   * (`{ apiKey: { length: 24 } }`); default length is 24 bytes →
+   * 32-character base64-url tokens.
+   */
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  /**
+   * Counter cache configuration. Each entry declares a `belongsTo` parent
+   * Model, the foreign-key column on this Model, and a counter column on
+   * the parent. The Model auto-maintains the counter via afterCreate /
+   * afterDelete / afterUpdate hooks (the latter handles parent reassignment).
+   */
+  counterCaches?: CounterCacheSpec[];
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -1813,6 +2097,21 @@ export function Model<
     static inheritRegistry: Map<string, typeof ModelClass> | undefined = props.inheritColumn
       ? new Map<string, typeof ModelClass>()
       : undefined;
+    static storeAccessors = props.storeAccessors ?? {};
+    static cascadeMap = props.cascade;
+    static normalizers = (props.normalizes ?? {}) as Dict<(value: any) => any>;
+    static secureTokenColumns = (() => {
+      const tokens = props.secureTokens;
+      if (!tokens) return {};
+      if (Array.isArray(tokens)) {
+        const map: Dict<{ length: number }> = {};
+        for (const col of tokens) map[col] = { length: 24 };
+        return map;
+      }
+      const map: Dict<{ length: number }> = {};
+      for (const col in tokens) map[col] = { length: tokens[col].length ?? 24 };
+      return map;
+    })();
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 
@@ -2164,15 +2463,8 @@ export function Model<
       >;
     }
 
-    assign<M extends ModelClass>(this: M, props: Partial<PersistentProps>) {
-      for (const key in props) {
-        if (this.persistentProps[key] !== props[key]) {
-          this.changedProps[key] = props[key];
-        } else {
-          delete this.changedProps[key];
-        }
-      }
-      return this as M;
+    assign<M extends ModelClass>(this: M, props: Partial<PersistentProps>): M {
+      return super.assign(props as Dict<any>) as M;
     }
 
     isChangedBy(key: keyof PersistentProps): boolean {
@@ -2232,6 +2524,43 @@ export function Model<
       (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
         return (this.attributes() as Dict<any>)[column] === value;
       };
+    }
+  }
+
+  if (props.counterCaches && props.counterCaches.length > 0) {
+    const resolveTarget = (spec: CounterCacheSpec): typeof ModelClass => {
+      const ref = spec.belongsTo as any;
+      return ref?.tableName ? (ref as typeof ModelClass) : (ref as () => typeof ModelClass)();
+    };
+    const adjustCounter = async (
+      spec: CounterCacheSpec,
+      fkValue: unknown,
+      delta: number,
+    ): Promise<void> => {
+      if (fkValue === undefined || fkValue === null) return;
+      const target = resolveTarget(spec);
+      const pk = spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id';
+      const parent = (await target.findBy({ [pk]: fkValue } as Filter<any>)) as
+        | (ModelClass & { increment: (k: string, by?: number) => Promise<unknown> })
+        | undefined;
+      if (!parent) return;
+      await parent.increment(spec.column, delta);
+    };
+    for (const spec of props.counterCaches) {
+      ModelSubclass.on('afterCreate', async (record) => {
+        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        await adjustCounter(spec, fkValue, +1);
+      });
+      ModelSubclass.on('afterDelete', async (record) => {
+        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        await adjustCounter(spec, fkValue, -1);
+      });
+      ModelSubclass.on('afterUpdate', async (record) => {
+        const change = record.savedChangeBy(spec.foreignKey);
+        if (!change) return;
+        await adjustCounter(spec, change.from, -1);
+        await adjustCounter(spec, change.to, +1);
+      });
     }
   }
 
