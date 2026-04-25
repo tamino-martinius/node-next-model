@@ -197,8 +197,10 @@ await Slot.upsert(
   { onConflict: ['tenantId', 'key'] },
 );
 
-// Bulk: one SELECT to find existing, one batched INSERT for new rows,
-// one UPDATE per match. Returns instances in input order.
+// Bulk: with a connector that reports `supportsUpsert` (Memory + Knex),
+// the entire batch runs in a single atomic INSERT … ON CONFLICT statement.
+// Without that capability, one bulk SELECT + one batched INSERT + one
+// UPDATE per match. Returns instances in input order either way.
 await Post.upsertAll(
   [
     { id: 1, title: 'A2' },
@@ -207,9 +209,31 @@ await Post.upsertAll(
   ],
   { onConflict: 'id' },
 );
+
+// Skip the update on conflict — keep the existing row untouched.
+await Tag.upsert({ slug: 'js', name: 'IGNORED' }, { onConflict: 'slug', ignoreOnly: true });
+
+// Restrict which columns get overwritten on conflict.
+await Tag.upsert(
+  { slug: 'js', name: 'JS', description: 'lang' },
+  { onConflict: 'slug', updateColumns: ['description'] },
+);
 ```
 
-> **Atomicity caveat.** Implemented at the Model layer over SELECT + INSERT/UPDATE primitives, so the operation is **not** atomic at the database level. Wrap calls in `Model.transaction(...)` if you need stronger guarantees.
+> **Atomicity.** When the connector reports `supportsUpsert` (the bundled
+> `MemoryConnector` and `KnexConnector` both do — pg/sqlite/mysql/mariadb),
+> a single atomic statement (`INSERT … ON CONFLICT … DO UPDATE` / `ON
+> DUPLICATE KEY UPDATE`) handles the operation; concurrent callers can
+> never observe a duplicate insert. Connectors without the capability fall
+> back to the SELECT + INSERT/UPDATE Model-layer path — wrap those in
+> `Model.transaction(...)` for stronger guarantees.
+>
+> **Callbacks & validators.** The native path mirrors Rails' `upsert` /
+> `upsert_all` and **skips per-row lifecycle callbacks and validators** —
+> the DB does the work in one statement, so there is no instance to run
+> hooks against. The fallback path keeps the existing per-row hook
+> behavior. Use `Model.create` / `record.update` (or wrap in
+> `Model.transaction(...)`) when callbacks must run.
 
 ## Deleting
 

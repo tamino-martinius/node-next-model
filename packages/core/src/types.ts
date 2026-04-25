@@ -94,6 +94,34 @@ export interface Connector {
   hasTable(tableName: string): Promise<boolean>;
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
+
+  /**
+   * Capability flag — connectors that perform native single-statement
+   * INSERT-or-UPDATE set this to `true`. Model-layer call sites use it to
+   * pick the atomic native path over the SELECT-then-INSERT-or-UPDATE
+   * fallback.
+   */
+  supportsUpsert?: true;
+
+  /**
+   * Insert `rows`; on conflict against `conflictTarget` (column names that
+   * match a unique constraint or PRIMARY KEY) update `updateColumns` (or all
+   * non-conflict columns when omitted). Returns the resulting rows in the
+   * same order as `rows`. When `ignoreOnly` is set the conflict path is
+   * `DO NOTHING` and the existing row is returned for skipped inputs.
+   */
+  upsert?(spec: UpsertSpec): Promise<Dict<any>[]>;
+}
+
+export interface UpsertSpec {
+  tableName: string;
+  keys: Dict<KeyType>;
+  rows: Dict<any>[];
+  conflictTarget: string[];
+  /** Columns to update on conflict. Omit to update all non-conflict columns. */
+  updateColumns?: string[];
+  /** When true, emits ON CONFLICT DO NOTHING (skip rather than update). */
+  ignoreOnly?: boolean;
 }
 
 export interface Scope {
