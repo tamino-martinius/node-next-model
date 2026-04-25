@@ -127,4 +127,17 @@ export interface Callbacks<T> {
   aroundCreate?: AroundCallback<T>[];
   aroundUpdate?: AroundCallback<T>[];
   aroundDelete?: AroundCallback<T>[];
+  /**
+   * Fires after the surrounding `Model.transaction(...)` commits successfully.
+   * Outside a transaction these fire immediately after the operation lands.
+   */
+  afterCommit?: Callback<T>[];
+  afterCreateCommit?: Callback<T>[];
+  afterUpdateCommit?: Callback<T>[];
+  afterDeleteCommit?: Callback<T>[];
+  /** Fires after `Model.transaction(...)` rolls back. */
+  afterRollback?: Callback<T>[];
+  afterCreateRollback?: Callback<T>[];
+  afterUpdateRollback?: Callback<T>[];
+  afterDeleteRollback?: Callback<T>[];
 }

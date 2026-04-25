@@ -217,6 +217,29 @@ const User = Model({
 
 Cascades run before the parent's own delete. Models without `cascade` are unaffected.
 
+### Counter caches
+
+Auto-maintain a count of child rows on the parent. The Model registers
+`afterCreate` / `afterDelete` / `afterUpdate` hooks (the latter handles
+foreign-key reassignment: −1 from the old parent, +1 to the new).
+
+```ts
+const Comment = Model({
+  // ...
+  counterCaches: [
+    { belongsTo: Post,         foreignKey: 'postId', column: 'commentsCount' },
+    // Lazy thunk for circular refs:
+    // { belongsTo: () => Post, foreignKey: 'postId', column: 'commentsCount' },
+  ],
+});
+
+await Comment.create({ postId: 1 });            // → Post#1.commentsCount += 1
+await comment.delete();                          // → Post#1.commentsCount -= 1
+comment.postId = 2; await comment.save();        // → Post#1 -=1, Post#2 +=1
+```
+
+Null foreign keys and missing parents are silent no-ops. Builds on the existing `instance.increment(column, by)` helper — no connector changes required.
+
 ## Querying
 
 Every chainable method returns a new subclass, so scopes are immutable and safe to share.
@@ -686,6 +709,42 @@ await User.transaction(async () => {
 ```
 
 Transactions are nestable (the inner block just runs within the outer). `MemoryConnector` snapshots storage on entry and restores it on throw.
+
+### Transactional callbacks
+
+Inside `Model.transaction(...)`, the after-commit / after-rollback hooks are
+queued and drained only after the transaction body resolves — so side effects
+(job enqueues, broadcasts, cache writes) don't fire if the transaction rolls
+back.
+
+```ts
+Post.on('afterCommit',         (record) => enqueue('post-changed', record.id));
+Post.on('afterRollback',       (record) => log('rolled back', record.id));
+Post.on('afterCreateCommit',   ...);
+Post.on('afterUpdateCommit',   ...);
+Post.on('afterDeleteCommit',   ...);
+Post.on('afterCreateRollback', ...);
+Post.on('afterUpdateRollback', ...);
+Post.on('afterDeleteRollback', ...);
+
+await Post.transaction(async () => {
+  await Post.create({ ... });          // afterCreate fires now;
+                                        // afterCommit / afterCreateCommit do NOT.
+});
+// → afterCreateCommit + afterCommit drain here.
+```
+
+Outside a transaction the commit hooks fire immediately after the operation
+lands (auto-commit semantics, matching Rails). Nested `Model.transaction`
+calls reuse the outer context — commit-time effects drain once at the
+outermost boundary. Per-callback errors during rollback are swallowed so the
+original throw propagates intact.
+
+> **Limitation.** Tracked via a module-level pointer (browser-bundle-safe — no
+> `node:async_hooks` dependency). Sequential and nested transactions are
+> correct; concurrent transactions on overlapping async timelines
+> (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
+> contexts. `await` one before starting the next when correctness matters.
 
 ## Connectors
 

@@ -37,6 +37,43 @@ export function generateSecureToken(length = 24): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+interface TransactionContext {
+  afterCommit: Array<() => Promise<void>>;
+  afterRollback: Array<() => Promise<void>>;
+}
+
+/**
+ * Module-level "current transaction" pointer. JavaScript is single-threaded
+ * so a plain variable suffices for sequential transactions:
+ * `Model.transaction` writes its context here, every save/delete inside reads
+ * it, and the wrapper restores the previous value in a `finally`.
+ *
+ * Limitation: parallel transactions on overlapping async timelines
+ * (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
+ * contexts. Wrap one in `await` before the next when correctness matters.
+ * Browser bundles can't use `node:async_hooks`, so the stack-style approach
+ * works in every runtime we ship to.
+ */
+let activeContext: TransactionContext | undefined;
+
+async function withTransactionContext<T>(
+  ctx: TransactionContext,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = activeContext;
+  activeContext = ctx;
+  try {
+    return await fn();
+  } finally {
+    activeContext = prev;
+  }
+}
+
+/** Returns the active transaction context if any code path above is inside `Model.transaction(...)`. */
+function activeTransaction(): TransactionContext | undefined {
+  return activeContext;
+}
+
 export type AssociationOptions = {
   foreignKey?: string;
   primaryKey?: string;
@@ -69,6 +106,13 @@ export type CascadeSpec =
     };
 
 export type CascadeMap = Record<string, CascadeSpec>;
+
+export interface CounterCacheSpec {
+  belongsTo: typeof ModelClass | (() => typeof ModelClass);
+  foreignKey: string;
+  column: string;
+  primaryKey?: string;
+}
 
 export type HasManyThroughOptions = {
   throughForeignKey?: string;
@@ -351,7 +395,31 @@ export class ModelClass {
   static callbacks: Callbacks<any> = {};
 
   static async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    return this.connector.transaction(fn);
+    // Nested call: reuse the outer context so child saves register their
+    // commit/rollback hooks against the outermost transaction.
+    if (activeTransaction()) {
+      return this.connector.transaction(fn);
+    }
+    const ctx: TransactionContext = { afterCommit: [], afterRollback: [] };
+    return withTransactionContext(ctx, async () => {
+      let result: T;
+      try {
+        result = await this.connector.transaction(fn);
+      } catch (err) {
+        for (const cb of ctx.afterRollback) {
+          try {
+            await cb();
+          } catch {
+            /* swallow per-callback errors so the original throws */
+          }
+        }
+        throw err;
+      }
+      for (const cb of ctx.afterCommit) {
+        await cb();
+      }
+      return result;
+    });
   }
 
   static modelScope() {
@@ -1677,6 +1745,39 @@ export class ModelClass {
 
     await this.runCallbacks(isInsert ? 'afterCreate' : 'afterUpdate');
     await this.runCallbacks('afterSave');
+
+    await this._scheduleCommitCallbacks(isInsert ? 'create' : 'update');
+  }
+
+  async _scheduleCommitCallbacks(kind: 'create' | 'update' | 'delete'): Promise<void> {
+    const commitEvent = (
+      kind === 'create'
+        ? 'afterCreateCommit'
+        : kind === 'update'
+          ? 'afterUpdateCommit'
+          : 'afterDeleteCommit'
+    ) as keyof Callbacks<any>;
+    const rollbackEvent = (
+      kind === 'create'
+        ? 'afterCreateRollback'
+        : kind === 'update'
+          ? 'afterUpdateRollback'
+          : 'afterDeleteRollback'
+    ) as keyof Callbacks<any>;
+    const ctx = activeTransaction();
+    if (ctx) {
+      ctx.afterCommit.push(async () => {
+        await this.runCallbacks(commitEvent);
+        await this.runCallbacks('afterCommit');
+      });
+      ctx.afterRollback.push(async () => {
+        await this.runCallbacks(rollbackEvent);
+        await this.runCallbacks('afterRollback');
+      });
+    } else {
+      await this.runCallbacks(commitEvent);
+      await this.runCallbacks('afterCommit');
+    }
   }
 
   async update<M extends ModelClass>(this: M, attrs: Dict<any>) {
@@ -1807,6 +1908,7 @@ export class ModelClass {
     this.changedProps = {};
     this.keys = undefined;
     await this.runCallbacks('afterDelete');
+    await this._scheduleCommitCallbacks('delete');
   }
 
   isDiscarded(): boolean {
@@ -1914,6 +2016,13 @@ export function Model<
    * 32-character base64-url tokens.
    */
   secureTokens?: string[] | Dict<{ length?: number }>;
+  /**
+   * Counter cache configuration. Each entry declares a `belongsTo` parent
+   * Model, the foreign-key column on this Model, and a counter column on
+   * the parent. The Model auto-maintains the counter via afterCreate /
+   * afterDelete / afterUpdate hooks (the latter handles parent reassignment).
+   */
+  counterCaches?: CounterCacheSpec[];
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -2389,6 +2498,43 @@ export function Model<
       (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
         return (this.attributes() as Dict<any>)[column] === value;
       };
+    }
+  }
+
+  if (props.counterCaches && props.counterCaches.length > 0) {
+    const resolveTarget = (spec: CounterCacheSpec): typeof ModelClass => {
+      const ref = spec.belongsTo as any;
+      return ref?.tableName ? (ref as typeof ModelClass) : (ref as () => typeof ModelClass)();
+    };
+    const adjustCounter = async (
+      spec: CounterCacheSpec,
+      fkValue: unknown,
+      delta: number,
+    ): Promise<void> => {
+      if (fkValue === undefined || fkValue === null) return;
+      const target = resolveTarget(spec);
+      const pk = spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id';
+      const parent = (await target.findBy({ [pk]: fkValue } as Filter<any>)) as
+        | (ModelClass & { increment: (k: string, by?: number) => Promise<unknown> })
+        | undefined;
+      if (!parent) return;
+      await parent.increment(spec.column, delta);
+    };
+    for (const spec of props.counterCaches) {
+      ModelSubclass.on('afterCreate', async (record) => {
+        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        await adjustCounter(spec, fkValue, +1);
+      });
+      ModelSubclass.on('afterDelete', async (record) => {
+        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        await adjustCounter(spec, fkValue, -1);
+      });
+      ModelSubclass.on('afterUpdate', async (record) => {
+        const change = record.savedChangeBy(spec.foreignKey);
+        if (!change) return;
+        await adjustCounter(spec, change.from, -1);
+        await adjustCounter(spec, change.to, +1);
+      });
     }
   }
 
