@@ -249,6 +249,80 @@ describe('DataApiConnector', () => {
     });
   });
 
+  describe('#atomicUpdate', () => {
+    beforeEach(seed);
+
+    it('declares supportsAtomicUpdate', () => {
+      expect(connector.supportsAtomicUpdate).toBe(true);
+    });
+
+    it('applies a positive delta in a single round-trip', async () => {
+      const affected = await connector.atomicUpdate({
+        tableName,
+        filter: { id: alice.id },
+        deltas: [{ column: 'age', by: 4 }],
+      });
+      expect(affected).toBe(1);
+      const reloaded = await connector.query({ tableName, filter: { id: alice.id } });
+      expect((reloaded[0] as any).age).toBe(22);
+    });
+
+    it('applies a negative delta', async () => {
+      const affected = await connector.atomicUpdate({
+        tableName,
+        filter: { id: bob.id },
+        deltas: [{ column: 'age', by: -1 }],
+      });
+      expect(affected).toBe(1);
+      const reloaded = await connector.query({ tableName, filter: { id: bob.id } });
+      expect((reloaded[0] as any).age).toBe(20);
+    });
+
+    it('updates every matching row and returns the affected count', async () => {
+      const affected = await connector.atomicUpdate({
+        tableName,
+        filter: { age: 21 },
+        deltas: [{ column: 'age', by: 5 }],
+      });
+      expect(affected).toBe(2);
+      const ages = (await connector.query({ tableName, filter: { age: 26 } })).map(
+        (r: any) => r.age,
+      );
+      expect(ages).toEqual([26, 26]);
+    });
+
+    it('applies absolute set fields alongside deltas', async () => {
+      const affected = await connector.atomicUpdate({
+        tableName,
+        filter: { id: alice.id },
+        deltas: [{ column: 'age', by: 1 }],
+        set: { name: 'renamed' },
+      });
+      expect(affected).toBe(1);
+      const reloaded = await connector.query({ tableName, filter: { id: alice.id } });
+      expect((reloaded[0] as any).age).toBe(19);
+      expect((reloaded[0] as any).name).toBe('renamed');
+    });
+
+    it('returns 0 when no row matches', async () => {
+      const affected = await connector.atomicUpdate({
+        tableName,
+        filter: { id: 999_999 },
+        deltas: [{ column: 'age', by: 1 }],
+      });
+      expect(affected).toBe(0);
+    });
+
+    it('is a no-op when both deltas and set are empty', async () => {
+      const affected = await connector.atomicUpdate({
+        tableName,
+        filter: { id: alice.id },
+        deltas: [],
+      });
+      expect(affected).toBe(0);
+    });
+  });
+
   describe('#deleteAll', () => {
     beforeEach(seed);
 
