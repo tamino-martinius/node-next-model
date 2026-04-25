@@ -239,7 +239,6 @@ comment.postId = 2; await comment.save();        // → Post#1 -=1, Post#2 +=1
 ```
 
 Null foreign keys and missing parents are silent no-ops. Builds on the existing `instance.increment(column, by)` helper — no connector changes required.
->>>>>>> 03002f5 (Model: counterCaches factory option (auto-maintained counter columns))
 
 ## Querying
 
