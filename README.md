@@ -99,6 +99,43 @@ The full op set: `addColumn` / `removeColumn` / `renameColumn` / `changeColumn`,
 
 The same spec passed through `SchemaCollector.alterTable(...)` is mirrored into the schema snapshot, so `collector.writeSchema(path)` continues to round-trip cleanly through `createTable` + a series of mutations.
 
+### Reversible migrations (Rails-style `change`)
+
+`@next-model/migrations` accepts both styles of migration. Define a single `change(connector)` block and the runner records every schema mutation, then replays the inverse on `down()` automatically:
+
+```ts
+import type { ChangeMigration } from '@next-model/migrations';
+
+const addEmailToUsers: ChangeMigration = {
+  version: '20260101120000',
+  name: 'add_email_to_users',
+  async change(connector) {
+    await connector.alterTable(defineAlter('users', (a) => {
+      a.addColumn('email', 'string', { null: false });
+      a.addIndex('email', { unique: true, name: 'idx_users_email' });
+    }));
+  },
+};
+
+await migrator.migrate([addEmailToUsers]);
+await migrator.rollback([addEmailToUsers]);   // auto-derives removeIndex + removeColumn
+```
+
+Inversion table:
+
+| Recorded op | Inverse |
+|---|---|
+| `createTable(name, ...)` | `dropTable(name)` |
+| `addColumn(name, type, opts)` | `removeColumn(name)` |
+| `renameColumn(from, to)` | `renameColumn(to, from)` |
+| `changeColumn(name, type, opts, previous)` | `changeColumn(...)` back to `previous` |
+| `addIndex(cols, { name? })` | `removeIndex(name ?? cols)` |
+| `renameIndex(from, to)` | `renameIndex(to, from)` |
+| `addForeignKey(toTable, opts)` | `removeForeignKey(opts.name ?? "fk_<from>_<to>")` |
+| `addCheckConstraint(expr, { name })` | `removeCheckConstraint(name)` |
+
+Operations that lose information when applied (`dropTable`, `removeColumn`, `removeIndex`, `removeForeignKey`, `removeCheckConstraint`, `changeColumn` without a `previous` snapshot, `addCheckConstraint` without an explicit `name`) raise `IrreversibleMigrationError` on `down()`. Write explicit `up()` / `down()` for those — both styles can coexist in the same migration list. Inside a `change()` block you can only call schema-mutating methods (`createTable` / `dropTable` / `alterTable`); use `up()` / `down()` for any data-touching work.
+
 ## Supported runtime
 
 - Node.js ≥ 22 (required by every package).
