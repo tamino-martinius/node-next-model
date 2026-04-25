@@ -181,8 +181,6 @@ await Post.upsertAll(
 
 > **Atomicity caveat.** Implemented at the Model layer over SELECT + INSERT/UPDATE primitives, so the operation is **not** atomic at the database level. Wrap calls in `Model.transaction(...)` if you need stronger guarantees.
 
-## Deleting
-
 ```ts
 await user.delete();                                       // single row
 await User.filterBy({ active: false }).deleteAll();        // bulk
@@ -190,7 +188,6 @@ await User.filterBy({ active: false }).deleteAll();        // bulk
 
 See [Soft deletes](#soft-deletes) for non-destructive variants.
 
-<<<<<<< HEAD
 ### Cascade (dependent)
 
 Declarative cleanup of child rows on parent delete. Each entry names a
@@ -217,7 +214,7 @@ const User = Model({
 ```
 
 Cascades run before the parent's own delete. Models without `cascade` are unaffected.
-=======
+
 ### Counter caches
 
 Auto-maintain a count of child rows on the parent. The Model registers
