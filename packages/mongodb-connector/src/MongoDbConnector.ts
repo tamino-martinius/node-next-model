@@ -1,5 +1,7 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type Connector,
   type Dict,
@@ -13,6 +15,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  UnsupportedOperationError,
 } from '@next-model/core';
 import { type Collection, type Db, MongoClient, type MongoClientOptions, type Sort } from 'mongodb';
 
@@ -327,6 +330,51 @@ export class MongoDbConnector implements Connector {
       .catch(() => {});
     await this.db.collection<Dict<any>>(SCHEMAS).deleteOne({ name: tableName });
     await this.db.collection<Dict<any>>(COUNTERS).deleteOne({ _id: tableName as any });
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const collection = this.collection(tableName);
+    switch (op.op) {
+      case 'addColumn':
+      case 'changeColumn':
+        return;
+      case 'removeColumn':
+        await collection.updateMany({}, { $unset: { [op.name]: '' } });
+        return;
+      case 'renameColumn':
+        await collection.updateMany({}, { $rename: { [op.from]: op.to } });
+        return;
+      case 'addIndex': {
+        const keys: Dict<1> = {};
+        for (const col of op.columns) keys[col] = 1;
+        await collection.createIndex(keys, { name: op.name, unique: op.unique });
+        return;
+      }
+      case 'removeIndex': {
+        const target = Array.isArray(op.nameOrColumns)
+          ? op.nameOrColumns.join('_1_') + '_1'
+          : op.nameOrColumns;
+        await collection.dropIndex(target).catch(() => {});
+        return;
+      }
+      case 'renameIndex':
+        throw new UnsupportedOperationError(
+          'MongoDbConnector cannot rename indexes; drop and recreate instead',
+        );
+      case 'addForeignKey':
+      case 'removeForeignKey':
+      case 'addCheckConstraint':
+      case 'removeCheckConstraint':
+        throw new UnsupportedOperationError(
+          `MongoDbConnector cannot apply ${op.op}: mongodb does not enforce relational constraints. Drop the operation from the migration or guard it with a connector capability check.`,
+        );
+    }
   }
 
   private async listTables(): Promise<string[]> {

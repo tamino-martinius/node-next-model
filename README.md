@@ -70,6 +70,35 @@ await User.filterBy({ $gt: { age: 30 } }).count();   // 1
 
 Swap the connector to switch backends — every Model feature (filters, transactions, aggregates, soft deletes, associations, schema DSL) goes through the same `Connector` interface.
 
+## Schema mutations
+
+Migrations need more than `createTable` / `dropTable`. Each connector implements `alterTable(spec)` so existing tables can grow new columns, indexes, foreign keys, and check constraints in place — no destructive recreate.
+
+```ts
+import { defineAlter } from '@next-model/core';
+
+await connector.alterTable(defineAlter('users', (a) => {
+  a.addColumn('lastSeenAt', 'datetime', { null: true });
+  a.renameColumn('first_name', 'firstName');
+  a.changeColumn('age', 'integer', { null: false });
+  a.addIndex(['firstName', 'lastName'], { name: 'idx_users_full_name' });
+  a.addForeignKey('teams', { onDelete: 'cascade' });
+  a.addCheckConstraint('age >= 0', { name: 'chk_age_non_negative' });
+}));
+```
+
+The full op set: `addColumn` / `removeColumn` / `renameColumn` / `changeColumn`, `addIndex` / `removeIndex` / `renameIndex`, `addForeignKey` / `removeForeignKey`, `addCheckConstraint` / `removeCheckConstraint`, plus `addReference` / `removeReference` sugar (column + index + optional FK in one call). Constraints get stable default names (`fk_<table>_<refTable>`, `idx_<table>_<columns>`) so the matching `remove*` ops can target them without bookkeeping.
+
+| Connector | Behaviour |
+|---|---|
+| `KnexConnector`, `PostgresConnector`, `MysqlConnector`, `MariaDbConnector`, `DataApiConnector` | All ops translate to native `ALTER TABLE` / `CREATE INDEX` DDL. |
+| `SqliteConnector` | `addColumn` / `removeColumn` / `renameColumn` use native `ALTER TABLE` (SQLite ≥ 3.35 / 3.25). `changeColumn`, `addForeignKey` / `removeForeignKey`, and `addCheckConstraint` / `removeCheckConstraint` use the standard "create new table + copy + drop + rename" recreate dance internally. |
+| `MemoryConnector` / `LocalStorageConnector` | Column rename / remove rewrites the in-memory rows; `addColumn` back-fills the default. Index ops are no-ops (no indexing). Foreign keys + check constraints throw `UnsupportedOperationError` since they cannot be enforced. |
+| `RedisConnector` / `ValkeyConnector` | `removeColumn` / `renameColumn` rewrite hash fields. Other ops are no-ops or throw `UnsupportedOperationError` (relational constraints aren't enforced). |
+| `MongoDbConnector` | `removeColumn` / `renameColumn` use `$unset` / `$rename`. `addIndex` / `removeIndex` map to `createIndex` / `dropIndex`. Foreign keys + check constraints throw `UnsupportedOperationError`. |
+
+The same spec passed through `SchemaCollector.alterTable(...)` is mirrored into the schema snapshot, so `collector.writeSchema(path)` continues to round-trip cleanly through `createTable` + a series of mutations.
+
 ## Supported runtime
 
 - Node.js ≥ 22 (required by every package).

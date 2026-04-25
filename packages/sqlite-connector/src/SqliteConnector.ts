@@ -1,7 +1,12 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
+  applyAlterOps,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
   type Dict,
   defineTable,
@@ -11,12 +16,16 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   type IndexDefinition,
   type KeyType,
   PersistenceError,
   type Scope,
   SortDirection,
   type TableBuilder,
+  type TableDefinition,
+  UnsupportedOperationError,
 } from '@next-model/core';
 import Database, { type Database as DatabaseType, type Options } from 'better-sqlite3';
 
@@ -54,10 +63,27 @@ function normaliseValue(value: unknown): unknown {
   return value;
 }
 
+interface ForeignKeyEntry {
+  column: string;
+  toTable: string;
+  primaryKey?: string;
+  onDelete?: ForeignKeyAction;
+  onUpdate?: ForeignKeyAction;
+  name?: string;
+}
+
+interface CheckEntry {
+  expression: string;
+  name?: string;
+}
+
 export class SqliteConnector implements Connector {
   db: DatabaseType;
   private inTransaction = false;
   private jsonColumns = new Map<string, Set<string>>();
+  private tableDefinitions = new Map<string, TableDefinition>();
+  private foreignKeys = new Map<string, ForeignKeyEntry[]>();
+  private checkConstraints = new Map<string, CheckEntry[]>();
 
   constructor(config: SqliteConfig = ':memory:') {
     if (typeof config === 'string') {
@@ -352,18 +378,228 @@ export class SqliteConnector implements Connector {
 
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
+    this.tableDefinitions.set(tableName, def);
     const jsonCols = new Set(def.columns.filter((c) => c.type === 'json').map((c) => c.name));
     if (jsonCols.size > 0) this.jsonColumns.set(tableName, jsonCols);
     if (await this.hasTable(tableName)) return;
-    const colSql: string[] = [];
-    for (const col of def.columns) colSql.push(this.columnDdl(col));
-    this.runStatement(`CREATE TABLE ${quoteIdent(tableName)} (${colSql.join(', ')})`);
+    this.runStatement(this.buildCreateTableSql(tableName, def, [], []));
     for (const idx of def.indexes) await this.createIndex(tableName, idx);
   }
 
   async dropTable(tableName: string): Promise<void> {
     this.runStatement(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
     this.jsonColumns.delete(tableName);
+    this.tableDefinitions.delete(tableName);
+    this.foreignKeys.delete(tableName);
+    this.checkConstraints.delete(tableName);
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    if (spec.ops.length === 0) return;
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    switch (op.op) {
+      case 'addColumn': {
+        const def = definitionFromOp(op.name, op.type, op.options);
+        this.runStatement(`ALTER TABLE ${quoteIdent(tableName)} ADD COLUMN ${this.columnDdl(def)}`);
+        if (op.type === 'json') this.markJsonColumn(tableName, op.name);
+        this.applyToTrackedDefinition(tableName, [op]);
+        return;
+      }
+      case 'removeColumn':
+        this.runStatement(
+          `ALTER TABLE ${quoteIdent(tableName)} DROP COLUMN ${quoteIdent(op.name)}`,
+        );
+        this.unmarkJsonColumn(tableName, op.name);
+        this.applyToTrackedDefinition(tableName, [op]);
+        return;
+      case 'renameColumn':
+        this.runStatement(
+          `ALTER TABLE ${quoteIdent(tableName)} RENAME COLUMN ${quoteIdent(op.from)} TO ${quoteIdent(op.to)}`,
+        );
+        this.renameJsonColumn(tableName, op.from, op.to);
+        this.applyToTrackedDefinition(tableName, [op]);
+        return;
+      case 'addIndex':
+        await this.createIndex(tableName, {
+          columns: op.columns,
+          unique: op.unique ?? false,
+          name: op.name,
+        });
+        this.applyToTrackedDefinition(tableName, [op]);
+        return;
+      case 'removeIndex': {
+        const target = Array.isArray(op.nameOrColumns)
+          ? `idx_${tableName}_${op.nameOrColumns.join('_')}`
+          : op.nameOrColumns;
+        this.runStatement(`DROP INDEX IF EXISTS ${quoteIdent(target)}`);
+        this.applyToTrackedDefinition(tableName, [op]);
+        return;
+      }
+      case 'renameIndex': {
+        const def = this.tableDefinitions.get(tableName);
+        const existing = def?.indexes.find((idx) => idx.name === op.from);
+        if (!existing) {
+          throw new UnsupportedOperationError(
+            `SqliteConnector cannot rename index ${op.from} on ${tableName}: index definition is unknown. Use createTable or alterTable through this connector first.`,
+          );
+        }
+        this.runStatement(`DROP INDEX IF EXISTS ${quoteIdent(op.from)}`);
+        await this.createIndex(tableName, {
+          columns: existing.columns,
+          unique: existing.unique,
+          name: op.to,
+        });
+        this.applyToTrackedDefinition(tableName, [op]);
+        return;
+      }
+      case 'changeColumn':
+      case 'addForeignKey':
+      case 'removeForeignKey':
+      case 'addCheckConstraint':
+      case 'removeCheckConstraint':
+        await this.recreateWithOp(tableName, op);
+        return;
+    }
+  }
+
+  /**
+   * SQLite cannot ALTER COLUMN type, ADD/DROP foreign keys, or ADD/DROP CHECK
+   * constraints in place. The standard workaround is to copy the table.
+   */
+  private async recreateWithOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const current = this.tableDefinitions.get(tableName);
+    if (!current) {
+      throw new UnsupportedOperationError(
+        `SqliteConnector cannot perform ${op.op} on ${tableName}: table definition is unknown. Use createTable through this connector first.`,
+      );
+    }
+    const fkEntries = this.foreignKeys.get(tableName) ?? [];
+    const checkEntries = this.checkConstraints.get(tableName) ?? [];
+    let nextDef = current;
+    let nextFks = [...fkEntries];
+    let nextChecks = [...checkEntries];
+
+    if (op.op === 'changeColumn') {
+      nextDef = applyAlterOps(current, [op]);
+    } else if (op.op === 'addForeignKey') {
+      nextFks.push({
+        column: op.column ?? `${op.toTable}Id`,
+        toTable: op.toTable,
+        primaryKey: op.primaryKey,
+        onDelete: op.onDelete,
+        onUpdate: op.onUpdate,
+        name: op.name ?? foreignKeyName(tableName, op.toTable),
+      });
+    } else if (op.op === 'removeForeignKey') {
+      nextFks = nextFks.filter((fk) => {
+        const matchesName = fk.name === op.nameOrTable;
+        const matchesTable = fk.toTable === op.nameOrTable;
+        const matchesAutoName = fk.name === foreignKeyName(tableName, op.nameOrTable);
+        return !(matchesName || matchesTable || matchesAutoName);
+      });
+    } else if (op.op === 'addCheckConstraint') {
+      nextChecks.push({ expression: op.expression, name: op.name });
+    } else if (op.op === 'removeCheckConstraint') {
+      nextChecks = nextChecks.filter((c) => c.name !== op.name);
+    }
+
+    const tempName = `__nm_alter_${tableName}_${Date.now()}`;
+    const createSql = this.buildCreateTableSql(tempName, nextDef, nextFks, nextChecks);
+    const sharedColumns = current.columns
+      .filter((col) => nextDef.columns.some((nc) => nc.name === col.name))
+      .map((col) => col.name);
+    const sharedQuoted = sharedColumns.map(quoteIdent).join(', ');
+
+    const fkPragma = this.db.pragma('foreign_keys', { simple: true }) as 0 | 1;
+    if (fkPragma === 1) this.db.pragma('foreign_keys = OFF');
+    const wasInTransaction = this.inTransaction;
+    if (!wasInTransaction) this.runStatement('BEGIN');
+    try {
+      this.runStatement(createSql);
+      if (sharedColumns.length > 0) {
+        this.runStatement(
+          `INSERT INTO ${quoteIdent(tempName)} (${sharedQuoted}) SELECT ${sharedQuoted} FROM ${quoteIdent(tableName)}`,
+        );
+      }
+      this.runStatement(`DROP TABLE ${quoteIdent(tableName)}`);
+      this.runStatement(`ALTER TABLE ${quoteIdent(tempName)} RENAME TO ${quoteIdent(tableName)}`);
+      for (const idx of nextDef.indexes) {
+        await this.createIndex(tableName, idx);
+      }
+      if (!wasInTransaction) this.runStatement('COMMIT');
+    } catch (err) {
+      if (!wasInTransaction) {
+        try {
+          this.runStatement('ROLLBACK');
+        } catch {
+          // ignore
+        }
+      }
+      throw err;
+    } finally {
+      if (fkPragma === 1) this.db.pragma('foreign_keys = ON');
+    }
+
+    this.tableDefinitions.set(tableName, nextDef);
+    this.foreignKeys.set(tableName, nextFks);
+    this.checkConstraints.set(tableName, nextChecks);
+    if (op.op === 'changeColumn' && op.type === 'json') this.markJsonColumn(tableName, op.name);
+  }
+
+  private applyToTrackedDefinition(tableName: string, ops: AlterTableOp[]): void {
+    const current = this.tableDefinitions.get(tableName);
+    if (!current) return;
+    this.tableDefinitions.set(tableName, applyAlterOps(current, ops));
+  }
+
+  private markJsonColumn(tableName: string, col: string): void {
+    let set = this.jsonColumns.get(tableName);
+    if (!set) {
+      set = new Set();
+      this.jsonColumns.set(tableName, set);
+    }
+    set.add(col);
+  }
+
+  private unmarkJsonColumn(tableName: string, col: string): void {
+    const set = this.jsonColumns.get(tableName);
+    if (!set) return;
+    set.delete(col);
+    if (set.size === 0) this.jsonColumns.delete(tableName);
+  }
+
+  private renameJsonColumn(tableName: string, from: string, to: string): void {
+    const set = this.jsonColumns.get(tableName);
+    if (!set?.has(from)) return;
+    set.delete(from);
+    set.add(to);
+  }
+
+  private buildCreateTableSql(
+    tableName: string,
+    def: TableDefinition,
+    foreignKeys: ForeignKeyEntry[],
+    checks: CheckEntry[],
+  ): string {
+    const colSql: string[] = [];
+    for (const col of def.columns) colSql.push(this.columnDdl(col));
+    for (const fk of foreignKeys) {
+      const constraintName = fk.name ? `CONSTRAINT ${quoteIdent(fk.name)} ` : '';
+      let frag = `${constraintName}FOREIGN KEY (${quoteIdent(fk.column)}) REFERENCES ${quoteIdent(fk.toTable)}(${quoteIdent(fk.primaryKey ?? 'id')})`;
+      if (fk.onDelete) frag += ` ON DELETE ${sqliteAction(fk.onDelete)}`;
+      if (fk.onUpdate) frag += ` ON UPDATE ${sqliteAction(fk.onUpdate)}`;
+      colSql.push(frag);
+    }
+    for (const check of checks) {
+      const constraintName = check.name ? `CONSTRAINT ${quoteIdent(check.name)} ` : '';
+      colSql.push(`${constraintName}CHECK (${check.expression})`);
+    }
+    return `CREATE TABLE ${quoteIdent(tableName)} (${colSql.join(', ')})`;
   }
 
   private columnDdl(col: ColumnDefinition): string {
@@ -419,6 +655,42 @@ export class SqliteConnector implements Connector {
     const cols = idx.columns.map(quoteIdent).join(', ');
     const name = quoteIdent(idx.name ?? `idx_${tableName}_${idx.columns.join('_')}`);
     const unique = idx.unique ? 'UNIQUE ' : '';
-    this.runStatement(`CREATE ${unique}INDEX ${name} ON ${quoteIdent(tableName)} (${cols})`);
+    this.runStatement(
+      `CREATE ${unique}INDEX IF NOT EXISTS ${name} ON ${quoteIdent(tableName)} (${cols})`,
+    );
+  }
+}
+
+function definitionFromOp(
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+): ColumnDefinition {
+  return {
+    name,
+    type,
+    nullable: options.null ?? true,
+    default: options.default,
+    limit: options.limit,
+    primary: options.primary ?? false,
+    unique: options.unique ?? false,
+    precision: options.precision,
+    scale: options.scale,
+    autoIncrement: options.autoIncrement ?? false,
+  };
+}
+
+function sqliteAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
   }
 }

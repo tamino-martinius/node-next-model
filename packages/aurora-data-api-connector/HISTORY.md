@@ -4,6 +4,8 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+- Implements `Connector.alterTable(spec)`. PostgreSQL-style DDL routed through the Data API: `ALTER TABLE ADD/DROP/RENAME COLUMN`, `ALTER COLUMN ... TYPE` for `changeColumn`, `CREATE INDEX` / `DROP INDEX` / `ALTER INDEX RENAME TO` for index ops, and `ADD/DROP CONSTRAINT` for foreign keys + check constraints. Identifier validation runs on every name passed through to keep injection guarantees.
+
 ### Rewrite
 
 - Full TypeScript rewrite on top of the modern `@next-model/core` `Connector` interface. Matches `KnexConnector` parity.

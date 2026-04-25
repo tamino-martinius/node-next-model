@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements `Connector.alterTable(spec)`. Native ALTER TABLE for `addColumn` / `removeColumn` (SQLite ≥ 3.35) / `renameColumn` (SQLite ≥ 3.25), plus `CREATE INDEX` / `DROP INDEX` and `DROP+CREATE` for `renameIndex` (SQLite has no `ALTER INDEX`). `changeColumn`, `addForeignKey` / `removeForeignKey`, `addCheckConstraint` / `removeCheckConstraint` use the standard "create new table + copy + drop + rename" recreate dance internally — the connector tracks each table's `TableDefinition` plus its FK / CHECK metadata so the recreate is lossless. `foreign_keys` is toggled off for the duration of the recreate and restored afterwards so existing FK constraints don't fire spuriously on the rename step.
+
 ### Initial release
 
 - New `@next-model/sqlite-connector` package: native SQLite connector implementing `@next-model/core`'s `Connector` interface using [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) directly. No Knex dependency.

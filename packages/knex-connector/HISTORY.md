@@ -4,6 +4,8 @@
 
 Rewritten to match the current `@next-model/core` connector interface.
 
+- Implements `Connector.alterTable(spec)`. Each op delegates to the matching `knex.schema.alterTable(t => …)` builder method (`t.string` / `t.alter` / `t.dropColumn` / `t.renameColumn` / `t.index` / `t.dropIndex` / `t.foreign` / `t.dropForeign` / `t.check` / `t.dropChecks`). Constraint defaults match the connector-agnostic `foreignKeyName(...)` / `indexName(...)` helpers exported from `@next-model/core`. `renameIndex` / `addCheckConstraint` / `removeCheckConstraint` require Knex ≥ 2.5 and throw a clear `PersistenceError` on older versions.
+
 ### Test matrix
 
 - The connector spec is now driver-agnostic and runs against sqlite3 (default), Postgres 17, and MySQL 8. CI spins up real Postgres + MySQL service containers and runs the same suite under `KNEX_TEST_CLIENT=pg` / `KNEX_TEST_CLIENT=mysql2`. Local runs default to sqlite3 in-memory.

@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements `Connector.alterTable(spec)`. `removeColumn` / `renameColumn` map to `updateMany({}, { $unset })` / `$rename`; `addIndex` / `removeIndex` use `collection.createIndex` / `dropIndex`. `addColumn` / `changeColumn` are document-store no-ops (MongoDB has no schema); `renameIndex`, foreign keys, and check constraints throw `UnsupportedOperationError`.
+
 ### Initial release
 
 - New `@next-model/mongodb-connector` package: implements `@next-model/core`'s `Connector` interface against MongoDB using the official [`mongodb`](https://github.com/mongodb/node-mongodb-native) driver.

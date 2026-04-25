@@ -4,6 +4,7 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+- `SchemaCollector` now mirrors `connector.alterTable(spec)` calls into the snapshot via the new `applyAlterOps` helper from `@next-model/core`. Roundtrip: a migration that does `createTable` + a series of `addColumn` / `removeColumn` / `renameColumn` / `changeColumn` / `addIndex` / `removeIndex` / `renameIndex` ops produces a schema-file that replays to an identical `TableDefinition` on a fresh checkout. Foreign keys and check constraints execute on the live database but don't change the snapshot's structural shape (which today only tracks columns + indexes).
 - New `SchemaCollector` wrapper + `SchemaSnapshot` shape. Wraps any `Connector`, forwards every data call, and mirrors `createTable` / `dropTable` DDL into an in-memory snapshot you can persist as JSON after `migrate()` / `rollback()`. `collector.writeSchema(path)` writes a pretty-printed snapshot (version-tagged, `generatedAt` timestamped); `readSchemaFile(path)` loads it back and rejects unknown future versions. Downstream tooling (GraphQL / REST / OpenAPI generators, form builders, admin UIs) can consume the file instead of re-declaring every model's field set by hand. Only DDL issued via the schema DSL is captured — raw SQL in `execute()` bypasses the collector by design.
 
 ### Initial release

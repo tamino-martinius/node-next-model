@@ -1,4 +1,4 @@
-import type { TableBuilder } from './schema.js';
+import type { AlterTableSpec, TableBuilder } from './schema.js';
 
 export interface Dict<T> {
   [key: string]: T;
@@ -94,6 +94,12 @@ export interface Connector {
   hasTable(tableName: string): Promise<boolean>;
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
+  /**
+   * Apply a series of mutation ops to an existing table. SQL-shaped connectors
+   * implement every op; non-relational connectors (Mongo, Redis, Valkey) may
+   * throw `UnsupportedOperationError` for ops they cannot honour.
+   */
+  alterTable(spec: AlterTableSpec): Promise<void>;
 }
 
 export interface Scope {

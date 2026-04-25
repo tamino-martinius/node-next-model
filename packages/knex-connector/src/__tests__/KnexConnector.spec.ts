@@ -1,5 +1,5 @@
 import { runModelConformance } from '@next-model/conformance';
-import { FilterError, Model } from '@next-model/core';
+import { defineAlter, FilterError, Model } from '@next-model/core';
 import type { Knex } from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -431,6 +431,50 @@ describe('KnexConnector', () => {
       expect(names).not.toContain('outer');
       expect(names).not.toContain('inner');
     });
+  });
+});
+
+describe('KnexConnector.alterTable', () => {
+  const altTable = 'knex_alter_users';
+  beforeEach(async () => {
+    await connector.knex.schema.dropTableIfExists(altTable);
+    await connector.createTable(altTable, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('name', { null: false });
+    });
+    await connector.batchInsert(altTable, { id: 1 } as any, [{ name: 'Ada' }, { name: 'Linus' }]);
+  });
+  afterEach(async () => {
+    await connector.knex.schema.dropTableIfExists(altTable);
+  });
+
+  it('addColumn appends a new column', async () => {
+    await connector.alterTable(
+      defineAlter(altTable, (a) => a.addColumn('role', 'string', { default: 'member' })),
+    );
+    const rows = await connector.query({ tableName: altTable });
+    for (const row of rows) expect(row.role).toBe('member');
+  });
+
+  it('renameColumn moves the column', async () => {
+    await connector.alterTable(defineAlter(altTable, (a) => a.renameColumn('name', 'fullName')));
+    const rows = await connector.query({ tableName: altTable });
+    for (const row of rows) expect(typeof row.fullName).toBe('string');
+  });
+
+  it('removeColumn drops the column', async () => {
+    await connector.alterTable(defineAlter(altTable, (a) => a.removeColumn('name')));
+    const rows = await connector.query({ tableName: altTable });
+    expect('name' in rows[0]).toBe(false);
+  });
+
+  it('addIndex + removeIndex round-trip', async () => {
+    await connector.alterTable(
+      defineAlter(altTable, (a) => a.addIndex('name', { name: 'idx_knex_alter_users_name' })),
+    );
+    await connector.alterTable(
+      defineAlter(altTable, (a) => a.removeIndex('idx_knex_alter_users_name')),
+    );
   });
 });
 

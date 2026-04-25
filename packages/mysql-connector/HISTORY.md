@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements `Connector.alterTable(spec)`. Native MySQL DDL: `ADD/DROP/RENAME COLUMN`, `MODIFY COLUMN` for `changeColumn`, `CREATE INDEX` / `DROP INDEX ... ON tbl` / `ALTER TABLE ... RENAME INDEX` for index ops, `ADD CONSTRAINT ... FOREIGN KEY` / `DROP FOREIGN KEY` for FK ops, and `ADD CONSTRAINT ... CHECK` / `DROP CHECK` for check constraints (MySQL 8.0+; MariaDB 10.2+). Inherited verbatim by `@next-model/mariadb-connector`.
+
 ### Initial release
 
 - New `@next-model/mysql-connector` package: native MySQL connector implementing `@next-model/core`'s `Connector` interface using `mysql2/promise` directly. No Knex dependency.

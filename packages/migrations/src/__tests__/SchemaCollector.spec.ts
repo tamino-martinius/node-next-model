@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MemoryConnector } from '@next-model/core';
+import { defineAlter, MemoryConnector } from '@next-model/core';
 import { describe, expect, it } from 'vitest';
 
 import { Migrator } from '../Migrator.js';
@@ -190,6 +190,62 @@ describe('SchemaCollector', () => {
 
     // Sanity: the inner connector saw every mutation we issued through the wrapper.
     expect(await inner.count(scope)).toBe(2);
+  });
+
+  it('tracks alterTable ops in the snapshot', async () => {
+    const { collector } = newCollector();
+    await collector.createTable('users', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('name');
+    });
+    await collector.alterTable(
+      defineAlter('users', (a) => {
+        a.addColumn('email', 'string', { null: false });
+        a.addIndex('email', { unique: true, name: 'idx_users_email' });
+        a.renameColumn('name', 'fullName');
+      }),
+    );
+    const snap = collector.snapshot();
+    const users = snap.tables.users;
+    expect(users.columns.map((c) => c.name)).toEqual(['id', 'fullName', 'email']);
+    expect(users.indexes).toEqual([{ columns: ['email'], name: 'idx_users_email', unique: true }]);
+  });
+
+  it('schema-file roundtrip: createTable + alterTable replays to the same shape', async () => {
+    const { collector } = newCollector();
+    await collector.createTable('posts', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('title');
+    });
+    await collector.alterTable(
+      defineAlter('posts', (a) => {
+        a.addColumn('publishedAt', 'datetime');
+        a.addIndex('publishedAt', { name: 'idx_posts_published_at' });
+        a.changeColumn('title', 'string', { null: false, limit: 200 });
+      }),
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'nm-schema-alter-'));
+    const path = join(dir, 'schema.json');
+    collector.writeSchema(path);
+
+    const replayInner = new MemoryConnector({ storage: {}, lastIds: {} });
+    const replayCollector = new SchemaCollector(replayInner, {
+      initial: await readSchemaFile(path),
+    });
+    expect(replayCollector.snapshot().tables).toEqual(collector.snapshot().tables);
+  });
+
+  it('alterTable forwards the op list to the inner connector', async () => {
+    const { inner, collector } = newCollector();
+    await collector.createTable('users', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('name');
+    });
+    await collector.batchInsert('users', { id: 1 } as any, [{ name: 'Ada' }]);
+    await collector.alterTable(defineAlter('users', (a) => a.renameColumn('name', 'fullName')));
+    const rows = await inner.query({ tableName: 'users' });
+    expect(rows[0].fullName).toBe('Ada');
+    expect('name' in rows[0]).toBe(false);
   });
 
   it('readSchemaFile rejects snapshots from a future version', async () => {

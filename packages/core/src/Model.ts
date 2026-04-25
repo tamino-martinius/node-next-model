@@ -265,6 +265,9 @@ export class NullConnector implements Connector {
   async dropTable() {
     return;
   }
+  async alterTable() {
+    return;
+  }
 }
 
 export type HavingPredicate = ((count: number) => boolean) | { count?: HavingComparison };
