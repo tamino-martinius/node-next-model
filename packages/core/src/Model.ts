@@ -905,12 +905,27 @@ export class ModelClass {
     return result;
   }
 
+  changeBy(key: string): { from: any; to: any } | undefined {
+    if (!(key in this.changedProps)) return undefined;
+    return { from: this.persistentProps[key], to: this.changedProps[key] };
+  }
+
+  was(key: string): any {
+    if (key in this.changedProps) return this.persistentProps[key];
+    return this.attributes()[key];
+  }
+
   savedChanges(): Dict<{ from: any; to: any }> {
     return { ...this.lastSavedChanges };
   }
 
   savedChangeBy(key: string): { from: any; to: any } | undefined {
     return this.lastSavedChanges[key];
+  }
+
+  savedWas(key: string): any {
+    if (key in this.lastSavedChanges) return this.lastSavedChanges[key].from;
+    return this.attributes()[key];
   }
 
   wasChanged(): boolean {
@@ -1618,6 +1633,22 @@ export function Model<
 
     isChangedBy(key: keyof PersistentProps): boolean {
       return super.isChangedBy(key as string);
+    }
+
+    changeBy<K extends keyof PersistentProps>(
+      key: K,
+    ): { from: PersistentProps[K]; to: PersistentProps[K] } | undefined {
+      return super.changeBy(key as string) as
+        | { from: PersistentProps[K]; to: PersistentProps[K] }
+        | undefined;
+    }
+
+    was<K extends keyof PersistentProps>(key: K): PersistentProps[K] {
+      return super.was(key as string) as PersistentProps[K];
+    }
+
+    savedWas<K extends keyof PersistentProps>(key: K): PersistentProps[K] {
+      return super.savedWas(key as string) as PersistentProps[K];
     }
 
     revertChange<M extends ModelClass>(this: M, key: keyof PersistentProps): M {
