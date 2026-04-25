@@ -118,8 +118,6 @@ export class MemoryConnector implements Connector {
     return clone(items);
   }
 
-  supportsAtomicUpdate = true as const;
-
   async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
     const items = await this.items({ tableName: spec.tableName, filter: spec.filter });
     for (const item of items) {

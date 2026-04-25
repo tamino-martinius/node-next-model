@@ -1198,8 +1198,7 @@ describe('#atomicUpdate(spec)', () => {
     };
   });
 
-  it('declares supportsAtomicUpdate', () => {
-    expect(connector().supportsAtomicUpdate).toBe(true);
+  it('exposes an atomicUpdate method', () => {
     expect(typeof connector().atomicUpdate).toBe('function');
   });
 

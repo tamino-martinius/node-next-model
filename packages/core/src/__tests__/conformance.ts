@@ -113,16 +113,8 @@ export function runModelConformance(opts: ConformanceOptions): void {
     });
 
     describe('atomicUpdate', () => {
-      it('declares supportsAtomicUpdate when the method exists', () => {
-        if (typeof connector.atomicUpdate === 'function') {
-          expect(connector.supportsAtomicUpdate).toBe(true);
-        } else {
-          expect(connector.supportsAtomicUpdate).toBeFalsy();
-        }
-      });
-
       it('applies a positive delta atomically', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'inc', age: 5 });
         const affected = await connector.atomicUpdate({
           tableName,
@@ -135,7 +127,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('applies a negative delta atomically', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'dec', age: 10 });
         const affected = await connector.atomicUpdate({
           tableName,
@@ -148,7 +140,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('applies multiple deltas in one call', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         if (await connector.hasTable('conformance_atomic_multi')) {
           await connector.dropTable('conformance_atomic_multi');
         }
@@ -178,7 +170,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('honours the filter and only updates matching rows', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         const a = await Cat.create({ name: 'matched', age: 1 });
         const b = await Cat.create({ name: 'untouched', age: 1 });
         const affected = await connector.atomicUpdate({
@@ -192,7 +184,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('returns 0 when no rows match', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         const affected = await connector.atomicUpdate({
           tableName,
           filter: { id: 999_999 },
@@ -202,7 +194,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('applies absolute set fields alongside deltas', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'orig', age: 1 });
         const affected = await connector.atomicUpdate({
           tableName,
@@ -217,7 +209,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('1000 concurrent increments converge to the correct value', async (ctx) => {
-        if (!connector.supportsAtomicUpdate || !connector.atomicUpdate) return ctx.skip();
+        if (!connector.atomicUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'race', age: 0 });
         const N = 1000;
         await Promise.all(

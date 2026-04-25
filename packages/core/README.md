@@ -151,7 +151,7 @@ await user.increment('loginCount');               // +1
 await user.decrement('credits', 5);               // -5
 
 // Class-level / chainable variants — return the affected row count.
-// On connectors that declare `supportsAtomicUpdate` (postgres / mysql /
+// On connectors that implement `atomicUpdate` (postgres / mysql /
 // mariadb / sqlite / aurora-data-api / knex / mongodb / redis / valkey /
 // memory / local-storage) this is a single round-trip atomic
 // `UPDATE col = col + N` (or `$inc` / `HINCRBY`), no read-modify-write —
@@ -294,7 +294,7 @@ comment.postId = 2; await comment.save();        // → Post#1 -=1, Post#2 +=1
 
 Null foreign keys and missing parents are silent no-ops.
 
-When the parent's connector declares `supportsAtomicUpdate` (every native
+When the parent's connector implements `atomicUpdate` (every native
 connector other than the in-memory ones — postgres, mysql, mariadb, sqlite,
 aurora-data-api, knex, mongodb, redis, valkey — plus the in-process memory
 connectors which are race-free under JS's single-threaded execution), the

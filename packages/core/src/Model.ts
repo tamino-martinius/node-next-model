@@ -265,7 +265,6 @@ export class NullConnector implements Connector {
   async dropTable() {
     return;
   }
-  supportsAtomicUpdate = true as const;
   async atomicUpdate() {
     return 0;
   }
@@ -1178,10 +1177,10 @@ export class ModelClass {
 
   /**
    * Apply an atomic delta to `column` for every row matching the current
-   * scope, in a single round-trip when the connector supports it. Returns the
-   * number of affected rows. Falls back to load-modify-save (which is racy
-   * under concurrency) when the connector does not declare
-   * `supportsAtomicUpdate`.
+   * scope, in a single round-trip when the connector implements
+   * `atomicUpdate`. Returns the number of affected rows. Falls back to
+   * load-modify-save (which is racy under concurrency) when the connector
+   * does not implement `atomicUpdate`.
    */
   static async increment<M extends typeof ModelClass>(
     this: M,
@@ -1190,7 +1189,7 @@ export class ModelClass {
   ): Promise<number> {
     const updatedCol = this.updatedAtColumn;
     const scope = this.modelScope();
-    if (this.connector.supportsAtomicUpdate && this.connector.atomicUpdate) {
+    if (this.connector.atomicUpdate) {
       const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
       return await this.connector.atomicUpdate({
         tableName: scope.tableName,
@@ -1659,7 +1658,7 @@ export class ModelClass {
       throw new PersistenceError('Cannot increment a record that has not been saved');
     }
     const model = this.constructor as typeof ModelClass;
-    if (model.connector.supportsAtomicUpdate && model.connector.atomicUpdate) {
+    if (model.connector.atomicUpdate) {
       const updatedCol = model.updatedAtColumn;
       const now = new Date();
       const set: Dict<any> = {};
@@ -2622,7 +2621,7 @@ export function Model<
       if (fkValue === undefined || fkValue === null) return;
       const target = resolveTarget(spec);
       const pk = spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id';
-      if (target.connector.supportsAtomicUpdate && target.connector.atomicUpdate) {
+      if (target.connector.atomicUpdate) {
         const updatedCol = target.updatedAtColumn;
         await target.connector.atomicUpdate({
           tableName: target.tableName,

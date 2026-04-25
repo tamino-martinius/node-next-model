@@ -108,17 +108,13 @@ export interface Connector {
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
   /**
-   * Optional capability flag. Connectors that implement `atomicUpdate` set
-   * this to `true` so callers (counter caches, `record.increment`, etc.) can
-   * route through the atomic path and skip the load-modify-save fallback.
-   */
-  supportsAtomicUpdate?: true;
-  /**
    * Apply per-column numeric deltas to every row matching `filter` in a single
    * round-trip. Each delta `{ column, by }` adds `by` to the current value
    * (negative `by` decrements). Returns the number of affected rows.
    *
-   * Connectors that declare `supportsAtomicUpdate = true` MUST implement this.
+   * Optional. Connectors that implement this method opt the Model layer into
+   * the atomic counter path (`record.increment`, `Model.where(...).increment`,
+   * counter caches); connectors without it fall back to load-modify-save.
    */
   atomicUpdate?(spec: AtomicUpdateSpec): Promise<number>;
 }

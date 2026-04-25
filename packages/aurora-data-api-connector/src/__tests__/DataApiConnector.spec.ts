@@ -252,8 +252,8 @@ describe('DataApiConnector', () => {
   describe('#atomicUpdate', () => {
     beforeEach(seed);
 
-    it('declares supportsAtomicUpdate', () => {
-      expect(connector.supportsAtomicUpdate).toBe(true);
+    it('exposes an atomicUpdate method', () => {
+      expect(typeof connector.atomicUpdate).toBe('function');
     });
 
     it('applies a positive delta in a single round-trip', async () => {

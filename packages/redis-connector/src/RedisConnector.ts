@@ -265,8 +265,6 @@ export class RedisConnector implements Connector {
     return rows;
   }
 
-  supportsAtomicUpdate = true as const;
-
   async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
     if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
     const rows = await this.resolveScope({

@@ -304,8 +304,6 @@ export class DataApiConnector implements Connector {
     return matching;
   }
 
-  supportsAtomicUpdate = true as const;
-
   async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
     if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
     const update: Dict<any> = {};

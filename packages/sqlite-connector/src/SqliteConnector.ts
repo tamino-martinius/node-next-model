@@ -286,8 +286,6 @@ export class SqliteConnector implements Connector {
     return this.all(sql, where.params).map((r) => this.hydrateRow(scope.tableName, r));
   }
 
-  supportsAtomicUpdate = true as const;
-
   async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
     if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
     const params: BaseType[] = [];
