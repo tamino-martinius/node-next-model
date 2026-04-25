@@ -28,6 +28,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Lifecycle callbacks](#lifecycle-callbacks)
 - [Timestamps](#timestamps)
 - [Soft deletes](#soft-deletes)
+- [Enums](#enums)
 - [Single Table Inheritance](#single-table-inheritance)
 - [Associations](#associations)
 - [Transactions](#transactions)
@@ -157,6 +158,32 @@ await user.reload();                              // refetch from connector
 
 await User.filterBy({ active: false }).updateAll({ active: true });
 ```
+
+### Optimistic locking
+
+Declare `lockVersion: true` (or pass a custom column name) and `save()` /
+`delete()` enforce a version check on every mutation:
+
+```ts
+const Post = Model({
+  // ...
+  lockVersion: true,            // shorthand: column name `lockVersion`
+  // OR
+  lockVersion: 'lock_version',  // custom column name
+});
+
+const a = await Post.find(1);
+const b = await Post.find(1);
+a.title = 'A'; await a.save();   // OK; lockVersion 0 → 1
+b.title = 'B'; await b.save();   // throws StaleObjectError
+await b.reload();                 // refresh — lockVersion 1
+b.title = 'B'; await b.save();   // OK; lockVersion 1 → 2
+```
+
+`StaleObjectError` is exported from `@next-model/core`. Inserts default the
+column to 0 — declare the column in your migration / schema. Lives entirely
+at the Model layer over the existing `updateAll` / `deleteAll` connector
+primitives.
 
 ### upsert / upsertAll
 
@@ -297,6 +324,57 @@ await User.limitBy(5).unlimited().count();
 await User.filterBy({ active: true }).unscoped().count();  // ignore every default
 ```
 
+### Query helpers
+
+Four small Rails-parity additions to the chainable API:
+
+- `Model.merge(otherScope)` — AND-combines filters; the merged scope's `order` (when set) replaces and `limit` / `skip` (when set) override the receiver's.
+- `Model.none()` — returns a chainable scope that resolves to zero rows without hitting the connector. Implemented by swapping in a `NullConnector`, so writes silently no-op too.
+- `Model.having(predicate)` — post-filter the `countBy(...)` result map. Accepts a function `(count: number) => boolean` or a comparison object `{ count: { $eq | $gt | $gte | $lt | $lte: number } }`.
+- `Model.pluck(...keys)` — multi-column variant returns `Array<[A, B, ...]>` tuples in the requested order. Single-column callers keep the existing flat-array shape.
+
+```ts
+// merge
+const recent = Post.orderBy({ key: 'createdAt', dir: SortDirection.Desc }).limitBy(10);
+await Post.filterBy({ status: 'published' }).merge(recent).all();
+
+// none — zero connector calls
+const scope = user.banned ? Post.none() : Post.filterBy({ userId: user.id });
+await scope.all();
+
+// having
+await Post.having({ count: { $gt: 5 } }).countBy('userId');
+
+// multi-column pluck
+await Post.pluck('id', 'title');                       // [[1, 'A'], [2, 'B'], ...]
+```
+
+### whereMissing
+
+Filter to parents that have no matching child rows — Rails'
+`User.where.missing(:posts)` without requiring SQL JOIN support. Runs a
+child-table subquery (`pluckUnique`) and excludes those primary-key values
+from the parent. Wrapped in `$async` so it composes naturally:
+
+```ts
+await User
+  .whereMissing({ hasMany: Post, foreignKey: 'userId' })
+  .filterBy({ active: true })
+  .all();
+
+// hasOne is supported too:
+await User.whereMissing({ hasOne: Profile, foreignKey: 'userId' }).all();
+```
+
+Multiple `whereMissing` calls AND together. Custom `primaryKey` is
+respected. Works against any connector that already understands `$async` +
+`$notIn` (every shipped connector does).
+
+> The current implementation always runs as a subquery. Connectors that
+> support a JOIN concept (e.g. SQL via Knex) could in principle resolve
+> this in a single LEFT JOIN ... IS NULL query for better performance —
+> see the [JOIN follow-up](#join-strategy-followup) note below.
+
 ### Filter operators
 
 All comparison keys start with `$`:
@@ -388,6 +466,8 @@ Before saving:
 user.isChanged();                        // true if any pending change
 user.isChangedBy('firstName');
 user.changes();                          // { firstName: { from, to }, … }
+user.changeBy('firstName');              // { from, to } | undefined
+user.was('firstName');                   // prior value (or current if unchanged) — Rails' <attr>_was
 user.revertChange('firstName');
 user.revertChanges();
 ```
@@ -400,6 +480,7 @@ user.wasChanged();                       // true
 user.wasChangedBy('email');
 user.savedChanges();                     // { email: { from, to }, … }
 user.savedChangeBy('email');
+user.savedWas('email');                  // value before the last save — Rails' attribute_before_last_save
 ```
 
 Use `savedChanges` inside `afterSave` / `afterUpdate` callbacks (or dynamic `Model.on` subscribers) to react to specific field transitions without re-reading the row.
@@ -592,6 +673,39 @@ unsubscribe();
 
 Dynamic and factory-declared callbacks compose; factory-declared fire first in registration order.
 
+### Extended lifecycle events
+
+In addition to the eight `before*` / `after*` save / create / update / delete
+hooks, the following events are available:
+
+| Event | Fires |
+|-------|-------|
+| `afterInitialize` | After every record is constructed (`build`, hydration). Sync — async returns are fire-and-forget. |
+| `afterFind` | After hydration only (`all` / `first` / `last` / `find` / `findBy`). |
+| `beforeValidation` / `afterValidation` | Wrap every `isValid()` call (including the implicit one inside `save()`). |
+| `aroundSave` / `aroundCreate` / `aroundUpdate` / `aroundDelete` | Middleware-style hooks: `(record, next) => Promise<void>`. Compose LIFO. Skip `next()` to abort the operation. |
+
+```ts
+Post.on('aroundSave', async (record, next) => {
+  const start = Date.now();
+  await next();
+  metrics.timing('post.save', Date.now() - start);
+});
+
+Post.on('beforeValidation', (post) => {
+  post.email = post.email?.trim();
+});
+```
+
+Use `Model.skipCallbacks(events, fn)` to temporarily suppress a list of
+events for the duration of a block — handlers are restored in `finally`.
+
+```ts
+await Post.skipCallbacks(['afterCreate', 'afterSave'], async () => {
+  await Post.create({ ... });   // those events do not fire
+});
+```
+
 ## Timestamps
 
 Enabled by default. `createdAt` is set on insert, `updatedAt` on every save. `touch()` updates `updatedAt` without any other changes. Opt out with `timestamps: false`, or pass your own values on insert to override.
@@ -617,6 +731,39 @@ await Post.onlyDiscarded().all();   // only discarded
 
 await post.restore();           // clears discardedAt
 ```
+
+## Enums
+
+Typed enum columns with auto-generated scopes and predicates:
+
+```ts
+const Post = Model({
+  // ...
+  enums: {
+    status: ['draft', 'published', 'archived'] as const,
+    visibility: ['public', 'private'] as const,
+  },
+});
+
+// One chainable class scope per value — composes with .filterBy / .orderBy / etc.
+await Post.draft().all();
+await Post.published().filterBy({ visibility: 'public' }).all();
+
+// One instance predicate per value:
+post.isDraft();        // boolean
+post.isPublished();
+
+// Snake_case values map to camelCase scopes / PascalCase predicates:
+//   'in_review' → Item.inReview() / item.isInReview()
+
+// Reflect the value list:
+Post.statusValues;     // ['draft', 'published', 'archived']
+```
+
+Values that would collide with existing static / prototype methods throw
+at factory construction. A built-in validator rejects out-of-range values
+at `isValid()` / `save()` time. The `camelize` / `pascalize` helpers used
+internally are exported for ad-hoc use.
 
 ## Single Table Inheritance
 
@@ -759,6 +906,18 @@ original throw propagates intact.
 > correct; concurrent transactions on overlapping async timelines
 > (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
 > contexts. `await` one before starting the next when correctness matters.
+
+<a id="join-strategy-followup"></a>
+
+> **Connector JOIN strategy (follow-up).** Today every chainable that
+> involves a "lookup against another table" (`whereMissing`,
+> `validateUniqueness`'s `scope`, `belongsTo` / `hasMany` lazy loaders)
+> issues a separate subquery and stitches the result through the existing
+> filter DSL. This works against every connector unchanged but isn't the
+> most efficient shape on SQL backends, where a single `LEFT JOIN ... IS
+> NULL` would do. A future Connector capability bit will let SQL
+> connectors opt into a join-based execution; the Memory / Redis / Mongo
+> path stays on the subquery fallback.
 
 ## Connectors
 
