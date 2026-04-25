@@ -94,7 +94,7 @@ export class MariaDbConnector extends MysqlConnector {
     for (const row of inserted) byTuple.set(tupleKey(row), row);
     const missing = spec.rows.filter((r) => !byTuple.has(tupleKey(r)));
     if (missing.length > 0) {
-      const fetched = await this.fetchByConflict(spec.tableName, spec.conflictTarget, missing);
+      const fetched = await this.selectByConflict(spec.tableName, spec.conflictTarget, missing);
       for (const row of fetched) byTuple.set(tupleKey(row), row);
     }
     return spec.rows
@@ -102,7 +102,7 @@ export class MariaDbConnector extends MysqlConnector {
       .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
   }
 
-  private async fetchByConflict(
+  private async selectByConflict(
     tableName: string,
     conflictTarget: string[],
     rows: Dict<any>[],
