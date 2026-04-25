@@ -367,6 +367,33 @@ user.savedChangeBy('email');
 
 Use `savedChanges` inside `afterSave` / `afterUpdate` callbacks (or dynamic `Model.on` subscribers) to react to specific field transitions without re-reading the row.
 
+## storeAccessors (JSON sub-attribute accessors)
+
+Expose top-level instance accessors that proxy into a JSON column.
+`user.theme = 'dark'` mutates `user.settings.theme`; reads pull the value
+back out. Dirty tracking sees the JSON column as changed and `save()` ships
+the merged blob through the connector.
+
+```ts
+const User = Model({
+  // ...
+  storeAccessors: {
+    settings:    ['theme', 'locale', 'fontSize'],
+    preferences: ['emailFreq', 'tz'],
+  },
+});
+
+const u: any = await User.find(1);
+u.theme;             // reads u.settings.theme
+u.theme = 'light';   // writes u.settings = { ...current, theme: 'light' }
+u.tz = 'UTC';        // initializes preferences if it was missing
+await u.save();      // ships the merged JSON blob through the connector
+```
+
+Sub-keys that collide with an existing column or primary-key accessor on the
+instance are skipped — the column accessor wins. Built on the connector-side
+JSON serialization that `t.json(...)` columns already provide.
+
 ## Serialization
 
 ```ts

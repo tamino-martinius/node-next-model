@@ -307,6 +307,13 @@ export class ModelClass {
   /** On the base Model, maps inheritColumn values → subclass constructors. */
   static inheritRegistry: Map<string, typeof ModelClass> | undefined = undefined;
   /**
+   * Map of JSON-column name → sub-keys to expose as instance accessors.
+   * Reads/writes proxy into the JSON column, so `user.theme = 'dark'`
+   * actually mutates `user.settings.theme`. Configured via the
+   * `storeAccessors` factory option.
+   */
+  static storeAccessors: Dict<readonly string[]> = {};
+  /**
    * Cascade declarations consulted by `delete()` to clean up children.
    * Populated via the `cascade` factory option. Entries support
    * `dependent: 'destroy' | 'deleteAll' | 'nullify' | 'restrict'`.
@@ -1269,6 +1276,23 @@ export class ModelClass {
         }
       }
     }
+
+    for (const column in model.storeAccessors) {
+      const subKeys = model.storeAccessors[column];
+      for (const subKey of subKeys) {
+        if (Object.getOwnPropertyDescriptor(this, subKey)) continue;
+        Object.defineProperty(this, subKey, {
+          get: () => {
+            const bag = (this.attributes() as Dict<any>)[column];
+            return bag != null ? bag[subKey] : undefined;
+          },
+          set: (value) => {
+            const current = ((this.attributes() as Dict<any>)[column] ?? {}) as Dict<any>;
+            this.assign({ [column]: { ...current, [subKey]: value } });
+          },
+        });
+      }
+    }
   }
 
   isPersistent() {
@@ -1820,6 +1844,13 @@ export function Model<
    */
   inheritColumn?: string;
   /**
+   * Map of JSON column → list of sub-keys to expose as instance accessors.
+   * `storeAccessors: { settings: ['theme', 'locale'] }` makes `user.theme`
+   * read/write `user.settings.theme`. Sub-keys must not collide with
+   * Model.keys, persistentProps, or any prototype method.
+   */
+  storeAccessors?: Dict<readonly string[]>;
+  /**
    * Cascade configuration. Each entry declares a child association and what
    * to do with its rows when the parent is deleted:
    *
@@ -1881,6 +1912,7 @@ export function Model<
     static inheritRegistry: Map<string, typeof ModelClass> | undefined = props.inheritColumn
       ? new Map<string, typeof ModelClass>()
       : undefined;
+    static storeAccessors = props.storeAccessors ?? {};
     static cascadeMap = props.cascade;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
