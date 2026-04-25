@@ -8,4 +8,5 @@ export class NextModelError extends Error {
 export class FilterError extends NextModelError {}
 export class NotFoundError extends NextModelError {}
 export class PersistenceError extends NextModelError {}
+export class StaleObjectError extends NextModelError {}
 export class ValidationError extends NextModelError {}
