@@ -1243,12 +1243,12 @@ export class ModelClass {
    * Model instance (either the freshly inserted row or the updated existing
    * row).
    *
-   * When the connector reports `supportsUpsert`, the operation runs as a
-   * single atomic INSERT … ON CONFLICT … DO UPDATE statement (no race
-   * window). The native path skips per-row lifecycle callbacks and
-   * validators — match Rails' `upsert` semantics. Use `Model.create` /
-   * `record.update` (or wrap in `Model.transaction(...)`) when callbacks /
-   * validators must run.
+   * When the connector exposes a native `upsert(spec)`, the operation
+   * runs as a single atomic INSERT … ON CONFLICT … DO UPDATE statement
+   * (no race window). The native path skips per-row lifecycle callbacks
+   * and validators — matches Rails' `upsert` semantics. Use
+   * `Model.create` / `record.update` (or wrap in `Model.transaction(...)`)
+   * when callbacks / validators must run.
    */
   static async upsert<M extends typeof ModelClass>(
     this: M,
@@ -1273,10 +1273,10 @@ export class ModelClass {
 
   /**
    * Bulk variant of `upsert(...)`. Returns the resulting Model instances in
-   * the input order. With a `supportsUpsert` connector the entire batch
-   * runs in a single round-trip (one INSERT … ON CONFLICT statement); the
-   * fallback path issues one bulk SELECT, one batched INSERT, plus one
-   * UPDATE per matched row.
+   * the input order. With a connector that exposes a native `upsert(spec)`
+   * the entire batch runs in a single round-trip (one INSERT … ON CONFLICT
+   * statement); the fallback path issues one bulk SELECT, one batched
+   * INSERT, plus one UPDATE per matched row.
    */
   static async upsertAll<M extends typeof ModelClass>(
     this: M,
