@@ -2,6 +2,9 @@
 
 ## vNext
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` method via `bulkWrite` of `updateOne` ops with `upsert: true`. User-supplied columns in `updateColumns` go to `$set` (so updates apply); the rest of the row plus the auto-generated primary key go to `$setOnInsert` (so existing rows keep their PK and unchanged columns). `ignoreOnly: true` puts everything in `$setOnInsert` (DO NOTHING semantics on match). After the bulk write, one follow-up `find` keyed by `conflictTarget` returns rows in input order. `Model.upsert` / `Model.upsertAll` automatically route through this path.
+
 ### Initial release
 
 - New `@next-model/mongodb-connector` package: implements `@next-model/core`'s `Connector` interface against MongoDB using the official [`mongodb`](https://github.com/mongodb/node-mongodb-native) driver.

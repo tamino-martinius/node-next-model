@@ -2,6 +2,9 @@
 
 ## vNext
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` method via `INSERT … ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col RETURNING *`. Honors `updateColumns` (whitelist) and `ignoreOnly` (`DO NOTHING`); rows skipped by the conflict path are backfilled via a single follow-up `SELECT … WHERE conflictTarget IN (...)`. Returns rows in input order. `Model.upsert` / `Model.upsertAll` automatically route through this path.
+
 ### Initial release
 
 - New `@next-model/postgres-connector` package: native PostgreSQL connector implementing `@next-model/core`'s `Connector` interface using `node-postgres` (`pg`) directly. No Knex dependency.

@@ -17,6 +17,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import {
   createPool,
@@ -300,6 +301,78 @@ export class MysqlConnector implements Connector {
     const start = Number(info.insertId);
     const ids = items.map((_, i) => start + i);
     return this.fetchByIds(tableName, primaryKey, ids);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const allKeys = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allKeys.add(k);
+    const cols = Array.from(allKeys);
+    const updateColumns =
+      spec.updateColumns ?? cols.filter((c: string) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const params: BaseType[] = [];
+    const valueRows: string[] = [];
+    for (const row of spec.rows) {
+      const placeholders = cols.map((c) => {
+        params.push(row[c] as BaseType);
+        return '?';
+      });
+      valueRows.push(`(${placeholders.join(', ')})`);
+    }
+    const ignorePrefix = ignore ? 'IGNORE ' : '';
+    let sql = `INSERT ${ignorePrefix}INTO ${quoteIdent(spec.tableName)} (${cols
+      .map(quoteIdent)
+      .join(', ')}) VALUES ${valueRows.join(', ')}`;
+    // MySQL's ON DUPLICATE KEY UPDATE conflicts on any unique key — the
+    // explicit conflictTarget is informational; the SQL ignores it.
+    if (!ignore) {
+      sql += ` ON DUPLICATE KEY UPDATE ${updateColumns
+        .map((c: string) => `${quoteIdent(c)} = VALUES(${quoteIdent(c)})`)
+        .join(', ')}`;
+    }
+    await this.runMutation(sql, params);
+
+    return this.fetchByConflict(spec.tableName, spec.conflictTarget, spec.rows);
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    const params: BaseType[] = [];
+    let where: string;
+    if (conflictTarget.length === 1) {
+      const [col] = conflictTarget;
+      const placeholders = rows.map((r) => {
+        params.push(r[col] as BaseType);
+        return '?';
+      });
+      where = `${quoteIdent(col)} IN (${placeholders.join(', ')})`;
+    } else {
+      where = rows
+        .map((r) => {
+          const parts = conflictTarget.map((c) => {
+            params.push(r[c] as BaseType);
+            return `${quoteIdent(c)} = ?`;
+          });
+          return `(${parts.join(' AND ')})`;
+        })
+        .join(' OR ');
+    }
+    const fetched = (await this.run(
+      `SELECT * FROM ${quoteIdent(tableName)} WHERE ${where}`,
+      params,
+    )) as Dict<any>[];
+    const tupleKey = (row: Dict<any>) =>
+      conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of fetched) byTuple.set(tupleKey(row), row);
+    return rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
   }
 
   private async fetchByIds(

@@ -17,6 +17,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import Database, { type Database as DatabaseType, type Options } from 'better-sqlite3';
 
@@ -305,6 +306,85 @@ export class SqliteConnector implements Connector {
     }
     const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES ${valueRows.join(', ')} RETURNING *`;
     return this.all(sql, params).map((r) => this.hydrateRow(tableName, r));
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const allKeys = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allKeys.add(k);
+    const cols = Array.from(allKeys);
+    const updateColumns =
+      spec.updateColumns ?? cols.filter((c: string) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const params: BaseType[] = [];
+    const valueRows: string[] = [];
+    for (const row of spec.rows) {
+      const serialized = this.serializeRow(spec.tableName, row);
+      const placeholders = cols.map((c) => {
+        params.push(serialized[c] as BaseType);
+        return '?';
+      });
+      valueRows.push(`(${placeholders.join(', ')})`);
+    }
+    const conflictCols = spec.conflictTarget.map(quoteIdent).join(', ');
+    const conflictClause = ignore
+      ? `ON CONFLICT (${conflictCols}) DO NOTHING`
+      : `ON CONFLICT (${conflictCols}) DO UPDATE SET ${updateColumns
+          .map((c: string) => `${quoteIdent(c)} = excluded.${quoteIdent(c)}`)
+          .join(', ')}`;
+    const sql = `INSERT INTO ${quoteIdent(spec.tableName)} (${cols
+      .map(quoteIdent)
+      .join(', ')}) VALUES ${valueRows.join(', ')} ${conflictClause} RETURNING *`;
+    const inserted = this.all(sql, params).map((r) => this.hydrateRow(spec.tableName, r));
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of inserted) byTuple.set(tupleKey(row), row);
+
+    const missing: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      if (!byTuple.has(tupleKey(row))) missing.push(row);
+    }
+    if (missing.length > 0) {
+      const fetched = this.fetchByConflict(spec.tableName, spec.conflictTarget, missing).map((r) =>
+        this.hydrateRow(spec.tableName, r),
+      );
+      for (const row of fetched) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
+  }
+
+  private fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Dict<any>[] {
+    const params: BaseType[] = [];
+    let where: string;
+    if (conflictTarget.length === 1) {
+      const [col] = conflictTarget;
+      const placeholders = rows.map((r) => {
+        params.push(r[col] as BaseType);
+        return '?';
+      });
+      where = `${quoteIdent(col)} IN (${placeholders.join(', ')})`;
+    } else {
+      where = rows
+        .map((r) => {
+          const parts = conflictTarget.map((c) => {
+            params.push(r[c] as BaseType);
+            return `${quoteIdent(c)} = ?`;
+          });
+          return `(${parts.join(' AND ')})`;
+        })
+        .join(' OR ');
+    }
+    return this.all(`SELECT * FROM ${quoteIdent(tableName)} WHERE ${where}`, params);
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
