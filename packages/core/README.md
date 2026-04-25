@@ -217,6 +217,29 @@ const User = Model({
 
 Cascades run before the parent's own delete. Models without `cascade` are unaffected.
 
+### Counter caches
+
+Auto-maintain a count of child rows on the parent. The Model registers
+`afterCreate` / `afterDelete` / `afterUpdate` hooks (the latter handles
+foreign-key reassignment: −1 from the old parent, +1 to the new).
+
+```ts
+const Comment = Model({
+  // ...
+  counterCaches: [
+    { belongsTo: Post,         foreignKey: 'postId', column: 'commentsCount' },
+    // Lazy thunk for circular refs:
+    // { belongsTo: () => Post, foreignKey: 'postId', column: 'commentsCount' },
+  ],
+});
+
+await Comment.create({ postId: 1 });            // → Post#1.commentsCount += 1
+await comment.delete();                          // → Post#1.commentsCount -= 1
+comment.postId = 2; await comment.save();        // → Post#1 -=1, Post#2 +=1
+```
+
+Null foreign keys and missing parents are silent no-ops. Builds on the existing `instance.increment(column, by)` helper — no connector changes required.
+
 ## Querying
 
 Every chainable method returns a new subclass, so scopes are immutable and safe to share.

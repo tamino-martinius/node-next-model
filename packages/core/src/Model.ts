@@ -53,6 +53,13 @@ export type CascadeSpec =
 
 export type CascadeMap = Record<string, CascadeSpec>;
 
+export interface CounterCacheSpec {
+  belongsTo: typeof ModelClass | (() => typeof ModelClass);
+  foreignKey: string;
+  column: string;
+  primaryKey?: string;
+}
+
 export type HasManyThroughOptions = {
   throughForeignKey?: string;
   targetForeignKey?: string;
@@ -1864,6 +1871,13 @@ export function Model<
    * defer model resolution past circular imports.
    */
   cascade?: CascadeMap;
+  /**
+   * Counter cache configuration. Each entry declares a `belongsTo` parent
+   * Model, the foreign-key column on this Model, and a counter column on
+   * the parent. The Model auto-maintains the counter via afterCreate /
+   * afterDelete / afterUpdate hooks (the latter handles parent reassignment).
+   */
+  counterCaches?: CounterCacheSpec[];
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -2333,6 +2347,43 @@ export function Model<
       (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
         return (this.attributes() as Dict<any>)[column] === value;
       };
+    }
+  }
+
+  if (props.counterCaches && props.counterCaches.length > 0) {
+    const resolveTarget = (spec: CounterCacheSpec): typeof ModelClass => {
+      const ref = spec.belongsTo as any;
+      return ref?.tableName ? (ref as typeof ModelClass) : (ref as () => typeof ModelClass)();
+    };
+    const adjustCounter = async (
+      spec: CounterCacheSpec,
+      fkValue: unknown,
+      delta: number,
+    ): Promise<void> => {
+      if (fkValue === undefined || fkValue === null) return;
+      const target = resolveTarget(spec);
+      const pk = spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id';
+      const parent = (await target.findBy({ [pk]: fkValue } as Filter<any>)) as
+        | (ModelClass & { increment: (k: string, by?: number) => Promise<unknown> })
+        | undefined;
+      if (!parent) return;
+      await parent.increment(spec.column, delta);
+    };
+    for (const spec of props.counterCaches) {
+      ModelSubclass.on('afterCreate', async (record) => {
+        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        await adjustCounter(spec, fkValue, +1);
+      });
+      ModelSubclass.on('afterDelete', async (record) => {
+        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        await adjustCounter(spec, fkValue, -1);
+      });
+      ModelSubclass.on('afterUpdate', async (record) => {
+        const change = record.savedChangeBy(spec.foreignKey);
+        if (!change) return;
+        await adjustCounter(spec, change.from, -1);
+        await adjustCounter(spec, change.to, +1);
+      });
     }
   }
 
