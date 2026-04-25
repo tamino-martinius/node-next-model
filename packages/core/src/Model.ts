@@ -35,6 +35,24 @@ export type IncludeSpec =
 
 export type IncludeMap = Record<string, IncludeSpec>;
 
+export type CascadeAction = 'destroy' | 'deleteAll' | 'nullify' | 'restrict';
+
+export type CascadeSpec =
+  | {
+      hasMany: typeof ModelClass | (() => typeof ModelClass);
+      foreignKey: string;
+      primaryKey?: string;
+      dependent: CascadeAction;
+    }
+  | {
+      hasOne: typeof ModelClass | (() => typeof ModelClass);
+      foreignKey: string;
+      primaryKey?: string;
+      dependent: CascadeAction;
+    };
+
+export type CascadeMap = Record<string, CascadeSpec>;
+
 export type HasManyThroughOptions = {
   throughForeignKey?: string;
   targetForeignKey?: string;
@@ -295,6 +313,12 @@ export class ModelClass {
    * `storeAccessors` factory option.
    */
   static storeAccessors: Dict<readonly string[]> = {};
+  /**
+   * Cascade declarations consulted by `delete()` to clean up children.
+   * Populated via the `cascade` factory option. Entries support
+   * `dependent: 'destroy' | 'deleteAll' | 'nullify' | 'restrict'`.
+   */
+  static cascadeMap: CascadeMap | undefined = undefined;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -1656,6 +1680,61 @@ export class ModelClass {
     return this as M;
   }
 
+  /**
+   * Run cascade declarations for this record's parent before its own delete.
+   * `restrict` throws if any matching child exists; `destroy` calls `.delete()`
+   * on each child (recursively cascading); `deleteAll` is a bulk delete that
+   * skips child callbacks; `nullify` updates the foreign-key column to null.
+   */
+  async _runCascade(): Promise<void> {
+    const model = this.constructor as typeof ModelClass;
+    const map = model.cascadeMap;
+    if (!map) return;
+    for (const name in map) {
+      const spec = map[name];
+      const target = (
+        'hasMany' in spec
+          ? typeof spec.hasMany === 'function' && !(spec.hasMany as any).tableName
+            ? (spec.hasMany as () => typeof ModelClass)()
+            : (spec.hasMany as typeof ModelClass)
+          : typeof spec.hasOne === 'function' && !(spec.hasOne as any).tableName
+            ? (spec.hasOne as () => typeof ModelClass)()
+            : (spec.hasOne as typeof ModelClass)
+      ) as typeof ModelClass;
+      const fk = spec.foreignKey;
+      const pkName = spec.primaryKey ?? Object.keys(model.keys)[0] ?? 'id';
+      const pkValue = (this.attributes() as Dict<any>)[pkName];
+      if (pkValue === undefined || pkValue === null) continue;
+      const childScope = target.filterBy({ [fk]: pkValue } as Filter<any>);
+      switch (spec.dependent) {
+        case 'restrict': {
+          const count = await childScope.count();
+          if (count > 0) {
+            throw new PersistenceError(
+              `Cannot delete ${model.name || 'record'}: '${name}' association has ${count} child row(s) (cascade='restrict')`,
+            );
+          }
+          break;
+        }
+        case 'destroy': {
+          const children = await childScope.all();
+          for (const child of children) {
+            await (child as any).delete();
+          }
+          break;
+        }
+        case 'deleteAll': {
+          await childScope.deleteAll();
+          break;
+        }
+        case 'nullify': {
+          await childScope.updateAll({ [fk]: null } as Dict<any>);
+          break;
+        }
+      }
+    }
+  }
+
   async delete<M extends ModelClass>(this: M) {
     if (!this.keys) {
       throw new PersistenceError('Cannot delete a record that has not been saved');
@@ -1670,6 +1749,7 @@ export class ModelClass {
   async _deleteCore(): Promise<void> {
     const model = this.constructor as typeof ModelClass;
     await this.runCallbacks('beforeDelete');
+    await this._runCascade();
     let scope = this.itemScope();
     const lockColumn = model.lockVersionColumn;
     let expectedLock: number | undefined;
@@ -1770,6 +1850,20 @@ export function Model<
    * Model.keys, persistentProps, or any prototype method.
    */
   storeAccessors?: Dict<readonly string[]>;
+  /**
+   * Cascade configuration. Each entry declares a child association and what
+   * to do with its rows when the parent is deleted:
+   *
+   *   - `'destroy'`: load each child and call `.delete()` (callbacks fire)
+   *   - `'deleteAll'`: bulk delete via the connector (no child callbacks)
+   *   - `'nullify'`: bulk update children's foreign-key column to null
+   *   - `'restrict'`: throw `PersistenceError` if any matching child exists
+   *
+   * Cascades run BEFORE the parent's own delete, so a `restrict` failure
+   * leaves the parent intact. Use a function for `hasMany` / `hasOne` to
+   * defer model resolution past circular imports.
+   */
+  cascade?: CascadeMap;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -1819,6 +1913,7 @@ export function Model<
       ? new Map<string, typeof ModelClass>()
       : undefined;
     static storeAccessors = props.storeAccessors ?? {};
+    static cascadeMap = props.cascade;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
 

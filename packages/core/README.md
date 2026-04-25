@@ -190,6 +190,33 @@ await User.filterBy({ active: false }).deleteAll();        // bulk
 
 See [Soft deletes](#soft-deletes) for non-destructive variants.
 
+### Cascade (dependent)
+
+Declarative cleanup of child rows on parent delete. Each entry names a
+`hasMany` or `hasOne` child Model (or a `() =>` thunk for circular imports),
+the foreign key, and one of four actions:
+
+| Action       | Behaviour |
+|--------------|-----------|
+| `'destroy'`  | Loads each child and calls `.delete()` (per-row callbacks fire; recursive cascades work) |
+| `'deleteAll'`| One bulk DELETE via the connector — child callbacks **do not** fire |
+| `'nullify'`  | Bulk update children's foreign-key column to `null` |
+| `'restrict'` | Throws `PersistenceError` if any matching child exists; the parent is left intact |
+
+```ts
+const User = Model({
+  // ...
+  cascade: {
+    posts:   { hasMany: Post,        foreignKey: 'userId', dependent: 'destroy' },
+    profile: { hasOne:  Profile,     foreignKey: 'userId', dependent: 'nullify' },
+    orders:  { hasMany: () => Order, foreignKey: 'userId', dependent: 'restrict' },
+    audits:  { hasMany: Audit,       foreignKey: 'userId', dependent: 'deleteAll' },
+  },
+});
+```
+
+Cascades run before the parent's own delete. Models without `cascade` are unaffected.
+
 ## Querying
 
 Every chainable method returns a new subclass, so scopes are immutable and safe to share.
