@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements the optional `Connector.queryWithJoins(spec)` capability. `mode: 'select'` compiles to `WHERE EXISTS (...)`, `'antiJoin'` to `WHERE NOT EXISTS (...)`, `'includes'` to one batched `WHERE child.fk IN (parent_pks) [AND filter]` per association — grouped in JS, attached as `__includes[attachAs]`. The exists-clause helper is `protected` so `MariaDbConnector` (which extends this class) inherits the JOIN path automatically. Powers `Model.whereMissing` / `Model.joins` / `Model.includes({...}, { strategy: 'join' | 'auto' })` / cross-association `filterBy` natively.
+
 ### Initial release
 
 - New `@next-model/mysql-connector` package: native MySQL connector implementing `@next-model/core`'s `Connector` interface using `mysql2/promise` directly. No Knex dependency.

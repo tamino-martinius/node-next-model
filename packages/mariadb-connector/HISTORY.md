@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Inherits `Connector.queryWithJoins(spec)` from `MysqlConnector` — MariaDB's wire-compatible `mysql2` driver and identical SQL surface mean the EXISTS / NOT EXISTS / batched-IN paths work without any MariaDB-specific override. Powers `Model.whereMissing` / `Model.joins` / `Model.includes({...}, { strategy: 'join' | 'auto' })` / cross-association `filterBy` natively.
+
 ### Initial release
 
 - New `@next-model/mariadb-connector` package: thin extension of `@next-model/mysql-connector` that takes advantage of MariaDB-specific features.

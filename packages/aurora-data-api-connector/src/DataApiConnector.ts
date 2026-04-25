@@ -12,6 +12,8 @@ import {
   type FilterRaw,
   type FilterSpecial,
   type IndexDefinition,
+  type JoinClause,
+  type JoinQuerySpec,
   type KeyType,
   PersistenceError,
   type Scope,
@@ -269,6 +271,97 @@ export class DataApiConnector implements Connector {
     query = this.applyOrder(query, scope.order);
     const result = await this.runQuery(query.select('*'));
     return result.records ?? [];
+  }
+
+  async queryWithJoins(spec: JoinQuerySpec): Promise<Dict<any>[]> {
+    const { parent, joins } = spec;
+    const parentTable = parent.tableName;
+    let builder = this.table(parentTable);
+    builder = (await this.filter(builder, parent.filter)).query;
+    for (const join of joins) {
+      if (join.mode === 'select') {
+        builder = this.applyExistsJoin(builder, parentTable, join, 'whereExists');
+      } else if (join.mode === 'antiJoin') {
+        builder = this.applyExistsJoin(builder, parentTable, join, 'whereNotExists');
+      }
+    }
+    builder = this.applyOrder(builder, parent.order);
+    if (parent.skip !== undefined) builder = builder.offset(parent.skip);
+    if (parent.limit !== undefined) builder = builder.limit(parent.limit);
+    const result = await this.runQuery(builder.select(`${parentTable}.*`));
+    const parentRows = result.records ?? [];
+    return this.attachIncludesViaJoins(parentRows, joins);
+  }
+
+  /** Wrap a child-table EXISTS / NOT EXISTS clause around the parent query. */
+  private applyExistsJoin(
+    query: Knex.QueryBuilder,
+    parentTable: string,
+    join: JoinClause,
+    method: 'whereExists' | 'whereNotExists',
+  ): Knex.QueryBuilder {
+    const self = this;
+    const childTable = join.childTableName;
+    const parentColumn = join.on.parentColumn;
+    const childColumn = join.on.childColumn;
+    const childFilter = join.filter;
+    return query[method](async function (this: Knex.QueryBuilder) {
+      this.select(self.knex.raw('1'))
+        .from(childTable)
+        .whereRaw('?? = ??', [`${childTable}.${childColumn}`, `${parentTable}.${parentColumn}`]);
+      if (childFilter) {
+        await self.filter(this, childFilter);
+      }
+    });
+  }
+
+  /** Batched IN per `mode: 'includes'` join; groups by parent key in JS. */
+  private async attachIncludesViaJoins(
+    parentRows: Dict<any>[],
+    joins: JoinClause[],
+  ): Promise<Dict<any>[]> {
+    const includesJoins = joins.filter((j) => j.mode === 'includes');
+    if (includesJoins.length === 0) return parentRows;
+    for (const row of parentRows) (row as Dict<any>).__includes = {};
+    for (const join of includesJoins) {
+      const parentKeys: BaseType[] = [];
+      const seen = new Set<unknown>();
+      for (const row of parentRows) {
+        const v = (row as Dict<any>)[join.on.parentColumn];
+        if (v == null || seen.has(v)) continue;
+        seen.add(v);
+        parentKeys.push(v as BaseType);
+      }
+      const attach = join.attachAs ?? '';
+      if (parentKeys.length === 0) {
+        for (const row of parentRows) {
+          ((row as Dict<any>).__includes as Dict<Dict<any>[]>)[attach] = [];
+        }
+        continue;
+      }
+      const childFilter: Filter<any> = join.filter
+        ? ({
+            $and: [{ $in: { [join.on.childColumn]: parentKeys } }, join.filter],
+          } as Filter<any>)
+        : ({ $in: { [join.on.childColumn]: parentKeys } } as Filter<any>);
+      const childRows = await this.query({
+        tableName: join.childTableName,
+        filter: childFilter,
+      });
+      const grouped = new Map<unknown, Dict<any>[]>();
+      for (const child of childRows) {
+        const k = (child as Dict<any>)[join.on.childColumn];
+        if (k == null) continue;
+        const list = grouped.get(k);
+        if (list) list.push(child);
+        else grouped.set(k, [child]);
+      }
+      for (const row of parentRows) {
+        const key = (row as Dict<any>)[join.on.parentColumn];
+        ((row as Dict<any>).__includes as Dict<Dict<any>[]>)[attach] = grouped.get(key) ?? [];
+      }
+    }
+    return parentRows;
   }
 
   async count(scope: Scope): Promise<number> {

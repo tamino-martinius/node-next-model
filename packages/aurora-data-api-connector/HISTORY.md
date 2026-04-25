@@ -4,6 +4,8 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+- Implements the optional `Connector.queryWithJoins(spec)` capability — same pattern as `KnexConnector`, since the connector compiles SQL via the bundled knex builder. `mode: 'select'` becomes `whereExists`, `'antiJoin'` `whereNotExists`, `'includes'` a batched `WHERE child.fk IN (parent_pks)` per association, grouped by parent key in JS and attached under `__includes[attachAs]`. Routes through the Aurora Data API's named-binding shape (`:paramN`) like every other query the connector emits.
+
 ### Rewrite
 
 - Full TypeScript rewrite on top of the modern `@next-model/core` `Connector` interface. Matches `KnexConnector` parity.

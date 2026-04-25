@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements the optional `Connector.queryWithJoins(spec)` capability. `mode: 'select'` compiles to `WHERE EXISTS (...)`, `'antiJoin'` to `WHERE NOT EXISTS (...)`, `'includes'` to one batched `WHERE child.fk IN (parent_pks) [AND filter]` per association — children grouped by parent key in JS and attached under `__includes[attachAs]` on each parent row. Same `$N` placeholder shape as the rest of the connector. Powers `Model.whereMissing` / `Model.joins` / `Model.includes({...}, { strategy: 'join' | 'auto' })` / cross-association `filterBy` natively.
+
 ### Initial release
 
 - New `@next-model/postgres-connector` package: native PostgreSQL connector implementing `@next-model/core`'s `Connector` interface using `node-postgres` (`pg`) directly. No Knex dependency.

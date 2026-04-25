@@ -12,6 +12,8 @@ import {
   type FilterRaw,
   type FilterSpecial,
   type IndexDefinition,
+  type JoinClause,
+  type JoinQuerySpec,
   type KeyType,
   PersistenceError,
   type Scope,
@@ -209,6 +211,94 @@ export class MysqlConnector implements Connector {
     if (scope.limit !== undefined) sql += ` LIMIT ${Number(scope.limit)}`;
     if (scope.skip !== undefined) sql += ` OFFSET ${Number(scope.skip)}`;
     return (await this.run(sql, where.params)) as Dict<any>[];
+  }
+
+  async queryWithJoins(spec: JoinQuerySpec): Promise<Dict<any>[]> {
+    const { parent, joins } = spec;
+    const params: BaseType[] = [];
+    const whereClauses: string[] = [];
+    if (parent.filter !== undefined) {
+      whereClauses.push(this.compileFilter(parent.filter, params));
+    }
+    for (const join of joins) {
+      const clause = this.compileExistsClause(parent.tableName, join, params);
+      if (clause) whereClauses.push(clause);
+    }
+    let sql = `SELECT * FROM ${quoteIdent(parent.tableName)}`;
+    if (whereClauses.length > 0) sql += ` WHERE ${whereClauses.join(' AND ')}`;
+    sql += this.buildOrder(parent.order);
+    if (parent.limit !== undefined) sql += ` LIMIT ${Number(parent.limit)}`;
+    if (parent.skip !== undefined) sql += ` OFFSET ${Number(parent.skip)}`;
+    const parentRows = (await this.run(sql, params)) as Dict<any>[];
+    return this.attachIncludes(parentRows, joins);
+  }
+
+  /** See SqliteConnector.compileExistsClause — same shape, backtick quoting. */
+  protected compileExistsClause(
+    parentTable: string,
+    join: JoinClause,
+    params: BaseType[],
+  ): string | undefined {
+    if (join.mode !== 'select' && join.mode !== 'antiJoin') return undefined;
+    const op = join.mode === 'antiJoin' ? 'NOT EXISTS' : 'EXISTS';
+    const childTable = quoteIdent(join.childTableName);
+    const parentTableQ = quoteIdent(parentTable);
+    const childCol = quoteIdent(join.on.childColumn);
+    const parentCol = quoteIdent(join.on.parentColumn);
+    let inner = `SELECT 1 FROM ${childTable} WHERE ${childTable}.${childCol} = ${parentTableQ}.${parentCol}`;
+    if (join.filter !== undefined) {
+      inner += ` AND (${this.compileFilter(join.filter, params)})`;
+    }
+    return `${op} (${inner})`;
+  }
+
+  /** Batched IN per `mode: 'includes'` join; groups by parent key in JS. */
+  protected async attachIncludes(
+    parentRows: Dict<any>[],
+    joins: JoinClause[],
+  ): Promise<Dict<any>[]> {
+    const includesJoins = joins.filter((j) => j.mode === 'includes');
+    if (includesJoins.length === 0) return parentRows;
+    for (const row of parentRows) (row as Dict<any>).__includes = {};
+    for (const join of includesJoins) {
+      const parentKeys: BaseType[] = [];
+      const seen = new Set<unknown>();
+      for (const row of parentRows) {
+        const v = (row as Dict<any>)[join.on.parentColumn];
+        if (v == null || seen.has(v)) continue;
+        seen.add(v);
+        parentKeys.push(v as BaseType);
+      }
+      const attach = join.attachAs ?? '';
+      if (parentKeys.length === 0) {
+        for (const row of parentRows) {
+          ((row as Dict<any>).__includes as Dict<Dict<any>[]>)[attach] = [];
+        }
+        continue;
+      }
+      const childFilter: Filter<any> = join.filter
+        ? ({
+            $and: [{ $in: { [join.on.childColumn]: parentKeys } }, join.filter],
+          } as Filter<any>)
+        : ({ $in: { [join.on.childColumn]: parentKeys } } as Filter<any>);
+      const childRows = await this.query({
+        tableName: join.childTableName,
+        filter: childFilter,
+      });
+      const grouped = new Map<unknown, Dict<any>[]>();
+      for (const child of childRows) {
+        const k = (child as Dict<any>)[join.on.childColumn];
+        if (k == null) continue;
+        const list = grouped.get(k);
+        if (list) list.push(child);
+        else grouped.set(k, [child]);
+      }
+      for (const row of parentRows) {
+        const key = (row as Dict<any>)[join.on.parentColumn];
+        ((row as Dict<any>).__includes as Dict<Dict<any>[]>)[attach] = grouped.get(key) ?? [];
+      }
+    }
+    return parentRows;
   }
 
   async count(scope: Scope): Promise<number> {
