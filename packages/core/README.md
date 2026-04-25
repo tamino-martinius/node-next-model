@@ -28,6 +28,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Lifecycle callbacks](#lifecycle-callbacks)
 - [Timestamps](#timestamps)
 - [Soft deletes](#soft-deletes)
+- [Single Table Inheritance](#single-table-inheritance)
 - [Associations](#associations)
 - [Transactions](#transactions)
 - [Connectors](#connectors)
@@ -454,6 +455,42 @@ await Post.onlyDiscarded().all();   // only discarded
 
 await post.restore();           // clears discardedAt
 ```
+
+## Single Table Inheritance
+
+Declare a base Model with `inheritColumn`, then create subclasses via
+`Base.inherit({ type: '...' })`. Each subclass shares the base's table /
+keys / connector / init, auto-fills the discriminator column on insert, and
+auto-filters reads to its own type.
+
+```ts
+const Animal = Model({
+  tableName: 'animals',
+  keys: { id: KeyType.number },
+  init: (p: { name?: string }) => ({ name: p.name ?? '' }),
+  inheritColumn: 'type',
+});
+
+const Dog = Animal.inherit({ type: 'Dog' });
+const Cat = Animal.inherit({
+  type: 'Cat',
+  validators: [(r) => /* cat-specific */ true],   // appended to base validators
+});
+
+await Dog.create({ name: 'Rex' });   // inserts row with type='Dog'
+
+const rex = await Animal.find(1);    // returns a Dog instance
+rex instanceof Dog;                  // true
+rex instanceof Animal;               // true
+
+await Dog.all();                     // only type='Dog' rows
+await Animal.all();                  // mixed Dog / Cat / base instances
+```
+
+`Base.find(id)` and `Base.all()` inspect the discriminator column on each row
+and return an instance of the registered subclass; rows whose type doesn't
+match a registered subclass fall back to the base. Subclass filters / scopes
+compose on top of the auto-type filter.
 
 ## Associations
 
