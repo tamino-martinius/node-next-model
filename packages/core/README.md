@@ -338,6 +338,64 @@ await new User({ email: 'bad', age: 10 }).isValid(); // false
 await user.save();                                   // throws ValidationError if invalid
 ```
 
+### Built-in validator factories
+
+Eight Rails-style factories ship from `@next-model/core` for the common
+constraints — drop them into the same `validators: [...]` array next to your
+function-form validators.
+
+```ts
+import {
+  validatePresence,
+  validateFormat,
+  validateLength,
+  validateInclusion,
+  validateExclusion,
+  validateNumericality,
+  validateUniqueness,
+  validateConfirmation,
+} from '@next-model/core';
+
+const User = Model({
+  // ...
+  validators: [
+    validatePresence(['email', 'name']),
+    validateFormat('email', { with: /^[^@\s]+@[^@\s]+\.[^@\s]+$/ }),
+    validateLength('name', { min: 3, max: 50 }),
+    validateInclusion('role', ['admin', 'user', 'guest']),
+    validateExclusion('username', ['admin', 'root']),
+    validateNumericality('age', { integer: true, min: 0, max: 120 }),
+    validateUniqueness('email', { caseSensitive: false }),
+    validateConfirmation('password'), // requires `passwordConfirmation` to match
+  ],
+});
+```
+
+Every factory accepts `{ message?, allowNull?, allowBlank?, if?, unless? }` for
+the usual ergonomics. `validateUniqueness` runs through `Model.unscoped()` so
+soft-deleted rows still count, excludes the current record by primary key on
+updates, and supports `scope` (multi-column uniqueness).
+
+### Errors collection
+
+Every Model instance carries an `errors` collection populated by `isValid()`:
+
+```ts
+const u = User.build({});
+await u.isValid();       // false — runs every validator (no short-circuit)
+u.errors.on('email');    // ['cannot be blank']
+u.errors.full();         // ['email cannot be blank', 'name cannot be blank']
+u.errors.any();          // true
+u.errors.count();        // 2
+u.errors.toJSON();       // { email: [...], name: [...] }
+
+try { await u.save(); }
+catch (e) {
+  e instanceof ValidationError;
+  e.errors;              // same structured payload
+}
+```
+
 ## Lifecycle callbacks
 
 Declare at factory time:
