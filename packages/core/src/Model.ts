@@ -247,6 +247,7 @@ export class ModelClass {
    * predicate; out-of-range values fail `isValid()`.
    */
   static enums: Dict<readonly string[]> = {};
+  /**
    * When set, `save()` and `delete()` enforce optimistic locking against this
    * column. Inserts default the column to 0; updates require the in-memory
    * value to match the row's current value, otherwise throw `StaleObjectError`.
@@ -1012,6 +1013,124 @@ export class ModelClass {
       return (record as any).update(attrs) as Promise<InstanceType<M>>;
     }
     return this.create<M>({ ...filter, ...attrs });
+  }
+
+  /**
+   * Insert a row or update an existing one when a conflict is found. By default
+   * the conflict columns are the Model's primary key(s); pass `onConflict` to
+   * use a different unique-key set. Returns the resulting Model instance
+   * (either the freshly inserted row or the updated existing row).
+   *
+   * Caveat: implemented as a SELECT followed by an INSERT or UPDATE, so it is
+   * NOT atomic at the database level. Wrap calls in `Model.transaction(...)`
+   * if you need stronger guarantees, or use a connector-native UPSERT path
+   * once it lands.
+   */
+  static async upsert<M extends typeof ModelClass>(
+    this: M,
+    props: Dict<any>,
+    options: { onConflict?: string | string[] } = {},
+  ): Promise<InstanceType<M>> {
+    const conflictKeys =
+      options.onConflict === undefined
+        ? Object.keys(this.keys)
+        : Array.isArray(options.onConflict)
+          ? options.onConflict
+          : [options.onConflict];
+    const filter: Dict<any> = {};
+    for (const key of conflictKeys) {
+      if (props[key] === undefined) {
+        throw new PersistenceError(
+          `upsert requires '${key}' to be present in the row (declared as a conflict column)`,
+        );
+      }
+      filter[key] = props[key];
+    }
+    const existing = await this.unscoped().findBy<M>(filter);
+    if (existing) {
+      const attrs: Dict<any> = {};
+      for (const k in props) {
+        if (!conflictKeys.includes(k)) attrs[k] = props[k];
+      }
+      if (Object.keys(attrs).length === 0) return existing;
+      return (existing as any).update(attrs) as Promise<InstanceType<M>>;
+    }
+    return this.create<M>(props as any);
+  }
+
+  /**
+   * Bulk variant of `upsert(...)`. Identifies existing rows in a single query
+   * (matching any of the conflict-column tuples), then partitions the input
+   * into updates and a single bulk insert. Returns the resulting Model
+   * instances in the input order. Same atomicity caveat as `upsert`.
+   */
+  static async upsertAll<M extends typeof ModelClass>(
+    this: M,
+    propsList: Dict<any>[],
+    options: { onConflict?: string | string[] } = {},
+  ): Promise<InstanceType<M>[]> {
+    if (propsList.length === 0) return [];
+    const conflictKeys =
+      options.onConflict === undefined
+        ? Object.keys(this.keys)
+        : Array.isArray(options.onConflict)
+          ? options.onConflict
+          : [options.onConflict];
+    for (const row of propsList) {
+      for (const key of conflictKeys) {
+        if (row[key] === undefined) {
+          throw new PersistenceError(
+            `upsertAll requires '${key}' to be present in every row (declared as a conflict column)`,
+          );
+        }
+      }
+    }
+    let existingFilter: Filter<any>;
+    if (conflictKeys.length === 1) {
+      const [key] = conflictKeys;
+      existingFilter = { $in: { [key]: propsList.map((p) => p[key]) } } as Filter<any>;
+    } else {
+      existingFilter = {
+        $or: propsList.map((p) => {
+          const sub: Dict<any> = {};
+          for (const k of conflictKeys) sub[k] = p[k];
+          return sub;
+        }),
+      } as Filter<any>;
+    }
+    const existing = await this.unscoped().filterBy(existingFilter).all<M>();
+    const tupleKey = (row: Dict<any>) => conflictKeys.map((k) => JSON.stringify(row[k])).join('|');
+    const existingByTuple = new Map<string, InstanceType<M>>();
+    for (const row of existing) {
+      existingByTuple.set(tupleKey(row.attributes() as Dict<any>), row as InstanceType<M>);
+    }
+    const results: InstanceType<M>[] = [];
+    const toInsert: Dict<any>[] = [];
+    const insertSlots: number[] = [];
+    for (let i = 0; i < propsList.length; i++) {
+      const props = propsList[i];
+      const match = existingByTuple.get(tupleKey(props));
+      if (match) {
+        const attrs: Dict<any> = {};
+        for (const k in props) {
+          if (!conflictKeys.includes(k)) attrs[k] = props[k];
+        }
+        if (Object.keys(attrs).length > 0) {
+          await (match as any).update(attrs);
+        }
+        results[i] = match;
+      } else {
+        toInsert.push(props);
+        insertSlots.push(i);
+      }
+    }
+    if (toInsert.length > 0) {
+      const inserted = await this.createMany<M>(toInsert as any[]);
+      for (let i = 0; i < inserted.length; i++) {
+        results[insertSlots[i]] = inserted[i];
+      }
+    }
+    return results;
   }
 
   persistentProps: Dict<any>;
