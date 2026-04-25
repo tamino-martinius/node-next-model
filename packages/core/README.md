@@ -148,7 +148,10 @@ await user.update({ lastName: 'Updated' });       // assign + save
 
 await user.increment('loginCount');               // +1
 await user.decrement('credits', 5);               // -5
-await user.touch();                               // bump updatedAt only
+await user.touch();                                // bump updatedAt only
+await user.touch({ time: new Date('2099-01-01') });          // explicit time
+await user.touch({ columns: ['updatedAt', 'lastSeenAt'] });   // multi-column
+await user.touch({ time, columns: ['updatedAt', 'lastSeenAt'] });
 
 await user.reload();                              // refetch from connector
 
@@ -186,6 +189,17 @@ await Post.upsertAll(
 ```ts
 await user.delete();                                       // single row
 await User.filterBy({ active: false }).deleteAll();        // bulk
+await User.destroyAll();                                    // per-row .delete() — callbacks fire
+```
+
+`delete()` accepts `{ skipCallbacks: true }` to suppress `beforeDelete` /
+`afterDelete` (matches Rails' `record.delete` vs `record.destroy` distinction).
+`destroyAll()` is the chainable counterpart to `deleteAll()` that loads each
+row and calls `.delete()` so per-row callbacks + cascade fire.
+
+```ts
+await record.delete({ skipCallbacks: true });               // skip per-row hooks
+await User.filterBy({ active: false }).destroyAll();         // load + delete each
 ```
 
 See [Soft deletes](#soft-deletes) for non-destructive variants.

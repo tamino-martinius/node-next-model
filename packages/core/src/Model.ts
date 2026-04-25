@@ -1148,6 +1148,21 @@ export class ModelClass {
     return await this.connector.deleteAll(this.modelScope());
   }
 
+  /**
+   * Load every matching record and call `.delete()` on each so per-row
+   * `beforeDelete` / `afterDelete` callbacks fire and any `cascade` config
+   * (where supported) takes effect. Slower than `deleteAll()` for large
+   * scopes — `deleteAll` is one bulk DELETE, `destroyAll` is N round-trips —
+   * but matches Rails' `destroy_all` semantics. Returns the deleted records.
+   */
+  static async destroyAll<M extends typeof ModelClass>(this: M): Promise<InstanceType<M>[]> {
+    const records = await this.all<M>();
+    for (const record of records) {
+      await (record as any).delete();
+    }
+    return records;
+  }
+
   static async updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>) {
     const effectiveAttrs = { ...attrs };
     const updatedCol = this.updatedAtColumn;
@@ -1785,17 +1800,25 @@ export class ModelClass {
     return this.save();
   }
 
-  async touch<M extends ModelClass>(this: M) {
+  async touch<M extends ModelClass>(
+    this: M,
+    options: { time?: Date; columns?: string[] } = {},
+  ): Promise<M> {
     if (!this.keys) {
       throw new PersistenceError('Cannot touch a record that has not been saved');
     }
     const model = this.constructor as typeof ModelClass;
     const updatedCol = model.updatedAtColumn;
-    if (!updatedCol) {
-      throw new PersistenceError('Cannot touch a record whose Model has no updatedAt column');
+    const columns = options.columns ? options.columns : updatedCol ? [updatedCol] : [];
+    if (columns.length === 0) {
+      throw new PersistenceError(
+        'Cannot touch a record whose Model has no updatedAt column (and no `columns` were provided)',
+      );
     }
-    const now = new Date();
-    const items = await model.connector.updateAll(this.itemScope(), { [updatedCol]: now });
+    const time = options.time ?? new Date();
+    const update: Dict<any> = {};
+    for (const column of columns) update[column] = time;
+    const items = await model.connector.updateAll(this.itemScope(), update);
     const item = items.pop();
     if (!item) throw new NotFoundError('Item not found');
     for (const key in model.keys) delete item[key];
@@ -1873,20 +1896,23 @@ export class ModelClass {
     }
   }
 
-  async delete<M extends ModelClass>(this: M) {
+  async delete<M extends ModelClass>(
+    this: M,
+    options: { skipCallbacks?: boolean } = {},
+  ): Promise<M> {
     if (!this.keys) {
       throw new PersistenceError('Cannot delete a record that has not been saved');
     }
     const body = async () => {
-      await this._deleteCore();
+      await this._deleteCore(options);
     };
     await this.runAround('aroundDelete', body);
     return this as M;
   }
 
-  async _deleteCore(): Promise<void> {
+  async _deleteCore(options: { skipCallbacks?: boolean } = {}): Promise<void> {
     const model = this.constructor as typeof ModelClass;
-    await this.runCallbacks('beforeDelete');
+    if (!options.skipCallbacks) await this.runCallbacks('beforeDelete');
     await this._runCascade();
     let scope = this.itemScope();
     const lockColumn = model.lockVersionColumn;
@@ -1907,7 +1933,7 @@ export class ModelClass {
     this.persistentProps = { ...this.persistentProps, ...this.changedProps, ...this.keys };
     this.changedProps = {};
     this.keys = undefined;
-    await this.runCallbacks('afterDelete');
+    if (!options.skipCallbacks) await this.runCallbacks('afterDelete');
     await this._scheduleCommitCallbacks('delete');
   }
 
