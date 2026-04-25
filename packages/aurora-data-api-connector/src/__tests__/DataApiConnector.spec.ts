@@ -396,17 +396,13 @@ describe('DataApiConnector', () => {
     });
 
     it('removeColumn issues ALTER TABLE DROP COLUMN', async () => {
-      await connector.alterTable(
-        defineAlter(altTable, (a) => a.removeColumn('name')),
-      );
+      await connector.alterTable(defineAlter(altTable, (a) => a.removeColumn('name')));
       const cols = await mockClient.knex(altTable).columnInfo();
       expect(cols.name).toBeUndefined();
     });
 
     it('renameColumn issues ALTER TABLE RENAME COLUMN', async () => {
-      await connector.alterTable(
-        defineAlter(altTable, (a) => a.renameColumn('name', 'fullName')),
-      );
+      await connector.alterTable(defineAlter(altTable, (a) => a.renameColumn('name', 'fullName')));
       const cols = await mockClient.knex(altTable).columnInfo();
       expect(cols.fullName).toBeDefined();
       expect(cols.name).toBeUndefined();
@@ -414,20 +410,14 @@ describe('DataApiConnector', () => {
 
     it('addIndex / removeIndex round-trip via CREATE/DROP INDEX', async () => {
       await connector.alterTable(
-        defineAlter(altTable, (a) =>
-          a.addIndex('name', { name: 'idx_aurora_alter_users_name' }),
-        ),
+        defineAlter(altTable, (a) => a.addIndex('name', { name: 'idx_aurora_alter_users_name' })),
       );
       await connector.alterTable(
         defineAlter(altTable, (a) => a.removeIndex('idx_aurora_alter_users_name')),
       );
       // also exercise the columns-array path
-      await connector.alterTable(
-        defineAlter(altTable, (a) => a.addIndex(['name'])),
-      );
-      await connector.alterTable(
-        defineAlter(altTable, (a) => a.removeIndex(['name'])),
-      );
+      await connector.alterTable(defineAlter(altTable, (a) => a.addIndex(['name'])));
+      await connector.alterTable(defineAlter(altTable, (a) => a.removeIndex(['name'])));
     });
 
     it('exercises changeColumn / renameIndex / FK / check translation paths', async () => {
@@ -447,9 +437,7 @@ describe('DataApiConnector', () => {
         ),
       );
       await tryOp(() =>
-        connector.alterTable(
-          defineAlter(altTable, (a) => a.renameIndex('idx_x', 'idx_y')),
-        ),
+        connector.alterTable(defineAlter(altTable, (a) => a.renameIndex('idx_x', 'idx_y'))),
       );
       await tryOp(() =>
         connector.alterTable(

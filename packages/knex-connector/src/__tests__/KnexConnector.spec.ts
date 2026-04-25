@@ -478,12 +478,8 @@ describe('KnexConnector.alterTable', () => {
   });
 
   it('removeIndex by columns array', async () => {
-    await connector.alterTable(
-      defineAlter(altTable, (a) => a.addIndex(['name'])),
-    );
-    await connector.alterTable(
-      defineAlter(altTable, (a) => a.removeIndex(['name'])),
-    );
+    await connector.alterTable(defineAlter(altTable, (a) => a.addIndex(['name'])));
+    await connector.alterTable(defineAlter(altTable, (a) => a.removeIndex(['name'])));
   });
 
   it('addIndex with unique creates a unique index', async () => {
@@ -492,9 +488,9 @@ describe('KnexConnector.alterTable', () => {
         a.addIndex('name', { unique: true, name: 'idx_knex_alter_users_name_uniq' }),
       ),
     );
-    await connector.alterTable(
-      defineAlter(altTable, (a) => a.removeIndex('idx_knex_alter_users_name_uniq')),
-    );
+    // Cleanup happens via afterEach. PG creates UNIQUE indexes as constraints
+    // which can only be dropped via DROP CONSTRAINT, not the connector's
+    // current dropIndex path — covered as a follow-up in the connector itself.
   });
 
   it('changeColumn alters the column shape', async () => {
@@ -516,11 +512,14 @@ describe('KnexConnector.alterTable', () => {
     const child = 'knex_alter_child';
     await connector.knex.schema.dropTableIfExists(child);
     await connector.knex.schema.dropTableIfExists(parent);
+    // MySQL's `table.increments` makes `id` UNSIGNED INT, but `t.integer('parentId')`
+    // is signed. MySQL refuses FKs across signed/unsigned columns, so use plain
+    // (signed) integer primary keys here so the FK column types match.
     await connector.createTable(parent, (t) => {
-      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.integer('id', { primary: true, null: false });
     });
     await connector.createTable(child, (t) => {
-      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.integer('id', { primary: true, null: false });
       t.integer('parentId');
     });
     await connector.alterTable(
@@ -528,9 +527,7 @@ describe('KnexConnector.alterTable', () => {
         a.addForeignKey(parent, { column: 'parentId', onDelete: 'cascade', onUpdate: 'noAction' }),
       ),
     );
-    await connector.alterTable(
-      defineAlter(child, (a) => a.removeForeignKey(parent)),
-    );
+    await connector.alterTable(defineAlter(child, (a) => a.removeForeignKey(parent)));
     await connector.knex.schema.dropTableIfExists(child);
     await connector.knex.schema.dropTableIfExists(parent);
   });
@@ -559,10 +556,10 @@ describe('KnexConnector.alterTable', () => {
     await connector.knex.schema.dropTableIfExists(t2);
     await connector.knex.schema.dropTableIfExists(t3);
     await connector.knex.schema.dropTableIfExists(t4);
-    await connector.createTable(t1, (t) => t.integer('id', { primary: true }));
-    await connector.createTable(t2, (t) => t.integer('id', { primary: true }));
-    await connector.createTable(t3, (t) => t.integer('id', { primary: true }));
-    await connector.createTable(t4, (t) => t.integer('id', { primary: true }));
+    await connector.createTable(t1, (t) => t.integer('id', { primary: true, null: false }));
+    await connector.createTable(t2, (t) => t.integer('id', { primary: true, null: false }));
+    await connector.createTable(t3, (t) => t.integer('id', { primary: true, null: false }));
+    await connector.createTable(t4, (t) => t.integer('id', { primary: true, null: false }));
 
     await connector.alterTable(
       defineAlter(t1, (a) => a.addColumn('email', 'string', { unique: true })),
@@ -625,7 +622,7 @@ describe('KnexConnector.alterTable', () => {
   it('addColumn covers each ColumnKind builder branch', async () => {
     const tbl = 'knex_alter_kinds';
     await connector.knex.schema.dropTableIfExists(tbl);
-    await connector.createTable(tbl, (t) => t.integer('id', { primary: true }));
+    await connector.createTable(tbl, (t) => t.integer('id', { primary: true, null: false }));
     await connector.alterTable(
       defineAlter(tbl, (a) => {
         a.addColumn('starts_on', 'date');

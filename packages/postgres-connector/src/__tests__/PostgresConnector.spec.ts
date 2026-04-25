@@ -82,11 +82,7 @@ describe('PostgresConnector.alterTable', () => {
       t.integer('id', { primary: true, autoIncrement: true });
       t.string('name', { null: false });
     });
-    await connector.batchInsert(
-      tableName,
-      { id: 1 } as any,
-      [{ name: 'Ada' }, { name: 'Linus' }],
-    );
+    await connector.batchInsert(tableName, { id: 1 } as any, [{ name: 'Ada' }, { name: 'Linus' }]);
   }
 
   it('addColumn / removeColumn / renameColumn', async () => {
@@ -101,9 +97,7 @@ describe('PostgresConnector.alterTable', () => {
     let rows = await connector.query({ tableName });
     expect(rows[0].role).toBe('member');
     expect(typeof rows[0].fullName).toBe('string');
-    await connector.alterTable(
-      defineAlter(tableName, (a) => a.removeColumn('role')),
-    );
+    await connector.alterTable(defineAlter(tableName, (a) => a.removeColumn('role')));
     rows = await connector.query({ tableName });
     expect('role' in rows[0]).toBe(false);
     await connector.dropTable(tableName);
@@ -138,7 +132,7 @@ describe('PostgresConnector.alterTable', () => {
       defineAlter(tableName, (a) => a.addIndex('name', { name: 'idx_pg_alter_idx_name' })),
     );
     const before = (await connector.execute(
-      "SELECT indexname FROM pg_indexes WHERE tablename = $1",
+      'SELECT indexname FROM pg_indexes WHERE tablename = $1',
       [tableName] as any,
     )) as { indexname: string }[];
     expect(before.map((r) => r.indexname)).toContain('idx_pg_alter_idx_name');
@@ -151,12 +145,8 @@ describe('PostgresConnector.alterTable', () => {
     await connector.alterTable(
       defineAlter(tableName, (a) => a.removeIndex('idx_pg_alter_idx_renamed')),
     );
-    await connector.alterTable(
-      defineAlter(tableName, (a) => a.addIndex(['name'])),
-    );
-    await connector.alterTable(
-      defineAlter(tableName, (a) => a.removeIndex(['name'])),
-    );
+    await connector.alterTable(defineAlter(tableName, (a) => a.addIndex(['name'])));
+    await connector.alterTable(defineAlter(tableName, (a) => a.removeIndex(['name'])));
     await connector.dropTable(tableName);
   });
 
@@ -177,9 +167,7 @@ describe('PostgresConnector.alterTable', () => {
         a.addForeignKey(parent, { column: 'parentId', onDelete: 'cascade', onUpdate: 'noAction' }),
       ),
     );
-    await connector.alterTable(
-      defineAlter(child, (a) => a.removeForeignKey(parent)),
-    );
+    await connector.alterTable(defineAlter(child, (a) => a.removeForeignKey(parent)));
     await connector.dropTable(child);
     await connector.dropTable(parent);
   });

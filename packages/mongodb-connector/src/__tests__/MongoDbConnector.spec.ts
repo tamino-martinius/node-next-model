@@ -106,11 +106,7 @@ describe('MongoDbConnector.alterTable', () => {
       t.string('name');
       t.string('legacy');
     });
-    await connector.batchInsert(
-      tableName,
-      { id: 1 } as any,
-      [{ name: 'Ada', legacy: 'old' }],
-    );
+    await connector.batchInsert(tableName, { id: 1 } as any, [{ name: 'Ada', legacy: 'old' }]);
 
     await connector.alterTable(
       defineAlter(tableName, (a) => {
@@ -152,9 +148,7 @@ describe('MongoDbConnector.alterTable', () => {
     );
     const indexes = await connector.db.collection(tableName).indexes();
     expect(indexes.find((i) => i.name === 'idx_mongo_email')).toMatchObject({ unique: true });
-    await connector.alterTable(
-      defineAlter(tableName, (a) => a.removeIndex('idx_mongo_email')),
-    );
+    await connector.alterTable(defineAlter(tableName, (a) => a.removeIndex('idx_mongo_email')));
     const after = await connector.db.collection(tableName).indexes();
     expect(after.find((i) => i.name === 'idx_mongo_email')).toBeUndefined();
   });
