@@ -181,6 +181,8 @@ await Post.upsertAll(
 
 > **Atomicity caveat.** Implemented at the Model layer over SELECT + INSERT/UPDATE primitives, so the operation is **not** atomic at the database level. Wrap calls in `Model.transaction(...)` if you need stronger guarantees.
 
+## Deleting
+
 ```ts
 await user.delete();                                       // single row
 await User.filterBy({ active: false }).deleteAll();        // bulk
