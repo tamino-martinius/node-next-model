@@ -665,6 +665,42 @@ await User.transaction(async () => {
 
 Transactions are nestable (the inner block just runs within the outer). `MemoryConnector` snapshots storage on entry and restores it on throw.
 
+### Transactional callbacks
+
+Inside `Model.transaction(...)`, the after-commit / after-rollback hooks are
+queued and drained only after the transaction body resolves — so side effects
+(job enqueues, broadcasts, cache writes) don't fire if the transaction rolls
+back.
+
+```ts
+Post.on('afterCommit',         (record) => enqueue('post-changed', record.id));
+Post.on('afterRollback',       (record) => log('rolled back', record.id));
+Post.on('afterCreateCommit',   ...);
+Post.on('afterUpdateCommit',   ...);
+Post.on('afterDeleteCommit',   ...);
+Post.on('afterCreateRollback', ...);
+Post.on('afterUpdateRollback', ...);
+Post.on('afterDeleteRollback', ...);
+
+await Post.transaction(async () => {
+  await Post.create({ ... });          // afterCreate fires now;
+                                        // afterCommit / afterCreateCommit do NOT.
+});
+// → afterCreateCommit + afterCommit drain here.
+```
+
+Outside a transaction the commit hooks fire immediately after the operation
+lands (auto-commit semantics, matching Rails). Nested `Model.transaction`
+calls reuse the outer context — commit-time effects drain once at the
+outermost boundary. Per-callback errors during rollback are swallowed so the
+original throw propagates intact.
+
+> **Limitation.** Tracked via a module-level pointer (browser-bundle-safe — no
+> `node:async_hooks` dependency). Sequential and nested transactions are
+> correct; concurrent transactions on overlapping async timelines
+> (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
+> contexts. `await` one before starting the next when correctness matters.
+
 ## Connectors
 
 Any object implementing the `Connector` interface works. The package ships with:
