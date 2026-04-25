@@ -190,6 +190,56 @@ await User.filterBy({ active: false }).deleteAll();        // bulk
 
 See [Soft deletes](#soft-deletes) for non-destructive variants.
 
+### Cascade (dependent)
+
+Declarative cleanup of child rows on parent delete. Each entry names a
+`hasMany` or `hasOne` child Model (or a `() =>` thunk for circular imports),
+the foreign key, and one of four actions:
+
+| Action       | Behaviour |
+|--------------|-----------|
+| `'destroy'`  | Loads each child and calls `.delete()` (per-row callbacks fire; recursive cascades work) |
+| `'deleteAll'`| One bulk DELETE via the connector — child callbacks **do not** fire |
+| `'nullify'`  | Bulk update children's foreign-key column to `null` |
+| `'restrict'` | Throws `PersistenceError` if any matching child exists; the parent is left intact |
+
+```ts
+const User = Model({
+  // ...
+  cascade: {
+    posts:   { hasMany: Post,        foreignKey: 'userId', dependent: 'destroy' },
+    profile: { hasOne:  Profile,     foreignKey: 'userId', dependent: 'nullify' },
+    orders:  { hasMany: () => Order, foreignKey: 'userId', dependent: 'restrict' },
+    audits:  { hasMany: Audit,       foreignKey: 'userId', dependent: 'deleteAll' },
+  },
+});
+```
+
+Cascades run before the parent's own delete. Models without `cascade` are unaffected.
+
+### Counter caches
+
+Auto-maintain a count of child rows on the parent. The Model registers
+`afterCreate` / `afterDelete` / `afterUpdate` hooks (the latter handles
+foreign-key reassignment: −1 from the old parent, +1 to the new).
+
+```ts
+const Comment = Model({
+  // ...
+  counterCaches: [
+    { belongsTo: Post,         foreignKey: 'postId', column: 'commentsCount' },
+    // Lazy thunk for circular refs:
+    // { belongsTo: () => Post, foreignKey: 'postId', column: 'commentsCount' },
+  ],
+});
+
+await Comment.create({ postId: 1 });            // → Post#1.commentsCount += 1
+await comment.delete();                          // → Post#1.commentsCount -= 1
+comment.postId = 2; await comment.save();        // → Post#1 -=1, Post#2 +=1
+```
+
+Null foreign keys and missing parents are silent no-ops. Builds on the existing `instance.increment(column, by)` helper — no connector changes required.
+
 ## Querying
 
 Every chainable method returns a new subclass, so scopes are immutable and safe to share.
@@ -339,6 +389,33 @@ user.savedChangeBy('email');
 ```
 
 Use `savedChanges` inside `afterSave` / `afterUpdate` callbacks (or dynamic `Model.on` subscribers) to react to specific field transitions without re-reading the row.
+
+## storeAccessors (JSON sub-attribute accessors)
+
+Expose top-level instance accessors that proxy into a JSON column.
+`user.theme = 'dark'` mutates `user.settings.theme`; reads pull the value
+back out. Dirty tracking sees the JSON column as changed and `save()` ships
+the merged blob through the connector.
+
+```ts
+const User = Model({
+  // ...
+  storeAccessors: {
+    settings:    ['theme', 'locale', 'fontSize'],
+    preferences: ['emailFreq', 'tz'],
+  },
+});
+
+const u: any = await User.find(1);
+u.theme;             // reads u.settings.theme
+u.theme = 'light';   // writes u.settings = { ...current, theme: 'light' }
+u.tz = 'UTC';        // initializes preferences if it was missing
+await u.save();      // ships the merged JSON blob through the connector
+```
+
+Sub-keys that collide with an existing column or primary-key accessor on the
+instance are skipped — the column accessor wins. Built on the connector-side
+JSON serialization that `t.json(...)` columns already provide.
 
 ## Serialization
 
