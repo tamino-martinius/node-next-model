@@ -141,6 +141,74 @@ export function resolveSoftDelete(option: SoftDeleteOption | undefined): {
   return { softDeleteMode: 'active', softDeleteColumn: option.column ?? 'discardedAt' };
 }
 
+/**
+ * A read-only connector whose every query returns an empty result. Used by
+ * `Model.none()` so an empty scope short-circuits without hitting the
+ * underlying connector. Writes are silent no-ops (matches Rails' `.none`
+ * which makes mutations on an empty scope no-op as well).
+ */
+export class NullConnector implements Connector {
+  async query() {
+    return [];
+  }
+  async count() {
+    return 0;
+  }
+  async select() {
+    return [];
+  }
+  async updateAll() {
+    return [];
+  }
+  async deleteAll() {
+    return [];
+  }
+  async batchInsert() {
+    return [];
+  }
+  async execute() {
+    return [];
+  }
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    return fn();
+  }
+  async aggregate() {
+    return undefined;
+  }
+  async hasTable() {
+    return false;
+  }
+  async createTable() {
+    return;
+  }
+  async dropTable() {
+    return;
+  }
+}
+
+export type HavingPredicate = ((count: number) => boolean) | { count?: HavingComparison };
+export type HavingComparison = {
+  $eq?: number;
+  $gt?: number;
+  $gte?: number;
+  $lt?: number;
+  $lte?: number;
+};
+
+function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
+  if (typeof predicate === 'function') return predicate;
+  const cmp = predicate.count;
+  if (!cmp) return () => true;
+  return (count: number) => {
+    if (cmp.$eq !== undefined && !(count === cmp.$eq)) return false;
+    if (cmp.$gt !== undefined && !(count > cmp.$gt)) return false;
+    if (cmp.$gte !== undefined && !(count >= cmp.$gte)) return false;
+    if (cmp.$lt !== undefined && !(count < cmp.$lt)) return false;
+    if (cmp.$lte !== undefined && !(count <= cmp.$lte)) return false;
+    return true;
+  };
+}
+
 export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
 
 export type ScopeMap<Self> = Dict<ScopeFn<Self>>;
@@ -196,6 +264,11 @@ export class ModelClass {
    * `Model.includes({...})` for details.
    */
   static selectedIncludes: IncludeMap | undefined = undefined;
+  /**
+   * When set, `countBy(...)` filters the result map by this predicate after
+   * aggregation. Configured via `having(...)`; cleared by `unscoped()`.
+   */
+  static havingPredicate: ((count: number) => boolean) | undefined = undefined;
   static validators: Validator<any>[] = [];
   static callbacks: Callbacks<any> = {};
 
@@ -329,6 +402,45 @@ export class ModelClass {
       static softDelete: 'active' | 'only' | false = false;
       static selectedFields: string[] | undefined = undefined;
       static selectedIncludes: IncludeMap | undefined = undefined;
+      static havingPredicate: ((count: number) => boolean) | undefined = undefined;
+    } as M;
+  }
+
+  /**
+   * Combine another scope's filter / order / limit / skip into this chain.
+   * Filters AND-combine; the merged scope's order / limit / skip override
+   * this chain's when set. Mirrors Rails' `relation.merge`.
+   */
+  static merge<M extends typeof ModelClass>(this: M, other: typeof ModelClass): M {
+    let scoped: typeof ModelClass = this;
+    if (other.filter) scoped = scoped.filterBy(other.filter);
+    if (other.order && other.order.length > 0) scoped = scoped.reorder(other.order);
+    if (other.limit !== undefined) scoped = scoped.limitBy(other.limit);
+    if (other.skip !== undefined) scoped = scoped.skipBy(other.skip);
+    return scoped as M;
+  }
+
+  /**
+   * Return a chainable scope that resolves to zero rows without hitting the
+   * underlying connector. Useful as a guard when you'd otherwise return an
+   * unfiltered scope (`user.banned ? Post.none() : Post.filterBy({...})`).
+   */
+  static none<M extends typeof ModelClass>(this: M): M {
+    const nullConnector = new NullConnector();
+    return class extends (this as typeof ModelClass) {
+      static connector = nullConnector;
+    } as unknown as M;
+  }
+
+  /**
+   * Add a HAVING-style filter applied to the post-aggregation result of
+   * `countBy(...)`. Accepts either a function predicate or a comparison
+   * object (`{ count: { $gt: 5 } }`).
+   */
+  static having<M extends typeof ModelClass>(this: M, predicate: HavingPredicate): M {
+    const fn = compileHaving(predicate);
+    return class extends (this as typeof ModelClass) {
+      static havingPredicate = fn;
     } as M;
   }
 
@@ -638,9 +750,14 @@ export class ModelClass {
     return items;
   }
 
-  static async pluck(key: string) {
-    const items = await this.select(key as any);
-    return items.map((item) => item[key]);
+  static async pluck(...keys: string[]): Promise<any[]> {
+    if (keys.length === 0) return [];
+    const items = await this.select(...(keys as any[]));
+    if (keys.length === 1) {
+      const [key] = keys;
+      return items.map((item) => item[key]);
+    }
+    return items.map((item) => keys.map((k) => item[k]));
   }
 
   static async pluckUnique(key: string) {
@@ -665,6 +782,11 @@ export class ModelClass {
     const result = new Map<any, number>();
     for (const value of values) {
       result.set(value, (result.get(value) ?? 0) + 1);
+    }
+    if (this.havingPredicate) {
+      for (const [bucket, count] of result) {
+        if (!this.havingPredicate(count)) result.delete(bucket);
+      }
     }
     return result;
   }
@@ -1395,8 +1517,8 @@ export function Model<
       >[];
     }
 
-    static async pluck(key: keyof Keys | keyof PersistentProps) {
-      return super.pluck(key as string);
+    static async pluck<K extends Array<keyof Keys | keyof PersistentProps>>(...keys: K) {
+      return super.pluck(...(keys as unknown as string[])) as Promise<any[]>;
     }
 
     static async pluckUnique(key: keyof Keys | keyof PersistentProps) {
