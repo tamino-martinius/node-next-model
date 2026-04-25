@@ -16,7 +16,7 @@ import {
   SortDirection,
   type Validator,
 } from './types.js';
-import { singularize } from './util.js';
+import { camelize, pascalize, singularize } from './util.js';
 
 export type AssociationOptions = {
   foreignKey?: string;
@@ -173,6 +173,11 @@ export class ModelClass {
   static softDeleteColumn: string = 'discardedAt';
   static softDelete: 'active' | 'only' | false = false;
   /**
+   * Map of column → allowed enum values, populated by the `enums: {...}` factory
+   * option. Each value generates a chainable class scope and an instance
+   * predicate; out-of-range values fail `isValid()`.
+   */
+  static enums: Dict<readonly string[]> = {};
    * When set, `save()` and `delete()` enforce optimistic locking against this
    * column. Inserts default the column to 0; updates require the in-memory
    * value to match the row's current value, otherwise throw `StaleObjectError`.
@@ -1286,19 +1291,38 @@ export function Model<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
   scopes?: Scopes;
+  /**
+   * Map of column → allowed string values. Each value becomes a chainable
+   * class scope (`Post.draft()`) plus an instance predicate (`post.isDraft()`).
+   * Snake_case values map to camelCase scopes / PascalCase predicates.
+   */
+  enums?: Dict<readonly string[]>;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
   const keyDefinitions = props.keys || { id: KeyType.number };
   const { createdAtColumn, updatedAtColumn } = resolveTimestampColumns(props.timestamps);
   const { softDeleteMode, softDeleteColumn } = resolveSoftDelete(props.softDelete);
+  const enumDefs = props.enums || {};
+  const builtInValidators: Validator<any>[] = [];
+  if (Object.keys(enumDefs).length > 0) {
+    builtInValidators.push((record) => {
+      const attrs = record.attributes() as Dict<any>;
+      for (const column in enumDefs) {
+        const value = attrs[column];
+        if (value === undefined || value === null) continue;
+        if (!enumDefs[column].includes(value)) return false;
+      }
+      return true;
+    });
+  }
+  const validators = [...(props.validators || []), ...builtInValidators];
   const lockVersionColumn =
     props.lockVersion === true
       ? 'lockVersion'
       : typeof props.lockVersion === 'string'
         ? props.lockVersion
         : undefined;
-  const validators = props.validators || [];
   const callbacks = props.callbacks || {};
   const scopeDefs = props.scopes || ({} as Scopes);
 
@@ -1315,6 +1339,7 @@ export function Model<
     static updatedAtColumn = updatedAtColumn;
     static softDelete = softDeleteMode;
     static softDeleteColumn = softDeleteColumn;
+    static enums = enumDefs;
     static lockVersionColumn = lockVersionColumn;
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
@@ -1711,6 +1736,31 @@ export function Model<
     (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
       return scopeDefs[name](this, ...args);
     };
+  }
+
+  for (const column in enumDefs) {
+    const values = enumDefs[column];
+    (ModelSubclass as any)[`${column}Values`] = values;
+    for (const value of values) {
+      const scopeName = camelize(value);
+      const predicateName = `is${pascalize(value)}`;
+      if (scopeName in ModelSubclass) {
+        throw new Error(
+          `Enum value '${value}' for column '${column}' collides with existing static method '${scopeName}' on the Model`,
+        );
+      }
+      if (predicateName in ModelSubclass.prototype) {
+        throw new Error(
+          `Enum value '${value}' for column '${column}' collides with existing instance method '${predicateName}' on the Model`,
+        );
+      }
+      (ModelSubclass as any)[scopeName] = function (this: typeof ModelSubclass) {
+        return this.filterBy({ [column]: value } as any);
+      };
+      (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
+        return (this.attributes() as Dict<any>)[column] === value;
+      };
+    }
   }
 
   return ModelSubclass as typeof ModelSubclass & ScopesToMethods<typeof ModelSubclass, Scopes>;
