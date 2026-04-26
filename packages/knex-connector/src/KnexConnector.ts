@@ -5,9 +5,14 @@ try {
 
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -16,6 +21,8 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   type JoinClause,
   type JoinQuerySpec,
   KeyType,
@@ -23,6 +30,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import knexPkg, { type Knex } from 'knex';
 
@@ -351,6 +359,24 @@ export class KnexConnector implements Connector {
     return matching;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const table = this.table(spec.tableName);
+    const { query } = await this.filter(table, spec.filter);
+    const update: Dict<any> = {};
+    for (const { column, by } of spec.deltas) {
+      // `?? + ?` quotes the column identifier and binds the delta as a parameter,
+      // producing e.g. `"col" + 3` on pg, `` `col` + 3 `` on mysql/mariadb, `"col" + 3` on sqlite.
+      // COALESCE so NULL columns are treated as 0.
+      update[column] = this.knex.raw('COALESCE(??, 0) + ?', [column, by]);
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) update[k] = spec.set[k];
+    }
+    const affected = (await query.update(update)) as unknown;
+    return typeof affected === 'number' ? affected : Number(affected ?? 0);
+  }
+
   async batchInsert(
     tableName: string,
     keys: Dict<KeyType>,
@@ -409,6 +435,90 @@ export class KnexConnector implements Connector {
       rowDict[row[primaryKey]] = row;
     }
     return ids.map((id) => rowDict[id]).filter((r): r is Dict<any> => r !== undefined);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const clientName = this.knex.client.config.client;
+    const isPg = clientName === 'pg' || clientName === 'postgres';
+    const isMysql = clientName === 'mysql' || clientName === 'mysql2';
+    const isSqlite = clientName === 'sqlite3';
+
+    const allColumns = new Set<string>();
+    for (const row of spec.rows) {
+      for (const col of Object.keys(row)) allColumns.add(col);
+    }
+    const updateColumns =
+      spec.updateColumns ?? [...allColumns].filter((c) => !spec.conflictTarget.includes(c));
+
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    // SQLite emits multi-row INSERT as UNION ALL, capped at SQLITE_LIMIT_COMPOUND_SELECT
+    // (default 500). Chunk to stay safely below; pg/mysql accept the whole batch in one shot.
+    const chunkSize = isSqlite ? 200 : spec.rows.length;
+    const chunks: Dict<any>[][] = [];
+    for (let i = 0; i < spec.rows.length; i += chunkSize) {
+      chunks.push(spec.rows.slice(i, i + chunkSize));
+    }
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+
+    const runChunks = async () => {
+      for (const chunk of chunks) {
+        let insertQuery = this.table(spec.tableName).insert(chunk);
+        if (isMysql) {
+          insertQuery = ignore
+            ? insertQuery.onConflict().ignore()
+            : insertQuery.onConflict().merge(updateColumns);
+        } else {
+          insertQuery = ignore
+            ? insertQuery.onConflict(spec.conflictTarget).ignore()
+            : insertQuery.onConflict(spec.conflictTarget).merge(updateColumns);
+        }
+        if (isPg) {
+          const returned = (await insertQuery.returning(`${spec.tableName}.*`)) as Dict<any>[];
+          for (const row of returned) byTuple.set(tupleKey(row), row);
+        } else {
+          await insertQuery;
+        }
+      }
+    };
+
+    if (chunks.length > 1) {
+      await this.transaction(runChunks);
+    } else {
+      await runChunks();
+    }
+
+    const missingRows: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      if (!byTuple.has(tupleKey(row))) missingRows.push(row);
+    }
+
+    if (missingRows.length > 0) {
+      let selectQuery = this.table(spec.tableName);
+      if (spec.conflictTarget.length === 1) {
+        const [col] = spec.conflictTarget;
+        const values = missingRows.map((r) => r[col]);
+        selectQuery = selectQuery.whereIn(col, values as any);
+      } else {
+        selectQuery = selectQuery.where(function () {
+          for (const row of missingRows) {
+            const where: Dict<any> = {};
+            for (const col of spec.conflictTarget) where[col] = row[col];
+            this.orWhere(where);
+          }
+        });
+      }
+      const fetched = (await selectQuery.select('*')) as Dict<any>[];
+      for (const row of fetched) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
   }
 
   async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
@@ -484,6 +594,112 @@ export class KnexConnector implements Connector {
   async dropTable(tableName: string): Promise<void> {
     await this.schemaBuilder().dropTableIfExists(tableName);
   }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    if (spec.ops.length === 0) return;
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const builder = this.schemaBuilder();
+    switch (op.op) {
+      case 'addColumn':
+        await builder.alterTable(tableName, (table) => {
+          applyColumnDefinition(table, this.knex, op.name, op.type, op.options);
+        });
+        return;
+      case 'removeColumn':
+        await builder.alterTable(tableName, (table) => {
+          table.dropColumn(op.name);
+        });
+        return;
+      case 'renameColumn':
+        await builder.alterTable(tableName, (table) => {
+          table.renameColumn(op.from, op.to);
+        });
+        return;
+      case 'changeColumn':
+        await builder.alterTable(tableName, (table) => {
+          applyColumnDefinition(table, this.knex, op.name, op.type, op.options, true);
+        });
+        return;
+      case 'addIndex':
+        await builder.alterTable(tableName, (table) => {
+          if (op.unique) table.unique(op.columns, { indexName: op.name });
+          else table.index(op.columns, op.name);
+        });
+        return;
+      case 'removeIndex':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof op.nameOrColumns === 'string') {
+            // Knex needs columns to drop a non-unique index without a name. Try
+            // dropping by name first; if that errors at runtime callers can fall
+            // back to passing the column array.
+            table.dropIndex([], op.nameOrColumns);
+          } else {
+            table.dropIndex(op.nameOrColumns);
+          }
+        });
+        return;
+      case 'renameIndex':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof (table as any).renameIndex === 'function') {
+            (table as any).renameIndex(op.from, op.to);
+            return;
+          }
+          throw new PersistenceError(
+            `renameIndex is not supported by this Knex client; drop and recreate the index instead`,
+          );
+        });
+        return;
+      case 'addForeignKey': {
+        const localColumn = op.column ?? `${op.toTable}Id`;
+        const constraintName = op.name ?? foreignKeyName(tableName, op.toTable);
+        await builder.alterTable(tableName, (table) => {
+          const fk = table
+            .foreign(localColumn, constraintName)
+            .references(op.primaryKey ?? 'id')
+            .inTable(op.toTable);
+          if (op.onDelete) fk.onDelete(toSqlAction(op.onDelete));
+          if (op.onUpdate) fk.onUpdate(toSqlAction(op.onUpdate));
+        });
+        return;
+      }
+      case 'removeForeignKey': {
+        const constraint = op.nameOrTable.startsWith('fk_')
+          ? op.nameOrTable
+          : foreignKeyName(tableName, op.nameOrTable);
+        await builder.alterTable(tableName, (table) => {
+          table.dropForeign([], constraint);
+        });
+        return;
+      }
+      case 'addCheckConstraint':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof (table as any).check === 'function') {
+            (table as any).check(op.expression, undefined, op.name);
+            return;
+          }
+          throw new PersistenceError(
+            `addCheckConstraint requires Knex >= 2.5; this version doesn't expose t.check()`,
+          );
+        });
+        return;
+      case 'removeCheckConstraint':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof (table as any).dropChecks === 'function') {
+            (table as any).dropChecks(op.name);
+            return;
+          }
+          throw new PersistenceError(
+            `removeCheckConstraint requires Knex >= 2.5; this version doesn't expose t.dropChecks()`,
+          );
+        });
+        return;
+    }
+  }
 }
 
 function collectIncludeKeys(rows: Dict<any>[], column: string): unknown[] {
@@ -502,28 +718,81 @@ function buildKnexColumn(
   table: Knex.CreateTableBuilder,
   col: ColumnDefinition,
 ): Knex.ColumnBuilder {
-  switch (col.type) {
+  return columnByKind(table, col.name, col.type, col);
+}
+
+function columnByKind(
+  table: Knex.CreateTableBuilder | Knex.AlterTableBuilder,
+  name: string,
+  type: ColumnKind,
+  col: { limit?: number; precision?: number; scale?: number },
+): Knex.ColumnBuilder {
+  switch (type) {
     case 'string':
-      return table.string(col.name, col.limit ?? 255);
+      return table.string(name, col.limit ?? 255);
     case 'text':
-      return table.text(col.name);
+      return table.text(name);
     case 'integer':
-      return table.integer(col.name);
+      return table.integer(name);
     case 'bigint':
-      return table.bigInteger(col.name);
+      return table.bigInteger(name);
     case 'float':
-      return table.float(col.name);
+      return table.float(name);
     case 'decimal':
-      return table.decimal(col.name, col.precision, col.scale);
+      return table.decimal(name, col.precision, col.scale);
     case 'boolean':
-      return table.boolean(col.name);
+      return table.boolean(name);
     case 'date':
-      return table.date(col.name);
+      return table.date(name);
     case 'datetime':
     case 'timestamp':
-      return table.timestamp(col.name);
+      return table.timestamp(name);
     case 'json':
-      return table.json(col.name);
+      return table.json(name);
+  }
+}
+
+function applyColumnDefinition(
+  table: Knex.AlterTableBuilder,
+  knex: Knex,
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+  alter = false,
+): void {
+  if (options.autoIncrement) {
+    const auto = table.increments(name);
+    if (options.unique) auto.unique();
+    if (alter) auto.alter();
+    return;
+  }
+  const col = columnByKind(table, name, type, options);
+  if (options.primary) col.primary();
+  if (options.unique) col.unique();
+  if (options.null === false) col.notNullable();
+  else col.nullable();
+  if (options.default !== undefined) {
+    if (options.default === 'currentTimestamp') {
+      col.defaultTo(knex.fn.now());
+    } else {
+      col.defaultTo(options.default as any);
+    }
+  }
+  if (alter) col.alter();
+}
+
+function toSqlAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
   }
 }
 

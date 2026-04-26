@@ -47,3 +47,19 @@ export class MigrationCycleError extends MigrationError {
     this.versions = versions;
   }
 }
+
+export class IrreversibleMigrationError extends MigrationError {
+  readonly version: string;
+  readonly operation: string;
+
+  constructor(version: string, operation: string, hint?: string) {
+    const tail = hint ? `; ${hint}` : '';
+    super(
+      `migration ${version} cannot auto-derive down(): ${operation} is irreversible${tail}. ` +
+        `Define explicit up() / down() instead of change(), or pass the missing inverse metadata.`,
+    );
+    this.name = 'IrreversibleMigrationError';
+    this.version = version;
+    this.operation = operation;
+  }
+}

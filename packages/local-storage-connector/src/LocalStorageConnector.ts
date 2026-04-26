@@ -1,12 +1,15 @@
 import {
   type AggregateKind,
+  type AlterTableSpec,
   type BaseType,
+  type DeltaUpdateSpec,
   type Dict,
   type KeyType,
   MemoryConnector,
   type Scope,
   type Storage,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 
 export interface WebStorageLike {
@@ -115,6 +118,13 @@ export class LocalStorageConnector extends MemoryConnector {
     return result;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    this.hydrate(spec.tableName);
+    const affected = await super.deltaUpdate(spec);
+    if (affected > 0) this.persist(spec.tableName);
+    return affected;
+  }
+
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
     this.hydrate(scope.tableName);
     const result = await super.deleteAll(scope);
@@ -130,6 +140,13 @@ export class LocalStorageConnector extends MemoryConnector {
     this.hydrate(tableName);
     const result = await super.batchInsert(tableName, keys, items);
     this.persist(tableName);
+    return result;
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    this.hydrate(spec.tableName);
+    const result = await super.upsert(spec);
+    this.persist(spec.tableName);
     return result;
   }
 
@@ -154,6 +171,12 @@ export class LocalStorageConnector extends MemoryConnector {
     this.pendingPersist.delete(tableName);
     this.webStorage.removeItem(this.tableKey(tableName));
     this.webStorage.removeItem(this.nextIdKey(tableName));
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    this.hydrate(spec.tableName);
+    await super.alterTable(spec);
+    this.persist(spec.tableName);
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {

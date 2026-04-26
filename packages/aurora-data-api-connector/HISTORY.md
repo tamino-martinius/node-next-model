@@ -4,7 +4,11 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+- Implements `Connector.alterTable(spec)`. PostgreSQL-style DDL routed through the Data API: `ALTER TABLE ADD/DROP/RENAME COLUMN`, `ALTER COLUMN ... TYPE` for `changeColumn`, `CREATE INDEX` / `DROP INDEX` / `ALTER INDEX RENAME TO` for index ops, and `ADD/DROP CONSTRAINT` for foreign keys + check constraints. Identifier validation runs on every name passed through to keep injection guarantees.
 - Implements the optional `Connector.queryWithJoins(spec)` capability — same pattern as `KnexConnector`, since the connector compiles SQL via the bundled knex builder. `mode: 'select'` becomes `whereExists`, `'antiJoin'` `whereNotExists`, `'includes'` a batched `WHERE child.fk IN (parent_pks)` per association, grouped by parent key in JS and attached under `__includes[attachAs]`. Routes through the Aurora Data API's named-binding shape (`:paramN`) like every other query the connector emits.
+
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` method. Reuses Knex's `pg`-flavored builder to emit `INSERT … ON CONFLICT (cols) DO UPDATE … RETURNING *` against the Data API. Honors `updateColumns` and `ignoreOnly`; rows skipped by the conflict path are backfilled via a single follow-up `SELECT`. `Model.upsert` / `Model.upsertAll` automatically route through this path on Aurora Postgres.
 
 ### Rewrite
 

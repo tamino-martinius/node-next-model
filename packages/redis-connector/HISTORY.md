@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements `Connector.alterTable(spec)`. Column renames / removals rewrite the underlying hashes via `HDEL` / `HSET`. `addColumn` / `addIndex` / `removeIndex` / `renameIndex` / `changeColumn` are no-ops since Redis stores arbitrary fields and doesn't enforce indexes; foreign keys + check constraints throw `UnsupportedOperationError`. Inherited verbatim by `@next-model/valkey-connector`.
+- Implements the now-required `Connector.upsert(spec)` method. Redis has no native conflict resolution against arbitrary `conflictTarget` columns, so the implementation composes the connector's own primitives — load existing rows by conflict tuple, `hSet` the `updateColumns` for matches, and `batchInsert` the rest. **Non-atomic** by Redis design — concurrent writes to the same conflict tuple may race; wrap calls in `Model.transaction(...)` for the snapshot/rollback safety net. `@next-model/valkey-connector` inherits the implementation.
 - **Fast path for primary-key lookups**. When a scope's filter is exactly `{pk: value}` or `{$in: {pk: [...]}}`, the connector now uses direct `HGETALL` on the known row key(s) instead of `ZRANGE` + full-table scan. `query` and `count` pick up the optimization automatically, so `Model.find(id)`, `filterBy({id})`, and `filterBy({$in: {id: [...]}})` stay O(k) in the number of ids asked for regardless of how big the table is. Falls back to the existing scan path for any other filter shape. `@next-model/valkey-connector` inherits the fix (it extends `RedisConnector`). The primary key is read from the table `:meta` blob so non-`id` primary keys work too.
 
 ### Initial release

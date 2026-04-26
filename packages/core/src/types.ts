@@ -1,4 +1,4 @@
-import type { TableBuilder } from './schema.js';
+import type { AlterTableSpec, TableBuilder } from './schema.js';
 
 export interface Dict<T> {
   [key: string]: T;
@@ -81,6 +81,19 @@ export type Order<PersistentProps extends Schema> =
 
 export type AggregateKind = 'sum' | 'min' | 'max' | 'avg';
 
+export interface DeltaUpdateDelta {
+  column: string;
+  by: number;
+}
+
+export interface DeltaUpdateSpec {
+  tableName: string;
+  filter?: Filter<any>;
+  deltas: DeltaUpdateDelta[];
+  /** Optional absolute sets applied alongside the deltas (e.g. `updatedAt = now`). */
+  set?: Dict<any>;
+}
+
 export interface Connector {
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
@@ -94,6 +107,41 @@ export interface Connector {
   hasTable(tableName: string): Promise<boolean>;
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
+  /**
+   * Apply a series of mutation ops to an existing table. SQL-shaped connectors
+   * implement every op; non-relational connectors (Mongo, Redis, Valkey) may
+   * throw `UnsupportedOperationError` for ops they cannot honour.
+   */
+  alterTable(spec: AlterTableSpec): Promise<void>;
+  /**
+   * Apply per-column numeric deltas to every row matching `filter`. Each
+   * delta `{ column, by }` adds `by` to the current value (negative `by`
+   * decrements). The optional `set` lands absolute writes alongside the
+   * deltas. Returns the number of affected rows.
+   *
+   * Each connector decides how to deliver the operation: SQL stores compile
+   * to `UPDATE col = COALESCE(col, 0) + ?` in a single round-trip; Mongo
+   * uses `$inc`; Redis/Valkey queue `HINCRBY` per row in `MULTI`;
+   * memory/local-storage walk in-process. Powers `record.increment`,
+   * `Model.where(...).increment`, and `counterCaches`.
+   */
+  deltaUpdate(spec: DeltaUpdateSpec): Promise<number>;
+
+  /**
+   * Insert `rows`; on conflict against `conflictTarget` (column names that
+   * match a unique constraint or PRIMARY KEY) update `updateColumns` (or
+   * all non-conflict columns when omitted). Returns the resulting rows in
+   * the same order as `rows`. When `ignoreOnly` is set the conflict path
+   * is `DO NOTHING` and the existing row is returned for skipped inputs.
+   *
+   * Connectors that can do this in a single atomic statement (pg / sqlite /
+   * mysql / mariadb / mongo / aurora / memory) skip per-row lifecycle
+   * callbacks and validators by design — Rails-parity. Stores without a
+   * native atomic upsert (redis / valkey) implement equivalent semantics
+   * via their own SELECT-then-INSERT-or-UPDATE primitives; same callback
+   * caveat applies.
+   */
+  upsert(spec: UpsertSpec): Promise<Dict<any>[]>;
 
   /**
    * Run `spec.parent`'s base query JOINed against one or more child tables.
@@ -107,6 +155,17 @@ export interface Connector {
    * leave `queryWithJoins` undefined.
    */
   queryWithJoins?(spec: JoinQuerySpec): Promise<Dict<any>[]>;
+}
+
+export interface UpsertSpec {
+  tableName: string;
+  keys: Dict<KeyType>;
+  rows: Dict<any>[];
+  conflictTarget: string[];
+  /** Columns to update on conflict. Omit to update all non-conflict columns. */
+  updateColumns?: string[];
+  /** When true, emits ON CONFLICT DO NOTHING (skip rather than update). */
+  ignoreOnly?: boolean;
 }
 
 export interface Scope {

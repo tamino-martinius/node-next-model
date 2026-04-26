@@ -1,8 +1,13 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -11,6 +16,8 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   type IndexDefinition,
   type JoinClause,
   type JoinQuerySpec,
@@ -19,6 +26,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import { Pool, type PoolClient, type PoolConfig, type QueryResult } from 'pg';
 
@@ -334,6 +342,35 @@ export class PostgresConnector implements Connector {
     return result.rows;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const params: BaseType[] = [];
+    const setFragments: string[] = [];
+    for (const { column, by } of spec.deltas) {
+      params.push(by as BaseType);
+      setFragments.push(
+        `${quoteIdent(column)} = COALESCE(${quoteIdent(column)}, 0) + $${params.length}`,
+      );
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) {
+        params.push(spec.set[k] as BaseType);
+        setFragments.push(`${quoteIdent(k)} = $${params.length}`);
+      }
+    }
+    const where = this.buildWhere(spec.filter);
+    const offset = params.length;
+    let whereSql = where.sql;
+    if (whereSql) {
+      whereSql = whereSql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+    }
+    for (const p of where.params) params.push(p);
+    let sql = `UPDATE ${quoteIdent(spec.tableName)} SET ${setFragments.join(', ')}`;
+    if (whereSql) sql += ` WHERE ${whereSql}`;
+    const result = await this.run(sql, params);
+    return result.rowCount ?? 0;
+  }
+
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
     const where = this.buildWhere(scope.filter);
     let sql = `DELETE FROM ${quoteIdent(scope.tableName)}`;
@@ -371,6 +408,83 @@ export class PostgresConnector implements Connector {
     const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES ${valueRows.join(', ')} RETURNING *`;
     const result = await this.run(sql, params);
     return result.rows;
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const allKeys = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allKeys.add(k);
+    const cols = Array.from(allKeys);
+    const updateColumns =
+      spec.updateColumns ?? cols.filter((c: string) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const params: BaseType[] = [];
+    const valueRows: string[] = [];
+    for (const row of spec.rows) {
+      const placeholders = cols.map((c) => {
+        params.push(row[c] as BaseType);
+        return `$${params.length}`;
+      });
+      valueRows.push(`(${placeholders.join(', ')})`);
+    }
+    const conflictCols = spec.conflictTarget.map(quoteIdent).join(', ');
+    const conflictClause = ignore
+      ? `ON CONFLICT (${conflictCols}) DO NOTHING`
+      : `ON CONFLICT (${conflictCols}) DO UPDATE SET ${updateColumns
+          .map((c: string) => `${quoteIdent(c)} = EXCLUDED.${quoteIdent(c)}`)
+          .join(', ')}`;
+    const sql = `INSERT INTO ${quoteIdent(spec.tableName)} (${cols
+      .map(quoteIdent)
+      .join(', ')}) VALUES ${valueRows.join(', ')} ${conflictClause} RETURNING *`;
+    const inserted = (await this.run(sql, params)).rows as Dict<any>[];
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of inserted) byTuple.set(tupleKey(row), row);
+
+    const missing: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      if (!byTuple.has(tupleKey(row))) missing.push(row);
+    }
+    if (missing.length > 0) {
+      const fetched = await this.fetchByConflict(spec.tableName, spec.conflictTarget, missing);
+      for (const row of fetched) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    const params: BaseType[] = [];
+    let where: string;
+    if (conflictTarget.length === 1) {
+      const [col] = conflictTarget;
+      const placeholders = rows.map((r) => {
+        params.push(r[col] as BaseType);
+        return `$${params.length}`;
+      });
+      where = `${quoteIdent(col)} IN (${placeholders.join(', ')})`;
+    } else {
+      where = rows
+        .map((r) => {
+          const parts = conflictTarget.map((c) => {
+            params.push(r[c] as BaseType);
+            return `${quoteIdent(c)} = $${params.length}`;
+          });
+          return `(${parts.join(' AND ')})`;
+        })
+        .join(' OR ');
+    }
+    const sql = `SELECT * FROM ${quoteIdent(tableName)} WHERE ${where}`;
+    return (await this.run(sql, params)).rows as Dict<any>[];
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
@@ -435,6 +549,107 @@ export class PostgresConnector implements Connector {
     await this.run(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
   }
 
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const t = quoteIdent(tableName);
+    switch (op.op) {
+      case 'addColumn':
+        await this.run(
+          `ALTER TABLE ${t} ADD COLUMN ${this.columnDdl(definitionFromOp(op.name, op.type, op.options))}`,
+        );
+        return;
+      case 'removeColumn':
+        await this.run(`ALTER TABLE ${t} DROP COLUMN ${quoteIdent(op.name)}`);
+        return;
+      case 'renameColumn':
+        await this.run(
+          `ALTER TABLE ${t} RENAME COLUMN ${quoteIdent(op.from)} TO ${quoteIdent(op.to)}`,
+        );
+        return;
+      case 'changeColumn':
+        await this.applyChangeColumn(tableName, op.name, op.type, op.options);
+        return;
+      case 'addIndex':
+        await this.createIndex(tableName, {
+          columns: op.columns,
+          unique: op.unique ?? false,
+          name: op.name,
+        });
+        return;
+      case 'removeIndex':
+        await this.dropIndex(tableName, op.nameOrColumns);
+        return;
+      case 'renameIndex':
+        await this.run(`ALTER INDEX ${quoteIdent(op.from)} RENAME TO ${quoteIdent(op.to)}`);
+        return;
+      case 'addForeignKey': {
+        const local = op.column ?? `${op.toTable}Id`;
+        const name = op.name ?? foreignKeyName(tableName, op.toTable);
+        const ref = op.primaryKey ?? 'id';
+        let sql = `ALTER TABLE ${t} ADD CONSTRAINT ${quoteIdent(name)} FOREIGN KEY (${quoteIdent(local)}) REFERENCES ${quoteIdent(op.toTable)} (${quoteIdent(ref)})`;
+        if (op.onDelete) sql += ` ON DELETE ${pgAction(op.onDelete)}`;
+        if (op.onUpdate) sql += ` ON UPDATE ${pgAction(op.onUpdate)}`;
+        await this.run(sql);
+        return;
+      }
+      case 'removeForeignKey': {
+        const constraint = op.nameOrTable.startsWith('fk_')
+          ? op.nameOrTable
+          : foreignKeyName(tableName, op.nameOrTable);
+        await this.run(`ALTER TABLE ${t} DROP CONSTRAINT ${quoteIdent(constraint)}`);
+        return;
+      }
+      case 'addCheckConstraint': {
+        const name = op.name ?? `chk_${tableName}_${Date.now()}`;
+        await this.run(
+          `ALTER TABLE ${t} ADD CONSTRAINT ${quoteIdent(name)} CHECK (${op.expression})`,
+        );
+        return;
+      }
+      case 'removeCheckConstraint':
+        await this.run(`ALTER TABLE ${t} DROP CONSTRAINT ${quoteIdent(op.name)}`);
+        return;
+    }
+  }
+
+  private async applyChangeColumn(
+    tableName: string,
+    name: string,
+    type: ColumnKind,
+    options: ColumnOptions = {},
+  ): Promise<void> {
+    const t = quoteIdent(tableName);
+    const c = quoteIdent(name);
+    const def = definitionFromOp(name, type, options);
+    await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} TYPE ${this.columnType(def)}`);
+    if (options.null === false) {
+      await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} SET NOT NULL`);
+    } else if (options.null === true) {
+      await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} DROP NOT NULL`);
+    }
+    if (options.default === undefined) {
+      await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} DROP DEFAULT`);
+    } else {
+      await this.run(
+        `ALTER TABLE ${t} ALTER COLUMN ${c} SET DEFAULT ${this.defaultLiteral(options.default)}`,
+      );
+    }
+  }
+
+  private async dropIndex(tableName: string, nameOrColumns: string | string[]): Promise<void> {
+    if (Array.isArray(nameOrColumns)) {
+      const target = `idx_${tableName}_${nameOrColumns.join('_')}`;
+      await this.run(`DROP INDEX IF EXISTS ${quoteIdent(target)}`);
+    } else {
+      await this.run(`DROP INDEX IF EXISTS ${quoteIdent(nameOrColumns)}`);
+    }
+  }
+
   private columnDdl(col: ColumnDefinition): string {
     const parts: string[] = [quoteIdent(col.name)];
     if (col.autoIncrement) {
@@ -490,12 +705,42 @@ export class PostgresConnector implements Connector {
 
   private async createIndex(tableName: string, idx: IndexDefinition): Promise<void> {
     const cols = idx.columns.map(quoteIdent).join(', ');
-    const name = idx.name ? quoteIdent(idx.name) : '';
+    const name = quoteIdent(idx.name ?? `idx_${tableName}_${idx.columns.join('_')}`);
     const unique = idx.unique ? 'UNIQUE ' : '';
-    const sql = `CREATE ${unique}INDEX ${name} ON ${quoteIdent(tableName)} (${cols})`.replace(
-      'INDEX  ',
-      'INDEX ',
-    );
-    await this.run(sql);
+    await this.run(`CREATE ${unique}INDEX ${name} ON ${quoteIdent(tableName)} (${cols})`);
+  }
+}
+
+function definitionFromOp(
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+): ColumnDefinition {
+  return {
+    name,
+    type,
+    nullable: options.null ?? true,
+    default: options.default,
+    limit: options.limit,
+    primary: options.primary ?? false,
+    unique: options.unique ?? false,
+    precision: options.precision,
+    scale: options.scale,
+    autoIncrement: options.autoIncrement ?? false,
+  };
+}
+
+function pgAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
   }
 }

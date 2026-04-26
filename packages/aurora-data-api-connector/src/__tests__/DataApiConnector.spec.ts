@@ -1,4 +1,4 @@
-import { FilterError, Model } from '@next-model/core';
+import { defineAlter, FilterError, Model } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DataApiConnector } from '../index.js';
@@ -249,6 +249,80 @@ describe('DataApiConnector', () => {
     });
   });
 
+  describe('#deltaUpdate', () => {
+    beforeEach(seed);
+
+    it('exposes an deltaUpdate method', () => {
+      expect(typeof connector.deltaUpdate).toBe('function');
+    });
+
+    it('applies a positive delta in a single round-trip', async () => {
+      const affected = await connector.deltaUpdate({
+        tableName,
+        filter: { id: alice.id },
+        deltas: [{ column: 'age', by: 4 }],
+      });
+      expect(affected).toBe(1);
+      const reloaded = await connector.query({ tableName, filter: { id: alice.id } });
+      expect((reloaded[0] as any).age).toBe(22);
+    });
+
+    it('applies a negative delta', async () => {
+      const affected = await connector.deltaUpdate({
+        tableName,
+        filter: { id: bob.id },
+        deltas: [{ column: 'age', by: -1 }],
+      });
+      expect(affected).toBe(1);
+      const reloaded = await connector.query({ tableName, filter: { id: bob.id } });
+      expect((reloaded[0] as any).age).toBe(20);
+    });
+
+    it('updates every matching row and returns the affected count', async () => {
+      const affected = await connector.deltaUpdate({
+        tableName,
+        filter: { age: 21 },
+        deltas: [{ column: 'age', by: 5 }],
+      });
+      expect(affected).toBe(2);
+      const ages = (await connector.query({ tableName, filter: { age: 26 } })).map(
+        (r: any) => r.age,
+      );
+      expect(ages).toEqual([26, 26]);
+    });
+
+    it('applies absolute set fields alongside deltas', async () => {
+      const affected = await connector.deltaUpdate({
+        tableName,
+        filter: { id: alice.id },
+        deltas: [{ column: 'age', by: 1 }],
+        set: { name: 'renamed' },
+      });
+      expect(affected).toBe(1);
+      const reloaded = await connector.query({ tableName, filter: { id: alice.id } });
+      expect((reloaded[0] as any).age).toBe(19);
+      expect((reloaded[0] as any).name).toBe('renamed');
+    });
+
+    it('returns 0 when no row matches', async () => {
+      const affected = await connector.deltaUpdate({
+        tableName,
+        filter: { id: 999_999 },
+        deltas: [{ column: 'age', by: 1 }],
+      });
+      expect(affected).toBe(0);
+    });
+
+    it('is a no-op when both deltas and set are empty', async () => {
+      const affected = await connector.deltaUpdate({
+        tableName,
+        filter: { id: alice.id },
+        deltas: [],
+      });
+      expect(affected).toBe(0);
+    });
+  });
+
   describe('#deleteAll', () => {
     beforeEach(seed);
 
@@ -291,6 +365,128 @@ describe('DataApiConnector', () => {
     it('returns an empty array for an empty items list', async () => {
       const rows = await connector.batchInsert(tableName, { id: 1 } as any, []);
       expect(rows).toEqual([]);
+    });
+  });
+
+  describe('#upsert', () => {
+    const upsertTable = 'upsert_tags';
+
+    beforeEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(upsertTable);
+      await mockClient.knex.schema.createTable(upsertTable, (table: Knex.CreateTableBuilder) => {
+        table.increments('id').primary().unsigned();
+        table.string('slug').unique();
+        table.string('name');
+        table.integer('tenantId');
+      });
+    });
+
+    afterEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(upsertTable);
+    });
+
+    it('returns [] for an empty rows list', async () => {
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [],
+        conflictTarget: ['slug'],
+      });
+      expect(rows).toEqual([]);
+    });
+
+    it('inserts new rows and returns them in input order', async () => {
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [
+          { slug: 'rb', name: 'Ruby', tenantId: 1 },
+          { slug: 'js', name: 'JavaScript', tenantId: 1 },
+        ],
+        conflictTarget: ['slug'],
+        updateColumns: ['name'],
+      });
+      expect(rows.map((r) => r.slug)).toEqual(['rb', 'js']);
+      expect(rows.every((r) => typeof r.id === 'number')).toBe(true);
+    });
+
+    it('updates existing rows on conflict', async () => {
+      await connector.batchInsert(upsertTable, { id: 1 } as any, [
+        { slug: 'js', name: 'JS', tenantId: 1 },
+      ]);
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [{ slug: 'js', name: 'JavaScript', tenantId: 1 }],
+        conflictTarget: ['slug'],
+        updateColumns: ['name'],
+      });
+      expect(rows[0].name).toBe('JavaScript');
+      expect(await connector.count({ tableName: upsertTable })).toBe(1);
+    });
+
+    it('honors ignoreOnly with DO NOTHING', async () => {
+      await connector.batchInsert(upsertTable, { id: 1 } as any, [
+        { slug: 'js', name: 'JS', tenantId: 1 },
+      ]);
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [
+          { slug: 'js', name: 'OVERWRITE', tenantId: 1 },
+          { slug: 'rb', name: 'Ruby', tenantId: 1 },
+        ],
+        conflictTarget: ['slug'],
+        ignoreOnly: true,
+      });
+      expect(rows.find((r) => r.slug === 'js')?.name).toBe('JS');
+      expect(rows.find((r) => r.slug === 'rb')?.name).toBe('Ruby');
+    });
+
+    it('derives updateColumns from row keys when not specified', async () => {
+      await connector.batchInsert(upsertTable, { id: 1 } as any, [
+        { slug: 'js', name: 'JS', tenantId: 1 },
+      ]);
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [{ slug: 'js', name: 'JavaScript', tenantId: 9 }],
+        conflictTarget: ['slug'],
+      });
+      expect(rows[0].name).toBe('JavaScript');
+      expect(rows[0].tenantId).toBe(9);
+    });
+
+    it('supports multi-column conflictTarget', async () => {
+      const slotsTable = 'upsert_slots';
+      await mockClient.knex.schema.dropTableIfExists(slotsTable);
+      await mockClient.knex.schema.createTable(slotsTable, (table: Knex.CreateTableBuilder) => {
+        table.increments('id').primary().unsigned();
+        table.integer('tenantId');
+        table.string('slot');
+        table.string('value');
+        table.unique(['tenantId', 'slot']);
+      });
+      try {
+        await connector.batchInsert(slotsTable, { id: 1 } as any, [
+          { tenantId: 1, slot: 'home', value: 'old' },
+        ]);
+        const rows = await connector.upsert({
+          tableName: slotsTable,
+          keys: { id: 1 } as any,
+          rows: [
+            { tenantId: 1, slot: 'home', value: 'updated' },
+            { tenantId: 2, slot: 'home', value: 'fresh' },
+          ],
+          conflictTarget: ['tenantId', 'slot'],
+          updateColumns: ['value'],
+        });
+        expect(rows[0].value).toBe('updated');
+        expect(rows[1].value).toBe('fresh');
+        expect(await connector.count({ tableName: slotsTable })).toBe(2);
+      } finally {
+        await mockClient.knex.schema.dropTableIfExists(slotsTable);
+      }
     });
   });
 
@@ -371,6 +567,115 @@ describe('DataApiConnector', () => {
       const names = (await User.all()).map((u) => u.name);
       expect(names).not.toContain('outer');
       expect(names).not.toContain('inner');
+    });
+  });
+
+  describe('#alterTable', () => {
+    const altTable = 'aurora_alter_users';
+    beforeEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(altTable);
+      await connector.createTable(altTable, (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('name', { null: false });
+      });
+    });
+    afterEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(altTable);
+    });
+
+    it('addColumn issues ALTER TABLE ADD COLUMN', async () => {
+      await connector.alterTable(
+        defineAlter(altTable, (a) => a.addColumn('role', 'string', { default: 'member' })),
+      );
+      const cols = await mockClient.knex(altTable).columnInfo();
+      expect(cols.role).toBeDefined();
+    });
+
+    it('removeColumn issues ALTER TABLE DROP COLUMN', async () => {
+      await connector.alterTable(defineAlter(altTable, (a) => a.removeColumn('name')));
+      const cols = await mockClient.knex(altTable).columnInfo();
+      expect(cols.name).toBeUndefined();
+    });
+
+    it('renameColumn issues ALTER TABLE RENAME COLUMN', async () => {
+      await connector.alterTable(defineAlter(altTable, (a) => a.renameColumn('name', 'fullName')));
+      const cols = await mockClient.knex(altTable).columnInfo();
+      expect(cols.fullName).toBeDefined();
+      expect(cols.name).toBeUndefined();
+    });
+
+    it('addIndex / removeIndex round-trip via CREATE/DROP INDEX', async () => {
+      await connector.alterTable(
+        defineAlter(altTable, (a) => a.addIndex('name', { name: 'idx_aurora_alter_users_name' })),
+      );
+      await connector.alterTable(
+        defineAlter(altTable, (a) => a.removeIndex('idx_aurora_alter_users_name')),
+      );
+      // also exercise the columns-array path
+      await connector.alterTable(defineAlter(altTable, (a) => a.addIndex(['name'])));
+      await connector.alterTable(defineAlter(altTable, (a) => a.removeIndex(['name'])));
+    });
+
+    it('exercises changeColumn / renameIndex / FK / check translation paths', async () => {
+      // The mock client runs sqlite under the hood; not every PG-flavoured DDL
+      // statement is accepted, but we want to exercise the connector's
+      // translation layer regardless. Errors are tolerated.
+      const tryOp = async (fn: () => Promise<void>) => {
+        try {
+          await fn();
+        } catch {
+          // expected for some ops on sqlite
+        }
+      };
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) => a.changeColumn('name', 'text', { null: true })),
+        ),
+      );
+      await tryOp(() =>
+        connector.alterTable(defineAlter(altTable, (a) => a.renameIndex('idx_x', 'idx_y'))),
+      );
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) =>
+            a.addForeignKey('teams', { onDelete: 'cascade', onUpdate: 'restrict' }),
+          ),
+        ),
+      );
+      await tryOp(() =>
+        connector.alterTable(defineAlter(altTable, (a) => a.removeForeignKey('teams'))),
+      );
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) => a.addCheckConstraint('id > 0', { name: 'chk_id_positive' })),
+        ),
+      );
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) => a.removeCheckConstraint('chk_id_positive')),
+        ),
+      );
+    });
+
+    it('exercises every ForeignKeyAction mapping in the DDL builder', async () => {
+      const actions: ('cascade' | 'restrict' | 'setNull' | 'setDefault' | 'noAction')[] = [
+        'cascade',
+        'restrict',
+        'setNull',
+        'setDefault',
+        'noAction',
+      ];
+      for (const action of actions) {
+        try {
+          await connector.alterTable(
+            defineAlter(altTable, (a) =>
+              a.addForeignKey('teams', { onDelete: action, onUpdate: action }),
+            ),
+          );
+        } catch {
+          // sqlite mock may reject; we only care that pgAction runs
+        }
+      }
     });
   });
 

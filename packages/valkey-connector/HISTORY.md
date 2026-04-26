@@ -2,6 +2,9 @@
 
 ## vNext
 
+### Native UPSERT
+- Inherits `Connector.upsert(spec)` from `@next-model/redis-connector` (composed via SELECT-then-INSERT-or-UPDATE on the connector's own primitives — non-atomic by Redis/Valkey design).
+
 ### Initial release
 
 - New `@next-model/valkey-connector` package: thin re-export of `@next-model/redis-connector` for apps targeting [Valkey](https://valkey.io/), the open-source fork of Redis.

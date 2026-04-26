@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { Model } from '../Model.js';
-import type { Connector } from '../types.js';
+import { type Connector, KeyType } from '../types.js';
 
 export interface ConformanceOptions {
   name: string;
@@ -110,6 +110,120 @@ export function runModelConformance(opts: ConformanceOptions): void {
         await Cat.filterBy({ $gt: { age: 1 } }).deleteAll();
         expect(await Cat.count()).toBe(1);
       });
+    });
+
+    describe('deltaUpdate', () => {
+      it('applies a positive delta atomically', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'inc', age: 5 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: cat.id },
+          deltas: [{ column: 'age', by: 3 }],
+        });
+        expect(affected).toBe(1);
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(8);
+      });
+
+      it('applies a negative delta atomically', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'dec', age: 10 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: cat.id },
+          deltas: [{ column: 'age', by: -4 }],
+        });
+        expect(affected).toBe(1);
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(6);
+      });
+
+      it('applies multiple deltas in one call', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        if (await connector.hasTable('conformance_atomic_multi')) {
+          await connector.dropTable('conformance_atomic_multi');
+        }
+        await connector.createTable('conformance_atomic_multi', (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.integer('a');
+          t.integer('b');
+        });
+        const [row] = await connector.batchInsert(
+          'conformance_atomic_multi',
+          { id: KeyType.number },
+          [{ a: 1, b: 10 }],
+        );
+        const affected = await connector.deltaUpdate({
+          tableName: 'conformance_atomic_multi',
+          filter: { id: row.id },
+          deltas: [
+            { column: 'a', by: 5 },
+            { column: 'b', by: -2 },
+          ],
+        });
+        expect(affected).toBe(1);
+        const after = (await connector.query({ tableName: 'conformance_atomic_multi' }))[0];
+        expect(after.a).toBe(6);
+        expect(after.b).toBe(8);
+        await connector.dropTable('conformance_atomic_multi');
+      });
+
+      it('honours the filter and only updates matching rows', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const a = await Cat.create({ name: 'matched', age: 1 });
+        const b = await Cat.create({ name: 'untouched', age: 1 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: a.id },
+          deltas: [{ column: 'age', by: 7 }],
+        });
+        expect(affected).toBe(1);
+        expect((await Cat.find(a.id))?.age).toBe(8);
+        expect((await Cat.find(b.id))?.age).toBe(1);
+      });
+
+      it('returns 0 when no rows match', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: 999_999 },
+          deltas: [{ column: 'age', by: 1 }],
+        });
+        expect(affected).toBe(0);
+      });
+
+      it('applies absolute set fields alongside deltas', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'orig', age: 1 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: cat.id },
+          deltas: [{ column: 'age', by: 2 }],
+          set: { name: 'renamed' },
+        });
+        expect(affected).toBe(1);
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(3);
+        expect(reloaded?.name).toBe('renamed');
+      });
+
+      it('1000 concurrent increments converge to the correct value', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'race', age: 0 });
+        const N = 1000;
+        await Promise.all(
+          Array.from({ length: N }, () =>
+            connector.deltaUpdate!({
+              tableName,
+              filter: { id: cat.id },
+              deltas: [{ column: 'age', by: 1 }],
+            }),
+          ),
+        );
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(N);
+      }, 30_000);
     });
 
     describe('Query', () => {
@@ -230,6 +344,104 @@ export function runModelConformance(opts: ConformanceOptions): void {
         const groups = await Cat.groupBy('name');
         expect(groups.get('b')).toHaveLength(2);
         expect(groups.get('a')).toHaveLength(1);
+      });
+    });
+
+    describe('upsert / upsertAll', () => {
+      const upsertTable = 'conformance_upsert';
+      type Tag = { slug: string; name: string };
+      let TagModel: any;
+
+      beforeEach(async () => {
+        if (await connector.hasTable(upsertTable)) await connector.dropTable(upsertTable);
+        await connector.createTable(upsertTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('slug', { unique: true });
+          t.string('name');
+        });
+        TagModel = class extends (
+          Model({
+            tableName: upsertTable,
+            connector,
+            timestamps: false,
+            init: (props: Tag) => props,
+          })
+        ) {};
+      });
+
+      it('inserts a fresh row when no conflict', async () => {
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'JavaScript' },
+          { onConflict: 'slug' },
+        );
+        expect(row.id).toBeDefined();
+        expect(row.name).toBe('JavaScript');
+        expect(await TagModel.count()).toBe(1);
+      });
+
+      it('updates an existing row on conflict', async () => {
+        const original = await TagModel.create({ slug: 'js', name: 'JS' });
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'JavaScript' },
+          { onConflict: 'slug' },
+        );
+        expect(row.id).toBe(original.id);
+        expect(row.name).toBe('JavaScript');
+        expect(await TagModel.count()).toBe(1);
+      });
+
+      it('respects ignoreOnly — keeps existing row unchanged', async () => {
+        const original = await TagModel.create({ slug: 'js', name: 'JS' });
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'OVERWRITTEN' },
+          { onConflict: 'slug', ignoreOnly: true },
+        );
+        expect(row.id).toBe(original.id);
+        expect(row.name).toBe('JS');
+      });
+
+      it('respects updateColumns — only listed columns get overwritten', async () => {
+        await TagModel.create({ slug: 'js', name: 'JS' });
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'JavaScript' },
+          { onConflict: 'slug', updateColumns: [] },
+        );
+        expect(row.name).toBe('JS');
+      });
+
+      it('upsertAll partitions inserts and updates and preserves input order', async () => {
+        await TagModel.create({ slug: 'js', name: 'JS' });
+        await TagModel.create({ slug: 'py', name: 'PY' });
+        const rows = await TagModel.upsertAll(
+          [
+            { slug: 'js', name: 'JavaScript' },
+            { slug: 'rb', name: 'Ruby' },
+            { slug: 'py', name: 'Python' },
+          ],
+          { onConflict: 'slug' },
+        );
+        expect(rows.map((r: any) => r.attributes().name)).toEqual(['JavaScript', 'Ruby', 'Python']);
+        expect(await TagModel.count()).toBe(3);
+      });
+
+      it('upsertAll handles a 100-row mixed batch in one call', async () => {
+        await TagModel.createMany(
+          Array.from({ length: 50 }, (_, i) => ({ slug: `s-${i}`, name: `old-${i}` })),
+        );
+        const input = Array.from({ length: 100 }, (_, i) => ({
+          slug: `s-${i}`,
+          name: `new-${i}`,
+        }));
+        const rows = await TagModel.upsertAll(input, { onConflict: 'slug' });
+        expect(rows).toHaveLength(100);
+        expect(rows[0].attributes().name).toBe('new-0');
+        expect(rows[99].attributes().name).toBe('new-99');
+        expect(await TagModel.count()).toBe(100);
+      });
+
+      it('upsertAll returns [] for an empty list', async () => {
+        const rows = await TagModel.upsertAll([], { onConflict: 'slug' });
+        expect(rows).toEqual([]);
       });
     });
 

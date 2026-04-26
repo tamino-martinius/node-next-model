@@ -1,15 +1,21 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
+  type Filter,
   filterList,
   KeyType,
   PersistenceError,
   type Scope,
   SortDirection,
   type TableBuilder,
+  UnsupportedOperationError,
+  type UpsertSpec,
 } from '@next-model/core';
 import { createClient, type RedisClientOptions, type RedisClientType } from 'redis';
 
@@ -264,6 +270,37 @@ export class RedisConnector implements Connector {
     return rows;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const rows = await this.resolveScope({
+      tableName: spec.tableName,
+      filter: spec.filter,
+    } as Scope);
+    if (rows.length === 0) return 0;
+    const primaryKey = await this.detectPrimaryKey(spec.tableName, rows);
+    const setFields: Dict<string> | undefined = spec.set
+      ? Object.fromEntries(Object.keys(spec.set).map((k) => [k, encode(spec.set?.[k])]))
+      : undefined;
+    for (const row of rows) {
+      const id = row[primaryKey];
+      if (id === undefined) continue;
+      const key = this.rowKey(spec.tableName, id);
+      // Per-row MULTI: queue deltas + absolute sets and dispatch atomically.
+      // Cross-row atomicity is not provided (would require a Lua script).
+      const tx = this.client.multi();
+      for (const { column, by } of spec.deltas) {
+        if (Number.isInteger(by)) {
+          tx.hIncrBy(key, column, by);
+        } else {
+          tx.hIncrByFloat(key, column, by);
+        }
+      }
+      if (setFields) tx.hSet(key, setFields);
+      await (tx as { exec: () => Promise<unknown[]> }).exec();
+    }
+    return rows.length;
+  }
+
   async batchInsert(
     tableName: string,
     keys: Dict<KeyType>,
@@ -301,6 +338,88 @@ export class RedisConnector implements Connector {
       inserted.push(row);
     }
     return inserted;
+  }
+
+  /**
+   * Non-atomic upsert via SELECT-then-INSERT-or-UPDATE on the existing
+   * primitives. Redis can't natively conflict on arbitrary `conflictTarget`
+   * (it's a key-value store, not a relational one), so this is the best we
+   * can do without a secondary index. Concurrent writes to the same
+   * conflict tuple may race; wrap calls in `Model.transaction(...)` for the
+   * snapshot/rollback safety net.
+   */
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    await this.ensureConnected();
+    const primaryKey = Object.keys(spec.keys)[0] ?? 'id';
+
+    let existingFilter: Filter<any>;
+    if (spec.conflictTarget.length === 1) {
+      const [col] = spec.conflictTarget;
+      existingFilter = { $in: { [col]: spec.rows.map((r) => r[col]) } } as Filter<any>;
+    } else {
+      existingFilter = {
+        $or: spec.rows.map((r) => {
+          const sub: Dict<any> = {};
+          for (const c of spec.conflictTarget) sub[c] = r[c];
+          return sub;
+        }),
+      } as Filter<any>;
+    }
+    const existing = await this.resolveScope({
+      tableName: spec.tableName,
+      filter: existingFilter,
+    });
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c) => JSON.stringify(row[c])).join('|');
+    const existingByTuple = new Map<string, Dict<any>>();
+    for (const row of existing) existingByTuple.set(tupleKey(row), row);
+
+    const allCols = new Set<string>();
+    for (const r of spec.rows) for (const k of Object.keys(r)) allCols.add(k);
+    const updateColumns =
+      spec.updateColumns ?? [...allCols].filter((c) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const results: Dict<any>[] = [];
+    const toInsert: Dict<any>[] = [];
+    const insertSlots: number[] = [];
+
+    for (let i = 0; i < spec.rows.length; i++) {
+      const row = spec.rows[i];
+      const match = existingByTuple.get(tupleKey(row));
+      if (match) {
+        if (ignore) {
+          results[i] = match;
+          continue;
+        }
+        const fields: Dict<string> = {};
+        const merged: Dict<any> = { ...match };
+        for (const col of updateColumns) {
+          if (Object.hasOwn(row, col)) {
+            fields[col] = encode(row[col]);
+            merged[col] = row[col];
+          }
+        }
+        if (Object.keys(fields).length > 0) {
+          await this.client.hSet(this.rowKey(spec.tableName, match[primaryKey]), fields);
+        }
+        results[i] = merged;
+      } else {
+        toInsert.push(row);
+        insertSlots.push(i);
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const inserted = await this.batchInsert(spec.tableName, spec.keys, toInsert);
+      for (let i = 0; i < inserted.length; i++) {
+        results[insertSlots[i]] = inserted[i];
+      }
+    }
+
+    return results;
   }
 
   /** Raw command escape hatch. `query` is the command name, `bindings` its args. */
@@ -377,6 +496,71 @@ export class RedisConnector implements Connector {
       });
       cursor = Number(result.cursor);
       if (result.keys.length > 0) await this.client.del(result.keys);
+    } while (cursor !== 0);
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    switch (op.op) {
+      case 'addColumn':
+      case 'addIndex':
+      case 'removeIndex':
+      case 'renameIndex':
+      case 'changeColumn':
+        return;
+      case 'removeColumn':
+        await this.removeFieldFromAllRows(tableName, op.name);
+        return;
+      case 'renameColumn':
+        await this.renameFieldInAllRows(tableName, op.from, op.to);
+        return;
+      case 'addForeignKey':
+      case 'removeForeignKey':
+      case 'addCheckConstraint':
+      case 'removeCheckConstraint':
+        throw new UnsupportedOperationError(
+          `RedisConnector cannot apply ${op.op}: redis does not enforce relational constraints. Drop the operation from the migration or guard it with a connector capability check.`,
+        );
+    }
+  }
+
+  private async removeFieldFromAllRows(tableName: string, field: string): Promise<void> {
+    await this.ensureConnected();
+    let cursor = 0;
+    do {
+      const result = await this.client.scan(cursor, {
+        MATCH: this.tablePattern(tableName),
+        COUNT: 100,
+      });
+      cursor = Number(result.cursor);
+      for (const key of result.keys) {
+        if (key.endsWith(':meta') || key.endsWith(':nextId') || key.endsWith(':ids')) continue;
+        await this.client.hDel(key, field);
+      }
+    } while (cursor !== 0);
+  }
+
+  private async renameFieldInAllRows(tableName: string, from: string, to: string): Promise<void> {
+    await this.ensureConnected();
+    let cursor = 0;
+    do {
+      const result = await this.client.scan(cursor, {
+        MATCH: this.tablePattern(tableName),
+        COUNT: 100,
+      });
+      cursor = Number(result.cursor);
+      for (const key of result.keys) {
+        if (key.endsWith(':meta') || key.endsWith(':nextId') || key.endsWith(':ids')) continue;
+        const value = await this.client.hGet(key, from);
+        if (value === undefined || value === null) continue;
+        await this.client.hSet(key, to, value);
+        await this.client.hDel(key, from);
+      }
     } while (cursor !== 0);
   }
 

@@ -1,7 +1,10 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -13,6 +16,8 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  UnsupportedOperationError,
+  type UpsertSpec,
 } from '@next-model/core';
 import { type Collection, type Db, MongoClient, type MongoClientOptions, type Sort } from 'mongodb';
 
@@ -228,6 +233,22 @@ export class MongoDbConnector implements Connector {
     return matching;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const update: Dict<any> = {};
+    if (spec.deltas.length > 0) {
+      const inc: Dict<number> = {};
+      for (const { column, by } of spec.deltas) inc[column] = by;
+      update.$inc = inc;
+    }
+    if (spec.set && Object.keys(spec.set).length > 0) {
+      update.$set = spec.set;
+    }
+    const filter = this.compileFilter(spec.filter);
+    const result = await this.collection(spec.tableName).updateMany(filter, update);
+    return result.matchedCount;
+  }
+
   async batchInsert(
     tableName: string,
     keys: Dict<KeyType>,
@@ -250,6 +271,84 @@ export class MongoDbConnector implements Connector {
     }
     await this.collection(tableName).insertMany(docs);
     return docs.map((d) => stripId(d) as Dict<any>);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const primaryKey = Object.keys(spec.keys)[0];
+    const keyType = primaryKey ? spec.keys[primaryKey] : undefined;
+
+    const allCols = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allCols.add(k);
+    const updateColumns =
+      spec.updateColumns ?? [...allCols].filter((c) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const ops: any[] = [];
+    for (const row of spec.rows) {
+      const filter: Dict<any> = {};
+      for (const c of spec.conflictTarget) filter[c] = row[c];
+
+      const setFields: Dict<any> = {};
+      if (!ignore) {
+        for (const c of updateColumns) {
+          if (Object.hasOwn(row, c)) setFields[c] = row[c];
+        }
+      }
+
+      const setOnInsertFields: Dict<any> = { ...row };
+      for (const c of Object.keys(setFields)) delete setOnInsertFields[c];
+      for (const c of spec.conflictTarget) delete setOnInsertFields[c];
+      if (
+        primaryKey &&
+        !spec.conflictTarget.includes(primaryKey) &&
+        setOnInsertFields[primaryKey] === undefined &&
+        row[primaryKey] === undefined
+      ) {
+        if (keyType === KeyType.number) {
+          setOnInsertFields[primaryKey] = await this.nextSequence(spec.tableName);
+        } else if (keyType === KeyType.uuid) {
+          setOnInsertFields[primaryKey] = globalThis.crypto.randomUUID();
+        }
+      }
+
+      const update: Dict<any> = {};
+      if (Object.keys(setFields).length > 0) update.$set = setFields;
+      if (Object.keys(setOnInsertFields).length > 0) update.$setOnInsert = setOnInsertFields;
+      if (Object.keys(update).length === 0) continue;
+
+      ops.push({ updateOne: { filter, update, upsert: true } });
+    }
+
+    if (ops.length > 0) {
+      await this.collection(spec.tableName).bulkWrite(ops, { ordered: true });
+    }
+    return this.fetchByConflict(spec.tableName, spec.conflictTarget, spec.rows);
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    const filter: Dict<any> =
+      conflictTarget.length === 1
+        ? { [conflictTarget[0]]: { $in: rows.map((r) => r[conflictTarget[0]]) } }
+        : {
+            $or: rows.map((r) => {
+              const sub: Dict<any> = {};
+              for (const c of conflictTarget) sub[c] = r[c];
+              return sub;
+            }),
+          };
+    const docs = await this.collection(tableName).find(filter).toArray();
+    const tupleKey = (row: Dict<any>) =>
+      conflictTarget.map((c) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const doc of docs) byTuple.set(tupleKey(doc), stripId(doc) as Dict<any>);
+    return rows
+      .map((row) => byTuple.get(tupleKey(row)))
+      .filter((row): row is Dict<any> => row !== undefined);
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
@@ -327,6 +426,51 @@ export class MongoDbConnector implements Connector {
       .catch(() => {});
     await this.db.collection<Dict<any>>(SCHEMAS).deleteOne({ name: tableName });
     await this.db.collection<Dict<any>>(COUNTERS).deleteOne({ _id: tableName as any });
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const collection = this.collection(tableName);
+    switch (op.op) {
+      case 'addColumn':
+      case 'changeColumn':
+        return;
+      case 'removeColumn':
+        await collection.updateMany({}, { $unset: { [op.name]: '' } });
+        return;
+      case 'renameColumn':
+        await collection.updateMany({}, { $rename: { [op.from]: op.to } });
+        return;
+      case 'addIndex': {
+        const keys: Dict<1> = {};
+        for (const col of op.columns) keys[col] = 1;
+        await collection.createIndex(keys, { name: op.name, unique: op.unique });
+        return;
+      }
+      case 'removeIndex': {
+        const target = Array.isArray(op.nameOrColumns)
+          ? `${op.nameOrColumns.join('_1_')}_1`
+          : op.nameOrColumns;
+        await collection.dropIndex(target).catch(() => {});
+        return;
+      }
+      case 'renameIndex':
+        throw new UnsupportedOperationError(
+          'MongoDbConnector cannot rename indexes; drop and recreate instead',
+        );
+      case 'addForeignKey':
+      case 'removeForeignKey':
+      case 'addCheckConstraint':
+      case 'removeCheckConstraint':
+        throw new UnsupportedOperationError(
+          `MongoDbConnector cannot apply ${op.op}: mongodb does not enforce relational constraints. Drop the operation from the migration or guard it with a connector capability check.`,
+        );
+    }
   }
 
   private async listTables(): Promise<string[]> {

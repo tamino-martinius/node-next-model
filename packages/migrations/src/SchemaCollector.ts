@@ -3,14 +3,18 @@ import { dirname } from 'node:path';
 
 import {
   type AggregateKind,
+  type AlterTableSpec,
+  applyAlterOps,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type KeyType,
   type Scope,
   type TableBuilder,
   type TableDefinition,
+  type UpsertSpec,
 } from '@next-model/core';
 
 export interface SchemaSnapshot {
@@ -82,6 +86,14 @@ export class SchemaCollector implements Connector {
     return this.inner.dropTable(tableName);
   }
 
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    const existing = this.tables[spec.tableName];
+    if (existing) {
+      this.tables[spec.tableName] = applyAlterOps(existing, spec.ops);
+    }
+    return this.inner.alterTable(spec);
+  }
+
   // Data methods — pure delegation.
 
   query(scope: Scope): Promise<Dict<any>[]> {
@@ -101,6 +113,12 @@ export class SchemaCollector implements Connector {
   }
   batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]> {
     return this.inner.batchInsert(tableName, keys, items);
+  }
+  upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    return this.inner.upsert(spec);
+  }
+  deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    return this.inner.deltaUpdate(spec);
   }
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
     return this.inner.execute(query, bindings);

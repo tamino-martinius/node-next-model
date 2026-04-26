@@ -1,8 +1,13 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -11,6 +16,8 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   type IndexDefinition,
   type JoinClause,
   type JoinQuerySpec,
@@ -19,6 +26,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import {
   createPool,
@@ -349,6 +357,28 @@ export class MysqlConnector implements Connector {
     return matching;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const params: BaseType[] = [];
+    const setFragments: string[] = [];
+    for (const { column, by } of spec.deltas) {
+      params.push(by as BaseType);
+      setFragments.push(`${quoteIdent(column)} = COALESCE(${quoteIdent(column)}, 0) + ?`);
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) {
+        params.push(spec.set[k] as BaseType);
+        setFragments.push(`${quoteIdent(k)} = ?`);
+      }
+    }
+    const where = this.buildWhere(spec.filter);
+    for (const p of where.params) params.push(p);
+    let sql = `UPDATE ${quoteIdent(spec.tableName)} SET ${setFragments.join(', ')}`;
+    if (where.sql) sql += ` WHERE ${where.sql}`;
+    const info = await this.runMutation(sql, params);
+    return info.affectedRows ?? 0;
+  }
+
   async batchInsert(
     tableName: string,
     keys: Dict<KeyType>,
@@ -390,6 +420,78 @@ export class MysqlConnector implements Connector {
     const start = Number(info.insertId);
     const ids = items.map((_, i) => start + i);
     return this.fetchByIds(tableName, primaryKey, ids);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const allKeys = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allKeys.add(k);
+    const cols = Array.from(allKeys);
+    const updateColumns =
+      spec.updateColumns ?? cols.filter((c: string) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const params: BaseType[] = [];
+    const valueRows: string[] = [];
+    for (const row of spec.rows) {
+      const placeholders = cols.map((c) => {
+        params.push(row[c] as BaseType);
+        return '?';
+      });
+      valueRows.push(`(${placeholders.join(', ')})`);
+    }
+    const ignorePrefix = ignore ? 'IGNORE ' : '';
+    let sql = `INSERT ${ignorePrefix}INTO ${quoteIdent(spec.tableName)} (${cols
+      .map(quoteIdent)
+      .join(', ')}) VALUES ${valueRows.join(', ')}`;
+    // MySQL's ON DUPLICATE KEY UPDATE conflicts on any unique key — the
+    // explicit conflictTarget is informational; the SQL ignores it.
+    if (!ignore) {
+      sql += ` ON DUPLICATE KEY UPDATE ${updateColumns
+        .map((c: string) => `${quoteIdent(c)} = VALUES(${quoteIdent(c)})`)
+        .join(', ')}`;
+    }
+    await this.runMutation(sql, params);
+
+    return this.fetchByConflict(spec.tableName, spec.conflictTarget, spec.rows);
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    const params: BaseType[] = [];
+    let where: string;
+    if (conflictTarget.length === 1) {
+      const [col] = conflictTarget;
+      const placeholders = rows.map((r) => {
+        params.push(r[col] as BaseType);
+        return '?';
+      });
+      where = `${quoteIdent(col)} IN (${placeholders.join(', ')})`;
+    } else {
+      where = rows
+        .map((r) => {
+          const parts = conflictTarget.map((c) => {
+            params.push(r[c] as BaseType);
+            return `${quoteIdent(c)} = ?`;
+          });
+          return `(${parts.join(' AND ')})`;
+        })
+        .join(' OR ');
+    }
+    const fetched = (await this.run(
+      `SELECT * FROM ${quoteIdent(tableName)} WHERE ${where}`,
+      params,
+    )) as Dict<any>[];
+    const tupleKey = (row: Dict<any>) =>
+      conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of fetched) byTuple.set(tupleKey(row), row);
+    return rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
   }
 
   private async fetchByIds(
@@ -468,6 +570,82 @@ export class MysqlConnector implements Connector {
     await this.runMutation(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
   }
 
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const t = quoteIdent(tableName);
+    switch (op.op) {
+      case 'addColumn':
+        await this.runMutation(
+          `ALTER TABLE ${t} ADD COLUMN ${this.columnDdl(definitionFromOp(op.name, op.type, op.options))}`,
+        );
+        return;
+      case 'removeColumn':
+        await this.runMutation(`ALTER TABLE ${t} DROP COLUMN ${quoteIdent(op.name)}`);
+        return;
+      case 'renameColumn':
+        await this.runMutation(
+          `ALTER TABLE ${t} RENAME COLUMN ${quoteIdent(op.from)} TO ${quoteIdent(op.to)}`,
+        );
+        return;
+      case 'changeColumn':
+        await this.runMutation(
+          `ALTER TABLE ${t} MODIFY COLUMN ${this.columnDdl(definitionFromOp(op.name, op.type, op.options))}`,
+        );
+        return;
+      case 'addIndex':
+        await this.createIndex(tableName, {
+          columns: op.columns,
+          unique: op.unique ?? false,
+          name: op.name,
+        });
+        return;
+      case 'removeIndex': {
+        const target = Array.isArray(op.nameOrColumns)
+          ? `idx_${tableName}_${op.nameOrColumns.join('_')}`
+          : op.nameOrColumns;
+        await this.runMutation(`DROP INDEX ${quoteIdent(target)} ON ${t}`);
+        return;
+      }
+      case 'renameIndex':
+        await this.runMutation(
+          `ALTER TABLE ${t} RENAME INDEX ${quoteIdent(op.from)} TO ${quoteIdent(op.to)}`,
+        );
+        return;
+      case 'addForeignKey': {
+        const local = op.column ?? `${op.toTable}Id`;
+        const constraint = op.name ?? foreignKeyName(tableName, op.toTable);
+        const ref = op.primaryKey ?? 'id';
+        let sql = `ALTER TABLE ${t} ADD CONSTRAINT ${quoteIdent(constraint)} FOREIGN KEY (${quoteIdent(local)}) REFERENCES ${quoteIdent(op.toTable)} (${quoteIdent(ref)})`;
+        if (op.onDelete) sql += ` ON DELETE ${mysqlAction(op.onDelete)}`;
+        if (op.onUpdate) sql += ` ON UPDATE ${mysqlAction(op.onUpdate)}`;
+        await this.runMutation(sql);
+        return;
+      }
+      case 'removeForeignKey': {
+        const constraint = op.nameOrTable.startsWith('fk_')
+          ? op.nameOrTable
+          : foreignKeyName(tableName, op.nameOrTable);
+        await this.runMutation(`ALTER TABLE ${t} DROP FOREIGN KEY ${quoteIdent(constraint)}`);
+        return;
+      }
+      case 'addCheckConstraint': {
+        const name = op.name ?? `chk_${tableName}_${Date.now()}`;
+        await this.runMutation(
+          `ALTER TABLE ${t} ADD CONSTRAINT ${quoteIdent(name)} CHECK (${op.expression})`,
+        );
+        return;
+      }
+      case 'removeCheckConstraint':
+        await this.runMutation(`ALTER TABLE ${t} DROP CHECK ${quoteIdent(op.name)}`);
+        return;
+    }
+  }
+
   private columnDdl(col: ColumnDefinition): string {
     const parts: string[] = [quoteIdent(col.name)];
     if (col.autoIncrement) {
@@ -526,5 +704,39 @@ export class MysqlConnector implements Connector {
     const name = quoteIdent(idx.name ?? `idx_${tableName}_${idx.columns.join('_')}`);
     const unique = idx.unique ? 'UNIQUE ' : '';
     await this.runMutation(`CREATE ${unique}INDEX ${name} ON ${quoteIdent(tableName)} (${cols})`);
+  }
+}
+
+function definitionFromOp(
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+): ColumnDefinition {
+  return {
+    name,
+    type,
+    nullable: options.null ?? true,
+    default: options.default,
+    limit: options.limit,
+    primary: options.primary ?? false,
+    unique: options.unique ?? false,
+    precision: options.precision,
+    scale: options.scale,
+    autoIncrement: options.autoIncrement ?? false,
+  };
+}
+
+function mysqlAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
   }
 }
