@@ -8,6 +8,7 @@ import {
   KeyType,
   type Scope,
   SortDirection,
+  type UpsertSpec,
 } from './types.js';
 
 import { clone, uuid } from './util.js';
@@ -157,6 +158,53 @@ export class MemoryConnector implements Connector {
       result.push(clone(attributes));
     }
     return result;
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const collection = this.collection(spec.tableName);
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c) => JSON.stringify(row[c])).join('|');
+    const existingByTuple = new Map<string, Dict<any>>();
+    for (const row of collection) {
+      existingByTuple.set(tupleKey(row), row);
+    }
+    const results: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      const match = existingByTuple.get(tupleKey(row));
+      if (match) {
+        if (spec.ignoreOnly) {
+          results.push(clone(match));
+          continue;
+        }
+        const updateCols =
+          spec.updateColumns ?? Object.keys(row).filter((k) => !spec.conflictTarget.includes(k));
+        for (const col of updateCols) {
+          if (Object.hasOwn(row, col)) match[col] = row[col];
+        }
+        results.push(clone(match));
+        continue;
+      }
+      const keyValues: Dict<any> = {};
+      for (const key in spec.keys) {
+        if (Object.hasOwn(row, key) && row[key] !== undefined) continue;
+        switch (spec.keys[key]) {
+          case KeyType.uuid:
+            keyValues[key] = uuid();
+            break;
+          case KeyType.number:
+            keyValues[key] = this.nextId(spec.tableName);
+            break;
+          case KeyType.manual:
+            break;
+        }
+      }
+      const inserted = { ...row, ...keyValues };
+      collection.push(inserted);
+      existingByTuple.set(tupleKey(inserted), inserted);
+      results.push(clone(inserted));
+    }
+    return results;
   }
 
   async hasTable(tableName: string): Promise<boolean> {

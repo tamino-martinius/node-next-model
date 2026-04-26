@@ -197,8 +197,11 @@ await Slot.upsert(
   { onConflict: ['tenantId', 'key'] },
 );
 
-// Bulk: one SELECT to find existing, one batched INSERT for new rows,
-// one UPDATE per match. Returns instances in input order.
+// Bulk: SQL connectors (pg / sqlite / mysql / mariadb) and MongoDB run
+// the entire batch in a single atomic statement. Memory / LocalStorage
+// also run atomically (single-threaded JS). Redis / Valkey compose the
+// same semantics on top of their own primitives — non-atomic, but the
+// Model API is identical. Returns instances in input order either way.
 await Post.upsertAll(
   [
     { id: 1, title: 'A2' },
@@ -207,9 +210,34 @@ await Post.upsertAll(
   ],
   { onConflict: 'id' },
 );
+
+// Skip the update on conflict — keep the existing row untouched.
+await Tag.upsert({ slug: 'js', name: 'IGNORED' }, { onConflict: 'slug', ignoreOnly: true });
+
+// Restrict which columns get overwritten on conflict.
+await Tag.upsert(
+  { slug: 'js', name: 'JS', description: 'lang' },
+  { onConflict: 'slug', updateColumns: ['description'] },
+);
 ```
 
-> **Atomicity caveat.** Implemented at the Model layer over SELECT + INSERT/UPDATE primitives, so the operation is **not** atomic at the database level. Wrap calls in `Model.transaction(...)` if you need stronger guarantees.
+> **Atomicity.** Every bundled SQL connector (pg / sqlite / mysql /
+> mariadb / aurora-data-api) and MongoDB run upsert as a single atomic
+> statement (`INSERT … ON CONFLICT … DO UPDATE`, `ON DUPLICATE KEY
+> UPDATE`, or `bulkWrite` with `upsert: true`); concurrent callers can
+> never observe a duplicate insert. `MemoryConnector` and
+> `LocalStorageConnector` are atomic by virtue of single-threaded JS.
+> Redis / Valkey compose the same semantics from their own primitives
+> (SELECT-then-INSERT-or-UPDATE) — **non-atomic** by Redis design; wrap
+> Redis upserts in `Model.transaction(...)` for the snapshot/rollback
+> safety net.
+>
+> **Callbacks & validators.** Mirroring Rails' `upsert` / `upsert_all`,
+> the upsert path **skips per-row lifecycle callbacks and validators** on
+> every connector — there is no instance to run hooks against when the
+> work happens in a single connector call. Use `Model.create` /
+> `record.update` (or wrap in `Model.transaction(...)`) when callbacks
+> must run.
 
 ## Deleting
 

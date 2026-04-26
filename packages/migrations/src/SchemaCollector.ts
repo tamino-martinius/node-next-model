@@ -11,6 +11,7 @@ import {
   type Scope,
   type TableBuilder,
   type TableDefinition,
+  type UpsertSpec,
 } from '@next-model/core';
 
 export interface SchemaSnapshot {
@@ -101,6 +102,9 @@ export class SchemaCollector implements Connector {
   }
   batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]> {
     return this.inner.batchInsert(tableName, keys, items);
+  }
+  upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    return this.inner.upsert(spec);
   }
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
     return this.inner.execute(query, bindings);

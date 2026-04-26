@@ -7,6 +7,7 @@ import {
   type Scope,
   type Storage,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 
 export interface WebStorageLike {
@@ -130,6 +131,13 @@ export class LocalStorageConnector extends MemoryConnector {
     this.hydrate(tableName);
     const result = await super.batchInsert(tableName, keys, items);
     this.persist(tableName);
+    return result;
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    this.hydrate(spec.tableName);
+    const result = await super.upsert(spec);
+    this.persist(spec.tableName);
     return result;
   }
 

@@ -4,6 +4,9 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` by delegating to `MemoryConnector.upsert` and persisting the touched table through the localStorage write path (deferred under `transaction(...)`).
+
 ### Rewrite
 
 - Full TypeScript rewrite. Package renamed to `@next-model/local-storage-connector`.

@@ -195,4 +195,61 @@ describe('upsert / upsertAll', () => {
       );
     });
   });
+
+  describe('options.ignoreOnly', () => {
+    it('skips updates and returns the existing row untouched', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert(
+        { id: 1, title: 'OVERWRITE' },
+        { ignoreOnly: true },
+      )) as any;
+      expect(result.title).toBe('A');
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A');
+    });
+
+    it('still inserts when no conflict — ignoreOnly only affects the conflict path', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert({ id: 99, title: 'New' }, { ignoreOnly: true })) as any;
+      expect(result.title).toBe('New');
+      expect(result.isPersistent()).toBe(true);
+      expect(storage.posts).toHaveLength(3);
+    });
+
+    it('upsertAll mixes inserts with skipped existing rows', async () => {
+      const Post = makePost();
+      const results = (await Post.upsertAll(
+        [
+          { id: 1, title: 'KEEP-A' },
+          { id: 99, title: 'INSERT' },
+          { id: 2, title: 'KEEP-B' },
+        ],
+        { ignoreOnly: true },
+      )) as any[];
+      expect(results.map((r) => r.attributes().title)).toEqual(['A', 'INSERT', 'B']);
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A');
+      expect(storage.posts.find((r) => r.id === 2)?.title).toBe('B');
+    });
+  });
+
+  describe('options.updateColumns', () => {
+    it('limits the update to the listed columns', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert(
+        { id: 1, title: 'NEW', views: 999 },
+        { updateColumns: ['title'] },
+      )) as any;
+      expect(result.title).toBe('NEW');
+      expect(result.views).toBe(10);
+    });
+
+    it('an explicit empty list skips updates entirely', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert(
+        { id: 1, title: 'NEW', views: 999 },
+        { updateColumns: [] },
+      )) as any;
+      expect(result.title).toBe('A');
+      expect(result.views).toBe(10);
+    });
+  });
 });

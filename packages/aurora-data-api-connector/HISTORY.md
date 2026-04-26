@@ -4,6 +4,9 @@
 
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` method. Reuses Knex's `pg`-flavored builder to emit `INSERT … ON CONFLICT (cols) DO UPDATE … RETURNING *` against the Data API. Honors `updateColumns` and `ignoreOnly`; rows skipped by the conflict path are backfilled via a single follow-up `SELECT`. `Model.upsert` / `Model.upsertAll` automatically route through this path on Aurora Postgres.
+
 ### Rewrite
 
 - Full TypeScript rewrite on top of the modern `@next-model/core` `Connector` interface. Matches `KnexConnector` parity.

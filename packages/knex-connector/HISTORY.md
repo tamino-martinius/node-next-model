@@ -4,6 +4,9 @@
 
 Rewritten to match the current `@next-model/core` connector interface.
 
+### Native UPSERT
+- Implements the new optional `Connector.upsert(spec)` capability so `Model.upsert` / `Model.upsertAll` route through a single atomic `INSERT … ON CONFLICT … DO UPDATE` (pg / sqlite) or `ON DUPLICATE KEY UPDATE` (MySQL / MariaDB) statement instead of the SELECT + INSERT/UPDATE fallback. Honors `updateColumns` and `ignoreOnly` (`DO NOTHING` / `INSERT IGNORE`). Postgres uses `RETURNING *`; MySQL and SQLite issue a follow-up `SELECT` keyed by `conflictTarget`. SQLite chunks at 200 rows/statement (under `SQLITE_LIMIT_COMPOUND_SELECT`) inside one transaction; pg/mysql ship the whole batch in a single statement.
+
 ### Test matrix
 
 - The connector spec is now driver-agnostic and runs against sqlite3 (default), Postgres 17, and MySQL 8. CI spins up real Postgres + MySQL service containers and runs the same suite under `KNEX_TEST_CLIENT=pg` / `KNEX_TEST_CLIENT=mysql2`. Local runs default to sqlite3 in-memory.

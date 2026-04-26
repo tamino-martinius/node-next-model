@@ -17,6 +17,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import knexPkg, { type Knex } from 'knex';
 
@@ -330,6 +331,51 @@ export class DataApiConnector implements Connector {
       inserted.push(row);
     }
     return inserted;
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const allCols = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allCols.add(k);
+    const updateColumns =
+      spec.updateColumns ?? [...allCols].filter((c) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    let builder = this.table(spec.tableName).insert(spec.rows);
+    builder = ignore
+      ? builder.onConflict(spec.conflictTarget).ignore()
+      : builder.onConflict(spec.conflictTarget).merge(updateColumns);
+    builder = builder.returning('*');
+    const result = await this.runQuery(builder);
+    const inserted = result.records ?? [];
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of inserted) byTuple.set(tupleKey(row), row);
+
+    const missing = spec.rows.filter((r) => !byTuple.has(tupleKey(r)));
+    if (missing.length > 0) {
+      let selectQuery = this.table(spec.tableName);
+      if (spec.conflictTarget.length === 1) {
+        const [col] = spec.conflictTarget;
+        selectQuery = selectQuery.whereIn(col, missing.map((r) => r[col]) as any);
+      } else {
+        selectQuery = selectQuery.where(function () {
+          for (const r of missing) {
+            const w: Dict<any> = {};
+            for (const c of spec.conflictTarget) w[c] = r[c];
+            this.orWhere(w);
+          }
+        });
+      }
+      const fetchedResult = await this.runQuery(selectQuery.select('*'));
+      for (const row of fetchedResult.records ?? []) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
   }
 
   async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
