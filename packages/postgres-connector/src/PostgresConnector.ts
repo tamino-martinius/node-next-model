@@ -3,6 +3,7 @@ import {
   type BaseType,
   type ColumnDefinition,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -246,6 +247,35 @@ export class PostgresConnector implements Connector {
     sql += ' RETURNING *';
     const result = await this.run(sql, params);
     return result.rows;
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const params: BaseType[] = [];
+    const setFragments: string[] = [];
+    for (const { column, by } of spec.deltas) {
+      params.push(by as BaseType);
+      setFragments.push(
+        `${quoteIdent(column)} = COALESCE(${quoteIdent(column)}, 0) + $${params.length}`,
+      );
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) {
+        params.push(spec.set[k] as BaseType);
+        setFragments.push(`${quoteIdent(k)} = $${params.length}`);
+      }
+    }
+    const where = this.buildWhere(spec.filter);
+    const offset = params.length;
+    let whereSql = where.sql;
+    if (whereSql) {
+      whereSql = whereSql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+    }
+    for (const p of where.params) params.push(p);
+    let sql = `UPDATE ${quoteIdent(spec.tableName)} SET ${setFragments.join(', ')}`;
+    if (whereSql) sql += ` WHERE ${whereSql}`;
+    const result = await this.run(sql, params);
+    return result.rowCount ?? 0;
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {

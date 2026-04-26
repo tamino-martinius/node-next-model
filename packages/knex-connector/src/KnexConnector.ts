@@ -8,6 +8,7 @@ import {
   type BaseType,
   type ColumnDefinition,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -265,6 +266,24 @@ export class KnexConnector implements Connector {
     const { query } = await this.filter(table, scope.filter);
     await query.del();
     return matching;
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const table = this.table(spec.tableName);
+    const { query } = await this.filter(table, spec.filter);
+    const update: Dict<any> = {};
+    for (const { column, by } of spec.deltas) {
+      // `?? + ?` quotes the column identifier and binds the delta as a parameter,
+      // producing e.g. `"col" + 3` on pg, `` `col` + 3 `` on mysql/mariadb, `"col" + 3` on sqlite.
+      // COALESCE so NULL columns are treated as 0.
+      update[column] = this.knex.raw('COALESCE(??, 0) + ?', [column, by]);
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) update[k] = spec.set[k];
+    }
+    const affected = (await query.update(update)) as unknown;
+    return typeof affected === 'number' ? affected : Number(affected ?? 0);
   }
 
   async batchInsert(

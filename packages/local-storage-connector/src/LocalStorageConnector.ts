@@ -1,6 +1,7 @@
 import {
   type AggregateKind,
   type BaseType,
+  type DeltaUpdateSpec,
   type Dict,
   type KeyType,
   MemoryConnector,
@@ -114,6 +115,13 @@ export class LocalStorageConnector extends MemoryConnector {
     const result = await super.updateAll(scope, attrs);
     this.persist(scope.tableName);
     return result;
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    this.hydrate(spec.tableName);
+    const affected = await super.deltaUpdate(spec);
+    if (affected > 0) this.persist(spec.tableName);
+    return affected;
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {

@@ -56,12 +56,14 @@ export class MockDataApiClient implements DataApiClient {
     }
 
     if (op === 'update' || op === 'delete') {
-      const result: any = await client.raw(positionalSql, bindings);
-      const changes =
-        result && typeof result === 'object' && 'changes' in result
-          ? (result as any).changes
-          : undefined;
-      return { records: [], numberOfRecordsUpdated: changes };
+      await client.raw(positionalSql, bindings);
+      // The sqlite3 knex driver doesn't surface affected rows in the result
+      // shape — fall back to SQLite's `changes()` builtin, which returns the
+      // count of rows affected by the most recent statement on the same
+      // connection. Real Aurora Data API supplies `numberOfRecordsUpdated`
+      // directly; the mock just emulates it.
+      const changesRow = (await client.raw('SELECT changes() AS n')) as Array<{ n: number }>;
+      return { records: [], numberOfRecordsUpdated: Number(changesRow?.[0]?.n ?? 0) };
     }
 
     const records = (await client.raw(positionalSql, bindings)) as Record<string, any>[];

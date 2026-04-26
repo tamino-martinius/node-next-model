@@ -3,6 +3,7 @@ import {
   type BaseType,
   type ColumnDefinition,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -115,6 +116,12 @@ export class SqliteConnector implements Connector {
   private runStatement(sql: string, params: BaseType[] = []): void {
     const stmt = this.db.prepare(sql);
     stmt.run(...params.map(normaliseValue));
+  }
+
+  private runChanges(sql: string, params: BaseType[] = []): number {
+    const stmt = this.db.prepare(sql);
+    const info = stmt.run(...params.map(normaliseValue));
+    return info.changes;
   }
 
   private buildWhere(filter: Filter<any> | undefined): SqlFragment {
@@ -278,6 +285,28 @@ export class SqliteConnector implements Connector {
     if (where.sql) sql += ` WHERE ${where.sql}`;
     sql += ' RETURNING *';
     return this.all(sql, where.params).map((r) => this.hydrateRow(scope.tableName, r));
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const params: BaseType[] = [];
+    const setFragments: string[] = [];
+    for (const { column, by } of spec.deltas) {
+      params.push(by as BaseType);
+      setFragments.push(`${quoteIdent(column)} = COALESCE(${quoteIdent(column)}, 0) + ?`);
+    }
+    if (spec.set) {
+      const serialized = this.serializeRow(spec.tableName, spec.set);
+      for (const k of Object.keys(spec.set)) {
+        params.push(serialized[k] as BaseType);
+        setFragments.push(`${quoteIdent(k)} = ?`);
+      }
+    }
+    const where = this.buildWhere(spec.filter);
+    for (const p of where.params) params.push(p);
+    let sql = `UPDATE ${quoteIdent(spec.tableName)} SET ${setFragments.join(', ')}`;
+    if (where.sql) sql += ` WHERE ${where.sql}`;
+    return this.runChanges(sql, params);
   }
 
   async batchInsert(

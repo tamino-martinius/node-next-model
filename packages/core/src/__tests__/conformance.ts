@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { Model } from '../Model.js';
-import type { Connector } from '../types.js';
+import { type Connector, KeyType } from '../types.js';
 
 export interface ConformanceOptions {
   name: string;
@@ -110,6 +110,120 @@ export function runModelConformance(opts: ConformanceOptions): void {
         await Cat.filterBy({ $gt: { age: 1 } }).deleteAll();
         expect(await Cat.count()).toBe(1);
       });
+    });
+
+    describe('deltaUpdate', () => {
+      it('applies a positive delta atomically', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'inc', age: 5 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: cat.id },
+          deltas: [{ column: 'age', by: 3 }],
+        });
+        expect(affected).toBe(1);
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(8);
+      });
+
+      it('applies a negative delta atomically', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'dec', age: 10 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: cat.id },
+          deltas: [{ column: 'age', by: -4 }],
+        });
+        expect(affected).toBe(1);
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(6);
+      });
+
+      it('applies multiple deltas in one call', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        if (await connector.hasTable('conformance_atomic_multi')) {
+          await connector.dropTable('conformance_atomic_multi');
+        }
+        await connector.createTable('conformance_atomic_multi', (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.integer('a');
+          t.integer('b');
+        });
+        const [row] = await connector.batchInsert(
+          'conformance_atomic_multi',
+          { id: KeyType.number },
+          [{ a: 1, b: 10 }],
+        );
+        const affected = await connector.deltaUpdate({
+          tableName: 'conformance_atomic_multi',
+          filter: { id: row.id },
+          deltas: [
+            { column: 'a', by: 5 },
+            { column: 'b', by: -2 },
+          ],
+        });
+        expect(affected).toBe(1);
+        const after = (await connector.query({ tableName: 'conformance_atomic_multi' }))[0];
+        expect(after.a).toBe(6);
+        expect(after.b).toBe(8);
+        await connector.dropTable('conformance_atomic_multi');
+      });
+
+      it('honours the filter and only updates matching rows', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const a = await Cat.create({ name: 'matched', age: 1 });
+        const b = await Cat.create({ name: 'untouched', age: 1 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: a.id },
+          deltas: [{ column: 'age', by: 7 }],
+        });
+        expect(affected).toBe(1);
+        expect((await Cat.find(a.id))?.age).toBe(8);
+        expect((await Cat.find(b.id))?.age).toBe(1);
+      });
+
+      it('returns 0 when no rows match', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: 999_999 },
+          deltas: [{ column: 'age', by: 1 }],
+        });
+        expect(affected).toBe(0);
+      });
+
+      it('applies absolute set fields alongside deltas', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'orig', age: 1 });
+        const affected = await connector.deltaUpdate({
+          tableName,
+          filter: { id: cat.id },
+          deltas: [{ column: 'age', by: 2 }],
+          set: { name: 'renamed' },
+        });
+        expect(affected).toBe(1);
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(3);
+        expect(reloaded?.name).toBe('renamed');
+      });
+
+      it('1000 concurrent increments converge to the correct value', async (ctx) => {
+        if (!connector.deltaUpdate) return ctx.skip();
+        const cat = await Cat.create({ name: 'race', age: 0 });
+        const N = 1000;
+        await Promise.all(
+          Array.from({ length: N }, () =>
+            connector.deltaUpdate!({
+              tableName,
+              filter: { id: cat.id },
+              deltas: [{ column: 'age', by: 1 }],
+            }),
+          ),
+        );
+        const reloaded = await Cat.find(cat.id);
+        expect(reloaded?.age).toBe(N);
+      }, 30_000);
     });
 
     describe('Query', () => {

@@ -81,6 +81,19 @@ export type Order<PersistentProps extends Schema> =
 
 export type AggregateKind = 'sum' | 'min' | 'max' | 'avg';
 
+export interface DeltaUpdateDelta {
+  column: string;
+  by: number;
+}
+
+export interface DeltaUpdateSpec {
+  tableName: string;
+  filter?: Filter<any>;
+  deltas: DeltaUpdateDelta[];
+  /** Optional absolute sets applied alongside the deltas (e.g. `updatedAt = now`). */
+  set?: Dict<any>;
+}
+
 export interface Connector {
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
@@ -94,6 +107,19 @@ export interface Connector {
   hasTable(tableName: string): Promise<boolean>;
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
+  /**
+   * Apply per-column numeric deltas to every row matching `filter`. Each
+   * delta `{ column, by }` adds `by` to the current value (negative `by`
+   * decrements). The optional `set` lands absolute writes alongside the
+   * deltas. Returns the number of affected rows.
+   *
+   * Each connector decides how to deliver the operation: SQL stores compile
+   * to `UPDATE col = COALESCE(col, 0) + ?` in a single round-trip; Mongo
+   * uses `$inc`; Redis/Valkey queue `HINCRBY` per row in `MULTI`;
+   * memory/local-storage walk in-process. Powers `record.increment`,
+   * `Model.where(...).increment`, and `counterCaches`.
+   */
+  deltaUpdate(spec: DeltaUpdateSpec): Promise<number>;
 
   /**
    * Insert `rows`; on conflict against `conflictTarget` (column names that

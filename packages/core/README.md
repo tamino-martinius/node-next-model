@@ -149,6 +149,19 @@ await user.update({ lastName: 'Updated' });       // assign + save
 
 await user.increment('loginCount');               // +1
 await user.decrement('credits', 5);               // -5
+
+// Class-level / chainable variants — return the affected row count.
+// Routes through `Connector.deltaUpdate(spec)`, which every connector
+// implements: SQL stores compile to `UPDATE col = col + N` in a single
+// round-trip; Mongo uses `$inc`; Redis/Valkey queue `HINCRBY` per-row in
+// `MULTI`; memory walks in-process. Race-free under concurrency on every
+// connector with native single-statement support. `updatedAt` is bumped
+// automatically when the model has timestamps. Validation and full save
+// callbacks are skipped (matches Rails' `update_columns` semantics);
+// `afterUpdate` / `afterUpdateCommit` still fire.
+await User.filterBy({ id: 42 }).increment('loginCount');     // → 1 affected
+await Post.filterBy({ trending: true }).decrement('rank', 1); // → N affected
+
 await user.touch();                                // bump updatedAt only
 await user.touch({ time: new Date('2099-01-01') });          // explicit time
 await user.touch({ columns: ['updatedAt', 'lastSeenAt'] });   // multi-column
@@ -307,7 +320,16 @@ await comment.delete();                          // → Post#1.commentsCount -= 
 comment.postId = 2; await comment.save();        // → Post#1 -=1, Post#2 +=1
 ```
 
-Null foreign keys and missing parents are silent no-ops. Builds on the existing `instance.increment(column, by)` helper — no connector changes required.
+Null foreign keys and missing parents are silent no-ops.
+
+Routes through `Connector.deltaUpdate` (every native
+connector other than the in-memory ones — postgres, mysql, mariadb, sqlite,
+aurora-data-api, knex, mongodb, redis, valkey — plus the in-process memory
+connectors which are race-free under JS's single-threaded execution), the
+counter increment is a single atomic round-trip (`UPDATE posts SET
+comments_count = comments_count + 1 WHERE id = ?` on SQL, `$inc` on Mongo,
+`HINCRBY` on Redis / Valkey). 1 000 concurrent `Comment.create` calls land
+the correct final count — no lost updates.
 
 ## Querying
 

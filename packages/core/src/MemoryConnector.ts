@@ -4,6 +4,7 @@ import {
   type AggregateKind,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   KeyType,
   type Scope,
@@ -116,6 +117,22 @@ export class MemoryConnector implements Connector {
       }
     });
     return clone(items);
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    const items = await this.items({ tableName: spec.tableName, filter: spec.filter });
+    for (const item of items) {
+      for (const { column, by } of spec.deltas) {
+        const current = Number(item[column] ?? 0);
+        item[column] = current + by;
+      }
+      if (spec.set) {
+        for (const key in spec.set) {
+          item[key] = spec.set[key];
+        }
+      }
+    }
+    return items.length;
   }
 
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
