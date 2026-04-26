@@ -5,6 +5,7 @@ import {
   type AggregateKind,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type KeyType,
@@ -105,6 +106,9 @@ export class SchemaCollector implements Connector {
   }
   upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
     return this.inner.upsert(spec);
+  }
+  deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    return this.inner.deltaUpdate(spec);
   }
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
     return this.inner.execute(query, bindings);
