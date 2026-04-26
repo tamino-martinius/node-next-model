@@ -255,6 +255,9 @@ export class NullConnector implements Connector {
   async batchInsert() {
     return [];
   }
+  async upsert() {
+    return [];
+  }
   async execute() {
     return [];
   }
@@ -1267,7 +1270,7 @@ export class ModelClass {
         );
       }
     }
-    const [result] = await this.runUpsertAll<M>([props], conflictKeys, options);
+    const [result] = await this.runUpsert<M>([props], conflictKeys, options);
     return result;
   }
 
@@ -1298,22 +1301,10 @@ export class ModelClass {
         }
       }
     }
-    return this.runUpsertAll<M>(propsList, conflictKeys, options);
+    return this.runUpsert<M>(propsList, conflictKeys, options);
   }
 
-  static async runUpsertAll<M extends typeof ModelClass>(
-    this: M,
-    propsList: Dict<any>[],
-    conflictKeys: string[],
-    options: { updateColumns?: string[]; ignoreOnly?: boolean },
-  ): Promise<InstanceType<M>[]> {
-    if (this.connector.upsert) {
-      return this.nativeUpsertAll<M>(propsList, conflictKeys, options);
-    }
-    return this.fallbackUpsertAll<M>(propsList, conflictKeys, options);
-  }
-
-  static async nativeUpsertAll<M extends typeof ModelClass>(
+  static async runUpsert<M extends typeof ModelClass>(
     this: M,
     propsList: Dict<any>[],
     conflictKeys: string[],
@@ -1352,7 +1343,7 @@ export class ModelClass {
       updateColumns = [...cols];
     }
 
-    const items = await this.connector.upsert!({
+    const items = await this.connector.upsert({
       tableName: this.tableName,
       keys: this.keys,
       rows: insertRows,
@@ -1369,67 +1360,6 @@ export class ModelClass {
       }
       return new this(item, keyValues) as InstanceType<M>;
     });
-  }
-
-  static async fallbackUpsertAll<M extends typeof ModelClass>(
-    this: M,
-    propsList: Dict<any>[],
-    conflictKeys: string[],
-    options: { updateColumns?: string[]; ignoreOnly?: boolean },
-  ): Promise<InstanceType<M>[]> {
-    let existingFilter: Filter<any>;
-    if (conflictKeys.length === 1) {
-      const [key] = conflictKeys;
-      existingFilter = { $in: { [key]: propsList.map((p) => p[key]) } } as Filter<any>;
-    } else {
-      existingFilter = {
-        $or: propsList.map((p) => {
-          const sub: Dict<any> = {};
-          for (const k of conflictKeys) sub[k] = p[k];
-          return sub;
-        }),
-      } as Filter<any>;
-    }
-    const existing = await this.unscoped().filterBy(existingFilter).all<M>();
-    const tupleKey = (row: Dict<any>) => conflictKeys.map((k) => JSON.stringify(row[k])).join('|');
-    const existingByTuple = new Map<string, InstanceType<M>>();
-    for (const row of existing) {
-      existingByTuple.set(tupleKey(row.attributes() as Dict<any>), row as InstanceType<M>);
-    }
-    const results: InstanceType<M>[] = [];
-    const toInsert: Dict<any>[] = [];
-    const insertSlots: number[] = [];
-    const restrict = options.updateColumns;
-    for (let i = 0; i < propsList.length; i++) {
-      const props = propsList[i];
-      const match = existingByTuple.get(tupleKey(props));
-      if (match) {
-        if (options.ignoreOnly) {
-          results[i] = match;
-          continue;
-        }
-        const attrs: Dict<any> = {};
-        for (const k in props) {
-          if (conflictKeys.includes(k)) continue;
-          if (restrict !== undefined && !restrict.includes(k)) continue;
-          attrs[k] = props[k];
-        }
-        if (Object.keys(attrs).length > 0) {
-          await (match as any).update(attrs);
-        }
-        results[i] = match;
-      } else {
-        toInsert.push(props);
-        insertSlots.push(i);
-      }
-    }
-    if (toInsert.length > 0) {
-      const inserted = await this.createMany<M>(toInsert as any[]);
-      for (let i = 0; i < inserted.length; i++) {
-        results[insertSlots[i]] = inserted[i];
-      }
-    }
-    return results;
   }
 
   persistentProps: Dict<any>;

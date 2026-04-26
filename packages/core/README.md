@@ -197,10 +197,11 @@ await Slot.upsert(
   { onConflict: ['tenantId', 'key'] },
 );
 
-// Bulk: with a connector that exposes a native `upsert` (Memory + Knex),
-// the entire batch runs in a single atomic INSERT … ON CONFLICT statement.
-// Without that capability, one bulk SELECT + one batched INSERT + one
-// UPDATE per match. Returns instances in input order either way.
+// Bulk: SQL connectors (pg / sqlite / mysql / mariadb) and MongoDB run
+// the entire batch in a single atomic statement. Memory / LocalStorage
+// also run atomically (single-threaded JS). Redis / Valkey compose the
+// same semantics on top of their own primitives — non-atomic, but the
+// Model API is identical. Returns instances in input order either way.
 await Post.upsertAll(
   [
     { id: 1, title: 'A2' },
@@ -220,21 +221,23 @@ await Tag.upsert(
 );
 ```
 
-> **Atomicity.** When the connector exposes a native `upsert(spec)` method
-> (the bundled `MemoryConnector` and `KnexConnector` both do —
-> pg/sqlite/mysql/mariadb), a single atomic statement (`INSERT … ON
-> CONFLICT … DO UPDATE` / `ON DUPLICATE KEY UPDATE`) handles the
-> operation; concurrent callers can never observe a duplicate insert.
-> Connectors without the capability fall back to the SELECT + INSERT/UPDATE
-> Model-layer path — wrap those in `Model.transaction(...)` for stronger
-> guarantees.
+> **Atomicity.** Every bundled SQL connector (pg / sqlite / mysql /
+> mariadb / aurora-data-api) and MongoDB run upsert as a single atomic
+> statement (`INSERT … ON CONFLICT … DO UPDATE`, `ON DUPLICATE KEY
+> UPDATE`, or `bulkWrite` with `upsert: true`); concurrent callers can
+> never observe a duplicate insert. `MemoryConnector` and
+> `LocalStorageConnector` are atomic by virtue of single-threaded JS.
+> Redis / Valkey compose the same semantics from their own primitives
+> (SELECT-then-INSERT-or-UPDATE) — **non-atomic** by Redis design; wrap
+> Redis upserts in `Model.transaction(...)` for the snapshot/rollback
+> safety net.
 >
-> **Callbacks & validators.** The native path mirrors Rails' `upsert` /
-> `upsert_all` and **skips per-row lifecycle callbacks and validators** —
-> the DB does the work in one statement, so there is no instance to run
-> hooks against. The fallback path keeps the existing per-row hook
-> behavior. Use `Model.create` / `record.update` (or wrap in
-> `Model.transaction(...)`) when callbacks must run.
+> **Callbacks & validators.** Mirroring Rails' `upsert` / `upsert_all`,
+> the upsert path **skips per-row lifecycle callbacks and validators** on
+> every connector — there is no instance to run hooks against when the
+> work happens in a single connector call. Use `Model.create` /
+> `record.update` (or wrap in `Model.transaction(...)`) when callbacks
+> must run.
 
 ## Deleting
 

@@ -96,16 +96,20 @@ export interface Connector {
   dropTable(tableName: string): Promise<void>;
 
   /**
-   * Capability — when defined, the Model layer routes `upsert` /
-   * `upsertAll` through this single-statement atomic path instead of the
-   * SELECT-then-INSERT-or-UPDATE fallback. Insert `rows`; on conflict
-   * against `conflictTarget` (column names that match a unique constraint
-   * or PRIMARY KEY) update `updateColumns` (or all non-conflict columns
-   * when omitted). Returns the resulting rows in the same order as `rows`.
-   * When `ignoreOnly` is set the conflict path is `DO NOTHING` and the
-   * existing row is returned for skipped inputs.
+   * Insert `rows`; on conflict against `conflictTarget` (column names that
+   * match a unique constraint or PRIMARY KEY) update `updateColumns` (or
+   * all non-conflict columns when omitted). Returns the resulting rows in
+   * the same order as `rows`. When `ignoreOnly` is set the conflict path
+   * is `DO NOTHING` and the existing row is returned for skipped inputs.
+   *
+   * Connectors that can do this in a single atomic statement (pg / sqlite /
+   * mysql / mariadb / mongo / aurora / memory) skip per-row lifecycle
+   * callbacks and validators by design — Rails-parity. Stores without a
+   * native atomic upsert (redis / valkey) implement equivalent semantics
+   * via their own SELECT-then-INSERT-or-UPDATE primitives; same callback
+   * caveat applies.
    */
-  upsert?(spec: UpsertSpec): Promise<Dict<any>[]>;
+  upsert(spec: UpsertSpec): Promise<Dict<any>[]>;
 }
 
 export interface UpsertSpec {
