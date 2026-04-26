@@ -1187,7 +1187,7 @@ describe('Connector', () => {
   });
 });
 
-describe('#atomicUpdate(spec)', () => {
+describe('#deltaUpdate(spec)', () => {
   beforeEach(() => {
     storage = {
       [tableName]: [
@@ -1198,12 +1198,12 @@ describe('#atomicUpdate(spec)', () => {
     };
   });
 
-  it('exposes an atomicUpdate method', () => {
-    expect(typeof connector().atomicUpdate).toBe('function');
+  it('exposes an deltaUpdate method', () => {
+    expect(typeof connector().deltaUpdate).toBe('function');
   });
 
   it('applies a positive delta and returns the affected row count', async () => {
-    const affected = await connector().atomicUpdate?.({
+    const affected = await connector().deltaUpdate?.({
       tableName,
       filter: { id: 1 },
       deltas: [{ column: 'count', by: 3 }],
@@ -1213,7 +1213,7 @@ describe('#atomicUpdate(spec)', () => {
   });
 
   it('applies a negative delta', async () => {
-    const affected = await connector().atomicUpdate?.({
+    const affected = await connector().deltaUpdate?.({
       tableName,
       filter: { id: 3 },
       deltas: [{ column: 'count', by: -2 }],
@@ -1224,7 +1224,7 @@ describe('#atomicUpdate(spec)', () => {
 
   it('treats null/undefined columns as 0 for the delta', async () => {
     storage[tableName] = [{ id: 1 }];
-    const affected = await connector().atomicUpdate?.({
+    const affected = await connector().deltaUpdate?.({
       tableName,
       filter: { id: 1 },
       deltas: [{ column: 'count', by: 7 }],
@@ -1234,7 +1234,7 @@ describe('#atomicUpdate(spec)', () => {
   });
 
   it('applies absolute set fields alongside deltas', async () => {
-    const affected = await connector().atomicUpdate?.({
+    const affected = await connector().deltaUpdate?.({
       tableName,
       filter: { id: 1 },
       deltas: [{ column: 'count', by: 1 }],
@@ -1247,7 +1247,7 @@ describe('#atomicUpdate(spec)', () => {
   });
 
   it('updates every matching row when filter is broader', async () => {
-    const affected = await connector().atomicUpdate?.({
+    const affected = await connector().deltaUpdate?.({
       tableName,
       filter: {},
       deltas: [{ column: 'count', by: 1 }],
@@ -1257,7 +1257,7 @@ describe('#atomicUpdate(spec)', () => {
   });
 
   it('returns 0 when no row matches', async () => {
-    const affected = await connector().atomicUpdate?.({
+    const affected = await connector().deltaUpdate?.({
       tableName,
       filter: { id: 9999 },
       deltas: [{ column: 'count', by: 1 }],
@@ -1272,7 +1272,7 @@ describe('#atomicUpdate(spec)', () => {
     const N = 1000;
     await Promise.all(
       Array.from({ length: N }, () =>
-        c.atomicUpdate?.({
+        c.deltaUpdate?.({
           tableName,
           filter: { id: 1 },
           deltas: [{ column: 'count', by: 1 }],

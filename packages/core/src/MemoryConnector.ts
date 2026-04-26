@@ -2,9 +2,9 @@ import { filterList } from './FilterEngine.js';
 import { defineTable, type TableBuilder } from './schema.js';
 import {
   type AggregateKind,
-  type AtomicUpdateSpec,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   KeyType,
   type Scope,
@@ -119,7 +119,7 @@ export class MemoryConnector implements Connector {
     return clone(items);
   }
 
-  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
     const items = await this.items({ tableName: spec.tableName, filter: spec.filter });
     for (const item of items) {
       for (const { column, by } of spec.deltas) {

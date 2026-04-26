@@ -1,8 +1,8 @@
 import {
   type AggregateKind,
-  type AtomicUpdateSpec,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -230,7 +230,7 @@ export class MongoDbConnector implements Connector {
     return matching;
   }
 
-  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
     if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
     const update: Dict<any> = {};
     if (spec.deltas.length > 0) {

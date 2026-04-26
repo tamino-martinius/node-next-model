@@ -81,15 +81,15 @@ export type Order<PersistentProps extends Schema> =
 
 export type AggregateKind = 'sum' | 'min' | 'max' | 'avg';
 
-export interface AtomicUpdateDelta {
+export interface DeltaUpdateDelta {
   column: string;
   by: number;
 }
 
-export interface AtomicUpdateSpec {
+export interface DeltaUpdateSpec {
   tableName: string;
   filter?: Filter<any>;
-  deltas: AtomicUpdateDelta[];
+  deltas: DeltaUpdateDelta[];
   /** Optional absolute sets applied alongside the deltas (e.g. `updatedAt = now`). */
   set?: Dict<any>;
 }
@@ -108,15 +108,18 @@ export interface Connector {
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
   /**
-   * Apply per-column numeric deltas to every row matching `filter` in a single
-   * round-trip. Each delta `{ column, by }` adds `by` to the current value
-   * (negative `by` decrements). Returns the number of affected rows.
+   * Apply per-column numeric deltas to every row matching `filter`. Each
+   * delta `{ column, by }` adds `by` to the current value (negative `by`
+   * decrements). The optional `set` lands absolute writes alongside the
+   * deltas. Returns the number of affected rows.
    *
-   * Optional. Connectors that implement this method opt the Model layer into
-   * the atomic counter path (`record.increment`, `Model.where(...).increment`,
-   * counter caches); connectors without it fall back to load-modify-save.
+   * Each connector decides how to deliver the operation: SQL stores compile
+   * to `UPDATE col = COALESCE(col, 0) + ?` in a single round-trip; Mongo
+   * uses `$inc`; Redis/Valkey queue `HINCRBY` per row in `MULTI`;
+   * memory/local-storage walk in-process. Powers `record.increment`,
+   * `Model.where(...).increment`, and `counterCaches`.
    */
-  atomicUpdate?(spec: AtomicUpdateSpec): Promise<number>;
+  deltaUpdate(spec: DeltaUpdateSpec): Promise<number>;
 
   /**
    * Insert `rows`; on conflict against `conflictTarget` (column names that

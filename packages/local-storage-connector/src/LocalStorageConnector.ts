@@ -1,7 +1,7 @@
 import {
   type AggregateKind,
-  type AtomicUpdateSpec,
   type BaseType,
+  type DeltaUpdateSpec,
   type Dict,
   type KeyType,
   MemoryConnector,
@@ -117,9 +117,9 @@ export class LocalStorageConnector extends MemoryConnector {
     return result;
   }
 
-  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
     this.hydrate(spec.tableName);
-    const affected = await super.atomicUpdate(spec);
+    const affected = await super.deltaUpdate(spec);
     if (affected > 0) this.persist(spec.tableName);
     return affected;
   }

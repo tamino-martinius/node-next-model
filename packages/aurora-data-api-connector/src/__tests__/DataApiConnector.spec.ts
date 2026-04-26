@@ -249,15 +249,15 @@ describe('DataApiConnector', () => {
     });
   });
 
-  describe('#atomicUpdate', () => {
+  describe('#deltaUpdate', () => {
     beforeEach(seed);
 
-    it('exposes an atomicUpdate method', () => {
-      expect(typeof connector.atomicUpdate).toBe('function');
+    it('exposes an deltaUpdate method', () => {
+      expect(typeof connector.deltaUpdate).toBe('function');
     });
 
     it('applies a positive delta in a single round-trip', async () => {
-      const affected = await connector.atomicUpdate({
+      const affected = await connector.deltaUpdate({
         tableName,
         filter: { id: alice.id },
         deltas: [{ column: 'age', by: 4 }],
@@ -268,7 +268,7 @@ describe('DataApiConnector', () => {
     });
 
     it('applies a negative delta', async () => {
-      const affected = await connector.atomicUpdate({
+      const affected = await connector.deltaUpdate({
         tableName,
         filter: { id: bob.id },
         deltas: [{ column: 'age', by: -1 }],
@@ -279,7 +279,7 @@ describe('DataApiConnector', () => {
     });
 
     it('updates every matching row and returns the affected count', async () => {
-      const affected = await connector.atomicUpdate({
+      const affected = await connector.deltaUpdate({
         tableName,
         filter: { age: 21 },
         deltas: [{ column: 'age', by: 5 }],
@@ -292,7 +292,7 @@ describe('DataApiConnector', () => {
     });
 
     it('applies absolute set fields alongside deltas', async () => {
-      const affected = await connector.atomicUpdate({
+      const affected = await connector.deltaUpdate({
         tableName,
         filter: { id: alice.id },
         deltas: [{ column: 'age', by: 1 }],
@@ -305,7 +305,7 @@ describe('DataApiConnector', () => {
     });
 
     it('returns 0 when no row matches', async () => {
-      const affected = await connector.atomicUpdate({
+      const affected = await connector.deltaUpdate({
         tableName,
         filter: { id: 999_999 },
         deltas: [{ column: 'age', by: 1 }],
@@ -314,7 +314,7 @@ describe('DataApiConnector', () => {
     });
 
     it('is a no-op when both deltas and set are empty', async () => {
-      const affected = await connector.atomicUpdate({
+      const affected = await connector.deltaUpdate({
         tableName,
         filter: { id: alice.id },
         deltas: [],

@@ -112,11 +112,11 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
     });
 
-    describe('atomicUpdate', () => {
+    describe('deltaUpdate', () => {
       it('applies a positive delta atomically', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
+        if (!connector.deltaUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'inc', age: 5 });
-        const affected = await connector.atomicUpdate({
+        const affected = await connector.deltaUpdate({
           tableName,
           filter: { id: cat.id },
           deltas: [{ column: 'age', by: 3 }],
@@ -127,9 +127,9 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('applies a negative delta atomically', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
+        if (!connector.deltaUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'dec', age: 10 });
-        const affected = await connector.atomicUpdate({
+        const affected = await connector.deltaUpdate({
           tableName,
           filter: { id: cat.id },
           deltas: [{ column: 'age', by: -4 }],
@@ -140,7 +140,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('applies multiple deltas in one call', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
+        if (!connector.deltaUpdate) return ctx.skip();
         if (await connector.hasTable('conformance_atomic_multi')) {
           await connector.dropTable('conformance_atomic_multi');
         }
@@ -154,7 +154,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
           { id: KeyType.number },
           [{ a: 1, b: 10 }],
         );
-        const affected = await connector.atomicUpdate({
+        const affected = await connector.deltaUpdate({
           tableName: 'conformance_atomic_multi',
           filter: { id: row.id },
           deltas: [
@@ -170,10 +170,10 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('honours the filter and only updates matching rows', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
+        if (!connector.deltaUpdate) return ctx.skip();
         const a = await Cat.create({ name: 'matched', age: 1 });
         const b = await Cat.create({ name: 'untouched', age: 1 });
-        const affected = await connector.atomicUpdate({
+        const affected = await connector.deltaUpdate({
           tableName,
           filter: { id: a.id },
           deltas: [{ column: 'age', by: 7 }],
@@ -184,8 +184,8 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('returns 0 when no rows match', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
-        const affected = await connector.atomicUpdate({
+        if (!connector.deltaUpdate) return ctx.skip();
+        const affected = await connector.deltaUpdate({
           tableName,
           filter: { id: 999_999 },
           deltas: [{ column: 'age', by: 1 }],
@@ -194,9 +194,9 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('applies absolute set fields alongside deltas', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
+        if (!connector.deltaUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'orig', age: 1 });
-        const affected = await connector.atomicUpdate({
+        const affected = await connector.deltaUpdate({
           tableName,
           filter: { id: cat.id },
           deltas: [{ column: 'age', by: 2 }],
@@ -209,12 +209,12 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('1000 concurrent increments converge to the correct value', async (ctx) => {
-        if (!connector.atomicUpdate) return ctx.skip();
+        if (!connector.deltaUpdate) return ctx.skip();
         const cat = await Cat.create({ name: 'race', age: 0 });
         const N = 1000;
         await Promise.all(
           Array.from({ length: N }, () =>
-            connector.atomicUpdate!({
+            connector.deltaUpdate!({
               tableName,
               filter: { id: cat.id },
               deltas: [{ column: 'age', by: 1 }],

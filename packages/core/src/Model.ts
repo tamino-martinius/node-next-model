@@ -276,7 +276,7 @@ export class NullConnector implements Connector {
   async dropTable() {
     return;
   }
-  async atomicUpdate() {
+  async deltaUpdate() {
     return 0;
   }
 }
@@ -1188,10 +1188,10 @@ export class ModelClass {
 
   /**
    * Apply an atomic delta to `column` for every row matching the current
-   * scope, in a single round-trip when the connector implements
-   * `atomicUpdate`. Returns the number of affected rows. Falls back to
-   * load-modify-save (which is racy under concurrency) when the connector
-   * does not implement `atomicUpdate`.
+   * scope. Returns the number of affected rows. Routes through the
+   * connector's `deltaUpdate(spec)` — each connector picks the most
+   * efficient native shape (single-statement `UPDATE col = col + ?` on
+   * SQL, `$inc` on Mongo, `HINCRBY` on Redis, in-process walk on memory).
    */
   static async increment<M extends typeof ModelClass>(
     this: M,
@@ -1200,28 +1200,13 @@ export class ModelClass {
   ): Promise<number> {
     const updatedCol = this.updatedAtColumn;
     const scope = this.modelScope();
-    if (this.connector.atomicUpdate) {
-      const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
-      return await this.connector.atomicUpdate({
-        tableName: scope.tableName,
-        filter: scope.filter,
-        deltas: [{ column, by }],
-        set,
-      });
-    }
-    const records = await this.connector.query(scope);
-    for (const row of records) {
-      const current = Number((row as Dict<any>)[column] ?? 0);
-      const next: Dict<any> = { [column]: current + by };
-      if (updatedCol) next[updatedCol] = new Date();
-      const itemFilter: Dict<any> = {};
-      for (const k in this.keys) itemFilter[k] = (row as Dict<any>)[k];
-      await this.connector.updateAll(
-        { tableName: scope.tableName, filter: itemFilter, limit: 1 },
-        next,
-      );
-    }
-    return records.length;
+    const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
+    return await this.connector.deltaUpdate({
+      tableName: scope.tableName,
+      filter: scope.filter,
+      deltas: [{ column, by }],
+      set,
+    });
   }
 
   static async decrement<M extends typeof ModelClass>(
@@ -1674,39 +1659,34 @@ export class ModelClass {
       throw new PersistenceError('Cannot increment a record that has not been saved');
     }
     const model = this.constructor as typeof ModelClass;
-    if (model.connector.atomicUpdate) {
-      const updatedCol = model.updatedAtColumn;
-      const now = new Date();
-      const set: Dict<any> = {};
-      if (updatedCol) set[updatedCol] = now;
-      const affected = await model.connector.atomicUpdate({
-        tableName: model.tableName,
-        filter: this.keys,
-        deltas: [{ column: key, by }],
-        set: updatedCol ? set : undefined,
-      });
-      if (affected === 0) throw new NotFoundError('Item not found');
-      const before = Number((this.persistentProps as Dict<any>)[key] ?? 0);
-      const after = before + by;
-      const snapshot: Dict<{ from: unknown; to: unknown }> = {
-        [key]: { from: before, to: after },
+    const updatedCol = model.updatedAtColumn;
+    const now = new Date();
+    const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: now } : undefined;
+    const affected = await model.connector.deltaUpdate({
+      tableName: model.tableName,
+      filter: this.keys,
+      deltas: [{ column: key, by }],
+      set,
+    });
+    if (affected === 0) throw new NotFoundError('Item not found');
+    const before = Number((this.persistentProps as Dict<any>)[key] ?? 0);
+    const after = before + by;
+    const snapshot: Dict<{ from: unknown; to: unknown }> = {
+      [key]: { from: before, to: after },
+    };
+    (this.persistentProps as Dict<any>)[key] = after;
+    if (updatedCol) {
+      snapshot[updatedCol] = {
+        from: (this.persistentProps as Dict<any>)[updatedCol],
+        to: now,
       };
-      (this.persistentProps as Dict<any>)[key] = after;
-      if (updatedCol) {
-        snapshot[updatedCol] = {
-          from: (this.persistentProps as Dict<any>)[updatedCol],
-          to: now,
-        };
-        (this.persistentProps as Dict<any>)[updatedCol] = now;
-      }
-      delete (this.changedProps as Dict<any>)[key];
-      this.lastSavedChanges = snapshot;
-      await this.runCallbacks('afterUpdate');
-      await this._scheduleCommitCallbacks('update');
-      return this as M;
+      (this.persistentProps as Dict<any>)[updatedCol] = now;
     }
-    const current = Number((this.attributes() as Dict<any>)[key] ?? 0);
-    return this.update({ [key]: current + by });
+    delete (this.changedProps as Dict<any>)[key];
+    this.lastSavedChanges = snapshot;
+    await this.runCallbacks('afterUpdate');
+    await this._scheduleCommitCallbacks('update');
+    return this as M;
   }
 
   async decrement<M extends ModelClass>(this: M, key: string, by = 1) {
@@ -2637,21 +2617,13 @@ export function Model<
       if (fkValue === undefined || fkValue === null) return;
       const target = resolveTarget(spec);
       const pk = spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id';
-      if (target.connector.atomicUpdate) {
-        const updatedCol = target.updatedAtColumn;
-        await target.connector.atomicUpdate({
-          tableName: target.tableName,
-          filter: { [pk]: fkValue } as Filter<any>,
-          deltas: [{ column: spec.column, by: delta }],
-          set: updatedCol ? { [updatedCol]: new Date() } : undefined,
-        });
-        return;
-      }
-      const parent = (await target.findBy({ [pk]: fkValue } as Filter<any>)) as
-        | (ModelClass & { increment: (k: string, by?: number) => Promise<unknown> })
-        | undefined;
-      if (!parent) return;
-      await parent.increment(spec.column, delta);
+      const updatedCol = target.updatedAtColumn;
+      await target.connector.deltaUpdate({
+        tableName: target.tableName,
+        filter: { [pk]: fkValue } as Filter<any>,
+        deltas: [{ column: spec.column, by: delta }],
+        set: updatedCol ? { [updatedCol]: new Date() } : undefined,
+      });
     };
     for (const spec of props.counterCaches) {
       ModelSubclass.on('afterCreate', async (record) => {

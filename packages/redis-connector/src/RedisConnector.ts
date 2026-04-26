@@ -1,8 +1,8 @@
 import {
   type AggregateKind,
-  type AtomicUpdateSpec,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -267,7 +267,7 @@ export class RedisConnector implements Connector {
     return rows;
   }
 
-  async atomicUpdate(spec: AtomicUpdateSpec): Promise<number> {
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
     if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
     const rows = await this.resolveScope({
       tableName: spec.tableName,

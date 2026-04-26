@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
 
-describe('atomic increment / decrement', () => {
+describe('delta increment / decrement', () => {
   let storage: Storage = {};
-  const tableName = 'atomic_widgets';
+  const tableName = 'delta_widgets';
   const connector = () => new MemoryConnector({ storage });
 
   beforeEach(() => {
     storage = { [tableName]: [] };
   });
 
-  describe('record.increment via atomicUpdate', () => {
-    it('skips validation when the connector supports atomicUpdate', async () => {
+  describe('record.increment via deltaUpdate', () => {
+    it('skips validation', async () => {
       let validatorCalls = 0;
       const Klass = Model({
         tableName,
@@ -160,7 +160,7 @@ describe('atomic increment / decrement', () => {
     });
   });
 
-  describe('counterCaches use atomicUpdate', () => {
+  describe('counterCaches use deltaUpdate', () => {
     it('1000 concurrent child creates land a race-free counter', async () => {
       const shared = connector();
       const Post = Model({
