@@ -22,6 +22,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import knexPkg, { type Knex } from 'knex';
 
@@ -343,6 +344,90 @@ export class KnexConnector implements Connector {
       rowDict[row[primaryKey]] = row;
     }
     return ids.map((id) => rowDict[id]).filter((r): r is Dict<any> => r !== undefined);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const clientName = this.knex.client.config.client;
+    const isPg = clientName === 'pg' || clientName === 'postgres';
+    const isMysql = clientName === 'mysql' || clientName === 'mysql2';
+    const isSqlite = clientName === 'sqlite3';
+
+    const allColumns = new Set<string>();
+    for (const row of spec.rows) {
+      for (const col of Object.keys(row)) allColumns.add(col);
+    }
+    const updateColumns =
+      spec.updateColumns ?? [...allColumns].filter((c) => !spec.conflictTarget.includes(c));
+
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    // SQLite emits multi-row INSERT as UNION ALL, capped at SQLITE_LIMIT_COMPOUND_SELECT
+    // (default 500). Chunk to stay safely below; pg/mysql accept the whole batch in one shot.
+    const chunkSize = isSqlite ? 200 : spec.rows.length;
+    const chunks: Dict<any>[][] = [];
+    for (let i = 0; i < spec.rows.length; i += chunkSize) {
+      chunks.push(spec.rows.slice(i, i + chunkSize));
+    }
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+
+    const runChunks = async () => {
+      for (const chunk of chunks) {
+        let insertQuery = this.table(spec.tableName).insert(chunk);
+        if (isMysql) {
+          insertQuery = ignore
+            ? insertQuery.onConflict().ignore()
+            : insertQuery.onConflict().merge(updateColumns);
+        } else {
+          insertQuery = ignore
+            ? insertQuery.onConflict(spec.conflictTarget).ignore()
+            : insertQuery.onConflict(spec.conflictTarget).merge(updateColumns);
+        }
+        if (isPg) {
+          const returned = (await insertQuery.returning(`${spec.tableName}.*`)) as Dict<any>[];
+          for (const row of returned) byTuple.set(tupleKey(row), row);
+        } else {
+          await insertQuery;
+        }
+      }
+    };
+
+    if (chunks.length > 1) {
+      await this.transaction(runChunks);
+    } else {
+      await runChunks();
+    }
+
+    const missingRows: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      if (!byTuple.has(tupleKey(row))) missingRows.push(row);
+    }
+
+    if (missingRows.length > 0) {
+      let selectQuery = this.table(spec.tableName);
+      if (spec.conflictTarget.length === 1) {
+        const [col] = spec.conflictTarget;
+        const values = missingRows.map((r) => r[col]);
+        selectQuery = selectQuery.whereIn(col, values as any);
+      } else {
+        selectQuery = selectQuery.where(function () {
+          for (const row of missingRows) {
+            const where: Dict<any> = {};
+            for (const col of spec.conflictTarget) where[col] = row[col];
+            this.orWhere(where);
+          }
+        });
+      }
+      const fetched = (await selectQuery.select('*')) as Dict<any>[];
+      for (const row of fetched) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
   }
 
   async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {

@@ -144,6 +144,14 @@ type TimestampsOption = boolean | { createdAt?: boolean | string; updatedAt?: bo
 
 type SoftDeleteOption = boolean | string | { column?: string };
 
+function resolveConflictKeys(
+  modelKeys: Dict<KeyType>,
+  onConflict: string | string[] | undefined,
+): string[] {
+  if (onConflict === undefined) return Object.keys(modelKeys);
+  return Array.isArray(onConflict) ? onConflict : [onConflict];
+}
+
 function resolveTimestampColumn(
   value: boolean | string | undefined,
   defaultName: string,
@@ -245,6 +253,9 @@ export class NullConnector implements Connector {
     return [];
   }
   async batchInsert() {
+    return [];
+  }
+  async upsert() {
     return [];
   }
   async execute() {
@@ -1278,66 +1289,58 @@ export class ModelClass {
   }
 
   /**
-   * Insert a row or update an existing one when a conflict is found. By default
-   * the conflict columns are the Model's primary key(s); pass `onConflict` to
-   * use a different unique-key set. Returns the resulting Model instance
-   * (either the freshly inserted row or the updated existing row).
+   * Insert a row or update an existing one when a conflict is found. By
+   * default the conflict columns are the Model's primary key(s); pass
+   * `onConflict` to use a different unique-key set. Returns the resulting
+   * Model instance (either the freshly inserted row or the updated existing
+   * row).
    *
-   * Caveat: implemented as a SELECT followed by an INSERT or UPDATE, so it is
-   * NOT atomic at the database level. Wrap calls in `Model.transaction(...)`
-   * if you need stronger guarantees, or use a connector-native UPSERT path
-   * once it lands.
+   * When the connector exposes a native `upsert(spec)`, the operation
+   * runs as a single atomic INSERT … ON CONFLICT … DO UPDATE statement
+   * (no race window). The native path skips per-row lifecycle callbacks
+   * and validators — matches Rails' `upsert` semantics. Use
+   * `Model.create` / `record.update` (or wrap in `Model.transaction(...)`)
+   * when callbacks / validators must run.
    */
   static async upsert<M extends typeof ModelClass>(
     this: M,
     props: Dict<any>,
-    options: { onConflict?: string | string[] } = {},
+    options: {
+      onConflict?: string | string[];
+      updateColumns?: string[];
+      ignoreOnly?: boolean;
+    } = {},
   ): Promise<InstanceType<M>> {
-    const conflictKeys =
-      options.onConflict === undefined
-        ? Object.keys(this.keys)
-        : Array.isArray(options.onConflict)
-          ? options.onConflict
-          : [options.onConflict];
-    const filter: Dict<any> = {};
+    const conflictKeys = resolveConflictKeys(this.keys, options.onConflict);
     for (const key of conflictKeys) {
       if (props[key] === undefined) {
         throw new PersistenceError(
           `upsert requires '${key}' to be present in the row (declared as a conflict column)`,
         );
       }
-      filter[key] = props[key];
     }
-    const existing = await this.unscoped().findBy<M>(filter);
-    if (existing) {
-      const attrs: Dict<any> = {};
-      for (const k in props) {
-        if (!conflictKeys.includes(k)) attrs[k] = props[k];
-      }
-      if (Object.keys(attrs).length === 0) return existing;
-      return (existing as any).update(attrs) as Promise<InstanceType<M>>;
-    }
-    return this.create<M>(props as any);
+    const [result] = await this.runUpsert<M>([props], conflictKeys, options);
+    return result;
   }
 
   /**
-   * Bulk variant of `upsert(...)`. Identifies existing rows in a single query
-   * (matching any of the conflict-column tuples), then partitions the input
-   * into updates and a single bulk insert. Returns the resulting Model
-   * instances in the input order. Same atomicity caveat as `upsert`.
+   * Bulk variant of `upsert(...)`. Returns the resulting Model instances in
+   * the input order. With a connector that exposes a native `upsert(spec)`
+   * the entire batch runs in a single round-trip (one INSERT … ON CONFLICT
+   * statement); the fallback path issues one bulk SELECT, one batched
+   * INSERT, plus one UPDATE per matched row.
    */
   static async upsertAll<M extends typeof ModelClass>(
     this: M,
     propsList: Dict<any>[],
-    options: { onConflict?: string | string[] } = {},
+    options: {
+      onConflict?: string | string[];
+      updateColumns?: string[];
+      ignoreOnly?: boolean;
+    } = {},
   ): Promise<InstanceType<M>[]> {
     if (propsList.length === 0) return [];
-    const conflictKeys =
-      options.onConflict === undefined
-        ? Object.keys(this.keys)
-        : Array.isArray(options.onConflict)
-          ? options.onConflict
-          : [options.onConflict];
+    const conflictKeys = resolveConflictKeys(this.keys, options.onConflict);
     for (const row of propsList) {
       for (const key of conflictKeys) {
         if (row[key] === undefined) {
@@ -1347,52 +1350,65 @@ export class ModelClass {
         }
       }
     }
-    let existingFilter: Filter<any>;
-    if (conflictKeys.length === 1) {
-      const [key] = conflictKeys;
-      existingFilter = { $in: { [key]: propsList.map((p) => p[key]) } } as Filter<any>;
+    return this.runUpsert<M>(propsList, conflictKeys, options);
+  }
+
+  static async runUpsert<M extends typeof ModelClass>(
+    this: M,
+    propsList: Dict<any>[],
+    conflictKeys: string[],
+    options: { updateColumns?: string[]; ignoreOnly?: boolean },
+  ): Promise<InstanceType<M>[]> {
+    const now = new Date();
+    const createdCol = this.createdAtColumn;
+    const updatedCol = this.updatedAtColumn;
+
+    const userSuppliedCols = new Set<string>();
+    for (const row of propsList) {
+      for (const key of Object.keys(row)) userSuppliedCols.add(key);
+    }
+
+    const insertRows = propsList.map((row) => {
+      const base = this.init(row) as Dict<any>;
+      // `init` may strip primary-key / conflict columns from the input
+      // shape; the connector still needs them so it can match existing
+      // rows and so the user's supplied keys aren't silently regenerated.
+      for (const k of conflictKeys) {
+        if (row[k] !== undefined) base[k] = row[k];
+      }
+      if (createdCol && base[createdCol] === undefined) base[createdCol] = now;
+      if (updatedCol && base[updatedCol] === undefined) base[updatedCol] = now;
+      return base;
+    });
+
+    let updateColumns: string[];
+    if (options.updateColumns !== undefined) {
+      updateColumns = options.updateColumns;
     } else {
-      existingFilter = {
-        $or: propsList.map((p) => {
-          const sub: Dict<any> = {};
-          for (const k of conflictKeys) sub[k] = p[k];
-          return sub;
-        }),
-      } as Filter<any>;
+      const cols = new Set<string>(userSuppliedCols);
+      for (const k of conflictKeys) cols.delete(k);
+      if (createdCol) cols.delete(createdCol);
+      if (updatedCol) cols.add(updatedCol);
+      updateColumns = [...cols];
     }
-    const existing = await this.unscoped().filterBy(existingFilter).all<M>();
-    const tupleKey = (row: Dict<any>) => conflictKeys.map((k) => JSON.stringify(row[k])).join('|');
-    const existingByTuple = new Map<string, InstanceType<M>>();
-    for (const row of existing) {
-      existingByTuple.set(tupleKey(row.attributes() as Dict<any>), row as InstanceType<M>);
-    }
-    const results: InstanceType<M>[] = [];
-    const toInsert: Dict<any>[] = [];
-    const insertSlots: number[] = [];
-    for (let i = 0; i < propsList.length; i++) {
-      const props = propsList[i];
-      const match = existingByTuple.get(tupleKey(props));
-      if (match) {
-        const attrs: Dict<any> = {};
-        for (const k in props) {
-          if (!conflictKeys.includes(k)) attrs[k] = props[k];
-        }
-        if (Object.keys(attrs).length > 0) {
-          await (match as any).update(attrs);
-        }
-        results[i] = match;
-      } else {
-        toInsert.push(props);
-        insertSlots.push(i);
+
+    const items = await this.connector.upsert({
+      tableName: this.tableName,
+      keys: this.keys,
+      rows: insertRows,
+      conflictTarget: conflictKeys,
+      updateColumns,
+      ignoreOnly: options.ignoreOnly,
+    });
+
+    return items.map((item) => {
+      const keyValues: Dict<any> = {};
+      for (const key in this.keys) {
+        keyValues[key] = item[key];
+        delete item[key];
       }
-    }
-    if (toInsert.length > 0) {
-      const inserted = await this.createMany<M>(toInsert as any[]);
-      for (let i = 0; i < inserted.length; i++) {
-        results[insertSlots[i]] = inserted[i];
-      }
-    }
-    return results;
+      return new this(item, keyValues) as InstanceType<M>;
+    });
   }
 
   persistentProps: Dict<any>;

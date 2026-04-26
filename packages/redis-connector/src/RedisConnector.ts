@@ -5,12 +5,14 @@ import {
   type Connector,
   type Dict,
   defineTable,
+  type Filter,
   filterList,
   KeyType,
   PersistenceError,
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import { createClient, type RedisClientOptions, type RedisClientType } from 'redis';
 
@@ -333,6 +335,88 @@ export class RedisConnector implements Connector {
       inserted.push(row);
     }
     return inserted;
+  }
+
+  /**
+   * Non-atomic upsert via SELECT-then-INSERT-or-UPDATE on the existing
+   * primitives. Redis can't natively conflict on arbitrary `conflictTarget`
+   * (it's a key-value store, not a relational one), so this is the best we
+   * can do without a secondary index. Concurrent writes to the same
+   * conflict tuple may race; wrap calls in `Model.transaction(...)` for the
+   * snapshot/rollback safety net.
+   */
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    await this.ensureConnected();
+    const primaryKey = Object.keys(spec.keys)[0] ?? 'id';
+
+    let existingFilter: Filter<any>;
+    if (spec.conflictTarget.length === 1) {
+      const [col] = spec.conflictTarget;
+      existingFilter = { $in: { [col]: spec.rows.map((r) => r[col]) } } as Filter<any>;
+    } else {
+      existingFilter = {
+        $or: spec.rows.map((r) => {
+          const sub: Dict<any> = {};
+          for (const c of spec.conflictTarget) sub[c] = r[c];
+          return sub;
+        }),
+      } as Filter<any>;
+    }
+    const existing = await this.resolveScope({
+      tableName: spec.tableName,
+      filter: existingFilter,
+    });
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c) => JSON.stringify(row[c])).join('|');
+    const existingByTuple = new Map<string, Dict<any>>();
+    for (const row of existing) existingByTuple.set(tupleKey(row), row);
+
+    const allCols = new Set<string>();
+    for (const r of spec.rows) for (const k of Object.keys(r)) allCols.add(k);
+    const updateColumns =
+      spec.updateColumns ?? [...allCols].filter((c) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const results: Dict<any>[] = [];
+    const toInsert: Dict<any>[] = [];
+    const insertSlots: number[] = [];
+
+    for (let i = 0; i < spec.rows.length; i++) {
+      const row = spec.rows[i];
+      const match = existingByTuple.get(tupleKey(row));
+      if (match) {
+        if (ignore) {
+          results[i] = match;
+          continue;
+        }
+        const fields: Dict<string> = {};
+        const merged: Dict<any> = { ...match };
+        for (const col of updateColumns) {
+          if (Object.hasOwn(row, col)) {
+            fields[col] = encode(row[col]);
+            merged[col] = row[col];
+          }
+        }
+        if (Object.keys(fields).length > 0) {
+          await this.client.hSet(this.rowKey(spec.tableName, match[primaryKey]), fields);
+        }
+        results[i] = merged;
+      } else {
+        toInsert.push(row);
+        insertSlots.push(i);
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const inserted = await this.batchInsert(spec.tableName, spec.keys, toInsert);
+      for (let i = 0; i < inserted.length; i++) {
+        results[insertSlots[i]] = inserted[i];
+      }
+    }
+
+    return results;
   }
 
   /** Raw command escape hatch. `query` is the command name, `bindings` its args. */

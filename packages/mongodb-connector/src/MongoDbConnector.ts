@@ -14,6 +14,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import { type Collection, type Db, MongoClient, type MongoClientOptions, type Sort } from 'mongodb';
 
@@ -267,6 +268,84 @@ export class MongoDbConnector implements Connector {
     }
     await this.collection(tableName).insertMany(docs);
     return docs.map((d) => stripId(d) as Dict<any>);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const primaryKey = Object.keys(spec.keys)[0];
+    const keyType = primaryKey ? spec.keys[primaryKey] : undefined;
+
+    const allCols = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allCols.add(k);
+    const updateColumns =
+      spec.updateColumns ?? [...allCols].filter((c) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const ops: any[] = [];
+    for (const row of spec.rows) {
+      const filter: Dict<any> = {};
+      for (const c of spec.conflictTarget) filter[c] = row[c];
+
+      const setFields: Dict<any> = {};
+      if (!ignore) {
+        for (const c of updateColumns) {
+          if (Object.hasOwn(row, c)) setFields[c] = row[c];
+        }
+      }
+
+      const setOnInsertFields: Dict<any> = { ...row };
+      for (const c of Object.keys(setFields)) delete setOnInsertFields[c];
+      for (const c of spec.conflictTarget) delete setOnInsertFields[c];
+      if (
+        primaryKey &&
+        !spec.conflictTarget.includes(primaryKey) &&
+        setOnInsertFields[primaryKey] === undefined &&
+        row[primaryKey] === undefined
+      ) {
+        if (keyType === KeyType.number) {
+          setOnInsertFields[primaryKey] = await this.nextSequence(spec.tableName);
+        } else if (keyType === KeyType.uuid) {
+          setOnInsertFields[primaryKey] = globalThis.crypto.randomUUID();
+        }
+      }
+
+      const update: Dict<any> = {};
+      if (Object.keys(setFields).length > 0) update.$set = setFields;
+      if (Object.keys(setOnInsertFields).length > 0) update.$setOnInsert = setOnInsertFields;
+      if (Object.keys(update).length === 0) continue;
+
+      ops.push({ updateOne: { filter, update, upsert: true } });
+    }
+
+    if (ops.length > 0) {
+      await this.collection(spec.tableName).bulkWrite(ops, { ordered: true });
+    }
+    return this.fetchByConflict(spec.tableName, spec.conflictTarget, spec.rows);
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    const filter: Dict<any> =
+      conflictTarget.length === 1
+        ? { [conflictTarget[0]]: { $in: rows.map((r) => r[conflictTarget[0]]) } }
+        : {
+            $or: rows.map((r) => {
+              const sub: Dict<any> = {};
+              for (const c of conflictTarget) sub[c] = r[c];
+              return sub;
+            }),
+          };
+    const docs = await this.collection(tableName).find(filter).toArray();
+    const tupleKey = (row: Dict<any>) =>
+      conflictTarget.map((c) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const doc of docs) byTuple.set(tupleKey(doc), stripId(doc) as Dict<any>);
+    return rows
+      .map((row) => byTuple.get(tupleKey(row)))
+      .filter((row): row is Dict<any> => row !== undefined);
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {

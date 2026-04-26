@@ -347,6 +347,104 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
     });
 
+    describe('upsert / upsertAll', () => {
+      const upsertTable = 'conformance_upsert';
+      type Tag = { slug: string; name: string };
+      let TagModel: any;
+
+      beforeEach(async () => {
+        if (await connector.hasTable(upsertTable)) await connector.dropTable(upsertTable);
+        await connector.createTable(upsertTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('slug', { unique: true });
+          t.string('name');
+        });
+        TagModel = class extends (
+          Model({
+            tableName: upsertTable,
+            connector,
+            timestamps: false,
+            init: (props: Tag) => props,
+          })
+        ) {};
+      });
+
+      it('inserts a fresh row when no conflict', async () => {
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'JavaScript' },
+          { onConflict: 'slug' },
+        );
+        expect(row.id).toBeDefined();
+        expect(row.name).toBe('JavaScript');
+        expect(await TagModel.count()).toBe(1);
+      });
+
+      it('updates an existing row on conflict', async () => {
+        const original = await TagModel.create({ slug: 'js', name: 'JS' });
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'JavaScript' },
+          { onConflict: 'slug' },
+        );
+        expect(row.id).toBe(original.id);
+        expect(row.name).toBe('JavaScript');
+        expect(await TagModel.count()).toBe(1);
+      });
+
+      it('respects ignoreOnly — keeps existing row unchanged', async () => {
+        const original = await TagModel.create({ slug: 'js', name: 'JS' });
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'OVERWRITTEN' },
+          { onConflict: 'slug', ignoreOnly: true },
+        );
+        expect(row.id).toBe(original.id);
+        expect(row.name).toBe('JS');
+      });
+
+      it('respects updateColumns — only listed columns get overwritten', async () => {
+        await TagModel.create({ slug: 'js', name: 'JS' });
+        const row = await TagModel.upsert(
+          { slug: 'js', name: 'JavaScript' },
+          { onConflict: 'slug', updateColumns: [] },
+        );
+        expect(row.name).toBe('JS');
+      });
+
+      it('upsertAll partitions inserts and updates and preserves input order', async () => {
+        await TagModel.create({ slug: 'js', name: 'JS' });
+        await TagModel.create({ slug: 'py', name: 'PY' });
+        const rows = await TagModel.upsertAll(
+          [
+            { slug: 'js', name: 'JavaScript' },
+            { slug: 'rb', name: 'Ruby' },
+            { slug: 'py', name: 'Python' },
+          ],
+          { onConflict: 'slug' },
+        );
+        expect(rows.map((r: any) => r.attributes().name)).toEqual(['JavaScript', 'Ruby', 'Python']);
+        expect(await TagModel.count()).toBe(3);
+      });
+
+      it('upsertAll handles a 100-row mixed batch in one call', async () => {
+        await TagModel.createMany(
+          Array.from({ length: 50 }, (_, i) => ({ slug: `s-${i}`, name: `old-${i}` })),
+        );
+        const input = Array.from({ length: 100 }, (_, i) => ({
+          slug: `s-${i}`,
+          name: `new-${i}`,
+        }));
+        const rows = await TagModel.upsertAll(input, { onConflict: 'slug' });
+        expect(rows).toHaveLength(100);
+        expect(rows[0].attributes().name).toBe('new-0');
+        expect(rows[99].attributes().name).toBe('new-99');
+        expect(await TagModel.count()).toBe(100);
+      });
+
+      it('upsertAll returns [] for an empty list', async () => {
+        const rows = await TagModel.upsertAll([], { onConflict: 'slug' });
+        expect(rows).toEqual([]);
+      });
+    });
+
     describe('Find variants', () => {
       it('findOrFail throws NotFoundError on miss', async () => {
         await expect(Cat.findOrFail({ id: 99999 })).rejects.toThrow(/not found/i);
