@@ -180,6 +180,26 @@ describe('SchemaCollector', () => {
     await collector.deleteAll({ tableName: 'users', filter: { name: 'Old' } });
     expect(await collector.count(scope)).toBe(2);
 
+    // upsert: insert two new rows + update one existing — delegated to inner.
+    const upserted = await collector.upsert({
+      tableName: 'users',
+      keys: { id: 1 } as any,
+      rows: [
+        { id: 999, name: 'New', age: 5 },
+        { id: 1000, name: 'Newer', age: 6 },
+      ],
+      conflictTarget: ['id'],
+    });
+    expect(upserted.map((r) => r.name).sort()).toEqual(['New', 'Newer']);
+    expect(await inner.count(scope)).toBe(4);
+
+    // deltaUpdate: bump every row's age by 1 — delegated to inner.
+    const affected = await collector.deltaUpdate({
+      tableName: 'users',
+      deltas: [{ column: 'age', by: 1 }],
+    });
+    expect(affected).toBe(4);
+
     // transaction must run the callback and propagate its return value.
     const result = await collector.transaction(async () => 'ok');
     expect(result).toBe('ok');
@@ -189,7 +209,7 @@ describe('SchemaCollector', () => {
     await expect(collector.execute('noop', [])).rejects.toBeTruthy();
 
     // Sanity: the inner connector saw every mutation we issued through the wrapper.
-    expect(await inner.count(scope)).toBe(2);
+    expect(await inner.count(scope)).toBe(4);
   });
 
   it('tracks alterTable ops in the snapshot', async () => {

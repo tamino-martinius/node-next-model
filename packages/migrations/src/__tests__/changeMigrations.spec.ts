@@ -308,11 +308,23 @@ describe('RecordingConnector', () => {
     await expect(recorder.batchInsert('users', {} as any, [])).rejects.toThrow(
       /cannot insert rows/,
     );
+    await expect(
+      recorder.upsert({ tableName: 'users', keys: {} as any, rows: [], conflictTarget: ['id'] }),
+    ).rejects.toThrow(/cannot upsert rows/);
+    await expect(
+      recorder.deltaUpdate({ tableName: 'users', deltas: [{ column: 'count', by: 1 }] }),
+    ).rejects.toThrow(/cannot apply deltaUpdate/);
     await expect(recorder.execute('SELECT 1', [])).rejects.toThrow(/cannot execute raw SQL/);
     await expect(recorder.aggregate({ tableName: 'users' }, 'sum', 'id')).rejects.toThrow(
       /cannot aggregate/,
     );
     await expect(recorder.hasTable('users')).rejects.toThrow(/cannot probe table existence/);
+  });
+
+  it('transaction() runs the callback and returns its value', async () => {
+    const recorder = new RecordingConnector();
+    const result = await recorder.transaction(async () => 'ok');
+    expect(result).toBe('ok');
   });
 
   it('replayUp executes recorded ops on a real connector', async () => {
@@ -381,5 +393,51 @@ describe('RecordingConnector', () => {
     await expect(replayDown(stub, 'v1', recorder.recorded)).rejects.toBeInstanceOf(
       IrreversibleMigrationError,
     );
+  });
+
+  it('throws when removeIndex appears in a change block (cannot derive inverse)', async () => {
+    const recorder = new RecordingConnector();
+    await recorder.alterTable(defineAlter('users', (a) => a.removeIndex('idx_users_email')));
+    const stub = { async alterTable() {} } as unknown as Connector;
+    await expect(replayDown(stub, 'v1', recorder.recorded)).rejects.toBeInstanceOf(
+      IrreversibleMigrationError,
+    );
+  });
+
+  it('throws when removeForeignKey appears in a change block (cannot derive inverse)', async () => {
+    const recorder = new RecordingConnector();
+    await recorder.alterTable(defineAlter('comments', (a) => a.removeForeignKey('posts')));
+    const stub = { async alterTable() {} } as unknown as Connector;
+    await expect(replayDown(stub, 'v1', recorder.recorded)).rejects.toBeInstanceOf(
+      IrreversibleMigrationError,
+    );
+  });
+
+  it('throws when removeCheckConstraint appears in a change block (cannot derive inverse)', async () => {
+    const recorder = new RecordingConnector();
+    await recorder.alterTable(
+      defineAlter('items', (a) => a.removeCheckConstraint('chk_age_non_negative')),
+    );
+    const stub = { async alterTable() {} } as unknown as Connector;
+    await expect(replayDown(stub, 'v1', recorder.recorded)).rejects.toBeInstanceOf(
+      IrreversibleMigrationError,
+    );
+  });
+
+  it('inverts renameIndex(a, b) to renameIndex(b, a)', async () => {
+    const recorder = new RecordingConnector();
+    await recorder.alterTable(defineAlter('users', (a) => a.renameIndex('idx_old', 'idx_new')));
+    const seen: { ops: { op: string; from: string; to: string }[] }[] = [];
+    const stub = {
+      async alterTable(spec: unknown) {
+        seen.push(spec as { ops: { op: string; from: string; to: string }[] });
+      },
+    } as unknown as Connector;
+    await replayDown(stub, 'v1', recorder.recorded);
+    expect(seen[0].ops[0]).toMatchObject({
+      op: 'renameIndex',
+      from: 'idx_new',
+      to: 'idx_old',
+    });
   });
 });
