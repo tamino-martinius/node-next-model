@@ -4,6 +4,7 @@ import {
   type AlterTableSpec,
   type BaseType,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   foreignKeyName,
@@ -11,6 +12,7 @@ import {
   type Scope,
   type TableBuilder,
   type TableDefinition,
+  type UpsertSpec,
 } from '@next-model/core';
 
 import { IrreversibleMigrationError } from './errors.js';
@@ -86,6 +88,16 @@ export class RecordingConnector implements Connector {
   ): Promise<Dict<any>[]> {
     throw new Error(
       'Reversible change() block cannot insert rows. Use up()/down() for data-touching migrations.',
+    );
+  }
+  async upsert(_spec: UpsertSpec): Promise<Dict<any>[]> {
+    throw new Error(
+      'Reversible change() block cannot upsert rows. Use up()/down() for data-touching migrations.',
+    );
+  }
+  async deltaUpdate(_spec: DeltaUpdateSpec): Promise<number> {
+    throw new Error(
+      'Reversible change() block cannot apply deltaUpdate. Use up()/down() for data-touching migrations.',
     );
   }
   async execute(_query: string, _bindings: BaseType | BaseType[]): Promise<any[]> {

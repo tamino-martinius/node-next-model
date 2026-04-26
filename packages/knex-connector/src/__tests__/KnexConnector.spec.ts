@@ -345,6 +345,96 @@ describe('KnexConnector', () => {
     });
   });
 
+  describe('#upsert', () => {
+    const upsertTable = 'upsert_tags';
+
+    beforeEach(async () => {
+      await connector.knex.schema.dropTableIfExists(upsertTable);
+      await connector.knex.schema.createTable(upsertTable, (t: Knex.CreateTableBuilder) => {
+        t.increments('id').primary().unsigned();
+        t.string('slug').unique();
+        t.string('name');
+      });
+    });
+
+    afterEach(async () => {
+      await connector.knex.schema.dropTableIfExists(upsertTable);
+    });
+
+    it('exposes the upsert capability', () => {
+      expect(typeof connector.upsert).toBe('function');
+    });
+
+    it('inserts new rows, returns them with generated ids', async () => {
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [
+          { slug: 'js', name: 'JavaScript' },
+          { slug: 'rb', name: 'Ruby' },
+        ],
+        conflictTarget: ['slug'],
+        updateColumns: ['name'],
+      });
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => typeof r.id === 'number')).toBe(true);
+      expect(rows.map((r) => r.slug)).toEqual(['js', 'rb']);
+    });
+
+    it('updates existing rows on conflict and preserves input order', async () => {
+      await connector.batchInsert(upsertTable, { id: 1 } as any, [
+        { slug: 'js', name: 'JS' },
+        { slug: 'rb', name: 'RB' },
+      ]);
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [
+          { slug: 'rb', name: 'Ruby' },
+          { slug: 'js', name: 'JavaScript' },
+          { slug: 'py', name: 'Python' },
+        ],
+        conflictTarget: ['slug'],
+        updateColumns: ['name'],
+      });
+      expect(rows.map((r) => r.slug)).toEqual(['rb', 'js', 'py']);
+      expect(rows.map((r) => r.name)).toEqual(['Ruby', 'JavaScript', 'Python']);
+      expect(await connector.count({ tableName: upsertTable })).toBe(3);
+    });
+
+    it('runs in a single statement for bulk inputs (1000+ rows)', async () => {
+      const input = Array.from({ length: 1000 }, (_, i) => ({
+        slug: `slug-${i}`,
+        name: `name-${i}`,
+      }));
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: input,
+        conflictTarget: ['slug'],
+        updateColumns: ['name'],
+      });
+      expect(rows).toHaveLength(1000);
+      expect(await connector.count({ tableName: upsertTable })).toBe(1000);
+    });
+
+    it('honors ignoreOnly with DO NOTHING — conflicting rows are returned unchanged', async () => {
+      await connector.batchInsert(upsertTable, { id: 1 } as any, [{ slug: 'js', name: 'JS' }]);
+      const rows = await connector.upsert({
+        tableName: upsertTable,
+        keys: { id: 1 } as any,
+        rows: [
+          { slug: 'js', name: 'OVERWRITE' },
+          { slug: 'rb', name: 'Ruby' },
+        ],
+        conflictTarget: ['slug'],
+        ignoreOnly: true,
+      });
+      expect(rows.find((r) => r.slug === 'js')?.name).toBe('JS');
+      expect(rows.find((r) => r.slug === 'rb')?.name).toBe('Ruby');
+    });
+  });
+
   describe('#aggregate', () => {
     beforeEach(seed);
 

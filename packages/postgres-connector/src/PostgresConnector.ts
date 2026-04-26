@@ -7,6 +7,7 @@ import {
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DeltaUpdateSpec,
   type Dict,
   defineTable,
   type Filter,
@@ -23,6 +24,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type UpsertSpec,
 } from '@next-model/core';
 import { Pool, type PoolClient, type PoolConfig, type QueryResult } from 'pg';
 
@@ -253,6 +255,35 @@ export class PostgresConnector implements Connector {
     return result.rows;
   }
 
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const params: BaseType[] = [];
+    const setFragments: string[] = [];
+    for (const { column, by } of spec.deltas) {
+      params.push(by as BaseType);
+      setFragments.push(
+        `${quoteIdent(column)} = COALESCE(${quoteIdent(column)}, 0) + $${params.length}`,
+      );
+    }
+    if (spec.set) {
+      for (const k of Object.keys(spec.set)) {
+        params.push(spec.set[k] as BaseType);
+        setFragments.push(`${quoteIdent(k)} = $${params.length}`);
+      }
+    }
+    const where = this.buildWhere(spec.filter);
+    const offset = params.length;
+    let whereSql = where.sql;
+    if (whereSql) {
+      whereSql = whereSql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+    }
+    for (const p of where.params) params.push(p);
+    let sql = `UPDATE ${quoteIdent(spec.tableName)} SET ${setFragments.join(', ')}`;
+    if (whereSql) sql += ` WHERE ${whereSql}`;
+    const result = await this.run(sql, params);
+    return result.rowCount ?? 0;
+  }
+
   async deleteAll(scope: Scope): Promise<Dict<any>[]> {
     const where = this.buildWhere(scope.filter);
     let sql = `DELETE FROM ${quoteIdent(scope.tableName)}`;
@@ -290,6 +321,83 @@ export class PostgresConnector implements Connector {
     const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES ${valueRows.join(', ')} RETURNING *`;
     const result = await this.run(sql, params);
     return result.rows;
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const allKeys = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) allKeys.add(k);
+    const cols = Array.from(allKeys);
+    const updateColumns =
+      spec.updateColumns ?? cols.filter((c: string) => !spec.conflictTarget.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const params: BaseType[] = [];
+    const valueRows: string[] = [];
+    for (const row of spec.rows) {
+      const placeholders = cols.map((c) => {
+        params.push(row[c] as BaseType);
+        return `$${params.length}`;
+      });
+      valueRows.push(`(${placeholders.join(', ')})`);
+    }
+    const conflictCols = spec.conflictTarget.map(quoteIdent).join(', ');
+    const conflictClause = ignore
+      ? `ON CONFLICT (${conflictCols}) DO NOTHING`
+      : `ON CONFLICT (${conflictCols}) DO UPDATE SET ${updateColumns
+          .map((c: string) => `${quoteIdent(c)} = EXCLUDED.${quoteIdent(c)}`)
+          .join(', ')}`;
+    const sql = `INSERT INTO ${quoteIdent(spec.tableName)} (${cols
+      .map(quoteIdent)
+      .join(', ')}) VALUES ${valueRows.join(', ')} ${conflictClause} RETURNING *`;
+    const inserted = (await this.run(sql, params)).rows as Dict<any>[];
+
+    const tupleKey = (row: Dict<any>) =>
+      spec.conflictTarget.map((c: string) => JSON.stringify(row[c])).join('|');
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of inserted) byTuple.set(tupleKey(row), row);
+
+    const missing: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      if (!byTuple.has(tupleKey(row))) missing.push(row);
+    }
+    if (missing.length > 0) {
+      const fetched = await this.fetchByConflict(spec.tableName, spec.conflictTarget, missing);
+      for (const row of fetched) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row: Dict<any>) => byTuple.get(tupleKey(row)))
+      .filter((row: Dict<any> | undefined): row is Dict<any> => row !== undefined);
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    const params: BaseType[] = [];
+    let where: string;
+    if (conflictTarget.length === 1) {
+      const [col] = conflictTarget;
+      const placeholders = rows.map((r) => {
+        params.push(r[col] as BaseType);
+        return `$${params.length}`;
+      });
+      where = `${quoteIdent(col)} IN (${placeholders.join(', ')})`;
+    } else {
+      where = rows
+        .map((r) => {
+          const parts = conflictTarget.map((c) => {
+            params.push(r[c] as BaseType);
+            return `${quoteIdent(c)} = $${params.length}`;
+          });
+          return `(${parts.join(' AND ')})`;
+        })
+        .join(' OR ');
+    }
+    const sql = `SELECT * FROM ${quoteIdent(tableName)} WHERE ${where}`;
+    return (await this.run(sql, params)).rows as Dict<any>[];
   }
 
   async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {

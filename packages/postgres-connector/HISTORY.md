@@ -4,6 +4,9 @@
 
 - Implements `Connector.alterTable(spec)`. Every op translates to native PostgreSQL DDL: `addColumn` / `removeColumn` / `renameColumn` use `ALTER TABLE ... ADD/DROP/RENAME COLUMN`; `changeColumn` issues `ALTER COLUMN ... TYPE`, then `SET/DROP NOT NULL` and `SET/DROP DEFAULT` based on the supplied options; `addIndex` / `removeIndex` / `renameIndex` use `CREATE INDEX` / `DROP INDEX` / `ALTER INDEX RENAME TO`; `addForeignKey` / `removeForeignKey` and `addCheckConstraint` / `removeCheckConstraint` use `ADD CONSTRAINT` / `DROP CONSTRAINT` with the auto-generated default name from `@next-model/core` so callers don't need to remember it. Indexes created via `createTable` now use the same `idx_<table>_<columns>` default name so `removeIndex(['col'])` finds them.
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` method via `INSERT … ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col RETURNING *`. Honors `updateColumns` (whitelist) and `ignoreOnly` (`DO NOTHING`); rows skipped by the conflict path are backfilled via a single follow-up `SELECT … WHERE conflictTarget IN (...)`. Returns rows in input order. `Model.upsert` / `Model.upsertAll` automatically route through this path.
+
 ### Initial release
 
 - New `@next-model/postgres-connector` package: native PostgreSQL connector implementing `@next-model/core`'s `Connector` interface using `node-postgres` (`pg`) directly. No Knex dependency.

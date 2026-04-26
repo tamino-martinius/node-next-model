@@ -6,6 +6,9 @@ Rolling changelog for the next major release. Items below are appended in the or
 
 - Implements `Connector.alterTable(spec)`. PostgreSQL-style DDL routed through the Data API: `ALTER TABLE ADD/DROP/RENAME COLUMN`, `ALTER COLUMN ... TYPE` for `changeColumn`, `CREATE INDEX` / `DROP INDEX` / `ALTER INDEX RENAME TO` for index ops, and `ADD/DROP CONSTRAINT` for foreign keys + check constraints. Identifier validation runs on every name passed through to keep injection guarantees.
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` method. Reuses Knex's `pg`-flavored builder to emit `INSERT … ON CONFLICT (cols) DO UPDATE … RETURNING *` against the Data API. Honors `updateColumns` and `ignoreOnly`; rows skipped by the conflict path are backfilled via a single follow-up `SELECT`. `Model.upsert` / `Model.upsertAll` automatically route through this path on Aurora Postgres.
+
 ### Rewrite
 
 - Full TypeScript rewrite on top of the modern `@next-model/core` `Connector` interface. Matches `KnexConnector` parity.

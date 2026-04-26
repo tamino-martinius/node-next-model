@@ -6,6 +6,9 @@ Rolling changelog for the next major release. Items below are appended in the or
 
 - Implements `Connector.alterTable(spec)` by inheriting `MemoryConnector.alterTable` and persisting the affected table after the rows have been rewritten. Column rename / remove rewrite the in-memory rows then flush to `localStorage`; foreign keys + check constraints inherit the `UnsupportedOperationError` from `MemoryConnector`.
 
+### Native UPSERT
+- Implements the optional `Connector.upsert(spec)` by delegating to `MemoryConnector.upsert` and persisting the touched table through the localStorage write path (deferred under `transaction(...)`).
+
 ### Rewrite
 
 - Full TypeScript rewrite. Package renamed to `@next-model/local-storage-connector`.

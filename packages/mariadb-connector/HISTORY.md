@@ -2,6 +2,9 @@
 
 ## vNext
 
+### Native UPSERT
+- Overrides the parent's `upsert` to use MariaDB's `INSERT … ON DUPLICATE KEY UPDATE … RETURNING *` (10.5+). RETURNING only emits inserted rows, so updates / `IGNORE`-skipped rows are backfilled via a single follow-up `SELECT`. Returns rows in input order.
+
 ### Initial release
 
 - New `@next-model/mariadb-connector` package: thin extension of `@next-model/mysql-connector` that takes advantage of MariaDB-specific features.
