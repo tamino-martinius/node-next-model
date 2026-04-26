@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MemoryConnector } from '@next-model/core';
+import { defineAlter, MemoryConnector } from '@next-model/core';
 import { describe, expect, it } from 'vitest';
 
 import { Migrator } from '../Migrator.js';
@@ -180,6 +180,26 @@ describe('SchemaCollector', () => {
     await collector.deleteAll({ tableName: 'users', filter: { name: 'Old' } });
     expect(await collector.count(scope)).toBe(2);
 
+    // upsert: insert two new rows + update one existing — delegated to inner.
+    const upserted = await collector.upsert({
+      tableName: 'users',
+      keys: { id: 1 } as any,
+      rows: [
+        { id: 999, name: 'New', age: 5 },
+        { id: 1000, name: 'Newer', age: 6 },
+      ],
+      conflictTarget: ['id'],
+    });
+    expect(upserted.map((r) => r.name).sort()).toEqual(['New', 'Newer']);
+    expect(await inner.count(scope)).toBe(4);
+
+    // deltaUpdate: bump every row's age by 1 — delegated to inner.
+    const affected = await collector.deltaUpdate({
+      tableName: 'users',
+      deltas: [{ column: 'age', by: 1 }],
+    });
+    expect(affected).toBe(4);
+
     // transaction must run the callback and propagate its return value.
     const result = await collector.transaction(async () => 'ok');
     expect(result).toBe('ok');
@@ -189,7 +209,63 @@ describe('SchemaCollector', () => {
     await expect(collector.execute('noop', [])).rejects.toBeTruthy();
 
     // Sanity: the inner connector saw every mutation we issued through the wrapper.
-    expect(await inner.count(scope)).toBe(2);
+    expect(await inner.count(scope)).toBe(4);
+  });
+
+  it('tracks alterTable ops in the snapshot', async () => {
+    const { collector } = newCollector();
+    await collector.createTable('users', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('name');
+    });
+    await collector.alterTable(
+      defineAlter('users', (a) => {
+        a.addColumn('email', 'string', { null: false });
+        a.addIndex('email', { unique: true, name: 'idx_users_email' });
+        a.renameColumn('name', 'fullName');
+      }),
+    );
+    const snap = collector.snapshot();
+    const users = snap.tables.users;
+    expect(users.columns.map((c) => c.name)).toEqual(['id', 'fullName', 'email']);
+    expect(users.indexes).toEqual([{ columns: ['email'], name: 'idx_users_email', unique: true }]);
+  });
+
+  it('schema-file roundtrip: createTable + alterTable replays to the same shape', async () => {
+    const { collector } = newCollector();
+    await collector.createTable('posts', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('title');
+    });
+    await collector.alterTable(
+      defineAlter('posts', (a) => {
+        a.addColumn('publishedAt', 'datetime');
+        a.addIndex('publishedAt', { name: 'idx_posts_published_at' });
+        a.changeColumn('title', 'string', { null: false, limit: 200 });
+      }),
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'nm-schema-alter-'));
+    const path = join(dir, 'schema.json');
+    collector.writeSchema(path);
+
+    const replayInner = new MemoryConnector({ storage: {}, lastIds: {} });
+    const replayCollector = new SchemaCollector(replayInner, {
+      initial: await readSchemaFile(path),
+    });
+    expect(replayCollector.snapshot().tables).toEqual(collector.snapshot().tables);
+  });
+
+  it('alterTable forwards the op list to the inner connector', async () => {
+    const { inner, collector } = newCollector();
+    await collector.createTable('users', (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('name');
+    });
+    await collector.batchInsert('users', { id: 1 } as any, [{ name: 'Ada' }]);
+    await collector.alterTable(defineAlter('users', (a) => a.renameColumn('name', 'fullName')));
+    const rows = await inner.query({ tableName: 'users' });
+    expect(rows[0].fullName).toBe('Ada');
+    expect('name' in rows[0]).toBe(false);
   });
 
   it('readSchemaFile rejects snapshots from a future version', async () => {

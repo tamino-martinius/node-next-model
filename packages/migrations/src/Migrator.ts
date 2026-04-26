@@ -7,7 +7,14 @@ import {
   MigrationNotAppliedError,
   MigrationParentMissingError,
 } from './errors.js';
+import { RecordingConnector, replayDown, replayUp } from './RecordingConnector.js';
 import type { MigrateOptions, Migration, MigrationStatus, MigratorOptions } from './types.js';
+
+function isChangeMigration(
+  migration: Migration,
+): migration is Extract<Migration, { change: (connector: Connector) => Promise<void> }> {
+  return typeof (migration as { change?: unknown }).change === 'function';
+}
 
 const DEFAULT_TABLE_NAME = 'schema_migrations';
 const VERSION_LIMIT = 255;
@@ -189,7 +196,13 @@ export class Migrator {
 
   private async runUp(migration: Migration): Promise<void> {
     await this.connector.transaction(async () => {
-      await migration.up(this.connector);
+      if (isChangeMigration(migration)) {
+        const recorder = new RecordingConnector();
+        await migration.change(recorder);
+        await replayUp(this.connector, recorder.recorded);
+      } else {
+        await migration.up(this.connector);
+      }
       await this.connector.batchInsert(this.tableName, { version: KeyType.manual }, [
         {
           version: migration.version,
@@ -202,7 +215,13 @@ export class Migrator {
 
   private async runDown(migration: Migration): Promise<void> {
     await this.connector.transaction(async () => {
-      await migration.down(this.connector);
+      if (isChangeMigration(migration)) {
+        const recorder = new RecordingConnector();
+        await migration.change(recorder);
+        await replayDown(this.connector, migration.version, recorder.recorded);
+      } else {
+        await migration.down(this.connector);
+      }
       await this.connector.deleteAll({
         tableName: this.tableName,
         filter: { version: migration.version },

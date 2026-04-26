@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements `Connector.alterTable(spec)`. Native MySQL DDL: `ADD/DROP/RENAME COLUMN`, `MODIFY COLUMN` for `changeColumn`, `CREATE INDEX` / `DROP INDEX ... ON tbl` / `ALTER TABLE ... RENAME INDEX` for index ops, `ADD CONSTRAINT ... FOREIGN KEY` / `DROP FOREIGN KEY` for FK ops, and `ADD CONSTRAINT ... CHECK` / `DROP CHECK` for check constraints (MySQL 8.0+; MariaDB 10.2+). Inherited verbatim by `@next-model/mariadb-connector`.
+
 ### Native UPSERT
 - Implements the optional `Connector.upsert(spec)` method via `INSERT … ON DUPLICATE KEY UPDATE col = VALUES(col)` (or `INSERT IGNORE …` when `ignoreOnly` is set). MySQL conflicts on any unique key — the explicit `conflictTarget` is informational; the SQL ignores it. MySQL has no `RETURNING`, so the connector issues a single follow-up `SELECT … WHERE conflictTarget IN (...)` to return rows in input order. Honors `updateColumns` and `ignoreOnly`; `Model.upsert` / `Model.upsertAll` automatically route through this path.
 

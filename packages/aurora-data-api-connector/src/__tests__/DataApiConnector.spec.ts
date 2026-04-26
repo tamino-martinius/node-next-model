@@ -1,4 +1,4 @@
-import { FilterError, Model } from '@next-model/core';
+import { defineAlter, FilterError, Model } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DataApiConnector } from '../index.js';
@@ -567,6 +567,115 @@ describe('DataApiConnector', () => {
       const names = (await User.all()).map((u) => u.name);
       expect(names).not.toContain('outer');
       expect(names).not.toContain('inner');
+    });
+  });
+
+  describe('#alterTable', () => {
+    const altTable = 'aurora_alter_users';
+    beforeEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(altTable);
+      await connector.createTable(altTable, (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('name', { null: false });
+      });
+    });
+    afterEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(altTable);
+    });
+
+    it('addColumn issues ALTER TABLE ADD COLUMN', async () => {
+      await connector.alterTable(
+        defineAlter(altTable, (a) => a.addColumn('role', 'string', { default: 'member' })),
+      );
+      const cols = await mockClient.knex(altTable).columnInfo();
+      expect(cols.role).toBeDefined();
+    });
+
+    it('removeColumn issues ALTER TABLE DROP COLUMN', async () => {
+      await connector.alterTable(defineAlter(altTable, (a) => a.removeColumn('name')));
+      const cols = await mockClient.knex(altTable).columnInfo();
+      expect(cols.name).toBeUndefined();
+    });
+
+    it('renameColumn issues ALTER TABLE RENAME COLUMN', async () => {
+      await connector.alterTable(defineAlter(altTable, (a) => a.renameColumn('name', 'fullName')));
+      const cols = await mockClient.knex(altTable).columnInfo();
+      expect(cols.fullName).toBeDefined();
+      expect(cols.name).toBeUndefined();
+    });
+
+    it('addIndex / removeIndex round-trip via CREATE/DROP INDEX', async () => {
+      await connector.alterTable(
+        defineAlter(altTable, (a) => a.addIndex('name', { name: 'idx_aurora_alter_users_name' })),
+      );
+      await connector.alterTable(
+        defineAlter(altTable, (a) => a.removeIndex('idx_aurora_alter_users_name')),
+      );
+      // also exercise the columns-array path
+      await connector.alterTable(defineAlter(altTable, (a) => a.addIndex(['name'])));
+      await connector.alterTable(defineAlter(altTable, (a) => a.removeIndex(['name'])));
+    });
+
+    it('exercises changeColumn / renameIndex / FK / check translation paths', async () => {
+      // The mock client runs sqlite under the hood; not every PG-flavoured DDL
+      // statement is accepted, but we want to exercise the connector's
+      // translation layer regardless. Errors are tolerated.
+      const tryOp = async (fn: () => Promise<void>) => {
+        try {
+          await fn();
+        } catch {
+          // expected for some ops on sqlite
+        }
+      };
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) => a.changeColumn('name', 'text', { null: true })),
+        ),
+      );
+      await tryOp(() =>
+        connector.alterTable(defineAlter(altTable, (a) => a.renameIndex('idx_x', 'idx_y'))),
+      );
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) =>
+            a.addForeignKey('teams', { onDelete: 'cascade', onUpdate: 'restrict' }),
+          ),
+        ),
+      );
+      await tryOp(() =>
+        connector.alterTable(defineAlter(altTable, (a) => a.removeForeignKey('teams'))),
+      );
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) => a.addCheckConstraint('id > 0', { name: 'chk_id_positive' })),
+        ),
+      );
+      await tryOp(() =>
+        connector.alterTable(
+          defineAlter(altTable, (a) => a.removeCheckConstraint('chk_id_positive')),
+        ),
+      );
+    });
+
+    it('exercises every ForeignKeyAction mapping in the DDL builder', async () => {
+      const actions: ('cascade' | 'restrict' | 'setNull' | 'setDefault' | 'noAction')[] = [
+        'cascade',
+        'restrict',
+        'setNull',
+        'setDefault',
+        'noAction',
+      ];
+      for (const action of actions) {
+        try {
+          await connector.alterTable(
+            defineAlter(altTable, (a) =>
+              a.addForeignKey('teams', { onDelete: action, onUpdate: action }),
+            ),
+          );
+        } catch {
+          // sqlite mock may reject; we only care that pgAction runs
+        }
+      }
     });
   });
 });

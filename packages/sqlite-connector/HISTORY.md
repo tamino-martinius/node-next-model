@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements `Connector.alterTable(spec)`. Native ALTER TABLE for `addColumn` / `removeColumn` (SQLite ≥ 3.35) / `renameColumn` (SQLite ≥ 3.25), plus `CREATE INDEX` / `DROP INDEX` and `DROP+CREATE` for `renameIndex` (SQLite has no `ALTER INDEX`). `changeColumn`, `addForeignKey` / `removeForeignKey`, `addCheckConstraint` / `removeCheckConstraint` use the standard "create new table + copy + drop + rename" recreate dance internally — the connector tracks each table's `TableDefinition` plus its FK / CHECK metadata so the recreate is lossless. `foreign_keys` is toggled off for the duration of the recreate and restored afterwards so existing FK constraints don't fire spuriously on the rename step.
+
 ### Native UPSERT
 - Implements the optional `Connector.upsert(spec)` method via `INSERT … ON CONFLICT (cols) DO UPDATE SET col = excluded.col RETURNING *` (sqlite 3.35+). Honors `updateColumns` (whitelist) and `ignoreOnly` (`DO NOTHING`); rows skipped by the conflict path are backfilled via a single follow-up `SELECT … WHERE conflictTarget IN (...)`. Returns rows in input order. `Model.upsert` / `Model.upsertAll` automatically route through this path.
 

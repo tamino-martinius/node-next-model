@@ -1,5 +1,6 @@
 import {
   type AggregateKind,
+  type AlterTableSpec,
   type BaseType,
   type DeltaUpdateSpec,
   type Dict,
@@ -170,6 +171,12 @@ export class LocalStorageConnector extends MemoryConnector {
     this.pendingPersist.delete(tableName);
     this.webStorage.removeItem(this.tableKey(tableName));
     this.webStorage.removeItem(this.nextIdKey(tableName));
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    this.hydrate(spec.tableName);
+    await super.alterTable(spec);
+    this.persist(spec.tableName);
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {

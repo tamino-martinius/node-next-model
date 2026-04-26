@@ -1,7 +1,11 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
   type DeltaUpdateSpec,
   type Dict,
@@ -12,6 +16,8 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   type IndexDefinition,
   type KeyType,
   PersistenceError,
@@ -456,6 +462,107 @@ export class PostgresConnector implements Connector {
     await this.run(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
   }
 
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const t = quoteIdent(tableName);
+    switch (op.op) {
+      case 'addColumn':
+        await this.run(
+          `ALTER TABLE ${t} ADD COLUMN ${this.columnDdl(definitionFromOp(op.name, op.type, op.options))}`,
+        );
+        return;
+      case 'removeColumn':
+        await this.run(`ALTER TABLE ${t} DROP COLUMN ${quoteIdent(op.name)}`);
+        return;
+      case 'renameColumn':
+        await this.run(
+          `ALTER TABLE ${t} RENAME COLUMN ${quoteIdent(op.from)} TO ${quoteIdent(op.to)}`,
+        );
+        return;
+      case 'changeColumn':
+        await this.applyChangeColumn(tableName, op.name, op.type, op.options);
+        return;
+      case 'addIndex':
+        await this.createIndex(tableName, {
+          columns: op.columns,
+          unique: op.unique ?? false,
+          name: op.name,
+        });
+        return;
+      case 'removeIndex':
+        await this.dropIndex(tableName, op.nameOrColumns);
+        return;
+      case 'renameIndex':
+        await this.run(`ALTER INDEX ${quoteIdent(op.from)} RENAME TO ${quoteIdent(op.to)}`);
+        return;
+      case 'addForeignKey': {
+        const local = op.column ?? `${op.toTable}Id`;
+        const name = op.name ?? foreignKeyName(tableName, op.toTable);
+        const ref = op.primaryKey ?? 'id';
+        let sql = `ALTER TABLE ${t} ADD CONSTRAINT ${quoteIdent(name)} FOREIGN KEY (${quoteIdent(local)}) REFERENCES ${quoteIdent(op.toTable)} (${quoteIdent(ref)})`;
+        if (op.onDelete) sql += ` ON DELETE ${pgAction(op.onDelete)}`;
+        if (op.onUpdate) sql += ` ON UPDATE ${pgAction(op.onUpdate)}`;
+        await this.run(sql);
+        return;
+      }
+      case 'removeForeignKey': {
+        const constraint = op.nameOrTable.startsWith('fk_')
+          ? op.nameOrTable
+          : foreignKeyName(tableName, op.nameOrTable);
+        await this.run(`ALTER TABLE ${t} DROP CONSTRAINT ${quoteIdent(constraint)}`);
+        return;
+      }
+      case 'addCheckConstraint': {
+        const name = op.name ?? `chk_${tableName}_${Date.now()}`;
+        await this.run(
+          `ALTER TABLE ${t} ADD CONSTRAINT ${quoteIdent(name)} CHECK (${op.expression})`,
+        );
+        return;
+      }
+      case 'removeCheckConstraint':
+        await this.run(`ALTER TABLE ${t} DROP CONSTRAINT ${quoteIdent(op.name)}`);
+        return;
+    }
+  }
+
+  private async applyChangeColumn(
+    tableName: string,
+    name: string,
+    type: ColumnKind,
+    options: ColumnOptions = {},
+  ): Promise<void> {
+    const t = quoteIdent(tableName);
+    const c = quoteIdent(name);
+    const def = definitionFromOp(name, type, options);
+    await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} TYPE ${this.columnType(def)}`);
+    if (options.null === false) {
+      await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} SET NOT NULL`);
+    } else if (options.null === true) {
+      await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} DROP NOT NULL`);
+    }
+    if (options.default === undefined) {
+      await this.run(`ALTER TABLE ${t} ALTER COLUMN ${c} DROP DEFAULT`);
+    } else {
+      await this.run(
+        `ALTER TABLE ${t} ALTER COLUMN ${c} SET DEFAULT ${this.defaultLiteral(options.default)}`,
+      );
+    }
+  }
+
+  private async dropIndex(tableName: string, nameOrColumns: string | string[]): Promise<void> {
+    if (Array.isArray(nameOrColumns)) {
+      const target = `idx_${tableName}_${nameOrColumns.join('_')}`;
+      await this.run(`DROP INDEX IF EXISTS ${quoteIdent(target)}`);
+    } else {
+      await this.run(`DROP INDEX IF EXISTS ${quoteIdent(nameOrColumns)}`);
+    }
+  }
+
   private columnDdl(col: ColumnDefinition): string {
     const parts: string[] = [quoteIdent(col.name)];
     if (col.autoIncrement) {
@@ -511,12 +618,42 @@ export class PostgresConnector implements Connector {
 
   private async createIndex(tableName: string, idx: IndexDefinition): Promise<void> {
     const cols = idx.columns.map(quoteIdent).join(', ');
-    const name = idx.name ? quoteIdent(idx.name) : '';
+    const name = quoteIdent(idx.name ?? `idx_${tableName}_${idx.columns.join('_')}`);
     const unique = idx.unique ? 'UNIQUE ' : '';
-    const sql = `CREATE ${unique}INDEX ${name} ON ${quoteIdent(tableName)} (${cols})`.replace(
-      'INDEX  ',
-      'INDEX ',
-    );
-    await this.run(sql);
+    await this.run(`CREATE ${unique}INDEX ${name} ON ${quoteIdent(tableName)} (${cols})`);
+  }
+}
+
+function definitionFromOp(
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+): ColumnDefinition {
+  return {
+    name,
+    type,
+    nullable: options.null ?? true,
+    default: options.default,
+    limit: options.limit,
+    primary: options.primary ?? false,
+    unique: options.unique ?? false,
+    precision: options.precision,
+    scale: options.scale,
+    autoIncrement: options.autoIncrement ?? false,
+  };
+}
+
+function pgAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
   }
 }

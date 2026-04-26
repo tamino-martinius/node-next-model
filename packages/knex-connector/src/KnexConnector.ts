@@ -5,8 +5,12 @@ try {
 
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
   type DeltaUpdateSpec,
   type Dict,
@@ -17,6 +21,8 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   KeyType,
   PersistenceError,
   type Scope,
@@ -503,34 +509,193 @@ export class KnexConnector implements Connector {
   async dropTable(tableName: string): Promise<void> {
     await this.schemaBuilder().dropTableIfExists(tableName);
   }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    if (spec.ops.length === 0) return;
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    const builder = this.schemaBuilder();
+    switch (op.op) {
+      case 'addColumn':
+        await builder.alterTable(tableName, (table) => {
+          applyColumnDefinition(table, this.knex, op.name, op.type, op.options);
+        });
+        return;
+      case 'removeColumn':
+        await builder.alterTable(tableName, (table) => {
+          table.dropColumn(op.name);
+        });
+        return;
+      case 'renameColumn':
+        await builder.alterTable(tableName, (table) => {
+          table.renameColumn(op.from, op.to);
+        });
+        return;
+      case 'changeColumn':
+        await builder.alterTable(tableName, (table) => {
+          applyColumnDefinition(table, this.knex, op.name, op.type, op.options, true);
+        });
+        return;
+      case 'addIndex':
+        await builder.alterTable(tableName, (table) => {
+          if (op.unique) table.unique(op.columns, { indexName: op.name });
+          else table.index(op.columns, op.name);
+        });
+        return;
+      case 'removeIndex':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof op.nameOrColumns === 'string') {
+            // Knex needs columns to drop a non-unique index without a name. Try
+            // dropping by name first; if that errors at runtime callers can fall
+            // back to passing the column array.
+            table.dropIndex([], op.nameOrColumns);
+          } else {
+            table.dropIndex(op.nameOrColumns);
+          }
+        });
+        return;
+      case 'renameIndex':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof (table as any).renameIndex === 'function') {
+            (table as any).renameIndex(op.from, op.to);
+            return;
+          }
+          throw new PersistenceError(
+            `renameIndex is not supported by this Knex client; drop and recreate the index instead`,
+          );
+        });
+        return;
+      case 'addForeignKey': {
+        const localColumn = op.column ?? `${op.toTable}Id`;
+        const constraintName = op.name ?? foreignKeyName(tableName, op.toTable);
+        await builder.alterTable(tableName, (table) => {
+          const fk = table
+            .foreign(localColumn, constraintName)
+            .references(op.primaryKey ?? 'id')
+            .inTable(op.toTable);
+          if (op.onDelete) fk.onDelete(toSqlAction(op.onDelete));
+          if (op.onUpdate) fk.onUpdate(toSqlAction(op.onUpdate));
+        });
+        return;
+      }
+      case 'removeForeignKey': {
+        const constraint = op.nameOrTable.startsWith('fk_')
+          ? op.nameOrTable
+          : foreignKeyName(tableName, op.nameOrTable);
+        await builder.alterTable(tableName, (table) => {
+          table.dropForeign([], constraint);
+        });
+        return;
+      }
+      case 'addCheckConstraint':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof (table as any).check === 'function') {
+            (table as any).check(op.expression, undefined, op.name);
+            return;
+          }
+          throw new PersistenceError(
+            `addCheckConstraint requires Knex >= 2.5; this version doesn't expose t.check()`,
+          );
+        });
+        return;
+      case 'removeCheckConstraint':
+        await builder.alterTable(tableName, (table) => {
+          if (typeof (table as any).dropChecks === 'function') {
+            (table as any).dropChecks(op.name);
+            return;
+          }
+          throw new PersistenceError(
+            `removeCheckConstraint requires Knex >= 2.5; this version doesn't expose t.dropChecks()`,
+          );
+        });
+        return;
+    }
+  }
 }
 
 function buildKnexColumn(
   table: Knex.CreateTableBuilder,
   col: ColumnDefinition,
 ): Knex.ColumnBuilder {
-  switch (col.type) {
+  return columnByKind(table, col.name, col.type, col);
+}
+
+function columnByKind(
+  table: Knex.CreateTableBuilder | Knex.AlterTableBuilder,
+  name: string,
+  type: ColumnKind,
+  col: { limit?: number; precision?: number; scale?: number },
+): Knex.ColumnBuilder {
+  switch (type) {
     case 'string':
-      return table.string(col.name, col.limit ?? 255);
+      return table.string(name, col.limit ?? 255);
     case 'text':
-      return table.text(col.name);
+      return table.text(name);
     case 'integer':
-      return table.integer(col.name);
+      return table.integer(name);
     case 'bigint':
-      return table.bigInteger(col.name);
+      return table.bigInteger(name);
     case 'float':
-      return table.float(col.name);
+      return table.float(name);
     case 'decimal':
-      return table.decimal(col.name, col.precision, col.scale);
+      return table.decimal(name, col.precision, col.scale);
     case 'boolean':
-      return table.boolean(col.name);
+      return table.boolean(name);
     case 'date':
-      return table.date(col.name);
+      return table.date(name);
     case 'datetime':
     case 'timestamp':
-      return table.timestamp(col.name);
+      return table.timestamp(name);
     case 'json':
-      return table.json(col.name);
+      return table.json(name);
+  }
+}
+
+function applyColumnDefinition(
+  table: Knex.AlterTableBuilder,
+  knex: Knex,
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+  alter = false,
+): void {
+  if (options.autoIncrement) {
+    const auto = table.increments(name);
+    if (options.unique) auto.unique();
+    if (alter) auto.alter();
+    return;
+  }
+  const col = columnByKind(table, name, type, options);
+  if (options.primary) col.primary();
+  if (options.unique) col.unique();
+  if (options.null === false) col.notNullable();
+  else col.nullable();
+  if (options.default !== undefined) {
+    if (options.default === 'currentTimestamp') {
+      col.defaultTo(knex.fn.now());
+    } else {
+      col.defaultTo(options.default as any);
+    }
+  }
+  if (alter) col.alter();
+}
+
+function toSqlAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
   }
 }
 

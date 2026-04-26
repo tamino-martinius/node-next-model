@@ -1,5 +1,7 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type Connector,
   type DeltaUpdateSpec,
@@ -12,6 +14,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  UnsupportedOperationError,
   type UpsertSpec,
 } from '@next-model/core';
 import { createClient, type RedisClientOptions, type RedisClientType } from 'redis';
@@ -493,6 +496,71 @@ export class RedisConnector implements Connector {
       });
       cursor = Number(result.cursor);
       if (result.keys.length > 0) await this.client.del(result.keys);
+    } while (cursor !== 0);
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    switch (op.op) {
+      case 'addColumn':
+      case 'addIndex':
+      case 'removeIndex':
+      case 'renameIndex':
+      case 'changeColumn':
+        return;
+      case 'removeColumn':
+        await this.removeFieldFromAllRows(tableName, op.name);
+        return;
+      case 'renameColumn':
+        await this.renameFieldInAllRows(tableName, op.from, op.to);
+        return;
+      case 'addForeignKey':
+      case 'removeForeignKey':
+      case 'addCheckConstraint':
+      case 'removeCheckConstraint':
+        throw new UnsupportedOperationError(
+          `RedisConnector cannot apply ${op.op}: redis does not enforce relational constraints. Drop the operation from the migration or guard it with a connector capability check.`,
+        );
+    }
+  }
+
+  private async removeFieldFromAllRows(tableName: string, field: string): Promise<void> {
+    await this.ensureConnected();
+    let cursor = 0;
+    do {
+      const result = await this.client.scan(cursor, {
+        MATCH: this.tablePattern(tableName),
+        COUNT: 100,
+      });
+      cursor = Number(result.cursor);
+      for (const key of result.keys) {
+        if (key.endsWith(':meta') || key.endsWith(':nextId') || key.endsWith(':ids')) continue;
+        await this.client.hDel(key, field);
+      }
+    } while (cursor !== 0);
+  }
+
+  private async renameFieldInAllRows(tableName: string, from: string, to: string): Promise<void> {
+    await this.ensureConnected();
+    let cursor = 0;
+    do {
+      const result = await this.client.scan(cursor, {
+        MATCH: this.tablePattern(tableName),
+        COUNT: 100,
+      });
+      cursor = Number(result.cursor);
+      for (const key of result.keys) {
+        if (key.endsWith(':meta') || key.endsWith(':nextId') || key.endsWith(':ids')) continue;
+        const value = await this.client.hGet(key, from);
+        if (value === undefined || value === null) continue;
+        await this.client.hSet(key, to, value);
+        await this.client.hDel(key, from);
+      }
     } while (cursor !== 0);
   }
 

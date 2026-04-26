@@ -1,7 +1,11 @@
 import {
   type AggregateKind,
+  type AlterTableOp,
+  type AlterTableSpec,
   type BaseType,
   type ColumnDefinition,
+  type ColumnKind,
+  type ColumnOptions,
   type Connector,
   type DeltaUpdateSpec,
   type Dict,
@@ -12,6 +16,8 @@ import {
   type FilterIn,
   type FilterRaw,
   type FilterSpecial,
+  type ForeignKeyAction,
+  foreignKeyName,
   type IndexDefinition,
   type KeyType,
   PersistenceError,
@@ -470,6 +476,95 @@ export class DataApiConnector implements Connector {
     validateIdentifier(tableName);
     await this.dataApi.query(`DROP TABLE IF EXISTS ${tableName}`);
   }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    validateIdentifier(spec.tableName);
+    for (const op of spec.ops) {
+      await this.applyAlterOp(spec.tableName, op);
+    }
+  }
+
+  private async applyAlterOp(tableName: string, op: AlterTableOp): Promise<void> {
+    switch (op.op) {
+      case 'addColumn':
+        validateIdentifier(op.name);
+        await this.dataApi.query(
+          `ALTER TABLE ${tableName} ADD COLUMN ${columnToSql(definitionFromOp(op.name, op.type, op.options))}`,
+        );
+        return;
+      case 'removeColumn':
+        validateIdentifier(op.name);
+        await this.dataApi.query(`ALTER TABLE ${tableName} DROP COLUMN ${op.name}`);
+        return;
+      case 'renameColumn':
+        validateIdentifier(op.from);
+        validateIdentifier(op.to);
+        await this.dataApi.query(`ALTER TABLE ${tableName} RENAME COLUMN ${op.from} TO ${op.to}`);
+        return;
+      case 'changeColumn':
+        validateIdentifier(op.name);
+        await this.dataApi.query(
+          `ALTER TABLE ${tableName} ALTER COLUMN ${op.name} TYPE ${columnSqlType(definitionFromOp(op.name, op.type, op.options))}`,
+        );
+        return;
+      case 'addIndex':
+        await this.dataApi.query(
+          indexToSql(tableName, {
+            columns: op.columns,
+            unique: op.unique ?? false,
+            name: op.name,
+          }),
+        );
+        return;
+      case 'removeIndex': {
+        const target = Array.isArray(op.nameOrColumns)
+          ? `idx_${tableName}_${op.nameOrColumns.join('_')}`
+          : op.nameOrColumns;
+        validateIdentifier(target);
+        await this.dataApi.query(`DROP INDEX IF EXISTS ${target}`);
+        return;
+      }
+      case 'renameIndex':
+        validateIdentifier(op.from);
+        validateIdentifier(op.to);
+        await this.dataApi.query(`ALTER INDEX ${op.from} RENAME TO ${op.to}`);
+        return;
+      case 'addForeignKey': {
+        const local = op.column ?? `${op.toTable}Id`;
+        const constraint = op.name ?? foreignKeyName(tableName, op.toTable);
+        const ref = op.primaryKey ?? 'id';
+        validateIdentifier(local);
+        validateIdentifier(constraint);
+        validateIdentifier(op.toTable);
+        validateIdentifier(ref);
+        let sql = `ALTER TABLE ${tableName} ADD CONSTRAINT ${constraint} FOREIGN KEY (${local}) REFERENCES ${op.toTable} (${ref})`;
+        if (op.onDelete) sql += ` ON DELETE ${dataApiAction(op.onDelete)}`;
+        if (op.onUpdate) sql += ` ON UPDATE ${dataApiAction(op.onUpdate)}`;
+        await this.dataApi.query(sql);
+        return;
+      }
+      case 'removeForeignKey': {
+        const constraint = op.nameOrTable.startsWith('fk_')
+          ? op.nameOrTable
+          : foreignKeyName(tableName, op.nameOrTable);
+        validateIdentifier(constraint);
+        await this.dataApi.query(`ALTER TABLE ${tableName} DROP CONSTRAINT ${constraint}`);
+        return;
+      }
+      case 'addCheckConstraint': {
+        const name = op.name ?? `chk_${tableName}_${Date.now()}`;
+        validateIdentifier(name);
+        await this.dataApi.query(
+          `ALTER TABLE ${tableName} ADD CONSTRAINT ${name} CHECK (${op.expression})`,
+        );
+        return;
+      }
+      case 'removeCheckConstraint':
+        validateIdentifier(op.name);
+        await this.dataApi.query(`ALTER TABLE ${tableName} DROP CONSTRAINT ${op.name}`);
+        return;
+    }
+  }
 }
 
 function validateIdentifier(name: string): void {
@@ -533,6 +628,40 @@ function indexToSql(tableName: string, idx: IndexDefinition): string {
   validateIdentifier(indexName);
   const unique = idx.unique ? 'UNIQUE ' : '';
   return `CREATE ${unique}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${idx.columns.join(', ')})`;
+}
+
+function definitionFromOp(
+  name: string,
+  type: ColumnKind,
+  options: ColumnOptions = {},
+): ColumnDefinition {
+  return {
+    name,
+    type,
+    nullable: options.null ?? true,
+    default: options.default,
+    limit: options.limit,
+    primary: options.primary ?? false,
+    unique: options.unique ?? false,
+    precision: options.precision,
+    scale: options.scale,
+    autoIncrement: options.autoIncrement ?? false,
+  };
+}
+
+function dataApiAction(action: ForeignKeyAction): string {
+  switch (action) {
+    case 'cascade':
+      return 'CASCADE';
+    case 'restrict':
+      return 'RESTRICT';
+    case 'setNull':
+      return 'SET NULL';
+    case 'setDefault':
+      return 'SET DEFAULT';
+    case 'noAction':
+      return 'NO ACTION';
+  }
 }
 
 export default DataApiConnector;

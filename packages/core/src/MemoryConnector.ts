@@ -1,5 +1,6 @@
+import { UnsupportedOperationError } from './errors.js';
 import { filterList } from './FilterEngine.js';
-import { defineTable, type TableBuilder } from './schema.js';
+import { type AlterTableSpec, defineTable, type TableBuilder } from './schema.js';
 import {
   type AggregateKind,
   type BaseType,
@@ -240,6 +241,51 @@ export class MemoryConnector implements Connector {
     delete this.lastIds[tableName];
   }
 
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    const rows = this.collection(spec.tableName);
+    for (const op of spec.ops) {
+      switch (op.op) {
+        case 'addColumn': {
+          const fallback = defaultValueFor(op.options?.default);
+          for (const row of rows) {
+            if (!(op.name in row)) row[op.name] = fallback;
+          }
+          break;
+        }
+        case 'removeColumn': {
+          for (const row of rows) {
+            delete row[op.name];
+          }
+          break;
+        }
+        case 'renameColumn': {
+          for (const row of rows) {
+            if (op.from in row) {
+              row[op.to] = row[op.from];
+              delete row[op.from];
+            }
+          }
+          break;
+        }
+        case 'changeColumn':
+        case 'addIndex':
+        case 'removeIndex':
+        case 'renameIndex':
+          // No-op: MemoryConnector doesn't enforce column types or maintain
+          // indexes — the snapshot tracked by SchemaCollector still reflects
+          // these mutations because it applies them to its own mirror.
+          break;
+        case 'addForeignKey':
+        case 'removeForeignKey':
+        case 'addCheckConstraint':
+        case 'removeCheckConstraint':
+          throw new UnsupportedOperationError(
+            `MemoryConnector does not enforce ${op.op}; wrap it in a SchemaCollector or use a SQL connector for constraint-aware migrations`,
+          );
+      }
+    }
+  }
+
   async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
     const items = await this.items(scope);
     const values = items
@@ -284,6 +330,12 @@ export class MemoryConnector implements Connector {
       throw err;
     }
   }
+}
+
+function defaultValueFor(value: unknown): unknown {
+  if (value === undefined) return null;
+  if (value === 'currentTimestamp') return new Date().toISOString();
+  return value;
 }
 
 function compileExecute(source: string): (...args: any[]) => any[] {

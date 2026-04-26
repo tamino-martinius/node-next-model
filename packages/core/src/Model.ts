@@ -276,6 +276,9 @@ export class NullConnector implements Connector {
   async dropTable() {
     return;
   }
+  async alterTable() {
+    return;
+  }
   async deltaUpdate() {
     return 0;
   }

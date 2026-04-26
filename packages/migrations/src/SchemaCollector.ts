@@ -3,6 +3,8 @@ import { dirname } from 'node:path';
 
 import {
   type AggregateKind,
+  type AlterTableSpec,
+  applyAlterOps,
   type BaseType,
   type Connector,
   type DeltaUpdateSpec,
@@ -82,6 +84,14 @@ export class SchemaCollector implements Connector {
   async dropTable(tableName: string): Promise<void> {
     delete this.tables[tableName];
     return this.inner.dropTable(tableName);
+  }
+
+  async alterTable(spec: AlterTableSpec): Promise<void> {
+    const existing = this.tables[spec.tableName];
+    if (existing) {
+      this.tables[spec.tableName] = applyAlterOps(existing, spec.ops);
+    }
+    return this.inner.alterTable(spec);
   }
 
   // Data methods — pure delegation.
