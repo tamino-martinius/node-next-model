@@ -2,7 +2,7 @@ import { makeExecutableSchema } from '@graphql-tools/schema';
 import { Model } from '@next-model/core';
 import { buildModelResource, composeSchema } from '@next-model/graphql-api';
 import { SqliteConnector } from '@next-model/sqlite-connector';
-import express, { type Request } from 'express';
+import express from 'express';
 import { createHandler } from 'graphql-http/lib/use/express';
 
 const connector = new SqliteConnector(':memory:');
@@ -27,9 +27,9 @@ await User.createMany([
   { name: 'Old Account', role: 'member', active: false },
 ]);
 
-interface Ctx {
+type Ctx = {
   role?: 'admin' | 'member';
-}
+};
 
 const userResource = buildModelResource<Ctx>({
   Model: User,
@@ -64,8 +64,8 @@ app.use(
   '/graphql',
   createHandler({
     schema,
-    context: (req: Request): Ctx => ({
-      role: (req.headers['x-role'] as 'admin' | 'member') ?? undefined,
+    context: (req): Ctx => ({
+      role: (req.raw.headers['x-role'] as 'admin' | 'member') ?? undefined,
     }),
   }),
 );

@@ -7,7 +7,7 @@ class User extends Model({
   connector,
   init: (props: { name: string; age: number }) => props,
   scopes: {
-    adults: (self) => self.filterBy({ $gte: { age: 18 } }),
+    adults: (self: any) => self.filterBy({ $gte: { age: 18 } }),
   },
 }) {}
 
