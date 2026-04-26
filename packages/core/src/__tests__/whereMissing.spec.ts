@@ -22,6 +22,10 @@ describe('whereMissing', () => {
       connector: connector(),
       keys: { id: KeyType.number },
       init: () => ({ name: '' as string, active: true as boolean }),
+      associations: {
+        posts: { hasMany: () => Post, foreignKey: 'userId' },
+        profile: { hasOne: () => Profile, foreignKey: 'userId' },
+      },
     });
     return { Post, Profile, User };
   }
@@ -48,41 +52,45 @@ describe('whereMissing', () => {
   });
 
   it('returns parents with zero matching has-many children', async () => {
-    const { Post, User } = makeModels();
-    const items = await User.whereMissing({ hasMany: Post, foreignKey: 'userId' }).all();
+    const { User } = makeModels();
+    const items = await User.whereMissing('posts').all();
     expect(items.map((u: any) => u.id).sort()).toEqual([3, 4]);
   });
 
   it('returns parents with zero matching has-one child', async () => {
-    const { Profile, User } = makeModels();
-    const items = await User.whereMissing({ hasOne: Profile, foreignKey: 'userId' }).all();
+    const { User } = makeModels();
+    const items = await User.whereMissing('profile').all();
     expect(items.map((u: any) => u.id).sort()).toEqual([1, 3, 4]);
   });
 
   it('returns ALL parents when the child table is empty', async () => {
-    const { Post, User } = makeModels();
+    const { User } = makeModels();
     storage.posts = [];
-    const items = await User.whereMissing({ hasMany: Post, foreignKey: 'userId' }).all();
+    const items = await User.whereMissing('posts').all();
     expect(items.map((u: any) => u.id).sort()).toEqual([1, 2, 3, 4]);
   });
 
   it('composes with filterBy', async () => {
-    const { Post, User } = makeModels();
-    const items = await User.whereMissing({ hasMany: Post, foreignKey: 'userId' })
-      .filterBy({ active: true })
-      .all();
+    const { User } = makeModels();
+    const items = await User.whereMissing('posts').filterBy({ active: true }).all();
     expect(items.map((u: any) => u.id).sort()).toEqual([4]);
   });
 
   it('multiple whereMissing calls AND together', async () => {
-    const { Post, Profile, User } = makeModels();
-    const items = await User.whereMissing({ hasMany: Post, foreignKey: 'userId' })
-      .whereMissing({ hasOne: Profile, foreignKey: 'userId' })
-      .all();
+    const { User } = makeModels();
+    const items = await User.whereMissing('posts').whereMissing('profile').all();
     expect(items.map((u: any) => u.id).sort()).toEqual([3, 4]);
   });
 
-  it('respects a custom primaryKey', async () => {
+  it('respects a custom primaryKey via the association registry', async () => {
+    const Article = Model({
+      tableName: 'articles',
+      connector: new MemoryConnector({
+        storage: { articles: [{ id: 1, tagSlug: 'js' }] },
+      }),
+      keys: { id: KeyType.number },
+      init: () => ({ tagSlug: '' as string }),
+    });
     const Tag = Model({
       tableName: 'tags',
       connector: new MemoryConnector({
@@ -95,20 +103,45 @@ describe('whereMissing', () => {
       }),
       keys: { slug: KeyType.manual },
       init: () => ({ name: '' as string }),
+      associations: {
+        articles: { hasMany: () => Article, foreignKey: 'tagSlug', primaryKey: 'slug' },
+      },
     });
-    const Article = Model({
-      tableName: 'articles',
-      connector: new MemoryConnector({
-        storage: { articles: [{ id: 1, tagSlug: 'js' }] },
-      }),
-      keys: { id: KeyType.number },
-      init: () => ({ tagSlug: '' as string }),
-    });
-    const result = await Tag.whereMissing({
-      hasMany: Article,
-      foreignKey: 'tagSlug',
-      primaryKey: 'slug',
-    }).all();
+    const result = await Tag.whereMissing('articles').all();
     expect(result.map((t: any) => t.slug)).toEqual(['go']);
+  });
+
+  it('rejects belongsTo associations with a clear error', async () => {
+    const Author = Model({
+      tableName: 'authors',
+      connector: new MemoryConnector({ storage: { authors: [] } }),
+      keys: { id: KeyType.number },
+      init: () => ({ name: '' as string }),
+    });
+    const Book = Model({
+      tableName: 'books',
+      connector: new MemoryConnector({ storage: { books: [{ id: 1, authorId: 7 }] } }),
+      keys: { id: KeyType.number },
+      init: () => ({ authorId: 0 }),
+      associations: {
+        author: { belongsTo: () => Author, foreignKey: 'authorId' },
+      },
+    });
+    expect(() => Book.whereMissing('author')).toThrow(/only supports hasMany \/ hasOne/);
+  });
+
+  it('throws when the Model has no associations declared', async () => {
+    const User = Model({
+      tableName: 'users',
+      connector: new MemoryConnector({ storage: { users: [] } }),
+      keys: { id: KeyType.number },
+      init: () => ({ name: '' as string }),
+    });
+    expect(() => User.whereMissing('posts')).toThrow(/declare 'associations'/);
+  });
+
+  it('throws on an unknown association name', async () => {
+    const { User } = makeModels();
+    expect(() => User.whereMissing('comments')).toThrow(/Unknown association/);
   });
 });

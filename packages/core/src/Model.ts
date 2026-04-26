@@ -83,13 +83,6 @@ export type AssociationOptions = {
   typeValue?: string;
 };
 
-export type IncludeSpec =
-  | { belongsTo: typeof ModelClass; foreignKey: string; primaryKey?: string }
-  | { hasMany: typeof ModelClass; foreignKey: string; primaryKey?: string }
-  | { hasOne: typeof ModelClass; foreignKey: string; primaryKey?: string };
-
-export type IncludeMap = Record<string, IncludeSpec>;
-
 export type IncludeStrategy = 'preload' | 'join' | 'auto';
 
 export type IncludeOptions = {
@@ -249,46 +242,38 @@ export function resolveTimestampColumns(option: TimestampsOption | undefined): {
   };
 }
 
-function resolveIncludeAsAssociation(spec: IncludeSpec): {
-  target: typeof ModelClass;
-  parentColumn: string;
-  childColumn: string;
-  cardinality: 'many' | 'one';
-} {
+function resolveAutoAssociation(
+  record: ModelClass,
+  spec: AssociationDefinition,
+): Promise<unknown> | unknown {
+  const target = resolveAssociationTarget(spec).target;
   if ('belongsTo' in spec) {
-    const target = spec.belongsTo;
-    return {
-      target,
-      parentColumn: spec.foreignKey,
-      childColumn: spec.primaryKey ?? Object.keys(target.keys)[0] ?? 'id',
-      cardinality: 'one',
-    };
+    return record.belongsTo(target, {
+      foreignKey: spec.foreignKey,
+      primaryKey: spec.primaryKey,
+    });
   }
   if ('hasMany' in spec) {
-    return {
-      target: spec.hasMany,
-      parentColumn: spec.primaryKey ?? 'id',
-      childColumn: spec.foreignKey,
-      cardinality: 'many',
-    };
+    // Auto-accessor returns the resolved array (matches eager-load shape).
+    // Users who need a chainable scope can still call `record.hasMany(Target)`.
+    return record
+      .hasMany(target, { foreignKey: spec.foreignKey, primaryKey: spec.primaryKey })
+      .all();
   }
-  return {
-    target: spec.hasOne,
-    parentColumn: spec.primaryKey ?? 'id',
-    childColumn: spec.foreignKey,
-    cardinality: 'one',
-  };
+  return record.hasOne(target, {
+    foreignKey: spec.foreignKey,
+    primaryKey: spec.primaryKey,
+  });
 }
 
 function attachIncludesPayload(
   record: ModelClass,
-  includes: Array<{ name: string; spec: IncludeSpec; cardinality: 'many' | 'one' }>,
+  includes: Array<{ name: string; spec: AssociationDefinition; cardinality: 'many' | 'one' }>,
   payload: Dict<Dict<any>[]>,
 ): void {
   for (const { name, spec, cardinality } of includes) {
     const rows = payload[name] ?? [];
-    const target =
-      'belongsTo' in spec ? spec.belongsTo : 'hasMany' in spec ? spec.hasMany : spec.hasOne;
+    const target = resolveAssociationTarget(spec).target;
     const childPkNames = Object.keys(target.keys);
     const instances = rows.map((row) => {
       const keys: Dict<any> = {};
@@ -307,11 +292,19 @@ function attachIncludesPayload(
   }
 }
 
-async function applyIncludes(records: ModelClass[], map: IncludeMap): Promise<void> {
-  if (records.length === 0) return;
-  for (const [name, spec] of Object.entries(map)) {
+async function applyIncludes(
+  records: ModelClass[],
+  parent: typeof ModelClass,
+  names: string[],
+): Promise<void> {
+  if (records.length === 0 || names.length === 0) return;
+  const associations = parent.associations ?? {};
+  for (const name of names) {
+    const spec = associations[name];
+    if (!spec) continue;
+    const target = resolveAssociationTarget(spec).target;
     if ('belongsTo' in spec) {
-      const preloaded = await (spec.belongsTo as typeof ModelClass).preloadBelongsTo(records, {
+      const preloaded = await target.preloadBelongsTo(records, {
         foreignKey: spec.foreignKey,
         primaryKey: spec.primaryKey,
       });
@@ -322,7 +315,7 @@ async function applyIncludes(records: ModelClass[], map: IncludeMap): Promise<vo
       }
     } else if ('hasMany' in spec) {
       const selfPk = spec.primaryKey ?? 'id';
-      const preloaded = await (spec.hasMany as typeof ModelClass).preloadHasMany(records, {
+      const preloaded = await target.preloadHasMany(records, {
         foreignKey: spec.foreignKey,
         primaryKey: selfPk,
       });
@@ -331,9 +324,9 @@ async function applyIncludes(records: ModelClass[], map: IncludeMap): Promise<vo
         const id = attrs[selfPk];
         (record as unknown as Dict<unknown>)[name] = preloaded.get(id) ?? [];
       }
-    } else if ('hasOne' in spec) {
+    } else {
       const selfPk = spec.primaryKey ?? 'id';
-      const preloaded = await (spec.hasOne as typeof ModelClass).preloadHasMany(records, {
+      const preloaded = await target.preloadHasMany(records, {
         foreignKey: spec.foreignKey,
         primaryKey: selfPk,
       });
@@ -490,11 +483,11 @@ export class ModelClass {
    */
   static selectedFields: string[] | undefined = undefined;
   /**
-   * When set, `all()` eager-loads the declared associations after the main
-   * fetch and attaches them as properties on every returned instance. See
-   * `Model.includes({...})` for details.
+   * Names from `Model.associations` selected for eager loading on the next
+   * `all()` / `first()` / etc. fetch. Populated by `Model.includes(...names)`;
+   * cleared by `Model.withoutIncludes()` and `Model.unscoped()`.
    */
-  static selectedIncludes: IncludeMap | undefined = undefined;
+  static selectedIncludes: string[] = [];
   /**
    * Strategy used to resolve `selectedIncludes` at terminal time:
    *
@@ -813,7 +806,7 @@ export class ModelClass {
       static order: OrderColumn<any>[] = [];
       static softDelete: 'active' | 'only' | false = false;
       static selectedFields: string[] | undefined = undefined;
-      static selectedIncludes: IncludeMap | undefined = undefined;
+      static selectedIncludes: string[] = [];
       static includeStrategy: IncludeStrategy = 'preload';
       static pendingJoins: JoinClause[] = [];
       static havingPredicate: ((count: number) => boolean) | undefined = undefined;
@@ -978,13 +971,49 @@ export class ModelClass {
    * is the opt-in to eager-load and cut N+1 round-trips when you know up
    * front which associations every row needs.
    */
+  /**
+   * Eager-load named associations. Each name must match an entry on
+   * `Model.associations` (declared at the factory). Equivalent to Rails'
+   * `User.includes(:posts, :company)`. The optional trailing options object
+   * controls the strategy:
+   *
+   *   - `'preload'` (default): one batched `WHERE fk IN (...)` per
+   *     association after the main fetch. Works on every connector.
+   *   - `'join'`: routes through `Connector.queryWithJoins`. Throws if the
+   *     connector doesn't implement it.
+   *   - `'auto'`: picks `'join'` when supported, `'preload'` otherwise.
+   *
+   * Each loaded value lands on `record.<name>` — overwriting the auto-defined
+   * lazy accessor with the resolved value.
+   */
   static includes<M extends typeof ModelClass>(
     this: M,
-    map: IncludeMap,
-    options: IncludeOptions = {},
+    ...args: Array<string | IncludeOptions>
   ): M {
-    const previous = this.selectedIncludes ?? {};
-    const next = { ...previous, ...map };
+    let options: IncludeOptions = {};
+    let names: string[];
+    const last = args[args.length - 1];
+    if (last !== undefined && typeof last !== 'string') {
+      options = last;
+      names = args.slice(0, -1) as string[];
+    } else {
+      names = args as string[];
+    }
+    const associations = this.associations;
+    if (!associations) {
+      throw new PersistenceError(
+        `Model.includes(...) requires the Model factory to declare 'associations'.`,
+      );
+    }
+    for (const name of names) {
+      if (!associations[name]) {
+        throw new PersistenceError(
+          `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
+        );
+      }
+    }
+    const previous = this.selectedIncludes ?? [];
+    const next = Array.from(new Set([...previous, ...names]));
     const strategy = options.strategy ?? this.includeStrategy ?? 'preload';
     return class extends (this as typeof ModelClass) {
       static selectedIncludes = next;
@@ -994,76 +1023,64 @@ export class ModelClass {
 
   static withoutIncludes<M extends typeof ModelClass>(this: M): M {
     return class extends (this as typeof ModelClass) {
-      static selectedIncludes: IncludeMap | undefined = undefined;
+      static selectedIncludes: string[] = [];
       static includeStrategy: IncludeStrategy = 'preload';
     } as M;
   }
 
   /**
-   * Add an explicit `INNER JOIN` (default) or `LEFT JOIN` to the chain. Filters
-   * the parent rows down to those with at least one matching child row when
-   * `kind: 'inner'` (the default) — equivalent to Rails' `User.joins(:posts)`.
-   * On connectors that implement `queryWithJoins`, runs as a single
-   * `INNER JOIN`; on others, falls back to a Model-resolved `$in` filter
-   * against the child table.
+   * INNER JOIN (default) the named associations on the chain. Each name must
+   * match an entry on `Model.associations`. Equivalent to Rails'
+   * `User.joins(:posts, :company)`. On connectors that implement
+   * `queryWithJoins`, runs as `WHERE EXISTS (...)`; on others, falls back to
+   * a Model-resolved `$in` filter against the child table.
    *
-   *   const active = await User
-   *     .joins({ hasMany: Post, foreignKey: 'userId', filter: { status: 'published' } })
-   *     .all();
-   *
-   * Multiple `joins(...)` calls compose; each adds another JOIN clause.
+   *   const active = await User.joins('posts').filterBy({ active: true }).all();
    */
-  static joins<M extends typeof ModelClass>(
-    this: M,
-    spec:
-      | {
-          hasMany: typeof ModelClass | (() => typeof ModelClass);
-          foreignKey: string;
-          primaryKey?: string;
-          filter?: Filter<any>;
-          kind?: 'inner' | 'left';
-        }
-      | {
-          hasOne: typeof ModelClass | (() => typeof ModelClass);
-          foreignKey: string;
-          primaryKey?: string;
-          filter?: Filter<any>;
-          kind?: 'inner' | 'left';
-        }
-      | {
-          belongsTo: typeof ModelClass | (() => typeof ModelClass);
-          foreignKey: string;
-          primaryKey?: string;
-          filter?: Filter<any>;
-          kind?: 'inner' | 'left';
-        },
-  ): M {
+  static joins<M extends typeof ModelClass>(this: M, ...names: string[]): M {
+    const associations = this.associations;
+    if (!associations) {
+      throw new PersistenceError(
+        `Model.joins(...) requires the Model factory to declare 'associations'.`,
+      );
+    }
+    if (names.length === 0) {
+      throw new PersistenceError(`Model.joins(...) requires at least one association name.`);
+    }
     const parentDefaultPk = Object.keys(this.keys)[0] ?? 'id';
-    const resolved = resolveAssociationTarget(
-      'belongsTo' in spec
-        ? { belongsTo: spec.belongsTo, foreignKey: spec.foreignKey, primaryKey: spec.primaryKey }
-        : 'hasMany' in spec
-          ? {
-              hasMany: spec.hasMany,
-              foreignKey: spec.foreignKey,
-              primaryKey: spec.primaryKey ?? parentDefaultPk,
-            }
-          : {
-              hasOne: spec.hasOne,
-              foreignKey: spec.foreignKey,
-              primaryKey: spec.primaryKey ?? parentDefaultPk,
-            },
-    );
-    const join: JoinClause = {
-      kind: spec.kind ?? 'inner',
-      childTableName: resolved.target.tableName,
-      on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
-      filter: spec.filter,
-      mode: 'select',
-      childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
-      target: resolved.target,
-    };
-    const next = [...this.pendingJoins, join];
+    const newJoins: JoinClause[] = [];
+    for (const name of names) {
+      const spec = associations[name];
+      if (!spec) {
+        throw new PersistenceError(
+          `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
+        );
+      }
+      const normalized: AssociationDefinition =
+        'belongsTo' in spec
+          ? { belongsTo: spec.belongsTo, foreignKey: spec.foreignKey, primaryKey: spec.primaryKey }
+          : 'hasMany' in spec
+            ? {
+                hasMany: spec.hasMany,
+                foreignKey: spec.foreignKey,
+                primaryKey: spec.primaryKey ?? parentDefaultPk,
+              }
+            : {
+                hasOne: spec.hasOne,
+                foreignKey: spec.foreignKey,
+                primaryKey: spec.primaryKey ?? parentDefaultPk,
+              };
+      const resolved = resolveAssociationTarget(normalized);
+      newJoins.push({
+        kind: 'inner',
+        childTableName: resolved.target.tableName,
+        on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
+        mode: 'select',
+        childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
+        target: resolved.target,
+      });
+    }
+    const next = [...this.pendingJoins, ...newJoins];
     return class extends (this as typeof ModelClass) {
       static pendingJoins = next;
     } as M;
@@ -1071,34 +1088,44 @@ export class ModelClass {
 
   /**
    * Filter the chain to records that have no matching child rows. Mirrors
-   * Rails' `User.where.missing(:posts)`. On connectors that advertise
-   * `queryWithJoins` (Knex), runs as a single `LEFT JOIN child ON … WHERE
-   * child.id IS NULL`. On every other connector, falls back to the original
-   * subquery shape — `pluckUnique(foreignKey)` followed by
-   * `$notIn: { [pk]: [...] }` — so the chain composes with `filterBy` /
-   * `orderBy` / `limitBy` exactly as before.
+   * Rails' `User.where.missing(:posts)`. The named association must be
+   * `hasMany` or `hasOne`; `belongsTo` is rejected because "missing parent"
+   * has different semantics (use `filterBy({ $null: 'parentId' })`).
    *
-   *   await User
-   *     .whereMissing({ hasMany: Post, foreignKey: 'userId' })
-   *     .filterBy({ active: true })
-   *     .all();
+   * On connectors that implement `queryWithJoins`, runs as a single
+   * `WHERE NOT EXISTS (...)` on the parent query. On others, the Model layer
+   * resolves the child query to a concrete `$notIn: { [pk]: [...] }` filter
+   * before reaching the connector — so even native sqlite/pg/mysql/mariadb
+   * (which reject `$async`) work transparently.
+   *
+   *   await User.whereMissing('posts').filterBy({ active: true }).all();
    */
-  static whereMissing<M extends typeof ModelClass>(
-    this: M,
-    spec:
-      | { hasMany: typeof ModelClass; foreignKey: string; primaryKey?: string }
-      | { hasOne: typeof ModelClass; foreignKey: string; primaryKey?: string },
-  ): M {
-    const target = 'hasMany' in spec ? spec.hasMany : spec.hasOne;
-    const fk = spec.foreignKey;
-    const pk = spec.primaryKey ?? Object.keys(this.keys)[0] ?? 'id';
+  static whereMissing<M extends typeof ModelClass>(this: M, name: string): M {
+    const associations = this.associations;
+    if (!associations) {
+      throw new PersistenceError(
+        `Model.whereMissing(...) requires the Model factory to declare 'associations'.`,
+      );
+    }
+    const spec = associations[name];
+    if (!spec) {
+      throw new PersistenceError(
+        `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
+      );
+    }
+    if ('belongsTo' in spec) {
+      throw new PersistenceError(
+        `Model.whereMissing(...) only supports hasMany / hasOne associations; '${name}' is belongsTo. Use filterBy({ $null: '${spec.foreignKey}' }) instead.`,
+      );
+    }
+    const resolved = resolveAssociationTarget(spec);
     const join: JoinClause = {
       kind: 'left',
-      childTableName: target.tableName,
-      on: { parentColumn: pk, childColumn: fk },
+      childTableName: resolved.target.tableName,
+      on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
       mode: 'antiJoin',
-      childPrimaryKey: Object.keys(target.keys)[0] ?? 'id',
-      target,
+      childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
+      target: resolved.target,
     };
     const next = [...this.pendingJoins, join];
     return class extends (this as typeof ModelClass) {
@@ -1153,22 +1180,29 @@ export class ModelClass {
   static async all<M extends typeof ModelClass>(this: M) {
     const primaryKeys = Object.keys(this.keys);
     const supportsJoins = typeof this.connector.queryWithJoins === 'function';
+    const associations = this.associations ?? {};
+    const includeNames = this.selectedIncludes ?? [];
     const wantsIncludesViaJoin =
-      this.selectedIncludes !== undefined &&
+      includeNames.length > 0 &&
       (this.includeStrategy === 'join' || (this.includeStrategy === 'auto' && supportsJoins));
-    if (this.includeStrategy === 'join' && this.selectedIncludes && !supportsJoins) {
+    if (this.includeStrategy === 'join' && includeNames.length > 0 && !supportsJoins) {
       throw new PersistenceError(
         `Model.includes(..., { strategy: 'join' }) requires a connector that implements 'queryWithJoins'. Use 'preload' or 'auto' for connectors without JOIN execution.`,
       );
     }
-    const includesViaJoin: Array<{ name: string; spec: IncludeSpec; cardinality: 'many' | 'one' }> =
-      [];
+    const includesViaJoin: Array<{
+      name: string;
+      spec: AssociationDefinition;
+      cardinality: 'many' | 'one';
+    }> = [];
     const joinClausesForFastPath: JoinClause[] = [];
     if (supportsJoins && (this.pendingJoins.length > 0 || wantsIncludesViaJoin)) {
       joinClausesForFastPath.push(...this.pendingJoins);
-      if (wantsIncludesViaJoin && this.selectedIncludes) {
-        for (const [name, spec] of Object.entries(this.selectedIncludes)) {
-          const resolved = resolveIncludeAsAssociation(spec);
+      if (wantsIncludesViaJoin) {
+        for (const name of includeNames) {
+          const spec = associations[name];
+          if (!spec) continue;
+          const resolved = resolveAssociationTarget(spec);
           includesViaJoin.push({ name, spec, cardinality: resolved.cardinality });
           joinClausesForFastPath.push({
             kind: 'left',
@@ -1215,12 +1249,11 @@ export class ModelClass {
       }
       return record;
     });
-    if (this.selectedIncludes && !useFastPath) {
-      await applyIncludes(records, this.selectedIncludes);
-    } else if (this.selectedIncludes && useFastPath && includesViaJoin.length === 0) {
-      // includes were declared but didn't go through the JOIN fast path
-      // (e.g. strategy === 'preload') — preload them now.
-      await applyIncludes(records, this.selectedIncludes);
+    if (includeNames.length > 0 && includesViaJoin.length === 0) {
+      // Includes were declared but didn't go through the JOIN fast path
+      // (strategy === 'preload', or 'auto' on a connector without
+      // `queryWithJoins`) — preload via the existing batched-IN path.
+      await applyIncludes(records, this as typeof ModelClass, includeNames);
     }
     const findCallbacks = (this.callbacks as any).afterFind as Callback<any>[] | undefined;
     if (findCallbacks) {
@@ -1833,6 +1866,27 @@ export class ModelClass {
         });
       }
     }
+
+    if (model.associations) {
+      for (const name in model.associations) {
+        if (Object.getOwnPropertyDescriptor(this, name)) continue;
+        const spec = model.associations[name];
+        let cached: unknown;
+        let hasCached = false;
+        Object.defineProperty(this, name, {
+          get: () => {
+            if (hasCached) return cached;
+            return resolveAutoAssociation(this, spec);
+          },
+          set: (value: unknown) => {
+            cached = value;
+            hasCached = true;
+          },
+          enumerable: true,
+          configurable: true,
+        });
+      }
+    }
   }
 
   isPersistent() {
@@ -2114,7 +2168,6 @@ export class ModelClass {
   }
 
   async save<M extends ModelClass>(this: M) {
-    const model = this.constructor as typeof ModelClass;
     if (!(await this.isValid())) {
       throw new ValidationError('Validation failed', this.errors.toJSON());
     }
@@ -2505,6 +2558,16 @@ export function Model<
    * afterDelete / afterUpdate hooks (the latter handles parent reassignment).
    */
   counterCaches?: CounterCacheSpec[];
+  /**
+   * Declared associations on this Model. Each entry names one of `belongsTo`
+   * / `hasMany` / `hasOne` plus the foreign-key column. Required for
+   * `Model.joins(...names)` / `Model.includes(...names)` /
+   * `Model.whereMissing(name)` / cross-association `filterBy({ name: ... })`,
+   * and for the auto-defined lazy accessors on each instance (`user.posts`,
+   * `user.profile`, `user.company`). Use `() => Other` thunks for circular
+   * imports — same shape as `cascade` and `counterCaches`.
+   */
+  associations?: AssociationsMap;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -2533,6 +2596,48 @@ export function Model<
         : undefined;
   const callbacks = props.callbacks || {};
   const scopeDefs = props.scopes || ({} as Scopes);
+  const associationDefs = (props.associations ?? {}) as AssociationsMap;
+  // Factory-time collision detection for association names. Anything that
+  // would resolve to the same instance property is a hard error so the
+  // user finds out at construction time (matching the existing `enums` /
+  // `storeAccessors` collision policy) rather than at first record fetch.
+  for (const name of Object.keys(associationDefs)) {
+    if (name === 'constructor' || name === '__proto__') {
+      throw new Error(`Association name '${name}' is reserved`);
+    }
+    if (name in keyDefinitions) {
+      throw new Error(
+        `Association '${name}' collides with a primary key column declared on Model.keys`,
+      );
+    }
+    if (name in (props.storeAccessors ?? {})) {
+      throw new Error(
+        `Association '${name}' collides with a JSON column declared on Model.storeAccessors`,
+      );
+    }
+    for (const column in props.storeAccessors ?? {}) {
+      const subKeys = (props.storeAccessors as Dict<readonly string[]>)[column];
+      if (subKeys.includes(name)) {
+        throw new Error(
+          `Association '${name}' collides with a storeAccessors sub-key on column '${column}'`,
+        );
+      }
+    }
+    for (const column in enumDefs) {
+      for (const value of enumDefs[column]) {
+        if (`is${pascalize(value)}` === name) {
+          throw new Error(
+            `Association '${name}' collides with the enum predicate generated from value '${value}' on column '${column}'`,
+          );
+        }
+      }
+    }
+    if (name in ModelClass.prototype) {
+      throw new Error(
+        `Association '${name}' collides with the built-in instance method '${name}' on Model`,
+      );
+    }
+  }
 
   const ModelSubclass = class Model extends ModelClass {
     static tableName = props.tableName;
@@ -2570,6 +2675,8 @@ export function Model<
     })();
     static validators = validators as Validator<any>[];
     static callbacks = callbacks as Callbacks<any>;
+    static associations: AssociationsMap | undefined =
+      Object.keys(associationDefs).length > 0 ? associationDefs : undefined;
 
     static orderBy<M extends typeof ModelClass>(
       this: M,
