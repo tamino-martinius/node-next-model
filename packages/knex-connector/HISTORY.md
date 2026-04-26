@@ -2,6 +2,8 @@
 
 ## vNext
 
+- Implements the optional `Connector.queryWithJoins(spec)` capability: translates the `JoinQuerySpec` shape from `@next-model/core` into knex builder calls. `'select'` joins compile to `WHERE EXISTS (SELECT 1 FROM child WHERE child.<col> = parent.<col> AND <filter>)`; `'antiJoin'` to `WHERE NOT EXISTS (...)`; `'includes'` to a single batched `WHERE child.fk IN (parent_pks)` per association whose results are grouped by parent key in JS and attached under `__includes[attachAs]` on each parent row. Result rows for `'select'` / `'antiJoin'` are de-duplicated naturally because the parent query stays unjoined; `'includes'` adds zero cartesian rows. Powers `Model.whereMissing` / `Model.joins` / `Model.includes({...}, { strategy: 'join' | 'auto' })` / cross-association `filterBy` for callers that would otherwise pay the `$async` + `$notIn` round-trip.
+
 Rewritten to match the current `@next-model/core` connector interface.
 
 - Implements `Connector.alterTable(spec)`. Each op delegates to the matching `knex.schema.alterTable(t => …)` builder method (`t.string` / `t.alter` / `t.dropColumn` / `t.renameColumn` / `t.index` / `t.dropIndex` / `t.foreign` / `t.dropForeign` / `t.check` / `t.dropChecks`). Constraint defaults match the connector-agnostic `foreignKeyName(...)` / `indexName(...)` helpers exported from `@next-model/core`. `renameIndex` / `addCheckConstraint` / `removeCheckConstraint` require Knex ≥ 2.5 and throw a clear `PersistenceError` on older versions.

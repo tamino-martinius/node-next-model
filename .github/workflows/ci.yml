@@ -620,7 +620,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        client: [pg, mysql2]
+        # Each entry pins KNEX_TEST_CLIENT and DATABASE_URL alongside the
+        # matrix label. `sqlite3` needs no service; `pg` / `mysql2` reach the
+        # postgres / mysql sidecars; `mariadb` reuses the mysql2 driver
+        # against the MariaDB sidecar (port 3307 to avoid clashing with
+        # MySQL's 3306). All four exercise the queryWithJoins / EXISTS /
+        # NOT EXISTS paths against a real engine — see issue #145.
+        include:
+          - label: sqlite3
+            test-client: sqlite3
+            database-url: ''
+          - label: pg
+            test-client: pg
+            database-url: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          - label: mysql2
+            test-client: mysql2
+            database-url: mysql://root:mysql@127.0.0.1:3306/test
+          - label: mariadb
+            test-client: mysql2
+            database-url: mysql://root:mariadb@127.0.0.1:3307/test
     services:
       postgres:
         image: postgres:17
@@ -647,6 +665,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: mariadb
+          MARIADB_DATABASE: test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h localhost -pmariadb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v5
@@ -656,10 +686,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @next-model/core --filter @next-model/knex-connector -r build
-      - name: Test knex-connector against ${{ matrix.client }}
+      - name: Test knex-connector against ${{ matrix.label }}
         env:
-          KNEX_TEST_CLIENT: ${{ matrix.client }}
-          DATABASE_URL: ${{ matrix.client == 'pg' && 'postgres://postgres:postgres@127.0.0.1:5432/postgres' || 'mysql://root:mysql@127.0.0.1:3306/test' }}
+          KNEX_TEST_CLIENT: ${{ matrix.test-client }}
+          DATABASE_URL: ${{ matrix.database-url }}
         run: pnpm --filter @next-model/knex-connector test
 
   coverage-report:

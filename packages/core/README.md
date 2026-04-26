@@ -420,10 +420,13 @@ Multiple `whereMissing` calls AND together. Custom `primaryKey` is
 respected. Works against any connector that already understands `$async` +
 `$notIn` (every shipped connector does).
 
-> The current implementation always runs as a subquery. Connectors that
-> support a JOIN concept (e.g. SQL via Knex) could in principle resolve
-> this in a single LEFT JOIN ... IS NULL query for better performance —
-> see the [JOIN follow-up](#join-strategy-followup) note below.
+> Connectors that implement `Connector.queryWithJoins` (KnexConnector
+> today) skip the subquery and resolve `whereMissing` as a single
+> `WHERE NOT EXISTS (SELECT 1 FROM child WHERE child.fk = parent.pk)` on
+> the same parent query. Memory / Redis / Mongo / native sqlite-pg-mysql-
+> mariadb stay on the subquery path. See
+> [Joins and JOIN-capable connectors](#joins-and-join-capable-connectors)
+> for the full surface.
 
 ### Filter operators
 
@@ -991,16 +994,88 @@ original throw propagates intact.
 > contexts. `await` one before starting the next when correctness matters.
 
 <a id="join-strategy-followup"></a>
+<a id="joins-and-join-capable-connectors"></a>
 
-> **Connector JOIN strategy (follow-up).** Today every chainable that
-> involves a "lookup against another table" (`whereMissing`,
-> `validateUniqueness`'s `scope`, `belongsTo` / `hasMany` lazy loaders)
-> issues a separate subquery and stitches the result through the existing
-> filter DSL. This works against every connector unchanged but isn't the
-> most efficient shape on SQL backends, where a single `LEFT JOIN ... IS
-> NULL` would do. A future Connector capability bit will let SQL
-> connectors opt into a join-based execution; the Memory / Redis / Mongo
-> path stays on the subquery fallback.
+### Associations
+
+Declare associations on the factory — each one names a `belongsTo`,
+`hasMany`, or `hasOne` plus the foreign-key column. Use `() => Other`
+thunks for circular imports. Associations unlock four chainables
+(`joins` / `whereMissing` / `includes` / cross-association `filterBy`)
+and add an auto-defined lazy accessor on every instance.
+
+```ts
+class Post extends Model({
+  tableName: 'posts',
+  init: (props: { title: string; userId: number; status: string }) => props,
+  associations: {
+    user: { belongsTo: () => User, foreignKey: 'userId' },
+  },
+}) {}
+
+class User extends Model({
+  tableName: 'users',
+  init: (props: { name: string }) => props,
+  associations: {
+    posts:   { hasMany:   () => Post,    foreignKey: 'userId' },
+    profile: { hasOne:    () => Profile, foreignKey: 'userId' },
+    company: { belongsTo: () => Company, foreignKey: 'companyId' },
+  },
+}) {}
+
+const user = await User.find(1);
+await user.posts;     // Promise<Post[]>          (lazy)
+await user.profile;   // Promise<Profile | undefined>
+await user.company;   // Promise<Company | undefined>
+```
+
+Association names that collide with a primary key, a `storeAccessors`
+sub-key, an enum predicate, or a built-in instance method throw at
+factory construction so problems surface immediately.
+
+### Joins and JOIN-capable connectors
+
+`Model.joins(...names)`, `Model.whereMissing(name)`,
+`Model.includes(...names, { strategy })`, and cross-association
+`filterBy({ <assocName>: {...} })` all consume the declared
+associations and collect JOINs in a `pendingJoins` queue on the chain.
+At terminal time:
+
+- Connectors that implement `Connector.queryWithJoins` (Knex / native
+  sqlite / postgres / mysql / mariadb / Aurora Data API) consume the whole
+  queue in one `Connector.queryWithJoins({ parent, joins })` call —
+  `'select'` clauses become `WHERE EXISTS (...)`, `'antiJoin'` becomes
+  `WHERE NOT EXISTS (...)`, and `'includes'` clauses batch-fetch children
+  and attach them under `record.<name>`.
+- Every other connector (Memory / Redis / Valkey / Mongo / LocalStorage)
+  falls back to a subquery: the parent's scope picks up
+  `{ $in | $notIn: { [parentColumn]: [...child keys...] } }` and includes
+  go through the existing `preloadBelongsTo` / `preloadHasMany` primitives.
+  `$async` is fully resolved at the Model layer, so connectors that
+  reject `$async` keep working transparently.
+
+```ts
+// INNER JOIN — keep parents that have at least one matching child.
+await User.joins('posts').all();
+
+// LEFT JOIN ... WHERE NOT EXISTS — Rails' `where.missing(:posts)`.
+await User.whereMissing('posts').filterBy({ active: true }).all();
+
+// Cross-association filterBy — auto-promotes to INNER JOIN with the
+// child filter applied. Equivalent to Rails'
+// `User.where(posts: { status: 'published' })`.
+await User.filterBy({ posts: { status: 'published' } } as any).all();
+
+// Eager-load posts (and any other associations).
+await User.includes('posts').all();
+await User.includes('posts', 'profile', { strategy: 'auto' }).all();
+```
+
+`includes` accepts `{ strategy: 'preload' | 'join' | 'auto' }`:
+`'preload'` (default) is the existing one-batched-query-per-association
+behaviour. `'join'` requires `queryWithJoins` and throws otherwise.
+`'auto'` picks `'join'` when supported, `'preload'` when not — a safe
+default for libraries that don't know which connector they'll run against.
 
 ## Connectors
 

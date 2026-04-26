@@ -29,18 +29,28 @@ function buildModels(connector: MemoryConnector) {
     connector,
     timestamps: false,
     init: (p: UserRow) => p,
+    associations: {
+      posts: { hasMany: () => Post, foreignKey: 'userId' },
+    },
   }) {}
   class Post extends Model({
     tableName: 'posts',
     connector,
     timestamps: false,
     init: (p: PostRow) => p,
+    associations: {
+      user: { belongsTo: () => User, foreignKey: 'userId' },
+      comments: { hasMany: () => Comment, foreignKey: 'postId' },
+    },
   }) {}
   class Comment extends Model({
     tableName: 'comments',
     connector,
     timestamps: false,
     init: (p: CommentRow) => p,
+    associations: {
+      post: { belongsTo: () => Post, foreignKey: 'postId' },
+    },
   }) {}
   return { User, Post, Comment };
 }
@@ -63,12 +73,13 @@ async function seed(models: ReturnType<typeof buildModels>) {
 describe('Model.includes — eager loading', () => {
   it('eager-loads a belongsTo association', async () => {
     const connector = freshConnector();
-    const { User, Post } = buildModels(connector);
-    await seed({ User, Post, Comment: buildModels(connector).Comment });
+    const models = buildModels(connector);
+    await seed(models);
+    const { Post, User } = models;
 
-    const posts = (await Post.includes({
-      user: { belongsTo: User, foreignKey: 'userId' },
-    }).all()) as Array<InstanceType<typeof Post> & { user?: InstanceType<typeof User> }>;
+    const posts = (await Post.includes('user').all()) as Array<
+      InstanceType<typeof Post> & { user?: InstanceType<typeof User> }
+    >;
 
     expect(posts).toHaveLength(3);
     expect(posts[0].user).toBeDefined();
@@ -82,9 +93,9 @@ describe('Model.includes — eager loading', () => {
     await seed(models);
     const { User, Post } = models;
 
-    const users = (await User.includes({
-      posts: { hasMany: Post, foreignKey: 'userId' },
-    }).all()) as Array<InstanceType<typeof User> & { posts?: InstanceType<typeof Post>[] }>;
+    const users = (await User.includes('posts').all()) as Array<
+      InstanceType<typeof User> & { posts?: InstanceType<typeof Post>[] }
+    >;
 
     expect(users[0].posts?.map((p) => (p.attributes() as PostRow).title)).toEqual(['P1', 'P2']);
     expect(users[1].posts?.map((p) => (p.attributes() as PostRow).title)).toEqual(['P3']);
@@ -94,12 +105,9 @@ describe('Model.includes — eager loading', () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
-    const { User, Post, Comment } = models;
+    const { Post, User, Comment } = models;
 
-    const posts = (await Post.includes({
-      user: { belongsTo: User, foreignKey: 'userId' },
-      comments: { hasMany: Comment, foreignKey: 'postId' },
-    }).all()) as Array<
+    const posts = (await Post.includes('user', 'comments').all()) as Array<
       InstanceType<typeof Post> & {
         user?: InstanceType<typeof User>;
         comments?: InstanceType<typeof Comment>[];
@@ -119,11 +127,11 @@ describe('Model.includes — eager loading', () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
-    const { User, Post } = models;
+    const { Post, User } = models;
 
-    const first = (await Post.includes({
-      user: { belongsTo: User, foreignKey: 'userId' },
-    }).first()) as (InstanceType<typeof Post> & { user?: InstanceType<typeof User> }) | undefined;
+    const first = (await Post.includes('user').first()) as
+      | (InstanceType<typeof Post> & { user?: InstanceType<typeof User> })
+      | undefined;
     expect((first?.user?.attributes() as UserRow).name).toBe('Ada');
   });
 
@@ -131,11 +139,11 @@ describe('Model.includes — eager loading', () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
-    const { User, Post } = models;
+    const { Post, User } = models;
 
-    const p = (await Post.includes({
-      user: { belongsTo: User, foreignKey: 'userId' },
-    }).find(3)) as InstanceType<typeof Post> & { user?: InstanceType<typeof User> };
+    const p = (await Post.includes('user').find(3)) as InstanceType<typeof Post> & {
+      user?: InstanceType<typeof User>;
+    };
     expect((p.user?.attributes() as UserRow).name).toBe('Linus');
   });
 
@@ -143,13 +151,9 @@ describe('Model.includes — eager loading', () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
-    const { User, Post, Comment } = models;
+    const { Post, User, Comment } = models;
 
-    const chain = Post.includes({
-      user: { belongsTo: User, foreignKey: 'userId' },
-    }).includes({
-      comments: { hasMany: Comment, foreignKey: 'postId' },
-    });
+    const chain = Post.includes('user').includes('comments');
     const posts = (await chain.all()) as Array<
       InstanceType<typeof Post> & {
         user?: InstanceType<typeof User>;
@@ -164,27 +168,46 @@ describe('Model.includes — eager loading', () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
-    const { User, Post } = models;
+    const { Post, User } = models;
 
-    const chain = Post.includes({ user: { belongsTo: User, foreignKey: 'userId' } });
+    const chain = Post.includes('user');
     const withoutUser = chain.withoutIncludes();
     const rows = (await withoutUser.all()) as Array<
-      InstanceType<typeof Post> & { user?: InstanceType<typeof User> }
+      InstanceType<typeof Post> & { user?: Promise<InstanceType<typeof User> | undefined> }
     >;
-    expect(rows[0].user).toBeUndefined();
+    // Auto-accessor still resolves lazily; await Promise<User | undefined>.
+    const lazyUser = await rows[0].user;
+    expect((lazyUser?.attributes() as UserRow).name).toBe('Ada');
   });
 
   it('unscoped() also clears includes', async () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
-    const { User, Post } = models;
+    const { Post, User } = models;
 
-    const chain = Post.includes({ user: { belongsTo: User, foreignKey: 'userId' } });
+    const chain = Post.includes('user');
     const rows = (await chain.unscoped().all()) as Array<
-      InstanceType<typeof Post> & { user?: InstanceType<typeof User> }
+      InstanceType<typeof Post> & { user?: Promise<InstanceType<typeof User> | undefined> }
     >;
-    expect(rows[0].user).toBeUndefined();
+    const lazyUser = await rows[0].user;
+    expect((lazyUser?.attributes() as UserRow).name).toBe('Ada');
+  });
+
+  it('auto-defined instance accessor lazy-loads when not eager-loaded', async () => {
+    const connector = freshConnector();
+    const models = buildModels(connector);
+    await seed(models);
+    const { Post, User } = models;
+
+    const post = (await Post.find(1)) as InstanceType<typeof Post> & {
+      user: Promise<InstanceType<typeof User> | undefined>;
+      comments: Promise<InstanceType<typeof Comment>[]>;
+    };
+    const user = await post.user;
+    expect((user?.attributes() as UserRow).name).toBe('Ada');
+    const comments = await post.comments;
+    expect(comments.map((c) => (c.attributes() as CommentRow).body)).toEqual(['C1', 'C2']);
   });
 
   it('instance-level .belongsTo / .hasMany still return a Promise (lazy)', async () => {
@@ -203,5 +226,64 @@ describe('Model.includes — eager loading', () => {
     expect(lazy).toBeInstanceOf(Promise);
     const resolved = await lazy;
     expect((resolved?.attributes() as UserRow).name).toBe('Ada');
+  });
+
+  it('throws when the Model declares no associations', async () => {
+    const connector = freshConnector();
+    class Bare extends Model({
+      tableName: 'bare',
+      connector,
+      timestamps: false,
+      init: (p: { name: string }) => p,
+    }) {}
+    expect(() => Bare.includes('posts')).toThrow(/declare 'associations'/);
+  });
+
+  it('throws on an unknown association name', async () => {
+    const connector = freshConnector();
+    const { Post } = buildModels(connector);
+    expect(() => Post.includes('audit')).toThrow(/Unknown association/);
+  });
+
+  it('rejects an association whose name collides with a primary-key column', () => {
+    const connector = freshConnector();
+    expect(() =>
+      Model({
+        tableName: 'rows',
+        connector,
+        timestamps: false,
+        init: (p: { name: string }) => p,
+        associations: { id: { hasMany: () => Post, foreignKey: 'rowId' } },
+      }),
+    ).toThrow(/collides with a primary key column/);
+    class Post extends Model({
+      tableName: 'posts',
+      connector,
+      timestamps: false,
+      init: (p: PostRow) => p,
+    }) {}
+    void Post;
+  });
+
+  it('rejects an association whose name collides with a built-in instance method', () => {
+    const connector = freshConnector();
+    expect(() =>
+      Model({
+        tableName: 'rows',
+        connector,
+        timestamps: false,
+        init: (p: { name: string }) => p,
+        associations: {
+          save: { hasMany: () => Post, foreignKey: 'rowId' },
+        },
+      }),
+    ).toThrow(/built-in instance method/);
+    class Post extends Model({
+      tableName: 'posts',
+      connector,
+      timestamps: false,
+      init: (p: PostRow) => p,
+    }) {}
+    void Post;
   });
 });

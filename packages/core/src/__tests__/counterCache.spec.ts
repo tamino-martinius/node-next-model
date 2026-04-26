@@ -77,7 +77,7 @@ describe('counter caches', () => {
   });
 
   it('skips silently when the parent has been deleted', async () => {
-    const { Post, Comment } = makeModels();
+    const { Comment } = makeModels();
     const ghost = (await Comment.create({ postId: 1, body: 'a' })) as any;
     storage.posts = storage.posts.filter((p) => p.id !== 1);
     // Should not throw — just no parent to update.
