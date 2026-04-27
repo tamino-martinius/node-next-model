@@ -1,5 +1,6 @@
 import { NotFoundError } from '../errors.js';
 import type { AssociationLink, Dict, KeyType } from '../types.js';
+import type { CollectionQuery } from './CollectionQuery.js';
 import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 
@@ -36,7 +37,7 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     return this.memo;
   }
 
-  withParent(upstream: import('./CollectionQuery.js').CollectionQuery | InstanceQuery, link: AssociationLink): this {
+  withParent(upstream: CollectionQuery | InstanceQuery, link: AssociationLink): this {
     const parentRef: ParentRef = {
       upstream: {
         state: upstream.state,

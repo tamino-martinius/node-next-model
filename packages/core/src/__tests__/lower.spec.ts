@@ -59,6 +59,8 @@ describe('lower', () => {
     expect(spec.parentScopes).toHaveLength(2);
     // Closest parent (intermediate) should be last
     expect(spec.parentScopes[1].parentTable).toBe('todos');
+    expect(spec.parentScopes[1].parentLimit).toBe(1); // intermediate had .first() applied
     expect(spec.parentScopes[0].parentTable).toBe('users');
+    expect(spec.parentScopes[0].parentLimit).toBe(1); // outermost had findBy (limit 1)
   });
 });
