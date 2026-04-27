@@ -110,16 +110,25 @@ export type AssociationDefinition =
       belongsTo: typeof ModelClass | (() => typeof ModelClass);
       foreignKey: string;
       primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
     }
   | {
       hasMany: typeof ModelClass | (() => typeof ModelClass);
       foreignKey: string;
       primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
     }
   | {
       hasOne: typeof ModelClass | (() => typeof ModelClass);
       foreignKey: string;
       primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
     };
 
 export type AssociationsMap = Record<string, AssociationDefinition>;
