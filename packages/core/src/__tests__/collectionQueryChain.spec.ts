@@ -141,6 +141,32 @@ describe('CollectionQuery chain methods', () => {
     );
   });
 
+  it('joins throws Unknown association when name not declared on a model that has associations', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = { user: { belongsTo: Todo, foreignKey: 'userId' } as any };
+    }
+    expect(() => CollectionQuery.fromModel(Post as any).joins('comments')).toThrow(
+      /Unknown association 'comments'/,
+    );
+  });
+
+  it('whereMissing throws Unknown association when name not declared on a model that has associations', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = { user: { belongsTo: Todo, foreignKey: 'userId' } as any };
+    }
+    expect(() => CollectionQuery.fromModel(Post as any).whereMissing('comments')).toThrow(
+      /Unknown association 'comments'/,
+    );
+  });
+
   it('filterBy with an association-named key promotes to a JOIN', () => {
     class Post extends ModelClass {
       static tableName = 'posts';
