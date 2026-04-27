@@ -5,6 +5,11 @@ import { InstanceQuery } from './InstanceQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
 import { ScalarQuery } from './ScalarQuery.js';
 
+// Operator keys where the value is directly comparable (scalar operators).
+const SCALAR_OPS = new Set(['$gt', '$gte', '$lt', '$lte', '$eq']);
+// Operator keys where the value is an array of comparables (set operators).
+const SET_OPS = new Set(['$in', '$notIn']);
+
 type AnyBuilder = { state: QueryState };
 
 type SubqueryBuilder = CollectionQuery | InstanceQuery | ColumnQuery<any> | ScalarQuery<any>;
@@ -16,6 +21,108 @@ function isSubqueryBuilder(v: unknown): v is SubqueryBuilder {
     v instanceof ColumnQuery ||
     v instanceof ScalarQuery
   );
+}
+
+// ---------------------------------------------------------------------------
+// Operator-form subquery resolution (Task 31)
+//
+// After normalizeFilterShape, the filter is in the legacy `{$op: {col: v}}`
+// form. For example:
+//   Input (pre-normalize):  { total: { $gt: scalarQuery } }
+//   Stored in state:        { $gt: { total: scalarQuery } }
+//
+// The normalized node structure is:
+//   { $gt: { columnName: builderOrValue } }
+//   { $in: { columnName: builderOrValue } }
+//
+// This function walks the already-normalized filter tree and, for any column
+// value that is a builder inside a scalar/set operator, eagerly resolves it
+// (by awaiting the builder) and splices the literal value back in.
+//
+// Top-level builder values (e.g., { userId: builder }) are NOT touched here —
+// those are left for walkFilter / extractSubqueryScopes to handle as parentScopes.
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk a filter node and resolve any builder values nested inside
+ * scalar/set operator objects (e.g., `{ $gt: { total: scalarQuery } }`).
+ *
+ * Returns a Promise that resolves to `{ value: resolvedNode }` — the outer
+ * `{ value }` box prevents JavaScript's automatic PromiseLike unwrapping from
+ * materialising top-level builder values that should be left intact for
+ * `walkFilter` to handle as parentScopes.
+ *
+ * @param node  The filter node (already normalized by normalizeFilterShape).
+ * @param insideOperator  True when we are processing the COLUMN→VALUE map
+ *   that lives directly under a `$gt`/`$in`/etc. key — i.e., the values at
+ *   this level are "comparable literals", not sub-filter trees.
+ */
+async function resolveOperatorBuilders(
+  node: unknown,
+  insideOperator: boolean,
+): Promise<{ value: unknown }> {
+  if (node === null || typeof node !== 'object') return { value: node };
+
+  // A builder instance found at a position where a comparable literal is
+  // expected → await and splice the resolved literal value.
+  if (isSubqueryBuilder(node)) {
+    if (insideOperator) {
+      // Eagerly materialise: await via .then to avoid re-entrant async issues.
+      const resolved: unknown = await new Promise<unknown>((res, rej) => {
+        (node as PromiseLike<unknown>).then(res, rej);
+      });
+      return { value: resolved };
+    }
+    // Top-level position — leave alone for walkFilter / extractSubqueryScopes.
+    // We wrap in { value } to prevent the async engine from auto-unwrapping
+    // the PromiseLike CollectionQuery we return.
+    return { value: node };
+  }
+
+  if (Array.isArray(node)) {
+    const results = await Promise.all(
+      node.map((item) => resolveOperatorBuilders(item, insideOperator)),
+    );
+    return { value: results.map((r) => r.value) };
+  }
+
+  const obj = node as Record<string, unknown>;
+  const out: Dict<unknown> = {};
+  for (const key of Object.keys(obj)) {
+    const value = obj[key];
+    if (SCALAR_OPS.has(key) || SET_OPS.has(key)) {
+      // The value under a scalar/set operator is `{ columnName: literal }`.
+      // The column values ARE inside an operator context → resolve builders.
+      out[key] = (await resolveOperatorBuilders(value, true)).value;
+    } else if (key === '$and' || key === '$or') {
+      // Array of sub-filters — each child resets to non-operator context.
+      const childResults = await Promise.all(
+        (value as unknown[]).map((child) => resolveOperatorBuilders(child, false)),
+      );
+      out[key] = childResults.map((r) => r.value);
+    } else if (key === '$not') {
+      // Single sub-filter — resets to non-operator context.
+      out[key] = (await resolveOperatorBuilders(value, false)).value;
+    } else {
+      // Plain column key or any other key — pass through with current context.
+      out[key] = (await resolveOperatorBuilders(value, insideOperator)).value;
+    }
+  }
+  return { value: out };
+}
+
+/**
+ * Pre-pass for materialize: resolves any builder values embedded in operator
+ * forms (`$gt`, `$lt`, `$gte`, `$lte`, `$eq`, `$in`, `$notIn`) to their
+ * literal values before calling `lower()`. Top-level builder values (e.g.,
+ * `{ userId: collectionQuery }`) are left intact for `walkFilter`.
+ */
+export async function resolveSubqueryFilters(
+  filter: Filter<any> | undefined,
+): Promise<Filter<any> | undefined> {
+  if (!filter) return undefined;
+  const { value } = await resolveOperatorBuilders(filter, false);
+  return value as Filter<any>;
 }
 
 function builderToParentScope(childColumn: string, builder: SubqueryBuilder): ParentScope {

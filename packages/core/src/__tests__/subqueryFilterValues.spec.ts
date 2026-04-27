@@ -3,6 +3,7 @@ import { CollectionQuery } from '../query/CollectionQuery.js';
 import { lower } from '../query/lower.js';
 import { ModelClass } from '../Model.js';
 import { MemoryConnector } from '../MemoryConnector.js';
+import { ColumnQuery } from '../query/ColumnQuery.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -111,5 +112,60 @@ describe('subquery filter values', () => {
     const spec = lower(q, 'rows');
     expect(spec.parentScopes).toHaveLength(1);
     expect(spec.parentScopes[0].parentFilter).toEqual({ banned: true });
+  });
+
+  it('ScalarQuery embedded in $gt operator splices the resolved value', async () => {
+    const connector = new MemoryConnector({
+      storage: {
+        orders: [{ id: 1, total: 10 }, { id: 2, total: 20 }, { id: 3, total: 30 }],
+        orderItems: [{ id: 1, orderId: 99, amount: 15 }, { id: 2, orderId: 99, amount: 25 }],
+      },
+    });
+    class OrderM extends ModelClass {
+      static tableName = 'orders';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = connector;
+    }
+    class OrderItemM extends ModelClass {
+      static tableName = 'orderItems';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = connector;
+    }
+    const total = CollectionQuery.fromModel(OrderItemM as any)
+      .filterBy({ orderId: 99 })
+      .sum('amount'); // = 40
+    const orders = (await CollectionQuery.fromModel(OrderM as any).filterBy({
+      total: { $gt: total },
+    } as any)) as any[];
+    // total > 40 → no rows from {10, 20, 30}
+    expect(orders).toEqual([]);
+  });
+
+  it('ColumnQuery embedded in $in operator splices the resolved values', async () => {
+    const connector = new MemoryConnector({
+      storage: {
+        users: [{ id: 1, role: 'admin' }, { id: 2, role: 'user' }],
+        todos: [{ id: 10, userId: 1 }, { id: 11, userId: 2 }, { id: 12, userId: 3 }],
+      },
+    });
+    class TodoM extends ModelClass {
+      static tableName = 'todos';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = connector;
+    }
+    class UserM extends ModelClass {
+      static tableName = 'users';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = connector;
+    }
+    const adminIds = CollectionQuery.fromModel(UserM as any).filterBy({ role: 'admin' }).pluck('id');
+    const todos = (await CollectionQuery.fromModel(TodoM as any).filterBy({
+      userId: { $in: adminIds },
+    } as any)) as any[];
+    expect(todos.map((t: any) => t.id).sort()).toEqual([10]);
   });
 });

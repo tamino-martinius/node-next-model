@@ -1,6 +1,6 @@
 import type { Dict, KeyType, Projection } from '../types.js';
 import type { QueryState } from './QueryState.js';
-import { lower } from './lower.js';
+import { lower, resolveSubqueryFilters } from './lower.js';
 import { PersistenceError } from '../errors.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
@@ -18,7 +18,12 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
     if (!this.memo) {
       this.memo = (async () => {
         if (this.state.nullScoped) return this.emptyResult();
-        const spec = lower(this, this.projection);
+        const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
+        const builderForLower =
+          resolvedFilter !== this.state.filter
+            ? new (this.constructor as any)(this.model, { ...this.state, filter: resolvedFilter }, this.projection)
+            : this;
+        const spec = lower(builderForLower, this.projection);
         const M = this.model as any;
         const connector = M.connector;
         if (!connector || typeof connector.queryScoped !== 'function') {

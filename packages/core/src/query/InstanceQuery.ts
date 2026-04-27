@@ -2,7 +2,7 @@ import { NotFoundError, PersistenceError } from '../errors.js';
 import type { AssociationDefinition } from '../Model.js';
 import type { AssociationLink, Dict, KeyType } from '../types.js';
 import type { CollectionQuery } from './CollectionQuery.js';
-import { lower } from './lower.js';
+import { lower, resolveSubqueryFilters } from './lower.js';
 import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 import { createAssociationQuery } from './associationQuery.js';
@@ -45,7 +45,15 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
         if (this.state.nullScoped) {
           return this.missingResult();
         }
-        const spec = lower(this, 'rows');
+        const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
+        const builderForLower =
+          resolvedFilter !== this.state.filter
+            ? new (this.constructor as any)(this.model, this.terminalKind, {
+                ...this.state,
+                filter: resolvedFilter,
+              })
+            : this;
+        const spec = lower(builderForLower, 'rows');
         const M = this.model as any;
         const connector = M.connector;
         if (!connector || typeof connector.queryScoped !== 'function') {

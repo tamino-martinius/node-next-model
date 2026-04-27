@@ -14,7 +14,7 @@ import { mergeFilters, mergeOrders, type ParentRef, type QueryState } from './Qu
 import { InstanceQuery } from './InstanceQuery.js';
 import { ScalarQuery } from './ScalarQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
-import { lower } from './lower.js';
+import { lower, resolveSubqueryFilters } from './lower.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -377,7 +377,12 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     if (!this.memo) {
       this.memo = (async () => {
         if (this.state.nullScoped) return [] as unknown as Items;
-        const spec = lower(this, 'rows');
+        const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
+        const builderForLower =
+          resolvedFilter !== this.state.filter
+            ? new (this.constructor as any)(this.model, { ...this.state, filter: resolvedFilter })
+            : this;
+        const spec = lower(builderForLower, 'rows');
         const M = this.model as any;
         const connector = M.connector;
         if (!connector || typeof connector.queryScoped !== 'function') {
