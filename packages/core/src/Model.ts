@@ -3,8 +3,8 @@ import { MemoryConnector } from './MemoryConnector.js';
 import { CollectionQuery } from './query/CollectionQuery.js';
 import { createAssociationQuery } from './query/associationQuery.js';
 import { InstanceQuery } from './query/InstanceQuery.js';
-import { ColumnQuery } from './query/ColumnQuery.js';
-import { ScalarQuery } from './query/ScalarQuery.js';
+import type { ColumnQuery } from './query/ColumnQuery.js';
+import type { ScalarQuery } from './query/ScalarQuery.js';
 import type { QueryState } from './query/QueryState.js';
 import {
   type AggregateKind,
