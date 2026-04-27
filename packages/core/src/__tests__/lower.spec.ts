@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { ModelClass } from '../Model.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { lower } from '../query/lower.js';
-import { ModelClass } from '../Model.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';

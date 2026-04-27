@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryConnector } from '../MemoryConnector.js';
+import { ModelClass } from '../Model.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { ColumnQuery } from '../query/ColumnQuery.js';
 import { ScalarQuery } from '../query/ScalarQuery.js';
-import { ModelClass } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -14,7 +14,9 @@ class Todo extends ModelClass {
 
 describe('CollectionQuery.pluck', () => {
   it('returns ColumnQuery with column projection', () => {
-    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).pluck('email');
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .pluck('email');
     expect(q).toBeInstanceOf(ColumnQuery);
     expect(q.column).toBe('email');
     expect(q.projection).toEqual({ kind: 'column', column: 'email' });
@@ -24,7 +26,9 @@ describe('CollectionQuery.pluck', () => {
 
 describe('InstanceQuery.pluck', () => {
   it('returns ScalarQuery with column projection (single-record)', () => {
-    const q = CollectionQuery.fromModel(Todo as any).first().pluck('email');
+    const q = CollectionQuery.fromModel(Todo as any)
+      .first()
+      .pluck('email');
     expect(q).toBeInstanceOf(ScalarQuery);
     expect(q.projection).toEqual({ kind: 'column', column: 'email' });
     expect(q.state.limit).toBe(1);
@@ -37,7 +41,12 @@ describe('ColumnQuery materialize', () => {
     static keys = { id: 1 } as any;
     static order = [] as any;
     static connector = new MemoryConnector({
-      storage: { items: [{ id: 1, email: 'a@b' }, { id: 2, email: 'c@d' }] },
+      storage: {
+        items: [
+          { id: 1, email: 'a@b' },
+          { id: 2, email: 'c@d' },
+        ],
+      },
     });
   }
 
@@ -54,7 +63,9 @@ describe('ColumnQuery materialize', () => {
   });
 
   it('nullScoped short-circuits to empty array', async () => {
-    const emails = await CollectionQuery.fromModel(TestModel as any).none().pluck('email');
+    const emails = await CollectionQuery.fromModel(TestModel as any)
+      .none()
+      .pluck('email');
     expect(emails).toEqual([]);
   });
 });
@@ -70,7 +81,9 @@ describe('InstanceQuery.pluck materialize', () => {
   }
 
   it('first().pluck materializes to a single column value', async () => {
-    const email = await CollectionQuery.fromModel(TestModel as any).first().pluck('email');
+    const email = await CollectionQuery.fromModel(TestModel as any)
+      .first()
+      .pluck('email');
     expect(email).toBe('first@b');
   });
 

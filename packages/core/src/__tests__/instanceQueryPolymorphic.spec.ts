@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { ModelClass } from '../Model.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { InstanceQuery } from '../query/InstanceQuery.js';
-import { ModelClass } from '../Model.js';
 
 class Post extends ModelClass {
   static tableName = 'posts';

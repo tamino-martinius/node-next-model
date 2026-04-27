@@ -246,15 +246,12 @@ export class KnexConnector implements Connector {
 
     for (const parent of spec.parentScopes) {
       const self = this;
-      builder = builder.whereIn(
-        parent.link.childColumn,
-        async function (this: Knex.QueryBuilder) {
-          this.from(parent.parentTable).select(parent.link.parentColumn);
-          if (parent.parentFilter) await self.filter(this, parent.parentFilter);
-          self.applyOrder(this, parent.parentOrder);
-          if (parent.parentLimit !== undefined) this.limit(parent.parentLimit);
-        },
-      );
+      builder = builder.whereIn(parent.link.childColumn, async function (this: Knex.QueryBuilder) {
+        this.from(parent.parentTable).select(parent.link.parentColumn);
+        if (parent.parentFilter) await self.filter(this, parent.parentFilter);
+        self.applyOrder(this, parent.parentOrder);
+        if (parent.parentLimit !== undefined) this.limit(parent.parentLimit);
+      });
     }
 
     if (spec.filter) {

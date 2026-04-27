@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryConnector } from '../MemoryConnector.js';
+import { ModelClass } from '../Model.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { InstanceQuery } from '../query/InstanceQuery.js';
-import { ModelClass } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
 import { SortDirection } from '../types.js';
 
 class Todo extends ModelClass {
@@ -14,7 +14,9 @@ class Todo extends ModelClass {
 
 describe('CollectionQuery → InstanceQuery transitions', () => {
   it('first() returns InstanceQuery with terminalKind first', () => {
-    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).first();
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .first();
     expect(q).toBeInstanceOf(InstanceQuery);
     expect(q.terminalKind).toBe('first');
     expect(q.state.limit).toBe(1);
@@ -73,7 +75,12 @@ describe('InstanceQuery materialize', () => {
     static keys = { id: 1 } as any;
     static order = [] as any;
     static connector = new MemoryConnector({
-      storage: { items: [{ id: 1, name: 'a' }, { id: 2, name: 'b' }] },
+      storage: {
+        items: [
+          { id: 1, name: 'a' },
+          { id: 2, name: 'b' },
+        ],
+      },
     });
   }
 

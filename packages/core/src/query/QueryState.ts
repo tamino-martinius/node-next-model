@@ -1,11 +1,4 @@
-import type {
-  AssociationLink,
-  Dict,
-  Filter,
-  JoinClause,
-  KeyType,
-  OrderColumn,
-} from '../types.js';
+import type { AssociationLink, Dict, Filter, JoinClause, KeyType, OrderColumn } from '../types.js';
 
 export type { AssociationLink };
 

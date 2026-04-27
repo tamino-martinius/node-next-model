@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { baseQueryScoped } from '../query/baseQueryScoped.js';
 import { MemoryConnector } from '../MemoryConnector.js';
+import { baseQueryScoped } from '../query/baseQueryScoped.js';
 import { KeyType } from '../types.js';
 
 describe('baseQueryScoped', () => {
   it('returns rows for the simple no-parent-scope case', async () => {
     const c = new MemoryConnector({
-      storage: { users: [{ id: 1, name: 'a' }, { id: 2, name: 'b' }] },
+      storage: {
+        users: [
+          { id: 1, name: 'a' },
+          { id: 2, name: 'b' },
+        ],
+      },
     });
     const rows = await baseQueryScoped(c, {
       target: { tableName: 'users', keys: { id: KeyType.number } },
@@ -20,8 +25,14 @@ describe('baseQueryScoped', () => {
   it('resolves a parent scope into an $in filter', async () => {
     const c = new MemoryConnector({
       storage: {
-        users: [{ id: 1, email: 'a@b' }, { id: 2, email: 'c@d' }],
-        todos: [{ id: 10, userId: 1 }, { id: 11, userId: 2 }],
+        users: [
+          { id: 1, email: 'a@b' },
+          { id: 2, email: 'c@d' },
+        ],
+        todos: [
+          { id: 10, userId: 1 },
+          { id: 11, userId: 2 },
+        ],
       },
     });
     const rows = await baseQueryScoped(c, {
@@ -43,7 +54,12 @@ describe('baseQueryScoped', () => {
 
   it('aggregate projection returns a scalar', async () => {
     const c = new MemoryConnector({
-      storage: { orders: [{ id: 1, total: 5 }, { id: 2, total: 7 }] },
+      storage: {
+        orders: [
+          { id: 1, total: 5 },
+          { id: 2, total: 7 },
+        ],
+      },
     });
     const result = await baseQueryScoped(c, {
       target: { tableName: 'orders', keys: { id: KeyType.number } },
@@ -83,7 +99,10 @@ describe('baseQueryScoped', () => {
   it('column projection returns the named column values', async () => {
     const c = new MemoryConnector({
       storage: {
-        users: [{ id: 1, email: 'a@b' }, { id: 2, email: 'c@d' }],
+        users: [
+          { id: 1, email: 'a@b' },
+          { id: 2, email: 'c@d' },
+        ],
       },
     });
     const result = await baseQueryScoped(c, {
@@ -98,9 +117,18 @@ describe('baseQueryScoped', () => {
   it('nests two parent scopes — outer scope feeds inner scope as $in constraint', async () => {
     const c = new MemoryConnector({
       storage: {
-        teams: [{ id: 1, region: 'EU' }, { id: 2, region: 'US' }],
-        users: [{ id: 10, teamId: 1 }, { id: 11, teamId: 2 }],
-        todos: [{ id: 100, userId: 10 }, { id: 101, userId: 11 }],
+        teams: [
+          { id: 1, region: 'EU' },
+          { id: 2, region: 'US' },
+        ],
+        users: [
+          { id: 10, teamId: 1 },
+          { id: 11, teamId: 2 },
+        ],
+        todos: [
+          { id: 100, userId: 10 },
+          { id: 101, userId: 11 },
+        ],
       },
     });
     // teams[region=EU] resolves to [1].
@@ -153,7 +181,11 @@ describe('baseQueryScoped', () => {
   it('dedups parent-column values before building the $in filter', async () => {
     const c = new MemoryConnector({
       storage: {
-        users: [{ id: 1, role: 'a' }, { id: 1, role: 'a' }, { id: 1, role: 'a' }],
+        users: [
+          { id: 1, role: 'a' },
+          { id: 1, role: 'a' },
+          { id: 1, role: 'a' },
+        ],
         todos: [{ id: 10, userId: 1 }],
       },
     });

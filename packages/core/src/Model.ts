@@ -1,11 +1,11 @@
 import { NotFoundError, PersistenceError, StaleObjectError, ValidationError } from './errors.js';
 import { MemoryConnector } from './MemoryConnector.js';
-import { CollectionQuery } from './query/CollectionQuery.js';
 import { createAssociationQuery } from './query/associationQuery.js';
-import { InstanceQuery } from './query/InstanceQuery.js';
+import { CollectionQuery } from './query/CollectionQuery.js';
 import type { ColumnQuery } from './query/ColumnQuery.js';
-import type { ScalarQuery } from './query/ScalarQuery.js';
+import { InstanceQuery } from './query/InstanceQuery.js';
 import type { QueryState } from './query/QueryState.js';
+import type { ScalarQuery } from './query/ScalarQuery.js';
 import {
   type AggregateKind,
   type AroundCallback,
@@ -243,7 +243,6 @@ export type HasManyThroughOptions = {
   targetPrimaryKey?: string;
 };
 
-
 type TimestampsOption = boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
 
 type SoftDeleteOption = boolean | string | { column?: string };
@@ -279,10 +278,7 @@ export function resolveTimestampColumns(option: TimestampsOption | undefined): {
   };
 }
 
-function resolveAutoAssociation(
-  record: ModelClass,
-  spec: AssociationDefinition,
-): unknown {
+function resolveAutoAssociation(record: ModelClass, spec: AssociationDefinition): unknown {
   // Build a query-builder traversal from this record outward via
   // `createAssociationQuery`. Supports belongsTo / hasOne / hasMany / hasManyThrough
   // (incl. polymorphic) and returns the same builder shapes as
@@ -577,7 +573,6 @@ export class ModelClass {
       return result;
     });
   }
-
 
   // ---------------------------------------------------------------------------
   // Chain methods — forward to CollectionQuery.<method>(...).
@@ -896,9 +891,7 @@ export class ModelClass {
    * the current scope (or `undefined` when empty). PromiseLike, so
    * `await Model.first()` works unchanged.
    */
-  static first<M extends typeof ModelClass>(
-    this: M,
-  ): InstanceQuery<InstanceType<M> | undefined> {
+  static first<M extends typeof ModelClass>(this: M): InstanceQuery<InstanceType<M> | undefined> {
     return CollectionQuery.fromModel(this as any).first() as unknown as InstanceQuery<
       InstanceType<M> | undefined
     >;
@@ -909,9 +902,7 @@ export class ModelClass {
    * the current scope (or `undefined` when empty). Reverses any existing
    * orderBy and falls back to primary-key descending when no order is set.
    */
-  static last<M extends typeof ModelClass>(
-    this: M,
-  ): InstanceQuery<InstanceType<M> | undefined> {
+  static last<M extends typeof ModelClass>(this: M): InstanceQuery<InstanceType<M> | undefined> {
     return CollectionQuery.fromModel(this as any).last() as unknown as InstanceQuery<
       InstanceType<M> | undefined
     >;
@@ -1015,10 +1006,7 @@ export class ModelClass {
    * `select`. Returns rows shaped with only the requested keys — does NOT
    * hydrate Model instances.
    */
-  static select<M extends typeof ModelClass>(
-    this: M,
-    ...keys: string[]
-  ): Promise<Dict<any>[]> {
+  static select<M extends typeof ModelClass>(this: M, ...keys: string[]): Promise<Dict<any>[]> {
     return CollectionQuery.fromModel(this as any).select(...keys);
   }
 
@@ -1053,10 +1041,7 @@ export class ModelClass {
    * Group rows by the value of `key` and count each bucket. Honours `having`
    * — drops buckets the predicate rejects.
    */
-  static countBy<M extends typeof ModelClass>(
-    this: M,
-    key: string,
-  ): Promise<Map<unknown, number>> {
+  static countBy<M extends typeof ModelClass>(this: M, key: string): Promise<Map<unknown, number>> {
     return CollectionQuery.fromModel(this as any).countBy(key);
   }
 
@@ -1150,30 +1135,21 @@ export class ModelClass {
   }
 
   /** Returns a chainable ScalarQuery resolving to MIN(column) (or undefined on empty). */
-  static min<M extends typeof ModelClass>(
-    this: M,
-    key: string,
-  ): ScalarQuery<number | undefined> {
+  static min<M extends typeof ModelClass>(this: M, key: string): ScalarQuery<number | undefined> {
     return CollectionQuery.fromModel(this as any).minimum<number>(key) as unknown as ScalarQuery<
       number | undefined
     >;
   }
 
   /** Returns a chainable ScalarQuery resolving to MAX(column) (or undefined on empty). */
-  static max<M extends typeof ModelClass>(
-    this: M,
-    key: string,
-  ): ScalarQuery<number | undefined> {
+  static max<M extends typeof ModelClass>(this: M, key: string): ScalarQuery<number | undefined> {
     return CollectionQuery.fromModel(this as any).maximum<number>(key) as unknown as ScalarQuery<
       number | undefined
     >;
   }
 
   /** Returns a chainable ScalarQuery resolving to AVG(column) (or undefined on empty). */
-  static avg<M extends typeof ModelClass>(
-    this: M,
-    key: string,
-  ): ScalarQuery<number | undefined> {
+  static avg<M extends typeof ModelClass>(this: M, key: string): ScalarQuery<number | undefined> {
     return CollectionQuery.fromModel(this as any).average(key) as unknown as ScalarQuery<
       number | undefined
     >;
@@ -1202,10 +1178,7 @@ export class ModelClass {
    * declares one). Per-row `beforeUpdate` / `afterUpdate` callbacks DO NOT
    * fire — use `findEach` + `record.update(...)` for that.
    */
-  static updateAll<M extends typeof ModelClass>(
-    this: M,
-    attrs: Dict<any>,
-  ): Promise<unknown[]> {
+  static updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>): Promise<unknown[]> {
     return CollectionQuery.fromModel(this as any).updateAll(attrs);
   }
 
@@ -1216,20 +1189,12 @@ export class ModelClass {
    * col + ?` on SQL, `$inc` on Mongo, `HINCRBY` on Redis, in-process walk
    * on memory). Returns the affected row count.
    */
-  static increment<M extends typeof ModelClass>(
-    this: M,
-    column: string,
-    by = 1,
-  ): Promise<number> {
+  static increment<M extends typeof ModelClass>(this: M, column: string, by = 1): Promise<number> {
     return CollectionQuery.fromModel(this as any).increment(column, by);
   }
 
   /** Sugar for `increment(column, -by)`. */
-  static decrement<M extends typeof ModelClass>(
-    this: M,
-    column: string,
-    by = 1,
-  ): Promise<number> {
+  static decrement<M extends typeof ModelClass>(this: M, column: string, by = 1): Promise<number> {
     return CollectionQuery.fromModel(this as any).decrement(column, by);
   }
 
@@ -1722,9 +1687,7 @@ export class ModelClass {
       const typeKey = options.typeKey ?? `${poly}Type`;
       filter[typeKey] = options.typeValue ?? selfModel.tableName;
     }
-    return Related.findBy(filter) as unknown as InstanceQuery<
-      InstanceType<Related> | undefined
-    >;
+    return Related.findBy(filter) as unknown as InstanceQuery<InstanceType<Related> | undefined>;
   }
 
   hasManyThrough<Target extends typeof ModelClass, Through extends typeof ModelClass>(

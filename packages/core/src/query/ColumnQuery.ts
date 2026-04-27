@@ -1,7 +1,7 @@
-import type { Dict, Filter, KeyType, Projection } from '../types.js';
-import type { QueryState } from './QueryState.js';
-import { lower, resolveSubqueryFilters } from './lower.js';
 import { PersistenceError } from '../errors.js';
+import type { Dict, Filter, KeyType, Projection } from '../types.js';
+import { lower, resolveSubqueryFilters } from './lower.js';
+import type { QueryState } from './QueryState.js';
 import { resolvePendingJoinsToScope } from './scope.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
@@ -75,6 +75,7 @@ export class ColumnQuery<Shape = unknown> implements PromiseLike<Shape> {
     return this.memo;
   }
 
+  // biome-ignore lint/suspicious/noThenProperty: ColumnQuery intentionally implements PromiseLike so it composes with await + .then.
   then<R1 = Shape, R2 = never>(
     onFulfilled?: ((value: Shape) => R1 | PromiseLike<R1>) | null,
     onRejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,

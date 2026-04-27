@@ -1,10 +1,10 @@
 import { NotFoundError } from '../errors.js';
 import type { AssociationDefinition } from '../Model.js';
 import type { AssociationLink, Dict, KeyType } from '../types.js';
+import { createAssociationQuery } from './associationQuery.js';
 import { CollectionQuery } from './CollectionQuery.js';
 import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
-import { createAssociationQuery } from './associationQuery.js';
 
 export type { TerminalKind };
 
@@ -110,6 +110,7 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     );
   }
 
+  // biome-ignore lint/suspicious/noThenProperty: InstanceQuery intentionally implements PromiseLike so it composes with await + .then.
   then<R1 = Result, R2 = never>(
     onFulfilled?: ((value: Result) => R1 | PromiseLike<R1>) | null,
     onRejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,

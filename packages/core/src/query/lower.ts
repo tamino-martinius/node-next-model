@@ -1,8 +1,8 @@
 import type { Dict, Filter, ParentScope, Projection, QueryScopedSpec } from '../types.js';
-import type { QueryState } from './QueryState.js';
 import { CollectionQuery } from './CollectionQuery.js';
-import { InstanceQuery } from './InstanceQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
+import { InstanceQuery } from './InstanceQuery.js';
+import type { QueryState } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 
 // Operator keys where the value is directly comparable (scalar operators).
@@ -148,7 +148,7 @@ function builderToParentScope(childColumn: string, builder: SubqueryBuilder): Pa
   const direction: ParentScope['link']['direction'] =
     builder instanceof InstanceQuery ? 'belongsTo' : 'hasMany';
   const parentLimit =
-    builder instanceof InstanceQuery ? targetState.limit ?? 1 : targetState.limit;
+    builder instanceof InstanceQuery ? (targetState.limit ?? 1) : targetState.limit;
   return {
     parentTable: targetState.Model.tableName,
     parentKeys: targetState.Model.keys,
@@ -188,14 +188,14 @@ function walkFilter(node: Filter<any>, scopes: ParentScope[]): Filter<any> {
   return cleaned as Filter<any>;
 }
 
-function extractSubqueryScopes(
-  filter: Filter<any> | undefined,
-): { cleanFilter: Filter<any> | undefined; subqueryScopes: ParentScope[] } {
+function extractSubqueryScopes(filter: Filter<any> | undefined): {
+  cleanFilter: Filter<any> | undefined;
+  subqueryScopes: ParentScope[];
+} {
   const subqueryScopes: ParentScope[] = [];
   if (!filter) return { cleanFilter: undefined, subqueryScopes };
   const cleaned = walkFilter(filter, subqueryScopes);
-  const cleanFilter =
-    Object.keys(cleaned as Dict<any>).length > 0 ? cleaned : undefined;
+  const cleanFilter = Object.keys(cleaned as Dict<any>).length > 0 ? cleaned : undefined;
   return { cleanFilter, subqueryScopes };
 }
 

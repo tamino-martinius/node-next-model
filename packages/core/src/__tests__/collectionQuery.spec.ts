@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CollectionQuery } from '../query/CollectionQuery.js';
-import { ModelClass } from '../Model.js';
 import { MemoryConnector } from '../MemoryConnector.js';
+import { ModelClass } from '../Model.js';
+import { CollectionQuery } from '../query/CollectionQuery.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -48,7 +48,11 @@ describe('CollectionQuery thenable contract', () => {
   // Stub-driven tests: Task 23 will replace materialize() with the real
   // queryScoped path. These guard the thenable interface stays intact.
   class StubMaterialize<Items> extends CollectionQuery<Items> {
-    constructor(model: any, state: any, private stub: () => Promise<Items>) {
+    constructor(
+      model: any,
+      state: any,
+      private stub: () => Promise<Items>,
+    ) {
       super(model, state);
     }
     protected materialize() {
@@ -60,9 +64,11 @@ describe('CollectionQuery thenable contract', () => {
   const seedState = (M: any) => CollectionQuery.fromModel(M).state;
 
   it('await resolves to the materialize() result', async () => {
-    const q = new StubMaterialize(Todo as any, seedState(Todo), async () => [
-      { id: 1 },
-    ] as unknown[]);
+    const q = new StubMaterialize(
+      Todo as any,
+      seedState(Todo),
+      async () => [{ id: 1 }] as unknown[],
+    );
     expect(await q).toEqual([{ id: 1 }]);
   });
 
@@ -93,7 +99,12 @@ describe('CollectionQuery materialize', () => {
     static order = [] as any;
     // connector populated per-test
     static connector = new MemoryConnector({
-      storage: { items: [{ id: 1, name: 'a' }, { id: 2, name: 'b' }] },
+      storage: {
+        items: [
+          { id: 1, name: 'a' },
+          { id: 2, name: 'b' },
+        ],
+      },
     });
   }
 

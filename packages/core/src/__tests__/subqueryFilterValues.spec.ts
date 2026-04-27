@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryConnector } from '../MemoryConnector.js';
+import { ModelClass } from '../Model.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { lower } from '../query/lower.js';
-import { ModelClass } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
-import { ColumnQuery } from '../query/ColumnQuery.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -45,7 +44,9 @@ describe('subquery filter values', () => {
 
   it('ColumnQuery as filter value uses the projected column', () => {
     const q = CollectionQuery.fromModel(Todo as any).filterBy({
-      ownerEmail: CollectionQuery.fromModel(User as any).filterBy({ active: true }).pluck('email'),
+      ownerEmail: CollectionQuery.fromModel(User as any)
+        .filterBy({ active: true })
+        .pluck('email'),
     });
     const spec = lower(q, 'rows');
     expect(spec.parentScopes).toHaveLength(1);
@@ -55,8 +56,14 @@ describe('subquery filter values', () => {
   it('integrates with MemoryConnector via baseQueryScoped fallback', async () => {
     const connector = new MemoryConnector({
       storage: {
-        users: [{ id: 1, active: true }, { id: 2, active: false }],
-        todos: [{ id: 10, userId: 1 }, { id: 11, userId: 2 }],
+        users: [
+          { id: 1, active: true },
+          { id: 2, active: false },
+        ],
+        todos: [
+          { id: 10, userId: 1 },
+          { id: 11, userId: 2 },
+        ],
       },
     });
     class TodoM extends ModelClass {
@@ -117,8 +124,15 @@ describe('subquery filter values', () => {
   it('ScalarQuery embedded in $gt operator splices the resolved value', async () => {
     const connector = new MemoryConnector({
       storage: {
-        orders: [{ id: 1, total: 10 }, { id: 2, total: 20 }, { id: 3, total: 30 }],
-        orderItems: [{ id: 1, orderId: 99, amount: 15 }, { id: 2, orderId: 99, amount: 25 }],
+        orders: [
+          { id: 1, total: 10 },
+          { id: 2, total: 20 },
+          { id: 3, total: 30 },
+        ],
+        orderItems: [
+          { id: 1, orderId: 99, amount: 15 },
+          { id: 2, orderId: 99, amount: 25 },
+        ],
       },
     });
     class OrderM extends ModelClass {
@@ -146,8 +160,14 @@ describe('subquery filter values', () => {
   it('ScalarQuery as a top-level filter value resolves eagerly to a literal', async () => {
     const connector = new MemoryConnector({
       storage: {
-        orders: [{ id: 1, total: 40 }, { id: 2, total: 50 }],
-        orderItems: [{ id: 1, orderId: 99, amount: 15 }, { id: 2, orderId: 99, amount: 25 }],
+        orders: [
+          { id: 1, total: 40 },
+          { id: 2, total: 50 },
+        ],
+        orderItems: [
+          { id: 1, orderId: 99, amount: 15 },
+          { id: 2, orderId: 99, amount: 25 },
+        ],
       },
     });
     class OrderM extends ModelClass {
@@ -175,8 +195,15 @@ describe('subquery filter values', () => {
   it('ColumnQuery embedded in $in operator splices the resolved values', async () => {
     const connector = new MemoryConnector({
       storage: {
-        users: [{ id: 1, role: 'admin' }, { id: 2, role: 'user' }],
-        todos: [{ id: 10, userId: 1 }, { id: 11, userId: 2 }, { id: 12, userId: 3 }],
+        users: [
+          { id: 1, role: 'admin' },
+          { id: 2, role: 'user' },
+        ],
+        todos: [
+          { id: 10, userId: 1 },
+          { id: 11, userId: 2 },
+          { id: 12, userId: 3 },
+        ],
       },
     });
     class TodoM extends ModelClass {
@@ -191,7 +218,9 @@ describe('subquery filter values', () => {
       static order = [] as any;
       static connector = connector;
     }
-    const adminIds = CollectionQuery.fromModel(UserM as any).filterBy({ role: 'admin' }).pluck('id');
+    const adminIds = CollectionQuery.fromModel(UserM as any)
+      .filterBy({ role: 'admin' })
+      .pluck('id');
     const todos = (await CollectionQuery.fromModel(TodoM as any).filterBy({
       userId: { $in: adminIds },
     } as any)) as any[];

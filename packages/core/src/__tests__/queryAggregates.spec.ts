@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryConnector } from '../MemoryConnector.js';
+import { ModelClass } from '../Model.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { ScalarQuery } from '../query/ScalarQuery.js';
-import { ModelClass } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -13,13 +13,17 @@ class Todo extends ModelClass {
 
 describe('count', () => {
   it('returns ScalarQuery awaitable to a number', async () => {
-    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).count();
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .count();
     expect(q).toBeInstanceOf(ScalarQuery);
     expect(typeof (await q)).toBe('number');
   });
 
   it('count carries the upstream filter into state', () => {
-    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).count();
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .count();
     expect(q.state.filter).toEqual({ active: true });
     expect(q.projection).toEqual({ kind: 'aggregate', op: 'count' });
   });
@@ -27,7 +31,9 @@ describe('count', () => {
 
 describe('aggregates', () => {
   it('sum returns ScalarQuery with op sum and column', () => {
-    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).sum('total');
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .sum('total');
     expect(q).toBeInstanceOf(ScalarQuery);
     expect(q.projection).toEqual({ kind: 'aggregate', op: 'sum', column: 'total' });
     expect(q.state.filter).toEqual({ active: true });
@@ -64,7 +70,13 @@ describe('aggregates materialize', () => {
     static keys = { id: 1 } as any;
     static order = [] as any;
     static connector = new MemoryConnector({
-      storage: { orders: [{ id: 1, total: 5 }, { id: 2, total: 7 }, { id: 3, total: 12 }] },
+      storage: {
+        orders: [
+          { id: 1, total: 5 },
+          { id: 2, total: 7 },
+          { id: 3, total: 12 },
+        ],
+      },
     });
   }
 
@@ -74,7 +86,9 @@ describe('aggregates materialize', () => {
   });
 
   it('count honours filterBy', async () => {
-    const n = await CollectionQuery.fromModel(Order as any).filterBy({ id: 1 }).count();
+    const n = await CollectionQuery.fromModel(Order as any)
+      .filterBy({ id: 1 })
+      .count();
     expect(n).toBe(1);
   });
 
@@ -99,22 +113,30 @@ describe('aggregates materialize', () => {
   });
 
   it('count nullScoped returns 0', async () => {
-    const n = await CollectionQuery.fromModel(Order as any).none().count();
+    const n = await CollectionQuery.fromModel(Order as any)
+      .none()
+      .count();
     expect(n).toBe(0);
   });
 
   it('sum nullScoped returns 0 (empty-set sum)', async () => {
-    const total = await CollectionQuery.fromModel(Order as any).none().sum('total');
+    const total = await CollectionQuery.fromModel(Order as any)
+      .none()
+      .sum('total');
     expect(total).toBe(0);
   });
 
   it('average nullScoped returns undefined (no rows)', async () => {
-    const avg = await CollectionQuery.fromModel(Order as any).none().average('total');
+    const avg = await CollectionQuery.fromModel(Order as any)
+      .none()
+      .average('total');
     expect(avg).toBeUndefined();
   });
 
   it('minimum nullScoped returns undefined (no rows)', async () => {
-    const m = await CollectionQuery.fromModel(Order as any).none().minimum('total');
+    const m = await CollectionQuery.fromModel(Order as any)
+      .none()
+      .minimum('total');
     expect(m).toBeUndefined();
   });
 });

@@ -80,7 +80,7 @@ function isBlank(value: unknown): boolean {
 
 function skip(record: any, value: unknown, opts: BaseValidatorOptions): boolean {
   if (opts.if && !opts.if(record)) return true;
-  if (opts.unless && opts.unless(record)) return true;
+  if (opts.unless?.(record)) return true;
   if (opts.allowNull && (value === null || value === undefined)) return true;
   if (opts.allowBlank && isBlank(value)) return true;
   return false;
@@ -93,7 +93,7 @@ export function validatePresence(
   const list = toArray(keys);
   return (record: RecordLike) => {
     if (opts.if && !opts.if(record)) return true;
-    if (opts.unless && opts.unless(record)) return true;
+    if (opts.unless?.(record)) return true;
     const attrs = record.attributes;
     let valid = true;
     for (const key of list) {

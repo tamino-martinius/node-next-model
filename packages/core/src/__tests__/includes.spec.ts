@@ -115,10 +115,7 @@ describe('Model.includes — eager loading', () => {
     >;
 
     expect(posts[0].user).toBeDefined();
-    expect(posts[0].comments?.map((c) => (c.attributes as CommentRow).body)).toEqual([
-      'C1',
-      'C2',
-    ]);
+    expect(posts[0].comments?.map((c) => (c.attributes as CommentRow).body)).toEqual(['C1', 'C2']);
     expect(posts[1].comments?.map((c) => (c.attributes as CommentRow).body)).toEqual(['C3']);
     expect(posts[2].comments).toEqual([]);
   });

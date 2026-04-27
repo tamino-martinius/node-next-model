@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { InstanceQuery } from '../query/InstanceQuery.js';
 import { NotFoundError } from '../errors.js';
 import type { TerminalKind } from '../query/InstanceQuery.js';
+import { InstanceQuery } from '../query/InstanceQuery.js';
 
 const FakeModel = { tableName: 'users', keys: { id: 1 } };
 

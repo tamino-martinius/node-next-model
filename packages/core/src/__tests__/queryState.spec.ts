@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeFilters, mergeOrders, type QueryState } from '../query/QueryState.js';
+import { mergeFilters, mergeOrders } from '../query/QueryState.js';
 
 describe('mergeFilters', () => {
   it('returns the new filter when current is undefined', () => {
@@ -32,8 +32,10 @@ describe('mergeFilters', () => {
 
 describe('mergeOrders', () => {
   it('appends new order columns onto existing ones', () => {
-    expect(
-      mergeOrders([{ key: 'a' as any }], [{ key: 'b' as any }, { key: 'c' as any }]),
-    ).toEqual([{ key: 'a' }, { key: 'b' }, { key: 'c' }]);
+    expect(mergeOrders([{ key: 'a' as any }], [{ key: 'b' as any }, { key: 'c' as any }])).toEqual([
+      { key: 'a' },
+      { key: 'b' },
+      { key: 'c' },
+    ]);
   });
 });

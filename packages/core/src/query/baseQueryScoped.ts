@@ -12,7 +12,12 @@ import { mergeFilters } from './QueryState.js';
 
 async function selectColumn(
   connector: Connector,
-  scope: { tableName: string; filter?: Filter<any>; order?: ParentScope['parentOrder']; limit?: number },
+  scope: {
+    tableName: string;
+    filter?: Filter<any>;
+    order?: ParentScope['parentOrder'];
+    limit?: number;
+  },
   column: string,
 ): Promise<unknown[]> {
   const rows = await connector.select(scope, column);

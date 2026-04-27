@@ -1,4 +1,4 @@
-import type { AssociationDefinition, SimpleAssociationDefinition, ModelClass } from '../Model.js';
+import type { AssociationDefinition, ModelClass, SimpleAssociationDefinition } from '../Model.js';
 import { resolveAssociationTarget } from '../Model.js';
 import type { Dict } from '../types.js';
 

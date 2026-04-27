@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CollectionQuery } from '../query/CollectionQuery.js';
 import { ModelClass } from '../Model.js';
+import { CollectionQuery } from '../query/CollectionQuery.js';
 
 class Role extends ModelClass {
   static tableName = 'roles';
@@ -38,15 +38,15 @@ describe('hasManyThrough association traversal', () => {
     // Nested chain: leaf (Role) → parent (UserRole) → parent (User-instance).
     expect(q.state.parent).toBeDefined();
     const userRoleParent = q.state.parent;
-    expect(userRoleParent.via.childColumn).toBe('id');         // Role.id
-    expect(userRoleParent.via.parentColumn).toBe('roleId');    // UserRole.roleId
+    expect(userRoleParent.via.childColumn).toBe('id'); // Role.id
+    expect(userRoleParent.via.parentColumn).toBe('roleId'); // UserRole.roleId
 
     const userRoleUpstream = userRoleParent.upstream.state;
     expect(userRoleUpstream.Model.tableName).toBe('userRoles');
     expect(userRoleUpstream.parent).toBeDefined();
     const userParent = userRoleUpstream.parent;
-    expect(userParent.via.childColumn).toBe('userId');         // UserRole.userId
-    expect(userParent.via.parentColumn).toBe('id');            // User.id
+    expect(userParent.via.childColumn).toBe('userId'); // UserRole.userId
+    expect(userParent.via.parentColumn).toBe('id'); // User.id
   });
 
   it('honours explicit foreignKey overrides', () => {

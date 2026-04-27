@@ -1,14 +1,15 @@
-import { normalizeFilterShape } from '../FilterEngine.js';
 import { PersistenceError } from '../errors.js';
+import { normalizeFilterShape } from '../FilterEngine.js';
 import {
   type AssociationDefinition,
-  type SimpleAssociationDefinition,
-  type IncludeOptions,
   compileHaving,
   type HavingPredicate,
+  type IncludeOptions,
   NullConnector,
   resolveAssociationTarget,
+  type SimpleAssociationDefinition,
 } from '../Model.js';
+import type { Dict, KeyType } from '../types.js';
 import {
   type AssociationLink,
   type Callback,
@@ -18,17 +19,16 @@ import {
   type Order,
   SortDirection,
 } from '../types.js';
-import type { Dict, KeyType } from '../types.js';
-import { mergeFilters, mergeOrders, type ParentRef, type QueryState } from './QueryState.js';
-import { InstanceQuery } from './InstanceQuery.js';
-import { ScalarQuery } from './ScalarQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
-import { lower, resolveSubqueryFilters } from './lower.js';
-import { applyIncludes, attachIncludesPayload } from './includes.js';
 import { decodeCompositeCursor, encodeCompositeCursor, encodeCursor } from './cursor.js';
+import { InstanceQuery } from './InstanceQuery.js';
+import { applyIncludes, attachIncludesPayload } from './includes.js';
+import { lower, resolveSubqueryFilters } from './lower.js';
+import { mergeFilters, mergeOrders, type ParentRef, type QueryState } from './QueryState.js';
+import { ScalarQuery } from './ScalarQuery.js';
 import {
-  builderScopeBase,
   andMergeFilters,
+  builderScopeBase,
   resolveParentScopesToFilter,
   resolvePendingJoinsToScope,
 } from './scope.js';
@@ -280,7 +280,9 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
       );
     }
     if (names.length === 0) {
-      throw new PersistenceError(`CollectionQuery.joins(...) requires at least one association name.`);
+      throw new PersistenceError(
+        `CollectionQuery.joins(...) requires at least one association name.`,
+      );
     }
     const parentDefaultPk = Object.keys(this.model.keys)[0] ?? 'id';
     const newJoins: JoinClause[] = [];
@@ -367,7 +369,9 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return this.with({ filter: next });
   }
 
-  unfiltered(): this { return this.with({ filter: undefined }); }
+  unfiltered(): this {
+    return this.with({ filter: undefined });
+  }
 
   orderBy(order: Order<any>): this {
     const next = Array.isArray(order) ? order : [order];
@@ -378,22 +382,33 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return this.with({ order: Array.isArray(order) ? [...order] : [order] });
   }
 
-  unordered(): this { return this.with({ order: [] }); }
+  unordered(): this {
+    return this.with({ order: [] });
+  }
 
   reverse(): this {
     const pk = Object.keys(this.model.keys)[0] ?? 'id';
     const existing = this.state.order.length > 0 ? this.state.order : [{ key: pk } as any];
     const flipped = existing.map((c) => ({
       key: c.key,
-      dir: (c.dir ?? SortDirection.Asc) === SortDirection.Asc ? SortDirection.Desc : SortDirection.Asc,
+      dir:
+        (c.dir ?? SortDirection.Asc) === SortDirection.Asc ? SortDirection.Desc : SortDirection.Asc,
     }));
     return this.with({ order: flipped });
   }
 
-  limitBy(n: number): this { return this.with({ limit: n }); }
-  unlimited(): this { return this.with({ limit: undefined }); }
-  skipBy(n: number): this { return this.with({ skip: n }); }
-  unskipped(): this { return this.with({ skip: undefined }); }
+  limitBy(n: number): this {
+    return this.with({ limit: n });
+  }
+  unlimited(): this {
+    return this.with({ limit: undefined });
+  }
+  skipBy(n: number): this {
+    return this.with({ skip: n });
+  }
+  unskipped(): this {
+    return this.with({ skip: undefined });
+  }
 
   includes(...args: Array<string | IncludeOptions>): this {
     let options: IncludeOptions = {};
@@ -473,19 +488,35 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
   }
 
   sum(column: string): ScalarQuery<number> {
-    return new ScalarQuery<number>(this.model, this.state, { kind: 'aggregate', op: 'sum', column });
+    return new ScalarQuery<number>(this.model, this.state, {
+      kind: 'aggregate',
+      op: 'sum',
+      column,
+    });
   }
 
   average(column: string): ScalarQuery<number> {
-    return new ScalarQuery<number>(this.model, this.state, { kind: 'aggregate', op: 'avg', column });
+    return new ScalarQuery<number>(this.model, this.state, {
+      kind: 'aggregate',
+      op: 'avg',
+      column,
+    });
   }
 
   minimum<T = unknown>(column: string): ScalarQuery<T | undefined> {
-    return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'aggregate', op: 'min', column });
+    return new ScalarQuery<T | undefined>(this.model, this.state, {
+      kind: 'aggregate',
+      op: 'min',
+      column,
+    });
   }
 
   maximum<T = unknown>(column: string): ScalarQuery<T | undefined> {
-    return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'aggregate', op: 'max', column });
+    return new ScalarQuery<T | undefined>(this.model, this.state, {
+      kind: 'aggregate',
+      op: 'max',
+      column,
+    });
   }
 
   pluck(...keys: string[]): ColumnQuery<unknown[]> | Promise<unknown[]> {
@@ -649,7 +680,10 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
    * total count, and computed metadata (total pages, hasNext, hasPrev).
    * Shape mirrors the legacy `Model.paginate(page, perPage)`.
    */
-  async paginate(page: number, perPage = 25): Promise<{
+  async paginate(
+    page: number,
+    perPage = 25,
+  ): Promise<{
     items: unknown[];
     total: number;
     page: number;
@@ -685,9 +719,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
    * `orderBy` column is the cursor key; the primary key is always included as
    * a tie-breaker so identical sort values paginate deterministically.
    */
-  async paginateCursor(
-    options: { after?: string; before?: string; limit?: number } = {},
-  ): Promise<{
+  async paginateCursor(options: { after?: string; before?: string; limit?: number } = {}): Promise<{
     items: unknown[];
     nextCursor?: string;
     prevCursor?: string;
@@ -1049,6 +1081,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return this.materialize();
   }
 
+  // biome-ignore lint/suspicious/noThenProperty: CollectionQuery intentionally implements PromiseLike so it composes with await + .then.
   then<R1 = Items, R2 = never>(
     onFulfilled?: ((value: Items) => R1 | PromiseLike<R1>) | null,
     onRejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,

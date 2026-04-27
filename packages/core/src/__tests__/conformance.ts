@@ -879,26 +879,21 @@ export function runModelConformance(opts: ConformanceOptions): void {
       it('parent-scope traversal: User.findBy({email}).todos returns the user todos', async () => {
         type UserProps = { email: string; role?: string; active?: number };
         type TodoProps = { userId: number; title: string; ownerEmail?: string };
-        let User: any;
-        const Todo: any = class extends (
-          Model({
-            tableName: todosTable,
-            connector,
-            timestamps: false,
-            init: (props: TodoProps) => props,
-          })
-        ) {};
-        User = class extends (
-          Model({
-            tableName: usersTable,
-            connector,
-            timestamps: false,
-            init: (props: UserProps) => props,
-            associations: {
-              todos: { hasMany: () => Todo, foreignKey: 'userId' },
-            },
-          })
-        ) {};
+        const Todo: any = class extends Model({
+          tableName: todosTable,
+          connector,
+          timestamps: false,
+          init: (props: TodoProps) => props,
+        }) {};
+        const User: any = class extends Model({
+          tableName: usersTable,
+          connector,
+          timestamps: false,
+          init: (props: UserProps) => props,
+          associations: {
+            todos: { hasMany: () => Todo, foreignKey: 'userId' },
+          },
+        }) {};
 
         const user = await User.create({ email: 'a@b' });
         const other = await User.create({ email: 'c@d' });
@@ -937,17 +932,15 @@ export function runModelConformance(opts: ConformanceOptions): void {
             },
           })
         ) {};
-        const Order: any = class extends (
-          Model({
-            tableName: ordersTable,
-            connector,
-            timestamps: false,
-            init: (props: OrderProps) => props,
-            associations: {
-              customer: { belongsTo: () => Customer, foreignKey: 'customerId' },
-            },
-          })
-        ) {};
+        const Order: any = class extends Model({
+          tableName: ordersTable,
+          connector,
+          timestamps: false,
+          init: (props: OrderProps) => props,
+          associations: {
+            customer: { belongsTo: () => Customer, foreignKey: 'customerId' },
+          },
+        }) {};
 
         const address = await Address.create({ city: 'Berlin' });
         const customer = await Customer.create({ name: 'Ada', addressId: address.id });
@@ -961,22 +954,18 @@ export function runModelConformance(opts: ConformanceOptions): void {
       it('Todo.filterBy({userId: User.filterBy({...})}) — subquery as filter value', async () => {
         type UserProps = { email: string; active?: number };
         type TodoProps = { userId: number; title: string };
-        const User: any = class extends (
-          Model({
-            tableName: usersTable,
-            connector,
-            timestamps: false,
-            init: (props: UserProps) => props,
-          })
-        ) {};
-        const Todo: any = class extends (
-          Model({
-            tableName: todosTable,
-            connector,
-            timestamps: false,
-            init: (props: TodoProps) => props,
-          })
-        ) {};
+        const User: any = class extends Model({
+          tableName: usersTable,
+          connector,
+          timestamps: false,
+          init: (props: UserProps) => props,
+        }) {};
+        const Todo: any = class extends Model({
+          tableName: todosTable,
+          connector,
+          timestamps: false,
+          init: (props: TodoProps) => props,
+        }) {};
 
         const active = await User.create({ email: 'a@b', active: 1 });
         const inactive = await User.create({ email: 'c@d', active: 0 });
@@ -995,22 +984,18 @@ export function runModelConformance(opts: ConformanceOptions): void {
         type OrderProps = { total: number; customerId?: number };
         type ItemProps = { orderId: number; amount: number };
 
-        const Order: any = class extends (
-          Model({
-            tableName: ordersTable,
-            connector,
-            timestamps: false,
-            init: (props: OrderProps) => props,
-          })
-        ) {};
-        const OrderItem: any = class extends (
-          Model({
-            tableName: orderItemsTable,
-            connector,
-            timestamps: false,
-            init: (props: ItemProps) => props,
-          })
-        ) {};
+        const Order: any = class extends Model({
+          tableName: ordersTable,
+          connector,
+          timestamps: false,
+          init: (props: OrderProps) => props,
+        }) {};
+        const OrderItem: any = class extends Model({
+          tableName: orderItemsTable,
+          connector,
+          timestamps: false,
+          init: (props: ItemProps) => props,
+        }) {};
 
         await Order.create({ total: 10 });
         await Order.create({ total: 50 });
@@ -1022,28 +1007,26 @@ export function runModelConformance(opts: ConformanceOptions): void {
         const orders = (await Order.filterBy({
           $gt: { total: OrderItem.filterBy({ orderId: 99 }).sum('amount') },
         } as any)) as any[];
-        expect(orders.map((o: any) => o.attributes.total).sort((a: number, b: number) => a - b)).toEqual([50, 100]);
+        expect(
+          orders.map((o: any) => o.attributes.total).sort((a: number, b: number) => a - b),
+        ).toEqual([50, 100]);
       });
 
       it('Todo.filterBy({ownerEmail: User.filterBy({...}).pluck(email)}) — column subquery', async () => {
         type UserProps = { email: string; role: string };
         type TodoProps = { userId?: number; title: string; ownerEmail: string };
-        const User: any = class extends (
-          Model({
-            tableName: usersTable,
-            connector,
-            timestamps: false,
-            init: (props: UserProps) => props,
-          })
-        ) {};
-        const Todo: any = class extends (
-          Model({
-            tableName: todosTable,
-            connector,
-            timestamps: false,
-            init: (props: TodoProps) => props,
-          })
-        ) {};
+        const User: any = class extends Model({
+          tableName: usersTable,
+          connector,
+          timestamps: false,
+          init: (props: UserProps) => props,
+        }) {};
+        const Todo: any = class extends Model({
+          tableName: todosTable,
+          connector,
+          timestamps: false,
+          init: (props: TodoProps) => props,
+        }) {};
 
         await User.create({ email: 'admin@x', role: 'admin' });
         await User.create({ email: 'user@x', role: 'user' });
@@ -1060,26 +1043,21 @@ export function runModelConformance(opts: ConformanceOptions): void {
       it('attributes getter on a resolved instance is a JSON-safe POJO', async () => {
         type UserProps = { email: string };
         type TodoProps = { userId: number; title: string };
-        let User: any;
-        const Todo: any = class extends (
-          Model({
-            tableName: todosTable,
-            connector,
-            timestamps: false,
-            init: (props: TodoProps) => props,
-          })
-        ) {};
-        User = class extends (
-          Model({
-            tableName: usersTable,
-            connector,
-            timestamps: false,
-            init: (props: UserProps) => props,
-            associations: {
-              todos: { hasMany: () => Todo, foreignKey: 'userId' },
-            },
-          })
-        ) {};
+        const Todo: any = class extends Model({
+          tableName: todosTable,
+          connector,
+          timestamps: false,
+          init: (props: TodoProps) => props,
+        }) {};
+        const User: any = class extends Model({
+          tableName: usersTable,
+          connector,
+          timestamps: false,
+          init: (props: UserProps) => props,
+          associations: {
+            todos: { hasMany: () => Todo, foreignKey: 'userId' },
+          },
+        }) {};
 
         const user = await User.create({ email: 'a@b' });
         await Todo.create({ userId: user.id, title: 't1' });

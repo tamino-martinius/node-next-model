@@ -1,6 +1,5 @@
-import type { Connector, Dict, Filter } from '../types.js';
+import type { Connector, Dict, Filter, ParentScope } from '../types.js';
 import { mergeFilters, type QueryState } from './QueryState.js';
-import type { ParentScope } from '../types.js';
 
 /**
  * Compute the connector-facing `Scope` for a chained read WITHOUT folding
@@ -24,9 +23,7 @@ export function builderScopeBase(model: any, state: QueryState) {
   }
   if (model.inheritColumn && model.inheritType !== undefined) {
     const typeFilter = { [model.inheritColumn]: model.inheritType } as Filter<any>;
-    filter = filter
-      ? ({ $and: [typeFilter, filter] } as Filter<any>)
-      : typeFilter;
+    filter = filter ? ({ $and: [typeFilter, filter] } as Filter<any>) : typeFilter;
   }
   return {
     tableName: model.tableName as string,
@@ -136,10 +133,7 @@ export async function resolveParentScopesToFilter(
 }
 
 /** AND-merge two filter fragments — undefined-safe. */
-export function andMergeFilters(
-  current: Filter<any> | undefined,
-  next: Filter<any>,
-): Filter<any> {
+export function andMergeFilters(current: Filter<any> | undefined, next: Filter<any>): Filter<any> {
   if (!current) return next;
   return { $and: [current, next] } as Filter<any>;
 }

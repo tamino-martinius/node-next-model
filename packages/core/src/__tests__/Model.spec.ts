@@ -2382,8 +2382,7 @@ describe('Model', () => {
         init: (props: { title: string; views: number }) => props,
         connector: scopeConnector(),
         scopes: {
-          minViews: (threshold: number) =>
-            ({ $gte: { views: threshold } } as Filter<any>),
+          minViews: (threshold: number) => ({ $gte: { views: threshold } }) as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', views: 5 });
@@ -2399,7 +2398,7 @@ describe('Model', () => {
         init: (props: { age: number }) => props,
         connector: scopeConnector(),
         scopes: {
-          olderThan: (age: number) => ({ $gt: { age } } as Filter<any>),
+          olderThan: (age: number) => ({ $gt: { age } }) as Filter<any>,
         },
       });
       const q = (Klass as any).olderThan(18);
@@ -2413,8 +2412,7 @@ describe('Model', () => {
         init: (props: { title: string; views: number; published: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
-          minViews: (threshold: number) =>
-            ({ $gte: { views: threshold } } as Filter<any>),
+          minViews: (threshold: number) => ({ $gte: { views: threshold } }) as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', views: 50, published: true });

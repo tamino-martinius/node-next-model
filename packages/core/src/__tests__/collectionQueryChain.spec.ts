@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CollectionQuery } from '../query/CollectionQuery.js';
 import { ModelClass } from '../Model.js';
+import { CollectionQuery } from '../query/CollectionQuery.js';
 import { SortDirection } from '../types.js';
 
 class Todo extends ModelClass {
@@ -29,7 +29,9 @@ describe('CollectionQuery chain methods', () => {
   });
 
   it('limitBy / skipBy / unlimited / unskipped', () => {
-    const q = CollectionQuery.fromModel(Todo as any).limitBy(5).skipBy(2);
+    const q = CollectionQuery.fromModel(Todo as any)
+      .limitBy(5)
+      .skipBy(2);
     expect(q.state.limit).toBe(5);
     expect(q.state.skip).toBe(2);
     expect(q.unlimited().state.limit).toBeUndefined();
@@ -37,7 +39,9 @@ describe('CollectionQuery chain methods', () => {
   });
 
   it('unfiltered clears state.filter', () => {
-    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).unfiltered();
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .unfiltered();
     expect(q.state.filter).toBeUndefined();
   });
 
@@ -298,7 +302,9 @@ describe('CollectionQuery chain methods', () => {
   });
 
   it('allFields clears selectedFields', () => {
-    const q = CollectionQuery.fromModel(Todo as any).fields('id').allFields();
+    const q = CollectionQuery.fromModel(Todo as any)
+      .fields('id')
+      .allFields();
     expect(q.state.selectedFields).toBeUndefined();
   });
 
