@@ -386,6 +386,171 @@ describe('SqliteConnector#queryScoped', () => {
   });
 });
 
+describe('SqliteConnector#reflectSchema', () => {
+  it('returns one TableDefinition per user table', async () => {
+    const local = new SqliteConnector(':memory:');
+    try {
+      await local.createTable('users', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('email', { null: false });
+      });
+      await local.createTable('posts', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('title', { null: false });
+      });
+      const tables = await local.reflectSchema!();
+      const names = tables.map((t) => t.name).sort();
+      expect(names).toEqual(['posts', 'users']);
+    } finally {
+      local.destroy();
+    }
+  });
+
+  it('skips sqlite_* internal tables', async () => {
+    const local = new SqliteConnector(':memory:');
+    try {
+      // Force creation of a sqlite_sequence row by using AUTOINCREMENT.
+      await local.createTable('seq_demo', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+      });
+      await local.batchInsert('seq_demo', { id: 1 } as any, [{}]);
+      const tables = await local.reflectSchema!();
+      expect(tables.every((t) => !t.name.startsWith('sqlite_'))).toBe(true);
+    } finally {
+      local.destroy();
+    }
+  });
+
+  it('captures column kinds, primary key, autoIncrement, and nullable flags', async () => {
+    const local = new SqliteConnector(':memory:');
+    try {
+      await local.createTable('items', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('email', { limit: 320, null: false });
+        t.text('body');
+        t.integer('age', { null: true });
+        t.boolean('active', { default: true, null: false });
+        t.float('rating');
+        t.decimal('price', { precision: 12, scale: 4 });
+      });
+      const tables = await local.reflectSchema!();
+      const items = tables.find((t) => t.name === 'items');
+      expect(items).toBeDefined();
+      expect(items!.primaryKey).toBe('id');
+      const id = items!.columns.find((c) => c.name === 'id')!;
+      expect(id.primary).toBe(true);
+      expect(id.autoIncrement).toBe(true);
+      expect(id.nullable).toBe(false);
+      expect(id.type).toBe('integer');
+      // SQLite stores `t.string(...)` with a limit as `VARCHAR(N)`, which
+      // round-trips back to 'string' with the limit. Without a limit it
+      // collapses to TEXT and we can't distinguish it from `t.text`.
+      const email = items!.columns.find((c) => c.name === 'email')!;
+      expect(email.type).toBe('string');
+      expect(email.limit).toBe(320);
+      expect(email.nullable).toBe(false);
+      const body = items!.columns.find((c) => c.name === 'body')!;
+      expect(body.type).toBe('text');
+      const age = items!.columns.find((c) => c.name === 'age')!;
+      expect(age.type).toBe('integer');
+      expect(age.nullable).toBe(true);
+      // SQLite has no native BOOLEAN — booleans are stored as INTEGER 0/1,
+      // so reflection rebuilds them as `integer` columns (with the default
+      // surfaced as the underlying numeric value).
+      const active = items!.columns.find((c) => c.name === 'active')!;
+      expect(active.type).toBe('integer');
+      expect(active.default).toBe(1);
+      const rating = items!.columns.find((c) => c.name === 'rating')!;
+      expect(rating.type).toBe('float');
+      const price = items!.columns.find((c) => c.name === 'price')!;
+      expect(price.type).toBe('decimal');
+      expect(price.precision).toBe(12);
+      expect(price.scale).toBe(4);
+    } finally {
+      local.destroy();
+    }
+  });
+
+  it('captures string limit when declared as VARCHAR(N)', async () => {
+    const local = new SqliteConnector(':memory:');
+    try {
+      await local.createTable('events', (t) => {
+        t.string('slug', { limit: 64, null: false });
+      });
+      const tables = await local.reflectSchema!();
+      const slug = tables[0].columns.find((c) => c.name === 'slug')!;
+      expect(slug.limit).toBe(64);
+    } finally {
+      local.destroy();
+    }
+  });
+
+  it('captures explicit indexes (skipping pk / unique auto-indexes)', async () => {
+    const local = new SqliteConnector(':memory:');
+    try {
+      await local.createTable('logs', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.integer('userId');
+        t.index(['userId'], { name: 'idx_logs_user_id' });
+        t.index(['userId', 'id'], { unique: true, name: 'idx_logs_user_id_id' });
+      });
+      const tables = await local.reflectSchema!();
+      const logs = tables.find((t) => t.name === 'logs')!;
+      const names = logs.indexes.map((i) => i.name).sort();
+      expect(names).toContain('idx_logs_user_id');
+      expect(names).toContain('idx_logs_user_id_id');
+      const single = logs.indexes.find((i) => i.name === 'idx_logs_user_id')!;
+      expect(single.columns).toEqual(['userId']);
+      expect(single.unique).toBe(false);
+      const compound = logs.indexes.find((i) => i.name === 'idx_logs_user_id_id')!;
+      expect(compound.columns).toEqual(['userId', 'id']);
+      expect(compound.unique).toBe(true);
+    } finally {
+      local.destroy();
+    }
+  });
+
+  it('decodes string / number / null / currentTimestamp defaults', async () => {
+    const local = new SqliteConnector(':memory:');
+    try {
+      await local.createTable('settings', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('kind', { default: 'api', null: false });
+        t.integer('count', { default: 0, null: false });
+        t.timestamp('seenAt', { default: 'currentTimestamp', null: false });
+        t.json('payload', { default: null });
+      });
+      const tables = await local.reflectSchema!();
+      const settings = tables.find((t) => t.name === 'settings')!;
+      const byName = (n: string) => settings.columns.find((c) => c.name === n)!;
+      expect(byName('kind').default).toBe('api');
+      expect(byName('count').default).toBe(0);
+      expect(byName('seenAt').default).toBe('currentTimestamp');
+      expect(byName('payload').default).toBe(null);
+    } finally {
+      local.destroy();
+    }
+  });
+
+  it('round-trips into generateSchemaSource', async () => {
+    const { generateSchemaSource } = await import('@next-model/core');
+    const local = new SqliteConnector(':memory:');
+    try {
+      await local.createTable('users', (t) => {
+        t.integer('id', { primary: true, autoIncrement: true, null: false });
+        t.string('email', { limit: 320, null: false });
+      });
+      const reflected = await local.reflectSchema!();
+      const source = generateSchemaSource(reflected);
+      expect(source).toContain('export const usersSchema = defineSchema({');
+      expect(source).toContain('email: { type: "string"');
+      expect(source).toContain('id: { type: "integer", primary: true, autoIncrement: true');
+    } finally {
+      local.destroy();
+    }
+  });
+});
+
 runModelConformance({
   name: 'SqliteConnector',
   makeConnector: () => connector,
