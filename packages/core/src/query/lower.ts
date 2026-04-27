@@ -18,48 +18,72 @@ function isSubqueryBuilder(v: unknown): v is SubqueryBuilder {
   );
 }
 
+function builderToParentScope(childColumn: string, builder: SubqueryBuilder): ParentScope {
+  const targetState = builder.state;
+  let parentColumn: string;
+  if (builder instanceof ColumnQuery) {
+    parentColumn = builder.column;
+  } else if (builder instanceof ScalarQuery) {
+    // ScalarQuery aggregates can't be lowered as IN/= against a column;
+    // they need an operator-form path. For now, throw — Task 31 wires aggregates.
+    throw new Error(
+      'ScalarQuery as a top-level filter value is not yet supported (Task 31). Use { $gt: scalarQuery } operator form.',
+    );
+  } else {
+    parentColumn = Object.keys(targetState.Model.keys)[0] ?? 'id';
+  }
+  const direction: ParentScope['link']['direction'] =
+    builder instanceof InstanceQuery ? 'belongsTo' : 'hasMany';
+  const parentLimit =
+    builder instanceof InstanceQuery ? targetState.limit ?? 1 : targetState.limit;
+  return {
+    parentTable: targetState.Model.tableName,
+    parentKeys: targetState.Model.keys,
+    parentFilter: targetState.filter,
+    parentOrder: targetState.order.length > 0 ? targetState.order : undefined,
+    parentLimit,
+    link: { childColumn, parentColumn, direction },
+  };
+}
+
+// Recursively walks $and / $or / $not into the filter tree; extracts any
+// builder-valued column entry into a ParentScope and removes it from the
+// returned cleanFilter. Operator-form builder values (e.g., {$gt: scalar})
+// are out of scope here and handled by Task 31.
+function walkFilter(node: Filter<any>, scopes: ParentScope[]): Filter<any> {
+  const cleaned: Dict<any> = {};
+  for (const key of Object.keys(node as Dict<any>)) {
+    const value = (node as Dict<any>)[key];
+    if (key === '$and' || key === '$or') {
+      cleaned[key] = (value as Filter<any>[]).map((child) => walkFilter(child, scopes));
+      continue;
+    }
+    if (key === '$not') {
+      cleaned[key] = walkFilter(value as Filter<any>, scopes);
+      continue;
+    }
+    if (key.startsWith('$')) {
+      cleaned[key] = value;
+      continue;
+    }
+    if (isSubqueryBuilder(value)) {
+      scopes.push(builderToParentScope(key, value));
+      continue;
+    }
+    cleaned[key] = value;
+  }
+  return cleaned as Filter<any>;
+}
+
 function extractSubqueryScopes(
   filter: Filter<any> | undefined,
 ): { cleanFilter: Filter<any> | undefined; subqueryScopes: ParentScope[] } {
   const subqueryScopes: ParentScope[] = [];
   if (!filter) return { cleanFilter: undefined, subqueryScopes };
-  const cleanFilter: Dict<any> = {};
-  for (const key in filter as Dict<any>) {
-    const value = (filter as Dict<any>)[key];
-    if (isSubqueryBuilder(value)) {
-      const builder = value as SubqueryBuilder;
-      const targetState = builder.state;
-      let parentColumn: string;
-      if (builder instanceof ColumnQuery) {
-        parentColumn = builder.column;
-      } else if (builder instanceof ScalarQuery) {
-        // ScalarQuery aggregates can't be lowered as IN/= against a column;
-        // they need a different operator path. For now, throw — Task 31 wires aggregates.
-        throw new Error(
-          'ScalarQuery as a top-level filter value is not yet supported (Task 31). Use { $gt: scalarQuery } operator form.',
-        );
-      } else {
-        // CollectionQuery or InstanceQuery — use target's pk
-        parentColumn = Object.keys(targetState.Model.keys)[0] ?? 'id';
-      }
-      const direction: ParentScope['link']['direction'] =
-        builder instanceof InstanceQuery ? 'belongsTo' : 'hasMany';
-      const parentLimit =
-        builder instanceof InstanceQuery ? targetState.limit ?? 1 : targetState.limit;
-      subqueryScopes.push({
-        parentTable: targetState.Model.tableName,
-        parentKeys: targetState.Model.keys,
-        parentFilter: targetState.filter,
-        parentOrder: targetState.order.length > 0 ? targetState.order : undefined,
-        parentLimit,
-        link: { childColumn: key, parentColumn, direction },
-      });
-    } else {
-      cleanFilter[key] = value;
-    }
-  }
-  const cleaned = Object.keys(cleanFilter).length > 0 ? (cleanFilter as Filter<any>) : undefined;
-  return { cleanFilter: cleaned, subqueryScopes };
+  const cleaned = walkFilter(filter, subqueryScopes);
+  const cleanFilter =
+    Object.keys(cleaned as Dict<any>).length > 0 ? cleaned : undefined;
+  return { cleanFilter, subqueryScopes };
 }
 
 function flattenParents(state: QueryState): QueryScopedSpec['parentScopes'] {

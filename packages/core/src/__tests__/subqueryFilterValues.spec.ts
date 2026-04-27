@@ -76,4 +76,40 @@ describe('subquery filter values', () => {
     expect(todos).toHaveLength(1);
     expect(todos[0].id).toBe(10);
   });
+
+  it('extracts builder values from $and arms (recursive descent)', () => {
+    const q = CollectionQuery.fromModel(Todo as any).filterBy({
+      $and: [
+        { userId: CollectionQuery.fromModel(User as any).filterBy({ active: true }) },
+        { archived: false },
+      ],
+    } as any);
+    const spec = lower(q, 'rows');
+    expect(spec.parentScopes).toHaveLength(1);
+    expect(spec.parentScopes[0].link.childColumn).toBe('userId');
+    // The cleaned filter should still carry the non-builder $and arm but
+    // with the builder-keyed object emptied out.
+    expect(spec.filter).toMatchObject({ $and: [{}, { archived: false }] });
+  });
+
+  it('extracts builder values from $or arms', () => {
+    const q = CollectionQuery.fromModel(Todo as any).filterBy({
+      $or: [
+        { userId: CollectionQuery.fromModel(User as any).filterBy({ active: true }) },
+        { ownerId: CollectionQuery.fromModel(User as any).filterBy({ admin: true }) },
+      ],
+    } as any);
+    const spec = lower(q, 'rows');
+    expect(spec.parentScopes).toHaveLength(2);
+    expect(spec.parentScopes.map((p) => p.link.childColumn).sort()).toEqual(['ownerId', 'userId']);
+  });
+
+  it('extracts builder values from $not branch', () => {
+    const q = CollectionQuery.fromModel(Todo as any).filterBy({
+      $not: { userId: CollectionQuery.fromModel(User as any).filterBy({ banned: true }) },
+    } as any);
+    const spec = lower(q, 'rows');
+    expect(spec.parentScopes).toHaveLength(1);
+    expect(spec.parentScopes[0].parentFilter).toEqual({ banned: true });
+  });
 });
