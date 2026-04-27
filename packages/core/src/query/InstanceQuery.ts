@@ -16,6 +16,9 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
   ) {}
 
   // STUB until Task 24 wires materialize to connector.queryScoped.
+  // Always resolves undefined → find/findOrFail terminals always throw
+  // until Task 24 lands. Tests use a StubMaterialize subclass to inject
+  // results; do not invoke this on a real InstanceQuery before Task 24.
   protected materialize(): Promise<Result> {
     if (!this.memo) {
       this.memo = Promise.resolve(undefined as Result).then((result) => {

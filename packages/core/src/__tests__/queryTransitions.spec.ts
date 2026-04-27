@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { InstanceQuery } from '../query/InstanceQuery.js';
 import { ModelClass } from '../Model.js';
+import { SortDirection } from '../types.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -21,12 +22,17 @@ describe('CollectionQuery → InstanceQuery transitions', () => {
 
   it('last() returns InstanceQuery with terminalKind last and reversed order', () => {
     const q = CollectionQuery.fromModel(Todo as any)
-      .orderBy({ key: 'createdAt' as any })
+      .orderBy({ key: 'createdAt' as any, dir: SortDirection.Asc })
       .last();
     expect(q).toBeInstanceOf(InstanceQuery);
     expect(q.terminalKind).toBe('last');
     expect(q.state.limit).toBe(1);
     expect(q.state.order[0].key).toBe('createdAt');
-    // Reversed: should default to descending now
+    expect(q.state.order[0].dir).toBe(SortDirection.Desc);
+  });
+
+  it('last() with no explicit order falls back to primary key descending', () => {
+    const q = CollectionQuery.fromModel(Todo as any).last();
+    expect(q.state.order).toEqual([{ key: 'id', dir: SortDirection.Desc }]);
   });
 });
