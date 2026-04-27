@@ -66,16 +66,19 @@ async function resolveOperatorBuilders(
   // A builder instance found at a position where a comparable literal is
   // expected → await and splice the resolved literal value.
   if (isSubqueryBuilder(node)) {
-    if (insideOperator) {
+    // ScalarQuery at top level is also resolved eagerly — `{total: sumQuery}`
+    // becomes a literal `total = N` comparison rather than the IN-subquery
+    // form (which only makes sense for collection/instance/column shapes).
+    if (insideOperator || node instanceof ScalarQuery) {
       // Eagerly materialise: await via .then to avoid re-entrant async issues.
       const resolved: unknown = await new Promise<unknown>((res, rej) => {
         (node as PromiseLike<unknown>).then(res, rej);
       });
       return { value: resolved };
     }
-    // Top-level position — leave alone for walkFilter / extractSubqueryScopes.
-    // We wrap in { value } to prevent the async engine from auto-unwrapping
-    // the PromiseLike CollectionQuery we return.
+    // Top-level CollectionQuery / InstanceQuery / ColumnQuery — leave alone
+    // for walkFilter / extractSubqueryScopes. We wrap in { value } to prevent
+    // the async engine from auto-unwrapping the PromiseLike we return.
     return { value: node };
   }
 
@@ -131,10 +134,10 @@ function builderToParentScope(childColumn: string, builder: SubqueryBuilder): Pa
   if (builder instanceof ColumnQuery) {
     parentColumn = builder.column;
   } else if (builder instanceof ScalarQuery) {
-    // ScalarQuery aggregates can't be lowered as IN/= against a column;
-    // they need an operator-form path. For now, throw — Task 31 wires aggregates.
+    // ScalarQuery is eagerly resolved by resolveOperatorBuilders before
+    // reaching this path. If we got here, it's a programmer error.
     throw new Error(
-      'ScalarQuery as a top-level filter value is not yet supported (Task 31). Use { $gt: scalarQuery } operator form.',
+      'ScalarQuery should be resolved before parentScope extraction. Internal error.',
     );
   } else {
     parentColumn = Object.keys(targetState.Model.keys)[0] ?? 'id';

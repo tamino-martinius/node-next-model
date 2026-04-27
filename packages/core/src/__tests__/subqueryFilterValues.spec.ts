@@ -143,6 +143,35 @@ describe('subquery filter values', () => {
     expect(orders).toEqual([]);
   });
 
+  it('ScalarQuery as a top-level filter value resolves eagerly to a literal', async () => {
+    const connector = new MemoryConnector({
+      storage: {
+        orders: [{ id: 1, total: 40 }, { id: 2, total: 50 }],
+        orderItems: [{ id: 1, orderId: 99, amount: 15 }, { id: 2, orderId: 99, amount: 25 }],
+      },
+    });
+    class OrderM extends ModelClass {
+      static tableName = 'orders';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = connector;
+    }
+    class OrderItemM extends ModelClass {
+      static tableName = 'orderItems';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = connector;
+    }
+    const total = CollectionQuery.fromModel(OrderItemM as any)
+      .filterBy({ orderId: 99 })
+      .sum('amount'); // = 40
+    // `{total: scalar}` resolves the scalar eagerly and matches total = 40.
+    const orders = (await CollectionQuery.fromModel(OrderM as any).filterBy({
+      total: total,
+    } as any)) as any[];
+    expect(orders.map((o: any) => o.id)).toEqual([1]);
+  });
+
   it('ColumnQuery embedded in $in operator splices the resolved values', async () => {
     const connector = new MemoryConnector({
       storage: {
