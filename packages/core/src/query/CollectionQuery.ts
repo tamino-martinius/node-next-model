@@ -2,6 +2,7 @@ import { normalizeFilterShape } from '../FilterEngine.js';
 import { PersistenceError } from '../errors.js';
 import {
   type AssociationDefinition,
+  type IncludeOptions,
   resolveAssociationTarget,
 } from '../Model.js';
 import { type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
@@ -185,6 +186,49 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
   unlimited(): this { return this.with({ limit: undefined }); }
   skipBy(n: number): this { return this.with({ skip: n }); }
   unskipped(): this { return this.with({ skip: undefined }); }
+
+  includes(...args: Array<string | IncludeOptions>): this {
+    let options: IncludeOptions = {};
+    let names: string[];
+    const last = args[args.length - 1];
+    if (last !== undefined && typeof last !== 'string') {
+      options = last;
+      names = args.slice(0, -1) as string[];
+    } else {
+      names = args as string[];
+    }
+    const associations = (this.model as any).associations as
+      | Record<string, AssociationDefinition>
+      | undefined;
+    if (!associations) {
+      throw new PersistenceError(
+        `CollectionQuery.includes(...) requires the Model factory to declare 'associations'.`,
+      );
+    }
+    for (const name of names) {
+      if (!associations[name]) {
+        throw new PersistenceError(
+          `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
+        );
+      }
+    }
+    const previous = this.state.selectedIncludes ?? [];
+    const next = Array.from(new Set([...previous, ...names]));
+    const strategy = options.strategy ?? this.state.includeStrategy ?? 'preload';
+    return this.with({ selectedIncludes: next, includeStrategy: strategy });
+  }
+
+  withoutIncludes(): this {
+    return this.with({ selectedIncludes: [], includeStrategy: 'preload' });
+  }
+
+  fields(...keys: string[]): this {
+    return this.with({ selectedFields: keys });
+  }
+
+  allFields(): this {
+    return this.with({ selectedFields: undefined });
+  }
 
   unscoped(): this {
     return this.with({

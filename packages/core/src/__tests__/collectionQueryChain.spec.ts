@@ -200,4 +200,93 @@ describe('CollectionQuery chain methods', () => {
     expect(q.state.pendingJoins).toHaveLength(1);
     expect(q.state.filter).toEqual({ status: 'published' });
   });
+
+  it('includes(name) appends names to selectedIncludes', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+        comments: { hasMany: Todo, foreignKey: 'postId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any).includes('user', 'comments');
+    expect(q.state.selectedIncludes).toEqual(['user', 'comments']);
+  });
+
+  it('includes accepts a trailing options object for strategy', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any).includes('user', { strategy: 'join' });
+    expect(q.state.selectedIncludes).toEqual(['user']);
+    expect(q.state.includeStrategy).toBe('join');
+  });
+
+  it('includes merges with existing selectedIncludes (dedup)', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+        comments: { hasMany: Todo, foreignKey: 'postId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any)
+      .includes('user')
+      .includes('comments', 'user');
+    expect(q.state.selectedIncludes).toEqual(['user', 'comments']);
+  });
+
+  it('includes throws when association is unknown', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    expect(() => CollectionQuery.fromModel(Post as any).includes('missing')).toThrow(
+      /Unknown association 'missing'/,
+    );
+  });
+
+  it('withoutIncludes clears selectedIncludes and resets strategy', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any)
+      .includes('user', { strategy: 'join' })
+      .withoutIncludes();
+    expect(q.state.selectedIncludes).toEqual([]);
+    expect(q.state.includeStrategy).toBe('preload');
+  });
+
+  it('fields(...keys) sets selectedFields', () => {
+    const q = CollectionQuery.fromModel(Todo as any).fields('id', 'createdAt');
+    expect(q.state.selectedFields).toEqual(['id', 'createdAt']);
+  });
+
+  it('allFields clears selectedFields', () => {
+    const q = CollectionQuery.fromModel(Todo as any).fields('id').allFields();
+    expect(q.state.selectedFields).toBeUndefined();
+  });
 });
