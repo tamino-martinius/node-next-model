@@ -3,8 +3,9 @@ import { MemoryConnector } from './MemoryConnector.js';
 import { CollectionQuery } from './query/CollectionQuery.js';
 import { createAssociationQuery } from './query/associationQuery.js';
 import { InstanceQuery } from './query/InstanceQuery.js';
+import { ColumnQuery } from './query/ColumnQuery.js';
+import { ScalarQuery } from './query/ScalarQuery.js';
 import type { QueryState } from './query/QueryState.js';
-import { decodeCompositeCursor, encodeCompositeCursor, encodeCursor } from './query/cursor.js';
 import {
   type AggregateKind,
   type AroundCallback,
@@ -934,80 +935,81 @@ export class ModelClass {
   }
 
   /**
-   * Returns a CollectionQuery that resolves to the matching records.
-   * Awaitable, so existing `await Model.all()` callers keep working.
+   * Returns a chainable CollectionQuery that resolves to the matching
+   * records. PromiseLike, so `await Model.all()` keeps working unchanged.
    * Chainable terminals (`.first()`, `.count()`, `.pluck(...)`, etc.) are
    * available on the returned builder.
-   *
-   * Typed as `Promise<InstanceType<M>[]>` for backward compatibility with
-   * the legacy signature; runtime is the CollectionQuery builder.
    */
-  static all<M extends typeof ModelClass>(this: M): Promise<InstanceType<M>[]> {
-    return CollectionQuery.fromModel(this as any) as unknown as Promise<InstanceType<M>[]>;
+  static all<M extends typeof ModelClass>(this: M): CollectionQuery<InstanceType<M>[]> {
+    return CollectionQuery.fromModel(this as any) as unknown as CollectionQuery<InstanceType<M>[]>;
   }
 
   /**
-   * Returns an InstanceQuery that resolves to the first record in the
-   * current scope (or `undefined` when empty). PromiseLike, so existing
-   * `await Model.first()` keeps working. Typed as
-   * `Promise<InstanceType<M> | undefined>` for backward compatibility with
-   * the legacy signature; runtime is the InstanceQuery builder.
+   * Returns a chainable InstanceQuery that resolves to the first record in
+   * the current scope (or `undefined` when empty). PromiseLike, so
+   * `await Model.first()` works unchanged.
    */
-  static first<M extends typeof ModelClass>(this: M) {
-    return CollectionQuery.fromModel(this as any).first() as unknown as Promise<
+  static first<M extends typeof ModelClass>(
+    this: M,
+  ): InstanceQuery<InstanceType<M> | undefined> {
+    return CollectionQuery.fromModel(this as any).first() as unknown as InstanceQuery<
       InstanceType<M> | undefined
     >;
   }
 
   /**
-   * Returns an InstanceQuery that resolves to the last record in the
-   * current scope (or `undefined` when empty). Reverses any existing
+   * Returns a chainable InstanceQuery that resolves to the last record in
+   * the current scope (or `undefined` when empty). Reverses any existing
    * orderBy and falls back to primary-key descending when no order is set.
-   * Typed as `Promise<InstanceType<M> | undefined>` for backward compat.
    */
-  static last<M extends typeof ModelClass>(this: M) {
-    return CollectionQuery.fromModel(this as any).last() as unknown as Promise<
+  static last<M extends typeof ModelClass>(
+    this: M,
+  ): InstanceQuery<InstanceType<M> | undefined> {
+    return CollectionQuery.fromModel(this as any).last() as unknown as InstanceQuery<
       InstanceType<M> | undefined
     >;
   }
 
-  static async *inBatchesOf<M extends typeof ModelClass>(
+  /**
+   * Walk the current scope in batches of `size`. Each yielded array holds at
+   * most `size` records; the final batch may be smaller. The chain's existing
+   * `orderBy` is preserved (defaulting to primary key when unset) so batches
+   * are deterministic.
+   */
+  static inBatchesOf<M extends typeof ModelClass>(
     this: M,
     size: number,
   ): AsyncGenerator<InstanceType<M>[], void, void> {
-    const batchSize = Math.max(1, Math.floor(size));
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const ordered = this.order.length > 0 ? this : this.orderBy({ key: primaryKey });
-    const baseSkip = this.skip ?? 0;
-    const totalLimit = this.limit;
-    let offset = 0;
-    while (true) {
-      const remaining = totalLimit === undefined ? batchSize : totalLimit - offset;
-      if (remaining <= 0) return;
-      const take = Math.min(batchSize, remaining);
-      const batch = await ordered
-        .unlimited()
-        .unskipped()
-        .skipBy(baseSkip + offset)
-        .limitBy(take)
-        .all<M>();
-      if (batch.length === 0) return;
-      yield batch;
-      if (batch.length < take) return;
-      offset += batch.length;
-    }
+    return CollectionQuery.fromModel(this as any).inBatchesOf(size) as AsyncGenerator<
+      InstanceType<M>[],
+      void,
+      void
+    >;
   }
 
-  static async *findEach<M extends typeof ModelClass>(
+  /**
+   * Walk the current scope record-by-record, batching internally for
+   * efficiency. Default batch size 100. Useful for streaming large result
+   * sets without loading everything into memory.
+   */
+  static findEach<M extends typeof ModelClass>(
     this: M,
     size = 100,
   ): AsyncGenerator<InstanceType<M>, void, void> {
-    for await (const batch of this.inBatchesOf<M>(size)) {
-      for (const item of batch) yield item;
-    }
+    return CollectionQuery.fromModel(this as any).findEach(size) as AsyncGenerator<
+      InstanceType<M>,
+      void,
+      void
+    >;
   }
 
-  static async paginate<M extends typeof ModelClass>(
+  /**
+   * Offset-based pagination on the current scope. Returns the page items,
+   * total count, and metadata (total pages, hasNext, hasPrev). For large
+   * tables prefer `paginateCursor()` — it avoids the O(skip) cost of
+   * LIMIT/OFFSET.
+   */
+  static paginate<M extends typeof ModelClass>(
     this: M,
     page: number,
     perPage = 25,
@@ -1020,42 +1022,26 @@ export class ModelClass {
     hasNext: boolean;
     hasPrev: boolean;
   }> {
-    const safePage = Math.max(1, Math.floor(page));
-    const safePerPage = Math.max(1, Math.floor(perPage));
-    const skip = (safePage - 1) * safePerPage;
-    const scoped = this.limitBy(safePerPage).skipBy(skip);
-    const [items, total] = await Promise.all([
-      scoped.all<M>(),
-      this.unlimited().unskipped().count(),
-    ]);
-    const totalPages = total === 0 ? 0 : Math.ceil(total / safePerPage);
-    return {
-      items,
-      total,
-      page: safePage,
-      perPage: safePerPage,
-      totalPages,
-      hasNext: safePage < totalPages,
-      hasPrev: safePage > 1,
-    };
+    return CollectionQuery.fromModel(this as any).paginate(page, perPage) as Promise<{
+      items: InstanceType<M>[];
+      total: number;
+      page: number;
+      perPage: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    }>;
   }
 
   /**
    * Cursor-based ("keyset") pagination. Avoids the O(skip) cost of
    * `.paginate()`'s LIMIT/OFFSET path, so it stays cheap on large tables.
-   *
-   * Pass `after` to advance forward ("next page"), `before` to walk
-   * backward ("previous page"). Without either, returns the first page.
-   *
-   * The chain's lead `orderBy` column is used as the cursor key; the
-   * primary key is always included as a tie-breaker so rows with identical
-   * sort values paginate deterministically. Descending orders flip the
-   * `$gt` / `$lt` semantics so `after` always advances in the order
-   * direction the caller asked for.
-   *
-   * When no `orderBy` is set, cursor pagination uses the primary key.
+   * Pass `after` to advance, `before` to walk backward; without either,
+   * returns the first page. The chain's lead `orderBy` is the cursor key;
+   * primary key is always the tiebreaker so identical sort values paginate
+   * deterministically.
    */
-  static async paginateCursor<M extends typeof ModelClass>(
+  static paginateCursor<M extends typeof ModelClass>(
     this: M,
     options: { after?: string; before?: string; limit?: number } = {},
   ): Promise<{
@@ -1064,140 +1050,80 @@ export class ModelClass {
     prevCursor?: string;
     hasMore: boolean;
   }> {
-    const limit = Math.max(1, Math.floor(options.limit ?? 25));
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const leadOrder = this.order[0];
-    const orderKey = (leadOrder?.key as string | undefined) ?? primaryKey;
-    const orderDir = leadOrder?.dir ?? SortDirection.Asc;
-    const usesPrimaryOnly = orderKey === primaryKey;
-    let scoped: M = this;
-    let reverse = false;
-
-    const stepDirection = (walk: 'after' | 'before'): 'forward' | 'backward' => {
-      const forward = walk === 'after';
-      if (orderDir === SortDirection.Desc) return forward ? 'backward' : 'forward';
-      return forward ? 'forward' : 'backward';
-    };
-
-    const buildFilter = (token: string, walk: 'after' | 'before'): Filter<any> => {
-      const payload = decodeCompositeCursor(token);
-      const orderValue = payload[orderKey];
-      const primaryValue = payload[primaryKey];
-      const direction = stepDirection(walk);
-      const cmp = direction === 'forward' ? '$gt' : '$lt';
-      if (usesPrimaryOnly) {
-        return { [cmp]: { [primaryKey]: primaryValue } } as Filter<any>;
-      }
-      // (orderKey <cmp> value) OR (orderKey == value AND primaryKey <cmp> id)
-      return {
-        $or: [
-          { [cmp]: { [orderKey]: orderValue } },
-          {
-            $and: [{ [orderKey]: orderValue }, { [cmp]: { [primaryKey]: primaryValue } }],
-          },
-        ],
-      } as Filter<any>;
-    };
-
-    if (options.after !== undefined) {
-      scoped = scoped.filterBy(buildFilter(options.after, 'after')) as M;
-    } else if (options.before !== undefined) {
-      scoped = scoped.filterBy(buildFilter(options.before, 'before')).reverse() as M;
-      reverse = true;
-    }
-    const fetched = await scoped.limitBy(limit + 1).all<M>();
-    const hasMore = fetched.length > limit;
-    let items = hasMore ? fetched.slice(0, limit) : fetched;
-    if (reverse) items = items.reverse();
-    const first = items[0] as Dict<any> | undefined;
-    const last = items[items.length - 1] as Dict<any> | undefined;
-    const tokenFor = (row: Dict<any>): string =>
-      usesPrimaryOnly
-        ? encodeCursor(row[primaryKey], primaryKey)
-        : encodeCompositeCursor({
-            [orderKey]: row[orderKey],
-            [primaryKey]: row[primaryKey],
-          });
-    return {
-      items,
-      nextCursor: hasMore && last ? tokenFor(last) : undefined,
-      prevCursor: first ? tokenFor(first) : undefined,
-      hasMore,
-    };
+    return CollectionQuery.fromModel(this as any).paginateCursor(options) as Promise<{
+      items: InstanceType<M>[];
+      nextCursor?: string;
+      prevCursor?: string;
+      hasMore: boolean;
+    }>;
   }
 
-  static async ids<M extends typeof ModelClass>(this: M) {
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    return this.pluck(primaryKey);
-  }
-
-  static async select(...keys: any[]) {
-    const items = await this.connector.select(await this.modelScope(), ...keys);
-    return items;
-  }
-
-  static async pluck(...keys: string[]): Promise<any[]> {
-    if (keys.length === 0) return [];
-    const items = await this.select(...(keys as any[]));
-    if (keys.length === 1) {
-      const [key] = keys;
-      return items.map((item) => item[key]);
-    }
-    return items.map((item) => keys.map((k) => item[k]));
-  }
-
-  static async pluckUnique(key: string) {
-    const values = await this.pluck(key);
-    const seen = new Set<any>();
-    const result: any[] = [];
-    for (const v of values) {
-      if (!seen.has(v)) {
-        seen.add(v);
-        result.push(v);
-      }
-    }
-    return result;
+  /** Pluck the primary-key column from the current scope. */
+  static ids<M extends typeof ModelClass>(this: M): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).ids();
   }
 
   /**
-   * Returns a ScalarQuery<number> that resolves to the count of records in
-   * the current scope. PromiseLike, so existing `await Model.count()` keeps
-   * working. Typed as `Promise<number>` for backward compat.
+   * Project the current scope to specific columns via the connector's
+   * `select`. Returns rows shaped with only the requested keys — does NOT
+   * hydrate Model instances.
    */
-  static count<M extends typeof ModelClass>(this: M): Promise<number> {
-    return CollectionQuery.fromModel(this as any).count() as unknown as Promise<number>;
+  static select<M extends typeof ModelClass>(
+    this: M,
+    ...keys: string[]
+  ): Promise<Dict<any>[]> {
+    return CollectionQuery.fromModel(this as any).select(...keys);
   }
 
-  static async countBy(key: string): Promise<Map<any, number>> {
-    const values = await this.pluck(key);
-    const result = new Map<any, number>();
-    for (const value of values) {
-      result.set(value, (result.get(value) ?? 0) + 1);
-    }
-    if (this.havingPredicate) {
-      for (const [bucket, count] of result) {
-        if (!this.havingPredicate(count)) result.delete(bucket);
-      }
-    }
-    return result;
+  /**
+   * Pluck columns from the current scope. With one column, returns a
+   * chainable ColumnQuery (PromiseLike) so `await Model.pluck('email')`
+   * resolves to `string[]`. With multiple columns, returns
+   * `Promise<unknown[][]>` (each row a tuple). With zero arguments, returns
+   * `Promise<[]>`.
+   */
+  static pluck<M extends typeof ModelClass>(
+    this: M,
+    ...keys: string[]
+  ): ColumnQuery<unknown[]> | Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).pluck(...keys);
   }
 
-  static async groupBy<M extends typeof ModelClass>(
+  /** Pluck a column with duplicates removed (preserving first-appearance order). */
+  static pluckUnique<M extends typeof ModelClass>(this: M, key: string): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).pluckUnique(key);
+  }
+
+  /**
+   * Returns a chainable ScalarQuery resolving to the count of records in the
+   * current scope. PromiseLike, so `await Model.count()` works unchanged.
+   */
+  static count<M extends typeof ModelClass>(this: M): ScalarQuery<number> {
+    return CollectionQuery.fromModel(this as any).count() as unknown as ScalarQuery<number>;
+  }
+
+  /**
+   * Group rows by the value of `key` and count each bucket. Honours `having`
+   * — drops buckets the predicate rejects.
+   */
+  static countBy<M extends typeof ModelClass>(
     this: M,
     key: string,
-  ): Promise<Map<any, InstanceType<M>[]>> {
-    const items = await this.all<M>();
-    const result = new Map<any, InstanceType<M>[]>();
-    for (const item of items) {
-      const bucket = (item.attributes as Dict<any>)[key];
-      const list = result.get(bucket);
-      if (list) {
-        list.push(item);
-      } else {
-        result.set(bucket, [item]);
-      }
-    }
-    return result;
+  ): Promise<Map<unknown, number>> {
+    return CollectionQuery.fromModel(this as any).countBy(key);
+  }
+
+  /**
+   * Group rows by the value of `key`. Materialises every record (callbacks
+   * fire) and buckets them by attribute value.
+   */
+  static groupBy<M extends typeof ModelClass>(
+    this: M,
+    key: string,
+  ): Promise<Map<unknown, InstanceType<M>[]>> {
+    return CollectionQuery.fromModel(this as any).groupBy(key) as Promise<
+      Map<unknown, InstanceType<M>[]>
+    >;
   }
 
   static async preloadBelongsTo<M extends typeof ModelClass>(
@@ -1249,6 +1175,11 @@ export class ModelClass {
     return result;
   }
 
+  /**
+   * Run a single aggregate (sum / min / max / avg) against the current scope
+   * via the connector's `aggregate` primitive. Most callers prefer
+   * `Model.sum(...)` / `Model.min(...)` etc. for the chainable form.
+   */
   static async aggregate<M extends typeof ModelClass>(
     this: M,
     kind: AggregateKind,
@@ -1257,125 +1188,144 @@ export class ModelClass {
     return await this.connector.aggregate(await this.modelScope(), kind, key);
   }
 
-  /** Returns a ScalarQuery<number> for SUM(column). PromiseLike. */
+  /**
+   * SUM(column) on the current scope. Returns 0 on empty (the connector
+   * returns undefined; the static adapter normalises to 0 — consistent with
+   * the legacy `Model.sum(...)` contract).
+   */
   static async sum<M extends typeof ModelClass>(this: M, key: string): Promise<number> {
     return (await CollectionQuery.fromModel(this as any).sum(key)) ?? 0;
   }
 
-  /** Returns a ScalarQuery<T | undefined> for MIN(column). PromiseLike. */
-  static min<M extends typeof ModelClass>(this: M, key: string): Promise<number | undefined> {
-    return CollectionQuery.fromModel(this as any).minimum<number>(key) as unknown as Promise<
+  /** Returns a chainable ScalarQuery resolving to MIN(column) (or undefined on empty). */
+  static min<M extends typeof ModelClass>(
+    this: M,
+    key: string,
+  ): ScalarQuery<number | undefined> {
+    return CollectionQuery.fromModel(this as any).minimum<number>(key) as unknown as ScalarQuery<
       number | undefined
     >;
   }
 
-  /** Returns a ScalarQuery<T | undefined> for MAX(column). PromiseLike. */
-  static max<M extends typeof ModelClass>(this: M, key: string): Promise<number | undefined> {
-    return CollectionQuery.fromModel(this as any).maximum<number>(key) as unknown as Promise<
+  /** Returns a chainable ScalarQuery resolving to MAX(column) (or undefined on empty). */
+  static max<M extends typeof ModelClass>(
+    this: M,
+    key: string,
+  ): ScalarQuery<number | undefined> {
+    return CollectionQuery.fromModel(this as any).maximum<number>(key) as unknown as ScalarQuery<
       number | undefined
     >;
   }
 
-  /** Returns a ScalarQuery<number | undefined> for AVG(column). PromiseLike. */
-  static avg<M extends typeof ModelClass>(this: M, key: string): Promise<number | undefined> {
-    return CollectionQuery.fromModel(this as any).average(key) as unknown as Promise<
+  /** Returns a chainable ScalarQuery resolving to AVG(column) (or undefined on empty). */
+  static avg<M extends typeof ModelClass>(
+    this: M,
+    key: string,
+  ): ScalarQuery<number | undefined> {
+    return CollectionQuery.fromModel(this as any).average(key) as unknown as ScalarQuery<
       number | undefined
     >;
-  }
-
-  static async deleteAll<M extends typeof ModelClass>(this: M) {
-    return await this.connector.deleteAll(await this.modelScope());
   }
 
   /**
-   * Load every matching record and call `.delete()` on each so per-row
-   * `beforeDelete` / `afterDelete` callbacks fire and any `cascade` config
-   * (where supported) takes effect. Slower than `deleteAll()` for large
-   * scopes — `deleteAll` is one bulk DELETE, `destroyAll` is N round-trips —
-   * but matches Rails' `destroy_all` semantics. Returns the deleted records.
+   * Bulk DELETE on the current scope. Per-row callbacks DO NOT fire — use
+   * `destroyAll()` for that. Returns the deleted row payloads.
    */
-  static async destroyAll<M extends typeof ModelClass>(this: M): Promise<InstanceType<M>[]> {
-    const records = await this.all<M>();
-    for (const record of records) {
-      await (record as any).delete();
-    }
-    return records;
-  }
-
-  static async updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>) {
-    const effectiveAttrs = { ...attrs };
-    const updatedCol = this.updatedAtColumn;
-    if (updatedCol && effectiveAttrs[updatedCol] === undefined) {
-      effectiveAttrs[updatedCol] = new Date();
-    }
-    return await this.connector.updateAll(await this.modelScope(), effectiveAttrs);
+  static deleteAll<M extends typeof ModelClass>(this: M): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).deleteAll();
   }
 
   /**
-   * Apply an atomic delta to `column` for every row matching the current
-   * scope. Returns the number of affected rows. Routes through the
-   * connector's `deltaUpdate(spec)` — each connector picks the most
-   * efficient native shape (single-statement `UPDATE col = col + ?` on
-   * SQL, `$inc` on Mongo, `HINCRBY` on Redis, in-process walk on memory).
+   * Materialise every matching record, then call `.delete()` on each so
+   * per-row `beforeDelete` / `afterDelete` callbacks fire and any `cascade`
+   * config takes effect. Slower than `deleteAll()` (N round-trips) but
+   * matches Rails' `destroy_all` semantics.
    */
-  static async increment<M extends typeof ModelClass>(
+  static destroyAll<M extends typeof ModelClass>(this: M): Promise<InstanceType<M>[]> {
+    return CollectionQuery.fromModel(this as any).destroyAll() as Promise<InstanceType<M>[]>;
+  }
+
+  /**
+   * Bulk UPDATE on the current scope. Auto-stamps `updatedAt` (when the Model
+   * declares one). Per-row `beforeUpdate` / `afterUpdate` callbacks DO NOT
+   * fire — use `findEach` + `record.update(...)` for that.
+   */
+  static updateAll<M extends typeof ModelClass>(
+    this: M,
+    attrs: Dict<any>,
+  ): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).updateAll(attrs);
+  }
+
+  /**
+   * Atomic `column = column + by` on every row matching the current scope.
+   * Routes through the connector's `deltaUpdate(spec)` so each connector
+   * picks the most efficient native shape (single-statement `UPDATE col =
+   * col + ?` on SQL, `$inc` on Mongo, `HINCRBY` on Redis, in-process walk
+   * on memory). Returns the affected row count.
+   */
+  static increment<M extends typeof ModelClass>(
     this: M,
     column: string,
     by = 1,
   ): Promise<number> {
-    const updatedCol = this.updatedAtColumn;
-    const scope = await this.modelScope();
-    const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
-    return await this.connector.deltaUpdate({
-      tableName: scope.tableName,
-      filter: scope.filter,
-      deltas: [{ column, by }],
-      set,
-    });
+    return CollectionQuery.fromModel(this as any).increment(column, by);
   }
 
-  static async decrement<M extends typeof ModelClass>(
+  /** Sugar for `increment(column, -by)`. */
+  static decrement<M extends typeof ModelClass>(
     this: M,
     column: string,
     by = 1,
   ): Promise<number> {
-    return this.increment(column, -by);
+    return CollectionQuery.fromModel(this as any).decrement(column, by);
   }
 
   /**
-   * Returns an InstanceQuery (PromiseLike<InstanceType<M> | undefined>) that
-   * resolves to the first matching record. Awaitable, so existing
-   * `await Model.findBy(...)` callers keep working unchanged. Typed as
-   * `Promise` for backward compatibility with the legacy signature.
+   * Returns a chainable InstanceQuery resolving to the first matching record
+   * (or `undefined` when no match). PromiseLike, so `await Model.findBy(x)`
+   * works unchanged.
    */
-  static findBy<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
-    return CollectionQuery.fromModel(this as any).findBy(filter) as unknown as Promise<
+  static findBy<M extends typeof ModelClass>(
+    this: M,
+    filter: Filter<any>,
+  ): InstanceQuery<InstanceType<M> | undefined> {
+    return CollectionQuery.fromModel(this as any).findBy(filter) as unknown as InstanceQuery<
       InstanceType<M> | undefined
     >;
   }
 
-  static async exists<M extends typeof ModelClass>(this: M, filter?: Filter<any>) {
-    const scoped = filter === undefined ? this : this.filterBy(filter);
-    return (await scoped.count()) > 0;
+  /**
+   * Cheap existence probe — `count() > 0` on the chained scope. Pass `filter`
+   * to narrow without mutating the chain.
+   */
+  static exists<M extends typeof ModelClass>(this: M, filter?: Filter<any>): Promise<boolean> {
+    return CollectionQuery.fromModel(this as any).exists(filter);
   }
 
   /**
-   * Returns an InstanceQuery that resolves to the matched record (or throws
-   * `NotFoundError` from the InstanceQuery's materialize when no row matches).
-   * The terminal kind 'find' on InstanceQuery wires the throwing semantics.
-   * Typed as `Promise<InstanceType<M>>` for backward compat.
+   * Returns a chainable InstanceQuery resolving to the matched record. Throws
+   * `NotFoundError` when no row matches (the terminal kind 'find' wires the
+   * throwing semantics).
    */
-  static find<M extends typeof ModelClass>(this: M, id: number | string) {
-    return CollectionQuery.fromModel(this as any).find(id) as unknown as Promise<InstanceType<M>>;
+  static find<M extends typeof ModelClass>(
+    this: M,
+    id: number | string,
+  ): InstanceQuery<InstanceType<M>> {
+    return CollectionQuery.fromModel(this as any).find(id) as unknown as InstanceQuery<
+      InstanceType<M>
+    >;
   }
 
   /**
-   * Returns an InstanceQuery that throws `NotFoundError` when no row matches.
-   * (Same behaviour as `find(...)` but lookup is by an arbitrary filter.)
-   * Typed as `Promise<InstanceType<M>>` for backward compat.
+   * Same as `find(id)` but lookup is by arbitrary filter. Throws
+   * `NotFoundError` when no row matches.
    */
-  static findOrFail<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
-    return CollectionQuery.fromModel(this as any).findOrFail(filter) as unknown as Promise<
+  static findOrFail<M extends typeof ModelClass>(
+    this: M,
+    filter: Filter<any>,
+  ): InstanceQuery<InstanceType<M>> {
+    return CollectionQuery.fromModel(this as any).findOrFail(filter) as unknown as InstanceQuery<
       InstanceType<M>
     >;
   }
@@ -2459,26 +2409,28 @@ export function Model<
       return super.on(event, handler as Callback<any>);
     }
 
-    static async select(...keys: [keyof Keys | keyof PersistentProps][]) {
-      return super.select(...(keys as any[])) as any as Partial<
-        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-      >[];
+    static select(...keys: Array<keyof Keys | keyof PersistentProps>) {
+      return super.select(...(keys as string[])) as Promise<
+        Partial<
+          PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+        >[]
+      >;
     }
 
-    static async pluck<K extends Array<keyof Keys | keyof PersistentProps>>(...keys: K) {
-      return super.pluck(...(keys as unknown as string[])) as Promise<any[]>;
+    static pluck(...keys: Array<keyof Keys | keyof PersistentProps>) {
+      return super.pluck(...(keys as string[]));
     }
 
-    static async pluckUnique(key: keyof Keys | keyof PersistentProps) {
+    static pluckUnique(key: keyof Keys | keyof PersistentProps) {
       return super.pluckUnique(key as string);
     }
 
-    static async ids<M extends typeof ModelClass>(this: M) {
+    static ids<M extends typeof ModelClass>(this: M) {
       return super.ids();
     }
 
     static all<M extends typeof ModelClass>(this: M) {
-      return super.all() as unknown as Promise<
+      return super.all() as unknown as CollectionQuery<
         (InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[]
@@ -2486,18 +2438,20 @@ export function Model<
     }
 
     static first<M extends typeof ModelClass>(this: M) {
-      return super.first() as unknown as Promise<
-        InstanceType<M> &
-          PersistentProps &
-          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
+      return super.first() as unknown as InstanceQuery<
+        | (InstanceType<M> &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
+        | undefined
       >;
     }
 
     static last<M extends typeof ModelClass>(this: M) {
-      return super.last() as unknown as Promise<
-        InstanceType<M> &
-          PersistentProps &
-          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
+      return super.last() as unknown as InstanceQuery<
+        | (InstanceType<M> &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
+        | undefined
       >;
     }
 
@@ -2517,9 +2471,8 @@ export function Model<
       }
     }
 
-    static async paginate<M extends typeof ModelClass>(this: M, page: number, perPage?: number) {
-      const result = await super.paginate(page, perPage);
-      return result as {
+    static paginate<M extends typeof ModelClass>(this: M, page: number, perPage?: number) {
+      return super.paginate(page, perPage) as Promise<{
         items: (InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
@@ -2529,29 +2482,28 @@ export function Model<
         totalPages: number;
         hasNext: boolean;
         hasPrev: boolean;
-      };
+      }>;
     }
 
-    static async paginateCursor<M extends typeof ModelClass>(
+    static paginateCursor<M extends typeof ModelClass>(
       this: M,
       options?: { after?: string; before?: string; limit?: number },
     ) {
-      const result = await super.paginateCursor(options);
-      return result as {
+      return super.paginateCursor(options) as Promise<{
         items: (InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
         nextCursor?: string;
         prevCursor?: string;
         hasMore: boolean;
-      };
+      }>;
     }
 
-    static async count<M extends typeof ModelClass>(this: M) {
-      return await super.count();
+    static count<M extends typeof ModelClass>(this: M) {
+      return super.count();
     }
 
-    static async countBy(key: keyof Keys | keyof PersistentProps) {
+    static countBy(key: keyof Keys | keyof PersistentProps) {
       return super.countBy(key as string);
     }
 
@@ -2596,19 +2548,19 @@ export function Model<
       >;
     }
 
-    static async sum<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static sum<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.sum(key as string);
     }
 
-    static async min<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static min<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.min(key as string);
     }
 
-    static async max<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static max<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.max(key as string);
     }
 
-    static async avg<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static avg<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.avg(key as string);
     }
 
@@ -2630,7 +2582,7 @@ export function Model<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return super.findBy(filter) as unknown as Promise<
+      return super.findBy(filter) as unknown as InstanceQuery<
         | (InstanceType<M> &
             PersistentProps &
             Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
@@ -2638,20 +2590,20 @@ export function Model<
       >;
     }
 
-    static async exists<M extends typeof ModelClass>(
+    static exists<M extends typeof ModelClass>(
       this: M,
       filter?: Filter<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return await super.exists(filter);
+      return super.exists(filter);
     }
 
     static find<M extends typeof ModelClass>(
       this: M,
       id: Keys[keyof Keys] extends KeyType.uuid ? string : number,
     ) {
-      return super.find(id as number | string) as unknown as Promise<
+      return super.find(id as number | string) as unknown as InstanceQuery<
         InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
@@ -2664,7 +2616,7 @@ export function Model<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return super.findOrFail(filter) as unknown as Promise<
+      return super.findOrFail(filter) as unknown as InstanceQuery<
         InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>

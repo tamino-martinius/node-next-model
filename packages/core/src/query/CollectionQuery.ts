@@ -490,8 +490,9 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'aggregate', op: 'max', column });
   }
 
-  pluck(column: string, ...moreColumns: string[]): ColumnQuery<unknown[]> | Promise<unknown[]> {
-    if (moreColumns.length > 0) {
+  pluck(...keys: string[]): ColumnQuery<unknown[]> | Promise<unknown[]> {
+    if (keys.length === 0) return Promise.resolve([]);
+    if (keys.length > 1) {
       // Multi-column pluck → tuples. Walk the connector's `select` directly
       // and project each row into a tuple of column values in the requested
       // order — matches the legacy Model.pluck(...) tuple shape.
@@ -499,11 +500,11 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
         if (this.state.nullScoped) return [];
         const M = this.model as any;
         const scope = await resolvePendingJoinsToScope(M, this.state);
-        const allKeys = [column, ...moreColumns];
-        const rows = await M.connector.select(scope, ...allKeys);
-        return rows.map((row: Dict<any>) => allKeys.map((k) => row[k]));
+        const rows = await M.connector.select(scope, ...keys);
+        return rows.map((row: Dict<any>) => keys.map((k) => row[k]));
       })();
     }
+    const column = keys[0]!;
     return new ColumnQuery<unknown[]>(this.model, column, this.state, { kind: 'column', column });
   }
 
