@@ -9,26 +9,29 @@ import {
   NullConnector,
   resolveAssociationTarget,
 } from '../Model.js';
-import { type AssociationLink, type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
+import {
+  type AssociationLink,
+  type Callback,
+  type Connector,
+  type Filter,
+  type JoinClause,
+  type Order,
+  SortDirection,
+} from '../types.js';
 import type { Dict, KeyType } from '../types.js';
 import { mergeFilters, mergeOrders, type ParentRef, type QueryState } from './QueryState.js';
 import { InstanceQuery } from './InstanceQuery.js';
 import { ScalarQuery } from './ScalarQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
 import { lower, resolveSubqueryFilters } from './lower.js';
+import { applyIncludes, attachIncludesPayload } from './includes.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
-// Build a temp Model subclass carrying QueryState fields as static properties
-// so Model.all()'s `this.<x>` reads see the chained scope. The `connector`
-// option lets `none()` keep working: `state.nullScoped` is reflected as a
-// short-circuiting connector (the materialize path handles nullScoped first,
-// but we mirror it here for completeness when callers reach into the
-// scoped subclass directly).
+// Build a temp Model subclass carrying QueryState fields as static properties.
+// Used by chain methods that delegate to a Model static (named scopes, enum
+// scopes, etc.) so the static reads `this.<x>` sees the chained scope.
 function makeScopedSubclass(M: any, state: QueryState): any {
-  // The static state.nullScoped flag means this scope must short-circuit
-  // every connector call to an empty result. NullConnector returns empty
-  // arrays / 0 from every CRUD entry point.
   const Sub = class extends (M as any) {
     static filter = state.filter;
     static order = [...state.order];
@@ -43,6 +46,83 @@ function makeScopedSubclass(M: any, state: QueryState): any {
     static connector = state.nullScoped ? new NullConnector() : (M as any).connector;
   };
   return Sub;
+}
+
+/**
+ * Compute the `Scope` for a chained read WITHOUT folding `pendingJoins` into
+ * the filter — mirrors `Model.modelScopeBase()`. The fast path
+ * (`Connector.queryWithJoins`) consumes this base scope and the
+ * `pendingJoins` array separately.
+ */
+function builderScopeBase(model: any, state: QueryState) {
+  let filter = state.filter;
+  const softColumn = (model.softDeleteColumn as string | undefined) ?? 'discardedAt';
+  if (state.softDelete === 'active') {
+    filter = filter
+      ? ({ $and: [{ $null: softColumn }, filter] } as Filter<any>)
+      : ({ $null: softColumn } as Filter<any>);
+  } else if (state.softDelete === 'only') {
+    filter = filter
+      ? ({ $and: [{ $notNull: softColumn }, filter] } as Filter<any>)
+      : ({ $notNull: softColumn } as Filter<any>);
+  }
+  if (model.inheritColumn && model.inheritType !== undefined) {
+    const typeFilter = { [model.inheritColumn]: model.inheritType } as Filter<any>;
+    filter = filter
+      ? ({ $and: [typeFilter, filter] } as Filter<any>)
+      : typeFilter;
+  }
+  return {
+    tableName: model.tableName as string,
+    filter,
+    limit: state.limit,
+    skip: state.skip,
+    order: state.order,
+  };
+}
+
+/**
+ * Compute the `Scope` for a chained read with `pendingJoins` resolved into
+ * concrete `$in` / `$notIn` filters — mirrors `Model.modelScope()`. Native
+ * SQL connectors that reject `$async` rely on this resolution path; connectors
+ * that implement `queryWithJoins` skip it via the fast path.
+ */
+async function resolvePendingJoinsToScope(
+  model: any,
+  state: QueryState,
+): Promise<ReturnType<typeof builderScopeBase>> {
+  const base = builderScopeBase(model, state);
+  if (state.pendingJoins.length === 0) return base;
+  const joinFilters: Filter<any>[] = [];
+  const fallbackConnector = model.connector as Connector;
+  for (const join of state.pendingJoins) {
+    if (join.mode !== 'select' && join.mode !== 'antiJoin') continue;
+    const targetModel = join.target as any;
+    const childConnector = (targetModel?.connector as Connector | undefined) ?? fallbackConnector;
+    const rows = await childConnector.select(
+      { tableName: join.childTableName, filter: join.filter },
+      join.on.childColumn,
+    );
+    const seen = new Set<unknown>();
+    const values: unknown[] = [];
+    for (const row of rows) {
+      const v = (row as Dict<any>)[join.on.childColumn];
+      if (v == null || seen.has(v)) continue;
+      seen.add(v);
+      values.push(v);
+    }
+    const op = join.mode === 'antiJoin' ? '$notIn' : '$in';
+    joinFilters.push({ [op]: { [join.on.parentColumn]: values } } as Filter<any>);
+  }
+  if (joinFilters.length === 0) return base;
+  const combined: Filter<any> =
+    joinFilters.length === 1
+      ? (joinFilters[0] as Filter<any>)
+      : ({ $and: joinFilters } as Filter<any>);
+  const merged: Filter<any> = base.filter
+    ? ({ $and: [base.filter, combined] } as Filter<any>)
+    : combined;
+  return { ...base, filter: merged };
 }
 
 // Resolve subquery parentScopes (CollectionQuery / InstanceQuery values
@@ -685,25 +765,28 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
   }
 
   /**
-   * Materialise via a state-projected temp subclass that delegates to the
-   * Model's legacy `all()`. This preserves afterFind callbacks, includes
-   * preload/join, STI dispatch via inheritColumn → inheritRegistry, and the
-   * `queryWithJoins` fast path on connectors that implement it. Used when
-   * the CollectionQuery is awaited directly (e.g. `await Model.filterBy(x)`),
-   * via `await Model.filterBy(x).all()`, and via `Model.first()`/etc which
-   * route through the same chain.
+   * Materialise the chained scope into hydrated Model records. Handles:
+   *   - filter shape resolution (operator-form subquery builders → literals,
+   *     top-level builder values → parentScopes)
+   *   - soft-delete / STI implicit filters
+   *   - `pendingJoins` resolution (`joins(...)` / `whereMissing(...)` →
+   *     `$in` / `$notIn` filters) for connectors without `queryWithJoins`
+   *   - the `queryWithJoins` fast path when the connector supports it
+   *   - includes attachment (JOIN-fast-path payload OR preload fallback)
+   *   - STI dispatch via `inheritColumn` → `inheritRegistry`
+   *   - `afterFind` callbacks
+   * Memoised — repeat `await`s on the same builder reuse the first result.
    */
   private async runMaterialize(): Promise<Items> {
     if (this.state.nullScoped) return [] as unknown as Items;
     const M = this.model as any;
+
     // Resolve any builder-typed filter values to literals (e.g. {id: scalarQuery})
-    // BEFORE we hand off to Model.all(); the legacy connector path doesn't know
-    // how to resolve subquery builders embedded in filters.
+    // before lowering — operator-form builders are eagerly awaited.
     const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
-    // Always run lower() so we extract parentScopes (from state.parent and
-    // from top-level builder values embedded in the filter). The legacy
-    // Model.all() path doesn't understand parentScopes — we resolve them
-    // upfront here into literal $in filter fragments.
+    // Run lower() so we extract parentScopes (state.parent + top-level builder
+    // values embedded in the filter). Resolve them upfront into literal $in
+    // filter fragments so the legacy connector path consumes only literals.
     const builderForLower =
       resolvedFilter !== this.state.filter
         ? new (this.constructor as any)(this.model, { ...this.state, filter: resolvedFilter })
@@ -714,28 +797,103 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
       const fragmentFilter = await resolveParentScopesToFilter(M.connector, spec.parentScopes);
       cleanFilter = mergeFiltersForLegacy(cleanFilter, fragmentFilter);
     }
-    // Build a temp subclass that carries this CollectionQuery's state as
-    // static properties — Model.runQueryRecords() reads from `this.<x>` so
-    // the projection makes the legacy machinery operate on our scope.
-    const Temp = makeScopedSubclass(M, { ...this.state, filter: cleanFilter });
-    return (await Temp.runQueryRecords()) as unknown as Items;
-  }
+    const stateForRead: QueryState = { ...this.state, filter: cleanFilter };
 
-  // Lightweight row → record hydrate used by tests that bypass the
-  // delegated Model.runQueryRecords() path. The production materialize
-  // always goes through runQueryRecords, which handles afterFind callbacks,
-  // includes attach/preload, STI dispatch, and the `queryWithJoins` fast path.
-  protected hydrate(rows: Dict<any>[]): unknown[] {
-    const M = this.model as any;
-    return rows.map((row) => {
-      const keys: Dict<any> = {};
-      const data: Dict<any> = { ...row };
-      for (const k in M.keys) {
-        keys[k] = data[k];
-        delete data[k];
+    // nullScoped already short-circuited above, so connector here is the
+    // real one declared on the Model factory.
+    const connector = M.connector as Connector;
+    const primaryKeys = Object.keys(this.model.keys);
+    const supportsJoins = typeof connector.queryWithJoins === 'function';
+    const associations = (M.associations ?? {}) as Record<string, AssociationDefinition>;
+    const includeNames = stateForRead.selectedIncludes ?? [];
+    const wantsIncludesViaJoin =
+      includeNames.length > 0 &&
+      (stateForRead.includeStrategy === 'join' ||
+        (stateForRead.includeStrategy === 'auto' && supportsJoins));
+    if (stateForRead.includeStrategy === 'join' && includeNames.length > 0 && !supportsJoins) {
+      throw new PersistenceError(
+        `Model.includes(..., { strategy: 'join' }) requires a connector that implements 'queryWithJoins'. Use 'preload' or 'auto' for connectors without JOIN execution.`,
+      );
+    }
+
+    const includesViaJoin: Array<{
+      name: string;
+      spec: AssociationDefinition;
+      cardinality: 'many' | 'one';
+    }> = [];
+    const joinClausesForFastPath: JoinClause[] = [];
+    if (supportsJoins && (stateForRead.pendingJoins.length > 0 || wantsIncludesViaJoin)) {
+      joinClausesForFastPath.push(...stateForRead.pendingJoins);
+      if (wantsIncludesViaJoin) {
+        for (const name of includeNames) {
+          const assocSpec = associations[name];
+          if (!assocSpec) continue;
+          if ('hasManyThrough' in assocSpec) continue;
+          const resolved = resolveAssociationTarget(assocSpec as SimpleAssociationDefinition);
+          includesViaJoin.push({ name, spec: assocSpec, cardinality: resolved.cardinality });
+          joinClausesForFastPath.push({
+            kind: 'left',
+            childTableName: resolved.target.tableName,
+            on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
+            mode: 'includes',
+            attachAs: name,
+            includesCardinality: resolved.cardinality,
+            childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
+            target: resolved.target,
+          });
+        }
       }
-      return new M(data, keys);
+    }
+
+    const useFastPath = supportsJoins && joinClausesForFastPath.length > 0;
+    const items = useFastPath
+      ? await (connector.queryWithJoins as NonNullable<Connector['queryWithJoins']>)({
+          parent: builderScopeBase(M, stateForRead),
+          joins: joinClausesForFastPath,
+        })
+      : stateForRead.selectedFields
+        ? await connector.select(
+            await resolvePendingJoinsToScope(M, stateForRead),
+            ...Array.from(new Set([...primaryKeys, ...stateForRead.selectedFields])),
+          )
+        : await connector.query(await resolvePendingJoinsToScope(M, stateForRead));
+
+    const records = items.map((item) => {
+      const includesPayload = (item as Dict<any>).__includes as Dict<Dict<any>[]> | undefined;
+      delete (item as Dict<any>).__includes;
+      const keys: Dict<any> = {};
+      for (const key of primaryKeys) {
+        keys[key] = (item as Dict<any>)[key];
+        delete (item as Dict<any>)[key];
+      }
+      let Constructor: any = M;
+      if (M.inheritColumn && M.inheritRegistry) {
+        const typeValue = (item as Dict<any>)[M.inheritColumn];
+        const registered = typeValue != null ? M.inheritRegistry.get(typeValue) : undefined;
+        if (registered) Constructor = registered;
+      }
+      const record = new Constructor(item, keys);
+      if (includesPayload && includesViaJoin.length > 0) {
+        attachIncludesPayload(record, includesViaJoin, includesPayload);
+      }
+      return record;
     });
+
+    if (includeNames.length > 0 && includesViaJoin.length === 0) {
+      // Includes were declared but didn't go through the JOIN fast path
+      // (strategy === 'preload', or 'auto' on a connector without
+      // `queryWithJoins`) — preload via the existing batched-IN path.
+      await applyIncludes(records, M, includeNames);
+    }
+
+    const findCallbacks = (M.callbacks as any).afterFind as Callback<any>[] | undefined;
+    if (findCallbacks) {
+      for (const record of records) {
+        for (const cb of findCallbacks) await cb(record);
+      }
+    }
+
+    return records as unknown as Items;
   }
 
   /**
