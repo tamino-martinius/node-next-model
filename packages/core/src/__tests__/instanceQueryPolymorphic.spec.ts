@@ -54,6 +54,27 @@ describe('polymorphic association traversal', () => {
     expect(leafFilter).toMatchObject({ commentableType: 'posts' });
   });
 
+  it('hasOne polymorphic adds typeKey filter to the leaf filter', () => {
+    class PostWithFeaturedComment extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        featuredComment: {
+          hasOne: () => Comment,
+          foreignKey: 'commentableId',
+          polymorphic: 'commentable',
+        } as any,
+      };
+    }
+    const q = (CollectionQuery.fromModel(PostWithFeaturedComment as any).first() as any)
+      .featuredComment;
+    expect(q).toBeInstanceOf(InstanceQuery);
+    const leafFilter = q.state.filter ?? {};
+    expect(leafFilter).toMatchObject({ commentableType: 'posts' });
+  });
+
   it('explicit typeValue overrides default tableName', () => {
     class CommentWithExplicitType extends ModelClass {
       static tableName = 'comments';
