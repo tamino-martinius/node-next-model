@@ -237,6 +237,9 @@ export class KnexConnector implements Connector {
   async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
     // pendingJoins → defer to queryWithJoins (already merges parent-scope IN
     // filters into the parent filter at the Model layer when present).
+    // TODO: queryWithJoins always returns rows; if a non-'rows' projection
+    // is requested alongside pendingJoins, projection is dropped. Combining
+    // joins with count/sum/pluck isn't yet exercised; revisit when needed.
     if (spec.pendingJoins.length > 0) {
       return this.queryWithJoins({
         parent: {
