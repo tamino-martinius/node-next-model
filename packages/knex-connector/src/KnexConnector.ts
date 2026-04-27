@@ -8,6 +8,7 @@ import {
   type AlterTableOp,
   type AlterTableSpec,
   type BaseType,
+  type ColumnDefault,
   type ColumnDefinition,
   type ColumnKind,
   type ColumnOptions,
@@ -23,6 +24,7 @@ import {
   type FilterSpecial,
   type ForeignKeyAction,
   foreignKeyName,
+  type IndexDefinition,
   type JoinClause,
   type JoinQuerySpec,
   KeyType,
@@ -32,6 +34,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type TableDefinition,
   type UpsertSpec,
 } from '@next-model/core';
 import knexPkg, { type Knex } from 'knex';
@@ -630,6 +633,365 @@ export class KnexConnector implements Connector {
     return this.schemaBuilder().hasTable(tableName);
   }
 
+  /**
+   * Reflect the live schema by dispatching on Knex's underlying client.
+   * Each dialect runs its native introspection path via `knex.raw`:
+   *
+   * - `sqlite3` / `better-sqlite3`: PRAGMA queries over `sqlite_master`.
+   * - `pg` / `postgres`: `information_schema` + `pg_index` / `pg_class`.
+   * - `mysql` / `mysql2` / `mariadb`: MySQL `information_schema`.
+   *
+   * Throws `PersistenceError` for unknown clients — `reflectSchema` is
+   * optional, so this surface is safe to leave unimplemented for exotic
+   * Knex backends.
+   */
+  async reflectSchema(): Promise<TableDefinition[]> {
+    const client = this.knex.client.config.client;
+    if (client === 'sqlite3' || client === 'better-sqlite3') {
+      return this.reflectSchemaSqlite();
+    }
+    if (client === 'pg' || client === 'postgres') {
+      return this.reflectSchemaPostgres();
+    }
+    if (client === 'mysql' || client === 'mysql2' || client === 'mariadb') {
+      return this.reflectSchemaMysql();
+    }
+    throw new PersistenceError(
+      `KnexConnector.reflectSchema does not support Knex client ${String(client)}`,
+    );
+  }
+
+  /** SQLite reflection — same shape as `SqliteConnector.reflectSchema`. */
+  private async reflectSchemaSqlite(): Promise<TableDefinition[]> {
+    const tablesRaw = (await this.executeRaw(
+      "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )) as Array<{ name: string; sql: string | null }>;
+    const result: TableDefinition[] = [];
+    for (const t of tablesRaw) {
+      const tableName = t.name;
+      const ddl = t.sql ?? '';
+      const cols = (await this.executeRaw(
+        `PRAGMA table_info(${quoteSqliteIdent(tableName)})`,
+      )) as Array<{
+        cid: number;
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: unknown;
+        pk: number;
+      }>;
+      const idxList = (await this.executeRaw(
+        `PRAGMA index_list(${quoteSqliteIdent(tableName)})`,
+      )) as Array<{
+        seq: number;
+        name: string;
+        unique: number;
+        origin: string;
+        partial: number;
+      }>;
+      const indexes: IndexDefinition[] = [];
+      const singleUniqueColumns = new Set<string>();
+      for (const idx of idxList) {
+        const idxCols = (await this.executeRaw(
+          `PRAGMA index_info(${quoteSqliteIdent(idx.name)})`,
+        )) as Array<{
+          seqno: number;
+          cid: number;
+          name: string;
+        }>;
+        idxCols.sort((a, b) => a.seqno - b.seqno);
+        if (idx.origin === 'u' && idx.unique === 1 && idxCols.length === 1) {
+          singleUniqueColumns.add(idxCols[0].name);
+          continue;
+        }
+        if (idx.origin !== 'c') continue;
+        indexes.push({
+          columns: idxCols.map((c) => c.name),
+          unique: idx.unique === 1,
+          name: idx.name,
+        });
+      }
+
+      const columns: ColumnDefinition[] = cols.map((c) => {
+        const kind = sqliteTypeToColumnKind(c.type);
+        const limit = parseSqliteLimit(c.type);
+        const { precision, scale } = parseSqlitePrecisionScale(c.type);
+        const isPrimary = c.pk === 1;
+        const colDdl = extractSqliteColumnDdl(ddl, c.name);
+        const autoIncrement =
+          isPrimary && c.type.toUpperCase() === 'INTEGER' && /AUTOINCREMENT/i.test(colDdl);
+        return {
+          name: c.name,
+          type: kind,
+          nullable: c.notnull === 0 && !isPrimary,
+          default: parseSqliteDefault(c.dflt_value, kind),
+          limit,
+          primary: isPrimary,
+          unique: singleUniqueColumns.has(c.name) && !isPrimary,
+          precision,
+          scale,
+          autoIncrement,
+        };
+      });
+
+      const primaryCol = cols.find((c) => c.pk === 1);
+      result.push({
+        name: tableName,
+        columns,
+        indexes,
+        primaryKey: primaryCol?.name,
+      });
+    }
+    return result;
+  }
+
+  /** Postgres reflection — same shape as `PostgresConnector.reflectSchema`. */
+  private async reflectSchemaPostgres(): Promise<TableDefinition[]> {
+    const tablesRaw = (await this.executeRaw(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'
+       ORDER BY table_name`,
+    )) as Array<{ table_name: string }>;
+    const result: TableDefinition[] = [];
+    for (const tr of tablesRaw) {
+      const tableName = tr.table_name;
+      const colsRaw = (await this.executeRaw(
+        `SELECT column_name, data_type, udt_name, is_nullable, column_default,
+                character_maximum_length, numeric_precision, numeric_scale,
+                ordinal_position
+         FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = ?
+         ORDER BY ordinal_position`,
+        [tableName],
+      )) as Array<{
+        column_name: string;
+        data_type: string;
+        udt_name: string;
+        is_nullable: 'YES' | 'NO';
+        column_default: string | null;
+        character_maximum_length: number | null;
+        numeric_precision: number | null;
+        numeric_scale: number | null;
+      }>;
+      const pkRaw = (await this.executeRaw(
+        `SELECT kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+         WHERE tc.table_schema = current_schema()
+           AND tc.table_name = ?
+           AND tc.constraint_type = 'PRIMARY KEY'`,
+        [tableName],
+      )) as Array<{ column_name: string }>;
+      const pkColumns = new Set(pkRaw.map((r) => r.column_name));
+      const uniqueRaw = (await this.executeRaw(
+        `SELECT kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+         WHERE tc.table_schema = current_schema()
+           AND tc.table_name = ?
+           AND tc.constraint_type = 'UNIQUE'
+         GROUP BY kcu.constraint_name, kcu.column_name
+         HAVING COUNT(*) = 1`,
+        [tableName],
+      )) as Array<{ column_name: string }>;
+      const uniqueColumns = new Set(uniqueRaw.map((r) => r.column_name));
+
+      const idxRaw = (await this.executeRaw(
+        `SELECT i.relname AS index_name,
+                ix.indisunique AS is_unique,
+                ix.indisprimary AS is_primary,
+                a.attname AS column_name,
+                array_position(ix.indkey, a.attnum) AS ord,
+                COALESCE(con.contype, '') AS contype
+         FROM pg_class t
+         JOIN pg_index ix ON t.oid = ix.indrelid
+         JOIN pg_class i ON i.oid = ix.indexrelid
+         JOIN pg_namespace n ON n.oid = t.relnamespace
+         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+         LEFT JOIN pg_constraint con ON con.conindid = i.oid
+         WHERE n.nspname = current_schema() AND t.relname = ?
+         ORDER BY i.relname, ord`,
+        [tableName],
+      )) as Array<{
+        index_name: string;
+        is_unique: boolean;
+        is_primary: boolean;
+        column_name: string;
+        ord: number;
+        contype: string;
+      }>;
+      const indexMap = new Map<
+        string,
+        {
+          columns: { column: string; ord: number }[];
+          unique: boolean;
+          primary: boolean;
+          isConstraint: boolean;
+        }
+      >();
+      for (const ir of idxRaw) {
+        let entry = indexMap.get(ir.index_name);
+        if (!entry) {
+          entry = {
+            columns: [],
+            unique: ir.is_unique,
+            primary: ir.is_primary,
+            isConstraint: ir.contype === 'p' || ir.contype === 'u',
+          };
+          indexMap.set(ir.index_name, entry);
+        }
+        entry.columns.push({ column: ir.column_name, ord: Number(ir.ord) });
+      }
+      const indexes: IndexDefinition[] = [];
+      for (const [name, entry] of indexMap) {
+        if (entry.primary || entry.isConstraint) continue;
+        entry.columns.sort((a, b) => a.ord - b.ord);
+        indexes.push({
+          columns: entry.columns.map((c) => c.column),
+          unique: entry.unique,
+          name,
+        });
+      }
+
+      const columns: ColumnDefinition[] = colsRaw.map((c) => {
+        const isPrimary = pkColumns.has(c.column_name);
+        const isUnique = uniqueColumns.has(c.column_name);
+        const kind = pgTypeToColumnKind(c.data_type, c.udt_name);
+        const defaultRaw = c.column_default;
+        const autoIncrement =
+          isPrimary &&
+          (kind === 'integer' || kind === 'bigint') &&
+          typeof defaultRaw === 'string' &&
+          /^nextval\(/i.test(defaultRaw);
+        return {
+          name: c.column_name,
+          type: kind,
+          nullable: c.is_nullable === 'YES' && !isPrimary,
+          default: autoIncrement ? undefined : parsePgDefault(defaultRaw, kind),
+          limit: kind === 'string' ? (c.character_maximum_length ?? undefined) : undefined,
+          primary: isPrimary,
+          unique: isUnique && !isPrimary,
+          precision:
+            kind === 'decimal' && c.numeric_precision !== null ? c.numeric_precision : undefined,
+          scale: kind === 'decimal' && c.numeric_scale !== null ? c.numeric_scale : undefined,
+          autoIncrement,
+        };
+      });
+
+      const primaryKey = columns.find((c) => c.primary)?.name;
+      result.push({ name: tableName, columns, indexes, primaryKey });
+    }
+    return result;
+  }
+
+  /** MySQL/MariaDB reflection — same shape as `MysqlConnector.reflectSchema`. */
+  private async reflectSchemaMysql(): Promise<TableDefinition[]> {
+    const tablesRaw = (await this.executeRaw(
+      `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+       ORDER BY TABLE_NAME`,
+    )) as Array<{ TABLE_NAME: string }>;
+    const result: TableDefinition[] = [];
+    for (const tr of tablesRaw) {
+      const tableName = tr.TABLE_NAME;
+      const colsRaw = (await this.executeRaw(
+        `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY,
+                CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, EXTRA
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+         ORDER BY ORDINAL_POSITION`,
+        [tableName],
+      )) as Array<{
+        COLUMN_NAME: string;
+        DATA_TYPE: string;
+        COLUMN_TYPE: string;
+        IS_NULLABLE: 'YES' | 'NO';
+        COLUMN_DEFAULT: string | null;
+        COLUMN_KEY: string;
+        CHARACTER_MAXIMUM_LENGTH: number | null;
+        NUMERIC_PRECISION: number | null;
+        NUMERIC_SCALE: number | null;
+        EXTRA: string;
+      }>;
+      const idxRaw = (await this.executeRaw(
+        `SELECT INDEX_NAME, NON_UNIQUE, COLUMN_NAME, SEQ_IN_INDEX
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+         ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
+        [tableName],
+      )) as Array<{
+        INDEX_NAME: string;
+        NON_UNIQUE: number;
+        COLUMN_NAME: string;
+        SEQ_IN_INDEX: number;
+      }>;
+      const indexMap = new Map<string, { columns: string[]; unique: boolean }>();
+      for (const ir of idxRaw) {
+        let entry = indexMap.get(ir.INDEX_NAME);
+        if (!entry) {
+          entry = { columns: [], unique: ir.NON_UNIQUE === 0 };
+          indexMap.set(ir.INDEX_NAME, entry);
+        }
+        entry.columns.push(ir.COLUMN_NAME);
+      }
+      const singleUniqueColumns = new Set<string>();
+      const indexes: IndexDefinition[] = [];
+      for (const [name, entry] of indexMap) {
+        if (name === 'PRIMARY') continue;
+        if (entry.unique && entry.columns.length === 1) {
+          singleUniqueColumns.add(entry.columns[0]);
+          continue;
+        }
+        indexes.push({ columns: entry.columns, unique: entry.unique, name });
+      }
+
+      const columns: ColumnDefinition[] = colsRaw.map((c) => {
+        const isPrimary = c.COLUMN_KEY === 'PRI';
+        const kind = mysqlTypeToColumnKind(c.DATA_TYPE, c.COLUMN_TYPE);
+        const autoIncrement = /auto_increment/i.test(c.EXTRA);
+        return {
+          name: c.COLUMN_NAME,
+          type: kind,
+          nullable: c.IS_NULLABLE === 'YES' && !isPrimary,
+          default: autoIncrement ? undefined : parseMysqlDefault(c.COLUMN_DEFAULT, c.EXTRA, kind),
+          limit: kind === 'string' ? (c.CHARACTER_MAXIMUM_LENGTH ?? undefined) : undefined,
+          primary: isPrimary,
+          unique: singleUniqueColumns.has(c.COLUMN_NAME) && !isPrimary,
+          precision:
+            kind === 'decimal' && c.NUMERIC_PRECISION !== null ? c.NUMERIC_PRECISION : undefined,
+          scale: kind === 'decimal' && c.NUMERIC_SCALE !== null ? c.NUMERIC_SCALE : undefined,
+          autoIncrement,
+        };
+      });
+
+      const primaryKey = columns.find((c) => c.primary)?.name;
+      result.push({ name: tableName, columns, indexes, primaryKey });
+    }
+    return result;
+  }
+
+  /**
+   * Run a raw SQL statement and return rows. Knex' `client.raw()` shape
+   * varies by driver — this helper unwraps it consistently:
+   *
+   * - sqlite returns the array directly
+   * - pg returns `{ rows: [...] }`
+   * - mysql returns `[ rows, fields ]`
+   */
+  private async executeRaw(sql: string, bindings: any[] = []): Promise<Dict<any>[]> {
+    const client = this.activeTransaction ?? this.knex;
+    const result: any = await client.raw(sql, bindings as any);
+    const clientName = this.knex.client.config.client;
+    if (clientName === 'sqlite3' || clientName === 'better-sqlite3') return result;
+    if (clientName === 'pg' || clientName === 'postgres') return result.rows;
+    if (Array.isArray(result) && Array.isArray(result[0])) return result[0];
+    return result;
+  }
+
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
     if (await this.hasTable(tableName)) return;
@@ -863,6 +1225,287 @@ function toSqlAction(action: ForeignKeyAction): string {
     case 'noAction':
       return 'NO ACTION';
   }
+}
+
+function quoteSqliteIdent(name: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new PersistenceError(`Refusing to quote unsafe identifier: ${name}`);
+  }
+  return `"${name}"`;
+}
+
+/** Maps SQLite affinity / declared types back to `ColumnKind`. */
+function sqliteTypeToColumnKind(declared: string): ColumnKind {
+  const t = (declared ?? '').toUpperCase().split('(')[0].trim();
+  switch (t) {
+    case 'INTEGER':
+      return 'integer';
+    case 'BIGINT':
+      return 'bigint';
+    case 'REAL':
+    case 'DOUBLE':
+    case 'FLOAT':
+      return 'float';
+    case 'NUMERIC':
+    case 'DECIMAL':
+      return 'decimal';
+    case 'BOOLEAN':
+      return 'boolean';
+    case 'DATE':
+      return 'date';
+    case 'DATETIME':
+      return 'datetime';
+    case 'TIMESTAMP':
+      return 'timestamp';
+    case 'JSON':
+      return 'json';
+    case 'VARCHAR':
+    case 'CHAR':
+    case 'CHARACTER':
+      return 'string';
+    case 'TEXT':
+    case 'CLOB':
+      return 'text';
+    default:
+      return 'text';
+  }
+}
+
+function parseSqliteLimit(declared: string): number | undefined {
+  const match = (declared ?? '').match(/^\s*(?:VARCHAR|CHAR|CHARACTER)\s*\(\s*(\d+)\s*\)\s*$/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+function parseSqlitePrecisionScale(declared: string): { precision?: number; scale?: number } {
+  const match = (declared ?? '').match(
+    /^\s*(?:NUMERIC|DECIMAL)\s*\(\s*(\d+)\s*(?:,\s*(\d+))?\s*\)\s*$/i,
+  );
+  if (!match) return {};
+  return {
+    precision: Number(match[1]),
+    scale: match[2] !== undefined ? Number(match[2]) : undefined,
+  };
+}
+
+function parseSqliteDefault(raw: unknown, kind: ColumnKind): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  let s = String(raw).trim();
+  if (s.toUpperCase() === 'NULL') return null;
+  if (s.toUpperCase() === 'CURRENT_TIMESTAMP') return 'currentTimestamp';
+  // Knex serialises numeric / boolean defaults as quoted strings (`'0'`),
+  // so unwrap quotes BEFORE the type-coerce step. Native SQLite numeric
+  // defaults arrive unquoted; both paths converge here.
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+    s = s.slice(1, -1).replace(/''/g, "'");
+    // For string / text kinds, the quoted form was the intended literal.
+    if (kind === 'string' || kind === 'text') return s;
+  }
+  if (kind === 'boolean') {
+    if (s === '1') return true;
+    if (s === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(s);
+    return Number.isFinite(num) ? num : s;
+  }
+  return s;
+}
+
+function extractSqliteColumnDdl(ddl: string, columnName: string): string {
+  const inner = (ddl ?? '').replace(/^\s*CREATE\s+TABLE\s+[^(]+\(/i, '').replace(/\)\s*$/, '');
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of inner) {
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth -= 1;
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) parts.push(current);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (
+      trimmed.startsWith(`"${columnName}"`) ||
+      trimmed.startsWith(`\`${columnName}\``) ||
+      trimmed.startsWith(`${columnName} `) ||
+      trimmed === columnName
+    ) {
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+/** Maps Postgres `data_type` (with `udt_name` fallback) back to `ColumnKind`. */
+function pgTypeToColumnKind(dataType: string, udtName: string): ColumnKind {
+  const t = (dataType ?? '').toLowerCase();
+  const u = (udtName ?? '').toLowerCase();
+  switch (t) {
+    case 'character varying':
+    case 'varchar':
+    case 'character':
+    case 'char':
+      return 'string';
+    case 'text':
+      return 'text';
+    case 'integer':
+    case 'smallint':
+      return 'integer';
+    case 'bigint':
+      return 'bigint';
+    case 'boolean':
+      return 'boolean';
+    case 'real':
+    case 'double precision':
+      return 'float';
+    case 'numeric':
+    case 'decimal':
+      return 'decimal';
+    case 'date':
+      return 'date';
+    case 'time':
+    case 'time without time zone':
+    case 'time with time zone':
+      return 'datetime';
+    case 'timestamp':
+    case 'timestamp without time zone':
+    case 'timestamp with time zone':
+      return 'timestamp';
+    case 'json':
+    case 'jsonb':
+      return 'json';
+    default:
+      switch (u) {
+        case 'int2':
+        case 'int4':
+          return 'integer';
+        case 'int8':
+          return 'bigint';
+        case 'float4':
+        case 'float8':
+          return 'float';
+        case 'numeric':
+          return 'decimal';
+        case 'bool':
+          return 'boolean';
+        case 'json':
+        case 'jsonb':
+          return 'json';
+        case 'varchar':
+        case 'bpchar':
+          return 'string';
+        case 'text':
+          return 'text';
+        case 'date':
+          return 'date';
+        case 'timestamp':
+        case 'timestamptz':
+          return 'timestamp';
+        case 'time':
+        case 'timetz':
+          return 'datetime';
+      }
+      return 'text';
+  }
+}
+
+function parsePgDefault(raw: string | null, kind: ColumnKind): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed.toUpperCase() === 'NULL') return undefined;
+  const stripped = trimmed.replace(/::[A-Za-z0-9_ "]+(\([^)]*\))?$/g, '').trim();
+  const upper = stripped.toUpperCase();
+  if (upper === 'CURRENT_TIMESTAMP' || upper === 'NOW()') return 'currentTimestamp';
+  if (upper === 'TRUE') return true;
+  if (upper === 'FALSE') return false;
+  if (stripped.startsWith("'") && stripped.endsWith("'") && stripped.length >= 2) {
+    return stripped.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (stripped === '1') return true;
+    if (stripped === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(stripped);
+    if (Number.isFinite(num)) return num;
+  }
+  return stripped;
+}
+
+/** Maps MySQL/MariaDB `DATA_TYPE` (+ `COLUMN_TYPE`) back to `ColumnKind`. */
+function mysqlTypeToColumnKind(dataType: string, columnType: string): ColumnKind {
+  const t = (dataType ?? '').toLowerCase();
+  const ct = (columnType ?? '').toLowerCase();
+  switch (t) {
+    case 'tinyint':
+      return /^tinyint\(1\)/i.test(ct) ? 'boolean' : 'integer';
+    case 'smallint':
+    case 'mediumint':
+    case 'int':
+    case 'integer':
+      return 'integer';
+    case 'bigint':
+      return 'bigint';
+    case 'float':
+    case 'double':
+    case 'real':
+      return 'float';
+    case 'decimal':
+    case 'numeric':
+      return 'decimal';
+    case 'char':
+    case 'varchar':
+      return 'string';
+    case 'tinytext':
+    case 'text':
+    case 'mediumtext':
+    case 'longtext':
+      return 'text';
+    case 'date':
+      return 'date';
+    case 'datetime':
+      return 'datetime';
+    case 'timestamp':
+      return 'timestamp';
+    case 'time':
+    case 'year':
+      return 'datetime';
+    case 'json':
+      return 'json';
+    default:
+      return 'text';
+  }
+}
+
+function parseMysqlDefault(
+  raw: string | null,
+  extra: string,
+  kind: ColumnKind,
+): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' && /default_generated/i.test(extra)) return undefined;
+  const upper = trimmed.toUpperCase();
+  if (upper === 'CURRENT_TIMESTAMP' || upper === 'NOW()') return 'currentTimestamp';
+  if (upper === 'NULL') return null;
+  let s = trimmed;
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+    s = s.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (s === '1') return true;
+    if (s === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(s);
+    if (Number.isFinite(num)) return num;
+  }
+  return s;
 }
 
 export default KnexConnector;

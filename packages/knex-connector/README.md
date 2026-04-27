@@ -143,6 +143,10 @@ The connector picks a strategy per driver because not every driver supports `RET
 
 Both build the WHERE clause directly from `scope.filter` and ignore `scope.limit` / `scope.skip`, which sqlite rejects (`limit has no effect on a delete/update`). The current row set is captured by an explicit `query()` call before the mutation so the methods can return the affected rows even when the driver lacks `RETURNING`.
 
+### Schema reflection (`reflectSchema`)
+
+Dispatches by Knex client: `sqlite3` / `better-sqlite3` use `PRAGMA` queries against `sqlite_master`, `pg` / `postgres` query `information_schema` + `pg_index` / `pg_class`, and `mysql` / `mysql2` / `mariadb` query MySQL `information_schema`. Each path mirrors the standalone connector for that engine. Unknown clients throw `PersistenceError` — `reflectSchema` is optional, so leaving it unimplemented is safe. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
+
 ## Test matrix
 
 The package's spec is driver-agnostic and selects its backend via env vars:

@@ -857,6 +857,97 @@ describe('KnexConnector#queryScoped', () => {
   });
 });
 
+describe('KnexConnector#reflectSchema', () => {
+  const tableName = 'knex_reflect_basic';
+  const otherTable = 'knex_reflect_other';
+  const idxTable = 'knex_reflect_idx';
+
+  afterEach(async () => {
+    await connector.knex.schema.dropTableIfExists(tableName);
+    await connector.knex.schema.dropTableIfExists(otherTable);
+    await connector.knex.schema.dropTableIfExists(idxTable);
+  });
+
+  it('round-trips a simple table created via createTable', async () => {
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('email', { limit: 320, null: false });
+      t.text('body');
+      t.integer('count', { default: 0, null: false });
+    });
+    const reflected = await connector.reflectSchema!();
+    const table = reflected.find((r) => r.name === tableName);
+    expect(table).toBeDefined();
+    expect(table!.primaryKey).toBe('id');
+    const id = table!.columns.find((c) => c.name === 'id')!;
+    expect(id.primary).toBe(true);
+    expect(id.autoIncrement).toBe(true);
+    expect(id.type).toBe('integer');
+    const email = table!.columns.find((c) => c.name === 'email')!;
+    expect(email.type).toBe('string');
+    expect(email.limit).toBe(320);
+    const body = table!.columns.find((c) => c.name === 'body')!;
+    expect(body.type).toBe('text');
+    const count = table!.columns.find((c) => c.name === 'count')!;
+    expect(count.type).toBe('integer');
+    expect(count.default).toBe(0);
+  });
+
+  it('reflects composite + unique indexes', async () => {
+    await connector.createTable(idxTable, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.integer('userId');
+      t.string('slug', { limit: 64 });
+      t.index(['userId'], { name: 'idx_knex_reflect_user_id' });
+      t.index(['userId', 'slug'], { unique: true, name: 'idx_knex_reflect_user_slug' });
+    });
+    const reflected = await connector.reflectSchema!();
+    const table = reflected.find((r) => r.name === idxTable)!;
+    const names = table.indexes.map((i) => i.name).sort();
+    expect(names).toContain('idx_knex_reflect_user_id');
+    expect(names).toContain('idx_knex_reflect_user_slug');
+    const single = table.indexes.find((i) => i.name === 'idx_knex_reflect_user_id')!;
+    expect(single.columns).toEqual(['userId']);
+    expect(single.unique).toBe(false);
+    const compound = table.indexes.find((i) => i.name === 'idx_knex_reflect_user_slug')!;
+    expect(compound.columns).toEqual(['userId', 'slug']);
+    expect(compound.unique).toBe(true);
+  });
+
+  it('reflects multiple tables', async () => {
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('email');
+    });
+    await connector.createTable(otherTable, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('title');
+    });
+    const reflected = await connector.reflectSchema!();
+    const names = reflected.map((r) => r.name);
+    expect(names).toContain(tableName);
+    expect(names).toContain(otherTable);
+  });
+});
+
+describe('KnexConnector#reflectSchema dispatch by client', () => {
+  it('throws PersistenceError for unknown client names', async () => {
+    // Build a stub Knex with a fake client name so the dispatch lands on
+    // the unsupported-client branch without spinning up any real driver.
+    const stub = new KnexConnector({
+      client: 'sqlite3',
+      connection: { filename: ':memory:' },
+      useNullAsDefault: true,
+    });
+    try {
+      (stub.knex.client.config as { client: string }).client = 'oracle';
+      await expect(stub.reflectSchema!()).rejects.toThrow(/does not support/i);
+    } finally {
+      await stub.knex.destroy();
+    }
+  });
+});
+
 runModelConformance({
   name: `KnexConnector (${TEST_CLIENT})`,
   makeConnector: () => connector,
