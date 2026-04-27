@@ -1,5 +1,4 @@
 import { NotFoundError, PersistenceError, StaleObjectError, ValidationError } from './errors.js';
-import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
 import { CollectionQuery } from './query/CollectionQuery.js';
 import { createAssociationQuery } from './query/associationQuery.js';
