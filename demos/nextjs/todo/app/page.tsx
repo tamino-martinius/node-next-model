@@ -11,7 +11,7 @@ export default async function Page() {
 
   const userInstances = await User.orderBy({ key: 'id' }).all();
   const users: UserRow[] = userInstances.map((u) => {
-    const attrs = u.attributes() as { id: number; name: string };
+    const attrs = u.attributes as { id: number; name: string };
     return { id: attrs.id, name: attrs.name };
   });
 
@@ -24,7 +24,7 @@ export default async function Page() {
       .orderBy({ key: 'id' })
       .all();
     tasks = taskInstances.map((t) => {
-      const attrs = t.attributes() as {
+      const attrs = t.attributes as {
         id: number;
         userId: number;
         title: string;

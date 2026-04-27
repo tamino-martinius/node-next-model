@@ -63,12 +63,12 @@ export interface TaskRow {
 }
 
 function asUserRow(instance: User): UserRow {
-  const attrs = instance.attributes() as { id: number; name: string };
+  const attrs = instance.attributes as { id: number; name: string };
   return { id: attrs.id, name: attrs.name };
 }
 
 function asTaskRow(instance: Task): TaskRow {
-  const attrs = instance.attributes() as {
+  const attrs = instance.attributes as {
     id: number;
     userId: number;
     text: string;
@@ -117,7 +117,7 @@ export async function createTask(userId: number, text: string): Promise<TaskRow>
 export async function toggleTask(id: number): Promise<TaskRow> {
   await ensureBoot();
   const task = await Task.find(id);
-  const attrs = (task as unknown as Task).attributes() as { done: boolean };
+  const attrs = (task as unknown as Task).attributes as { done: boolean };
   await (task as unknown as Task).update({ done: !attrs.done });
   return asTaskRow(task as unknown as Task);
 }

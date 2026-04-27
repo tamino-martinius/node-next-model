@@ -50,7 +50,7 @@ app.use(
     },
     // Strip sensitive fields + rename the primary key to `uid` in the payload.
     serialize: (row, ctx) => {
-      const attrs = row.attributes() as { id: number; name: string; role: string; active: boolean };
+      const attrs = row.attributes as { id: number; name: string; role: string; active: boolean };
       const base = { uid: attrs.id, name: attrs.name, role: attrs.role };
       if (requireAuth(ctx.req) === 'admin') {
         return { ...base, active: attrs.active };
