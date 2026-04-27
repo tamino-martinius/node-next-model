@@ -4,10 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node --experimental-strip-types demo.ts"
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "node --experimental-strip-types demo.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@next-model/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
   },
   "engines": {
     "node": ">=22.6"

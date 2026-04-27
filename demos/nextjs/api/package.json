@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --workspace-root run build:packages",
     "dev": "next dev",
+    "prebuild": "pnpm --workspace-root run build:packages",
     "build": "next build",
-    "start": "next start"
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@next-model/core": "workspace:*",
