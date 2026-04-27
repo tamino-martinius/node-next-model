@@ -70,7 +70,7 @@ createCollectionHandlers(User, {
     create: { authorize: ({ req }) => req.headers.get('x-role') === 'admin' },
   },
   serialize: (row, ctx) => {
-    const attrs = row.attributes();
+    const attrs = row.attributes;
     const { passwordHash, ...safe } = attrs;
     return safe;
   },

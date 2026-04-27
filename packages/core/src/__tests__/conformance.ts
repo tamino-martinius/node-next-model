@@ -420,7 +420,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
           ],
           { onConflict: 'slug' },
         );
-        expect(rows.map((r: any) => r.attributes().name)).toEqual(['JavaScript', 'Ruby', 'Python']);
+        expect(rows.map((r: any) => r.attributes.name)).toEqual(['JavaScript', 'Ruby', 'Python']);
         expect(await TagModel.count()).toBe(3);
       });
 
@@ -434,8 +434,8 @@ export function runModelConformance(opts: ConformanceOptions): void {
         }));
         const rows = await TagModel.upsertAll(input, { onConflict: 'slug' });
         expect(rows).toHaveLength(100);
-        expect(rows[0].attributes().name).toBe('new-0');
-        expect(rows[99].attributes().name).toBe('new-99');
+        expect(rows[0].attributes.name).toBe('new-0');
+        expect(rows[99].attributes.name).toBe('new-99');
         expect(await TagModel.count()).toBe(100);
       });
 

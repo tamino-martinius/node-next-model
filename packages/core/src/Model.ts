@@ -372,7 +372,7 @@ async function applyIncludes(
         primaryKey: spec.primaryKey,
       });
       for (const record of records) {
-        const attrs = record.attributes() as Dict<any>;
+        const attrs = record.attributes as Dict<any>;
         const fk = attrs[spec.foreignKey];
         (record as unknown as Dict<unknown>)[name] = fk == null ? undefined : preloaded.get(fk);
       }
@@ -383,7 +383,7 @@ async function applyIncludes(
         primaryKey: selfPk,
       });
       for (const record of records) {
-        const attrs = record.attributes() as Dict<any>;
+        const attrs = record.attributes as Dict<any>;
         const id = attrs[selfPk];
         (record as unknown as Dict<unknown>)[name] = preloaded.get(id) ?? [];
       }
@@ -394,7 +394,7 @@ async function applyIncludes(
         primaryKey: selfPk,
       });
       for (const record of records) {
-        const attrs = record.attributes() as Dict<any>;
+        const attrs = record.attributes as Dict<any>;
         const id = attrs[selfPk];
         (record as unknown as Dict<unknown>)[name] = preloaded.get(id)?.[0];
       }
@@ -1561,7 +1561,7 @@ export class ModelClass {
     const items = await this.all<M>();
     const result = new Map<any, InstanceType<M>[]>();
     for (const item of items) {
-      const bucket = (item.attributes() as Dict<any>)[key];
+      const bucket = (item.attributes as Dict<any>)[key];
       const list = result.get(bucket);
       if (list) {
         list.push(item);
@@ -1581,7 +1581,7 @@ export class ModelClass {
     const pk = options.primaryKey ?? Object.keys(this.keys)[0] ?? 'id';
     const ids = new Set<any>();
     for (const record of records) {
-      const attrs = typeof record?.attributes === 'function' ? record.attributes() : record;
+      const attrs = record instanceof ModelClass ? record.attributes : record;
       const value = attrs?.[fk];
       if (value !== undefined && value !== null) ids.add(value);
     }
@@ -1589,7 +1589,7 @@ export class ModelClass {
     const related = await this.filterBy({ $in: { [pk]: [...ids] } } as Filter<any>).all<M>();
     const result = new Map<any, InstanceType<M>>();
     for (const r of related) {
-      const key = (r.attributes() as Dict<any>)[pk];
+      const key = (r.attributes as Dict<any>)[pk];
       result.set(key, r);
     }
     return result;
@@ -1604,7 +1604,7 @@ export class ModelClass {
     const pk = options.primaryKey ?? 'id';
     const ids = new Set<any>();
     for (const record of records) {
-      const attrs = typeof record?.attributes === 'function' ? record.attributes() : record;
+      const attrs = record instanceof ModelClass ? record.attributes : record;
       const value = attrs?.[pk];
       if (value !== undefined && value !== null) ids.add(value);
     }
@@ -1613,7 +1613,7 @@ export class ModelClass {
     if (ids.size === 0) return result;
     const related = await this.filterBy({ $in: { [fk]: [...ids] } } as Filter<any>).all<M>();
     for (const r of related) {
-      const key = (r.attributes() as Dict<any>)[fk];
+      const key = (r.attributes as Dict<any>)[fk];
       const list = result.get(key);
       if (list) list.push(r);
       else result.set(key, [r]);
@@ -1900,7 +1900,7 @@ export class ModelClass {
 
     for (const key in this.persistentProps) {
       Object.defineProperty(this, key, {
-        get: () => this.attributes()[key],
+        get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
       });
     }
@@ -1931,11 +1931,11 @@ export class ModelClass {
         if (Object.getOwnPropertyDescriptor(this, subKey)) continue;
         Object.defineProperty(this, subKey, {
           get: () => {
-            const bag = (this.attributes() as Dict<any>)[column];
+            const bag = (this.attributes as Dict<any>)[column];
             return bag != null ? bag[subKey] : undefined;
           },
           set: (value) => {
-            const current = ((this.attributes() as Dict<any>)[column] ?? {}) as Dict<any>;
+            const current = ((this.attributes as Dict<any>)[column] ?? {}) as Dict<any>;
             this.assign({ [column]: { ...current, [subKey]: value } });
           },
         });
@@ -1972,16 +1972,16 @@ export class ModelClass {
     return this.keys === undefined;
   }
 
-  attributes(): Dict<any> {
+  get attributes(): Dict<any> {
     return { ...this.persistentProps, ...this.changedProps, ...this.keys };
   }
 
   toJSON(): Dict<any> {
-    return this.attributes();
+    return this.attributes;
   }
 
   pick(keys: string[]): Dict<any> {
-    const attrs = this.attributes();
+    const attrs = this.attributes;
     const result: Dict<any> = {};
     for (const key of keys) {
       if (key in attrs) result[key] = attrs[key];
@@ -1990,7 +1990,7 @@ export class ModelClass {
   }
 
   omit(keys: string[]): Dict<any> {
-    const attrs = this.attributes();
+    const attrs = this.attributes;
     const skip = new Set(keys);
     const result: Dict<any> = {};
     for (const key in attrs) {
@@ -2036,7 +2036,7 @@ export class ModelClass {
 
   was(key: string): any {
     if (key in this.changedProps) return this.persistentProps[key];
-    return this.attributes()[key];
+    return this.attributes[key];
   }
 
   savedChanges(): Dict<{ from: any; to: any }> {
@@ -2049,7 +2049,7 @@ export class ModelClass {
 
   savedWas(key: string): any {
     if (key in this.lastSavedChanges) return this.lastSavedChanges[key].from;
-    return this.attributes()[key];
+    return this.attributes[key];
   }
 
   wasChanged(): boolean {
@@ -2089,7 +2089,7 @@ export class ModelClass {
     const poly = options.polymorphic;
     const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(Related.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(Related.keys)[0] ?? 'id';
-    const attrs = this.attributes() as Dict<any>;
+    const attrs = this.attributes as Dict<any>;
     const fkValue = attrs[fk];
     if (fkValue === undefined || fkValue === null) {
       return Promise.resolve(undefined);
@@ -2275,7 +2275,7 @@ export class ModelClass {
         const lockColumn = model.lockVersionColumn;
         let expectedLock: number | undefined;
         if (lockColumn) {
-          expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+          expectedLock = (this.attributes as Dict<any>)[lockColumn] ?? 0;
           scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
           this.changedProps[lockColumn] = (expectedLock as number) + 1;
         }
@@ -2448,7 +2448,7 @@ export class ModelClass {
       ) as typeof ModelClass;
       const fk = spec.foreignKey;
       const pkName = spec.primaryKey ?? Object.keys(model.keys)[0] ?? 'id';
-      const pkValue = (this.attributes() as Dict<any>)[pkName];
+      const pkValue = (this.attributes as Dict<any>)[pkName];
       if (pkValue === undefined || pkValue === null) continue;
       const childScope = target.filterBy({ [fk]: pkValue } as Filter<any>);
       switch (spec.dependent) {
@@ -2502,7 +2502,7 @@ export class ModelClass {
     const lockColumn = model.lockVersionColumn;
     let expectedLock: number | undefined;
     if (lockColumn) {
-      expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+      expectedLock = (this.attributes as Dict<any>)[lockColumn] ?? 0;
       scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
     }
     const items = await model.connector.deleteAll(scope);
@@ -2523,7 +2523,7 @@ export class ModelClass {
 
   isDiscarded(): boolean {
     const model = this.constructor as typeof ModelClass;
-    const value = (this.attributes() as Dict<any>)[model.softDeleteColumn];
+    const value = (this.attributes as Dict<any>)[model.softDeleteColumn];
     return value !== null && value !== undefined;
   }
 
@@ -2653,7 +2653,7 @@ export function Model<
   const builtInValidators: Validator<any>[] = [];
   if (Object.keys(enumDefs).length > 0) {
     builtInValidators.push((record) => {
-      const attrs = record.attributes() as Dict<any>;
+      const attrs = record.attributes as Dict<any>;
       for (const column in enumDefs) {
         const value = attrs[column];
         if (value === undefined || value === null) continue;
@@ -3075,7 +3075,7 @@ export function Model<
       super(props, keys);
     }
 
-    attributes() {
+    get attributes() {
       return {
         ...(this.persistentProps as object),
         ...(this.changedProps as object),
@@ -3084,7 +3084,7 @@ export function Model<
     }
 
     toJSON() {
-      return this.attributes();
+      return this.attributes;
     }
 
     pick<K extends keyof PersistentProps | keyof Keys>(keys: K[]) {
@@ -3160,7 +3160,7 @@ export function Model<
         return this.filterBy({ [column]: value } as any);
       };
       (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
-        return (this.attributes() as Dict<any>)[column] === value;
+        return (this.attributes as Dict<any>)[column] === value;
       };
     }
   }
@@ -3188,11 +3188,11 @@ export function Model<
     };
     for (const spec of props.counterCaches) {
       ModelSubclass.on('afterCreate', async (record) => {
-        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        const fkValue = (record.attributes as Dict<any>)[spec.foreignKey];
         await adjustCounter(spec, fkValue, +1);
       });
       ModelSubclass.on('afterDelete', async (record) => {
-        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        const fkValue = (record.attributes as Dict<any>)[spec.foreignKey];
         await adjustCounter(spec, fkValue, -1);
       });
       ModelSubclass.on('afterUpdate', async (record) => {

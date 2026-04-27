@@ -120,10 +120,8 @@ export function fromArkType<T extends Type<any>>(ark: T): ArkTypeModelBridge<T> 
   };
 
   const validator = (instance: unknown): boolean => {
-    const attrs =
-      typeof (instance as { attributes?: () => unknown })?.attributes === 'function'
-        ? (instance as { attributes: () => unknown }).attributes()
-        : instance;
+    const candidate = (instance as { attributes?: unknown })?.attributes;
+    const attrs = candidate && typeof candidate === 'object' ? candidate : instance;
     return extractSummary(run(attrs)) === undefined;
   };
 

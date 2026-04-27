@@ -69,7 +69,7 @@ describe('Single Table Inheritance', () => {
     expect(animals.some((a) => a instanceof Dog)).toBe(true);
     expect(animals.some((a) => a instanceof Cat)).toBe(true);
     // Unknown-type row instantiates the base class
-    const unknown = animals.find((a) => (a.attributes() as any).name === 'Mystery');
+    const unknown = animals.find((a) => (a.attributes as any).name === 'Mystery');
     expect(unknown).toBeInstanceOf(Animal);
     expect(unknown).not.toBeInstanceOf(Dog);
     expect(unknown).not.toBeInstanceOf(Cat);
@@ -79,7 +79,7 @@ describe('Single Table Inheritance', () => {
   it('subclass.all() is auto-filtered to its type', async () => {
     const { Dog } = makeModels();
     const dogs = await Dog.all();
-    expect(dogs.map((d: any) => d.attributes().name).sort()).toEqual(['Buddy', 'Rex']);
+    expect(dogs.map((d: any) => d.attributes.name).sort()).toEqual(['Buddy', 'Rex']);
   });
 
   it('subclass scopes / filters compose on top of the type scope', async () => {

@@ -97,10 +97,8 @@ export function fromTypeBox<Schema extends TObject>(schema: Schema): TypeBoxMode
   };
 
   const validator = (instance: unknown): boolean => {
-    const attrs =
-      typeof (instance as { attributes?: () => unknown })?.attributes === 'function'
-        ? (instance as { attributes: () => unknown }).attributes()
-        : instance;
+    const candidate = (instance as { attributes?: unknown })?.attributes;
+    const attrs = candidate && typeof candidate === 'object' ? candidate : instance;
     return Value.Check(schema, attrs);
   };
 

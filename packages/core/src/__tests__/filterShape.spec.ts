@@ -95,7 +95,7 @@ describe('filterBy accepts both shapes', () => {
     const rows = await Ticket.filterBy({ age: { $gt: 25 } })
       .orderBy({ key: 'age' })
       .all();
-    expect(rows.map((r) => (r.attributes() as Row).name)).toEqual(['D', 'B', 'E']);
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['D', 'B', 'E']);
   });
 
   it('filters correctly with the legacy $op-first shape', async () => {
@@ -105,7 +105,7 @@ describe('filterBy accepts both shapes', () => {
     const rows = await Ticket.filterBy({ $gt: { age: 25 } } as any)
       .orderBy({ key: 'age' })
       .all();
-    expect(rows.map((r) => (r.attributes() as Row).name)).toEqual(['D', 'B', 'E']);
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['D', 'B', 'E']);
   });
 
   it('column-scoped $in works', async () => {
@@ -115,7 +115,7 @@ describe('filterBy accepts both shapes', () => {
     const rows = await Ticket.filterBy({
       status: { $in: ['open', 'pending'] },
     }).all();
-    expect(rows.map((r) => (r.attributes() as Row).name).sort()).toEqual(['A', 'B', 'C', 'E']);
+    expect(rows.map((r) => (r.attributes as Row).name).sort()).toEqual(['A', 'B', 'C', 'E']);
   });
 
   it('column-scoped $not works', async () => {
@@ -123,7 +123,7 @@ describe('filterBy accepts both shapes', () => {
     const Ticket = buildModel(connector);
     await seed(Ticket);
     const rows = await Ticket.filterBy({ name: { $not: 'A' } }).all();
-    expect(rows.map((r) => (r.attributes() as Row).name).sort()).toEqual(['B', 'C', 'D', 'E']);
+    expect(rows.map((r) => (r.attributes as Row).name).sort()).toEqual(['B', 'C', 'D', 'E']);
   });
 
   it('multi-op column maps compose into $and', async () => {
@@ -133,7 +133,7 @@ describe('filterBy accepts both shapes', () => {
     const rows = await Ticket.filterBy({ age: { $gt: 15, $lt: 45 } })
       .orderBy({ key: 'age' })
       .all();
-    expect(rows.map((r) => (r.attributes() as Row).name)).toEqual(['C', 'D', 'B']);
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['C', 'D', 'B']);
   });
 
   it('top-level $and + $or still compose with the new shape inside', async () => {
@@ -145,7 +145,7 @@ describe('filterBy accepts both shapes', () => {
     })
       .orderBy({ key: 'age' })
       .all();
-    expect(rows.map((r) => (r.attributes() as Row).name)).toEqual(['A', 'D']);
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['A', 'D']);
   });
 
   it('nested object equality still compares by value', async () => {

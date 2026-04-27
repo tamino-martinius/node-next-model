@@ -86,7 +86,7 @@ describe('Model factory — custom timestamp columns', () => {
       init: (props: Row) => props,
     }) {}
     const [ada] = await Event.createMany([{ name: 'hello' }]);
-    const attrs = ada.attributes() as Record<string, unknown>;
+    const attrs = ada.attributes as Record<string, unknown>;
     expect(attrs.inserted_at).toBeInstanceOf(Date);
     expect(attrs.last_change).toBeInstanceOf(Date);
     expect(attrs.createdAt).toBeUndefined();
@@ -101,7 +101,7 @@ describe('Model factory — custom timestamp columns', () => {
       init: (props: Row) => props,
     }) {}
     const [ada] = await Event.createMany([{ name: 'hello' }]);
-    const attrs = ada.attributes() as Record<string, unknown>;
+    const attrs = ada.attributes as Record<string, unknown>;
     expect(attrs.createdAt).toBeInstanceOf(Date);
     expect(attrs.updatedAt).toBeUndefined();
   });
@@ -126,7 +126,7 @@ describe('Model factory — custom timestamp columns', () => {
     }) {}
     await Event.createMany([{ name: 'a' }, { name: 'b' }]);
     await Event.updateAll({ name: 'c' });
-    const rows = (await Event.all()).map((r) => r.attributes() as Record<string, unknown>);
+    const rows = (await Event.all()).map((r) => r.attributes as Record<string, unknown>);
     for (const row of rows) {
       expect(row.last_change).toBeInstanceOf(Date);
     }
@@ -152,10 +152,10 @@ describe('Model factory — custom softDelete column', () => {
   it('discard writes to the custom column', async () => {
     const row = (await ArchivedPost.find(1)) as unknown as {
       discard: () => Promise<unknown>;
-      attributes: () => Record<string, unknown>;
+      attributes: Record<string, unknown>;
     };
     await row.discard();
-    const attrs = row.attributes();
+    const attrs = row.attributes;
     expect(attrs.deleted_at).toBeInstanceOf(Date);
   });
 
@@ -163,19 +163,19 @@ describe('Model factory — custom softDelete column', () => {
     const row = (await ArchivedPost.find(1)) as unknown as { discard: () => Promise<unknown> };
     await row.discard();
     const active = await ArchivedPost.all();
-    expect(active.map((r) => (r.attributes() as Row).name)).toEqual(['b', 'c']);
+    expect(active.map((r) => (r.attributes as Row).name)).toEqual(['b', 'c']);
     const only = await ArchivedPost.onlyDiscarded().all();
-    expect(only.map((r) => (r.attributes() as Row).name)).toEqual(['a']);
+    expect(only.map((r) => (r.attributes as Row).name)).toEqual(['a']);
   });
 
   it('restore clears the custom column', async () => {
     const row = (await ArchivedPost.find(1)) as unknown as {
       discard: () => Promise<unknown>;
       restore: () => Promise<unknown>;
-      attributes: () => Record<string, unknown>;
+      attributes: Record<string, unknown>;
     };
     await row.discard();
     await row.restore();
-    expect(row.attributes().deleted_at).toBeNull();
+    expect(row.attributes.deleted_at).toBeNull();
   });
 });

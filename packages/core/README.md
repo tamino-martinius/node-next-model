@@ -568,7 +568,7 @@ JSON serialization that `t.json(...)` columns already provide.
 ## Serialization
 
 ```ts
-user.attributes();                       // { id, firstName, lastName, createdAt, updatedAt }
+user.attributes;                         // { id, firstName, lastName, createdAt, updatedAt }
 user.toJSON();                           // same shape; used by JSON.stringify
 user.pick(['firstName', 'lastName']);
 user.omit(['createdAt', 'updatedAt']);
