@@ -1,6 +1,7 @@
-import { NotFoundError } from '../errors.js';
+import { NotFoundError, PersistenceError } from '../errors.js';
 import type { AssociationLink, Dict, KeyType } from '../types.js';
 import type { CollectionQuery } from './CollectionQuery.js';
+import { lower } from './lower.js';
 import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 
@@ -17,24 +18,48 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     public readonly state: QueryState,
   ) {}
 
-  // STUB until Task 24 wires materialize to connector.queryScoped.
-  // Always resolves undefined → find/findOrFail terminals always throw
-  // until Task 24 lands. Tests use a StubMaterialize subclass to inject
-  // results; do not invoke this on a real InstanceQuery before Task 24.
-  protected materialize(): Promise<Result> {
+  protected async materialize(): Promise<Result> {
     if (!this.memo) {
-      this.memo = Promise.resolve(undefined as Result).then((result) => {
-        if (
-          (result as unknown) === undefined &&
-          (this.terminalKind === 'find' || this.terminalKind === 'findOrFail')
-        ) {
-          const label = this.model.name || this.model.tableName || 'Record';
-          throw new NotFoundError(`${label} not found`);
+      this.memo = (async () => {
+        if (this.state.nullScoped) {
+          return this.applyMissingPolicy(undefined);
         }
-        return result;
-      });
+        const spec = lower(this, 'rows');
+        const M = this.model as any;
+        const connector = M.connector;
+        if (!connector || typeof connector.queryScoped !== 'function') {
+          throw new PersistenceError(
+            `${M.name || M.tableName || 'Model'}.connector does not implement queryScoped(spec).`,
+          );
+        }
+        const rows = (await connector.queryScoped(spec)) as Dict<any>[];
+        const row = rows[0];
+        if (row === undefined) {
+          return this.applyMissingPolicy(undefined);
+        }
+        return this.hydrate(row) as Result;
+      })();
     }
     return this.memo;
+  }
+
+  private applyMissingPolicy(result: undefined): Result {
+    if (this.terminalKind === 'find' || this.terminalKind === 'findOrFail') {
+      const label = this.model.name || this.model.tableName || 'Record';
+      throw new NotFoundError(`${label} not found`);
+    }
+    return result as Result;
+  }
+
+  protected hydrate(row: Dict<any>): unknown {
+    const M = this.model as any;
+    const keys: Dict<any> = {};
+    const data: Dict<any> = { ...row };
+    for (const k in M.keys) {
+      keys[k] = data[k];
+      delete data[k];
+    }
+    return new M(data, keys);
   }
 
   withParent(upstream: CollectionQuery | InstanceQuery, link: AssociationLink): this {
