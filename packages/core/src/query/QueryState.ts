@@ -1,4 +1,5 @@
 import type {
+  AssociationLink,
   Dict,
   Filter,
   JoinClause,
@@ -6,11 +7,14 @@ import type {
   OrderColumn,
 } from '../types.js';
 
-export type AssociationLink = {
-  childColumn: string;
-  parentColumn: string;
-  direction: 'belongsTo' | 'hasOne' | 'hasMany';
-};
+export type { AssociationLink };
+
+export type TerminalKind = 'first' | 'last' | 'findBy' | 'find' | 'findOrFail';
+
+export interface ParentRef {
+  upstream: { state: QueryState; terminalKind?: TerminalKind };
+  via: AssociationLink;
+}
 
 export interface QueryState {
   Model: { tableName: string; keys: Dict<KeyType> };
@@ -24,12 +28,18 @@ export interface QueryState {
   pendingJoins: JoinClause[];
   havingPredicate?: (count: number) => boolean;
   softDelete: 'active' | 'only' | false;
-  parent?: { upstream: { state: QueryState; terminalKind?: string }; via: AssociationLink };
+  parent?: ParentRef;
 }
 
 const hasSpecial = (f: Filter<any> | undefined): boolean =>
   !!f && Object.keys(f).some((k) => k.startsWith('$'));
 
+/**
+ * Reduce "current scope's filter + new chain-op's filter" into a single
+ * filter. Returns `undefined` when both inputs contribute no constraints.
+ * AND-wraps when either side has `$`-prefixed special operators or the two
+ * sides share a column key; otherwise flat-merges into a single object.
+ */
 export function mergeFilters(
   current: Filter<any> | undefined,
   next: Filter<any>,

@@ -241,6 +241,17 @@ export type Projection =
   | { kind: 'column'; column: string }
   | { kind: 'aggregate'; op: 'count' | 'sum' | 'avg' | 'min' | 'max'; column?: string };
 
+export interface AssociationLink {
+  childColumn: string;
+  parentColumn: string;
+  /**
+   * FK link direction. `hasManyThrough` is not represented here; the
+   * builder layer decomposes it into two consecutive `ParentScope`
+   * entries (target → through → parent).
+   */
+  direction: 'belongsTo' | 'hasOne' | 'hasMany';
+}
+
 export interface ParentScope {
   parentTable: string;
   /** Column-name → KeyType map for the parent table; used to project the correct PK column in the subquery. */
@@ -248,16 +259,7 @@ export interface ParentScope {
   parentFilter?: Filter<any>;
   parentOrder?: OrderColumn<any>[];
   parentLimit?: number;
-  link: {
-    childColumn: string;
-    parentColumn: string;
-    /**
-     * FK link direction. `hasManyThrough` is not represented here; the
-     * builder layer decomposes it into two consecutive `ParentScope`
-     * entries (target → through → parent).
-     */
-    direction: 'belongsTo' | 'hasOne' | 'hasMany';
-  };
+  link: AssociationLink;
 }
 
 export interface QueryScopedSpec {
