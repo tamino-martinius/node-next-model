@@ -2,6 +2,7 @@ export * from './errors.js';
 export * from './FilterEngine.js';
 export * from './MemoryConnector.js';
 export * from './Model.js';
+export { baseQueryScoped } from './query/baseQueryScoped.js';
 export * from './schema.js';
 export * from './types.js';
 export * from './util.js';

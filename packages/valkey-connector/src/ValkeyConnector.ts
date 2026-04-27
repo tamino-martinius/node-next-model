@@ -1,3 +1,4 @@
+import { baseQueryScoped, type QueryScopedSpec } from '@next-model/core';
 import { type RedisConfig, RedisConnector } from '@next-model/redis-connector';
 
 /** Alias of `RedisConfig`. Valkey is wire-compatible with Redis. */
@@ -17,5 +18,9 @@ export type ValkeyConfig = RedisConfig;
 export class ValkeyConnector extends RedisConnector {
   constructor(config: ValkeyConfig = {}) {
     super({ ...config, prefix: config.prefix ?? 'nm:' });
+  }
+
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
   }
 }

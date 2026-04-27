@@ -3,6 +3,7 @@ import {
   type AlterTableOp,
   type AlterTableSpec,
   type BaseType,
+  baseQueryScoped,
   type Connector,
   type DeltaUpdateSpec,
   type Dict,
@@ -11,6 +12,7 @@ import {
   filterList,
   KeyType,
   PersistenceError,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type TableBuilder,
@@ -221,6 +223,10 @@ export class RedisConnector implements Connector {
 
   async query(scope: Scope): Promise<Dict<any>[]> {
     return this.resolveScope(scope);
+  }
+
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
   }
 
   async count(scope: Scope): Promise<number> {

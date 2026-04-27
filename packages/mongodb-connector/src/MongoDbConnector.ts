@@ -3,6 +3,7 @@ import {
   type AlterTableOp,
   type AlterTableSpec,
   type BaseType,
+  baseQueryScoped,
   type Connector,
   type DeltaUpdateSpec,
   type Dict,
@@ -13,6 +14,7 @@ import {
   type FilterSpecial,
   KeyType,
   PersistenceError,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type TableBuilder,
@@ -200,6 +202,10 @@ export class MongoDbConnector implements Connector {
     if (scope.limit !== undefined) cursor = cursor.limit(scope.limit);
     const docs = await cursor.toArray();
     return docs.map((d) => stripId(d) as Dict<any>);
+  }
+
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
   }
 
   async count(scope: Scope): Promise<number> {
