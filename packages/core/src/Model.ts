@@ -129,11 +129,22 @@ export type AssociationDefinition =
       polymorphic?: string;
       typeKey?: string;
       typeValue?: string;
+    }
+  | {
+      hasManyThrough: typeof ModelClass | (() => typeof ModelClass);
+      through: typeof ModelClass | (() => typeof ModelClass);
+      throughForeignKey?: string;
+      targetForeignKey?: string;
+      selfPrimaryKey?: string;
+      targetPrimaryKey?: string;
     };
 
 export type AssociationsMap = Record<string, AssociationDefinition>;
 
-export function resolveAssociationTarget(spec: AssociationDefinition): {
+export type SimpleAssociationDefinition = Exclude<AssociationDefinition, { hasManyThrough: any }>;
+export type HasManyThroughDefinition = Extract<AssociationDefinition, { hasManyThrough: any }>;
+
+export function resolveAssociationTarget(spec: SimpleAssociationDefinition): {
   target: typeof ModelClass;
   parentColumn: string;
   childColumn: string;
@@ -162,6 +173,36 @@ export function resolveAssociationTarget(spec: AssociationDefinition): {
     parentColumn: spec.primaryKey ?? 'id',
     childColumn: spec.foreignKey,
     cardinality,
+  };
+}
+
+export function resolveHasManyThrough(
+  spec: HasManyThroughDefinition,
+): {
+  target: typeof ModelClass;
+  through: typeof ModelClass;
+  throughForeignKey: string;
+  targetForeignKey: string;
+  selfPrimaryKey: string;
+  targetPrimaryKey: string;
+} {
+  const targetLazy = spec.hasManyThrough as typeof ModelClass | (() => typeof ModelClass);
+  const throughLazy = spec.through as typeof ModelClass | (() => typeof ModelClass);
+  const target =
+    typeof targetLazy === 'function' && !(targetLazy as any).tableName
+      ? (targetLazy as () => typeof ModelClass)()
+      : (targetLazy as typeof ModelClass);
+  const through =
+    typeof throughLazy === 'function' && !(throughLazy as any).tableName
+      ? (throughLazy as () => typeof ModelClass)()
+      : (throughLazy as typeof ModelClass);
+  return {
+    target,
+    through,
+    throughForeignKey: spec.throughForeignKey ?? '',
+    targetForeignKey: spec.targetForeignKey ?? `${singularize(target.tableName)}Id`,
+    selfPrimaryKey: spec.selfPrimaryKey ?? '',
+    targetPrimaryKey: spec.targetPrimaryKey ?? Object.keys(target.keys)[0] ?? 'id',
   };
 }
 
@@ -255,7 +296,13 @@ function resolveAutoAssociation(
   record: ModelClass,
   spec: AssociationDefinition,
 ): Promise<unknown> | unknown {
-  const target = resolveAssociationTarget(spec).target;
+  if ('hasManyThrough' in spec) {
+    // hasManyThrough is handled via the InstanceQuery accessor path; not supported
+    // for raw instance-level auto-association resolution here.
+    return undefined;
+  }
+  const simpleSpec = spec as SimpleAssociationDefinition;
+  const target = resolveAssociationTarget(simpleSpec).target;
   if ('belongsTo' in spec) {
     return record.belongsTo(target, {
       foreignKey: spec.foreignKey,
@@ -281,8 +328,9 @@ function attachIncludesPayload(
   payload: Dict<Dict<any>[]>,
 ): void {
   for (const { name, spec, cardinality } of includes) {
+    if ('hasManyThrough' in spec) continue;
     const rows = payload[name] ?? [];
-    const target = resolveAssociationTarget(spec).target;
+    const target = resolveAssociationTarget(spec as SimpleAssociationDefinition).target;
     const childPkNames = Object.keys(target.keys);
     const instances = rows.map((row) => {
       const keys: Dict<any> = {};
@@ -311,6 +359,7 @@ async function applyIncludes(
   for (const name of names) {
     const spec = associations[name];
     if (!spec) continue;
+    if ('hasManyThrough' in spec) continue; // not supported in preload path yet
     const target = resolveAssociationTarget(spec).target;
     if ('belongsTo' in spec) {
       const preloaded = await target.preloadBelongsTo(records, {
@@ -731,7 +780,8 @@ export class ModelClass {
         columnFilter = filtered;
         for (const name of matched) {
           const assoc = associations[name];
-          const resolved = resolveAssociationTarget(assoc);
+          if ('hasManyThrough' in assoc) continue;
+          const resolved = resolveAssociationTarget(assoc as SimpleAssociationDefinition);
           const childFilterInput = (andFilter as any)[name];
           const childFilter =
             childFilterInput && typeof childFilterInput === 'object'
@@ -1065,7 +1115,12 @@ export class ModelClass {
           `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
         );
       }
-      const normalized: AssociationDefinition =
+      if ('hasManyThrough' in spec) {
+        throw new PersistenceError(
+          `Model.joins(...) does not support hasManyThrough associations. Use query builder traversal instead.`,
+        );
+      }
+      const normalized: SimpleAssociationDefinition =
         'belongsTo' in spec
           ? { belongsTo: spec.belongsTo, foreignKey: spec.foreignKey, primaryKey: spec.primaryKey }
           : 'hasMany' in spec
@@ -1122,12 +1177,17 @@ export class ModelClass {
         `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
       );
     }
+    if ('hasManyThrough' in spec) {
+      throw new PersistenceError(
+        `Model.whereMissing(...) does not support hasManyThrough associations.`,
+      );
+    }
     if ('belongsTo' in spec) {
       throw new PersistenceError(
         `Model.whereMissing(...) only supports hasMany / hasOne associations; '${name}' is belongsTo. Use filterBy({ $null: '${spec.foreignKey}' }) instead.`,
       );
     }
-    const resolved = resolveAssociationTarget(spec);
+    const resolved = resolveAssociationTarget(spec as SimpleAssociationDefinition);
     const join: JoinClause = {
       kind: 'left',
       childTableName: resolved.target.tableName,
@@ -1211,7 +1271,8 @@ export class ModelClass {
         for (const name of includeNames) {
           const spec = associations[name];
           if (!spec) continue;
-          const resolved = resolveAssociationTarget(spec);
+          if ('hasManyThrough' in spec) continue;
+          const resolved = resolveAssociationTarget(spec as SimpleAssociationDefinition);
           includesViaJoin.push({ name, spec, cardinality: resolved.cardinality });
           joinClausesForFastPath.push({
             kind: 'left',
