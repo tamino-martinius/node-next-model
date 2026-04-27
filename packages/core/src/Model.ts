@@ -4,6 +4,7 @@ import { CollectionQuery } from './query/CollectionQuery.js';
 import { createAssociationQuery } from './query/associationQuery.js';
 import { InstanceQuery } from './query/InstanceQuery.js';
 import type { QueryState } from './query/QueryState.js';
+import { decodeCompositeCursor, encodeCompositeCursor, encodeCursor } from './query/cursor.js';
 import {
   type AggregateKind,
   type AroundCallback,
@@ -242,24 +243,6 @@ export type HasManyThroughOptions = {
   targetPrimaryKey?: string;
 };
 
-function encodeCursor(value: unknown, key: string): string {
-  return Buffer.from(JSON.stringify({ [key]: value }), 'utf8').toString('base64url');
-}
-
-function encodeCompositeCursor(fields: Dict<unknown>): string {
-  return Buffer.from(JSON.stringify(fields), 'utf8').toString('base64url');
-}
-
-function decodeCompositeCursor(token: string): Dict<unknown> {
-  try {
-    const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
-    if (parsed && typeof parsed === 'object') return parsed as Dict<unknown>;
-    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
-  } catch (err) {
-    if (err instanceof PersistenceError) throw err;
-    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
-  }
-}
 
 type TimestampsOption = boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
 

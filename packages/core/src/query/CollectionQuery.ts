@@ -25,6 +25,7 @@ import { ScalarQuery } from './ScalarQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
 import { lower, resolveSubqueryFilters } from './lower.js';
 import { applyIncludes, attachIncludesPayload } from './includes.js';
+import { decodeCompositeCursor, encodeCompositeCursor, encodeCursor } from './cursor.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -621,71 +622,344 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   pluck(column: string, ...moreColumns: string[]): ColumnQuery<unknown[]> | Promise<unknown[]> {
     if (moreColumns.length > 0) {
-      // Multi-column pluck → tuples; defer to legacy via temp subclass.
-      return this.toScopedSubclass().pluck(column, ...moreColumns) as Promise<unknown[]>;
+      // Multi-column pluck → tuples. Walk the connector's `select` directly
+      // and project each row into a tuple of column values in the requested
+      // order — matches the legacy Model.pluck(...) tuple shape.
+      return (async () => {
+        if (this.state.nullScoped) return [];
+        const M = this.model as any;
+        const scope = await resolvePendingJoinsToScope(M, this.state);
+        const allKeys = [column, ...moreColumns];
+        const rows = await M.connector.select(scope, ...allKeys);
+        return rows.map((row: Dict<any>) => allKeys.map((k) => row[k]));
+      })();
     }
     return new ColumnQuery<unknown[]>(this.model, column, this.state, { kind: 'column', column });
   }
 
-  // Legacy parity methods — these are mutations / iterators / batch
-  // primitives that historically lived on the Model subclass produced by
-  // the chain methods. Forward to a state-projected temp subclass that
-  // calls the legacy Model.<method>(...) (which reads `this.<x>` static
-  // properties).
-  pluckUnique(key: string): Promise<unknown[]> {
-    return this.toScopedSubclass().pluckUnique(key);
-  }
-  ids(): Promise<unknown[]> {
-    return this.toScopedSubclass().ids();
-  }
-  countBy(key: string): Promise<Map<any, number>> {
-    return this.toScopedSubclass().countBy(key);
-  }
-  exists(filter?: Filter<any>): Promise<boolean> {
-    return this.toScopedSubclass().exists(filter);
-  }
-  groupBy(key: string): Promise<Map<any, unknown[]>> {
-    return this.toScopedSubclass().groupBy(key);
-  }
-  updateAll(attrs: Dict<any>): Promise<unknown[]> {
-    return this.toScopedSubclass().updateAll(attrs);
-  }
-  deleteAll(): Promise<unknown[]> {
-    return this.toScopedSubclass().deleteAll();
-  }
-  destroyAll(): Promise<unknown[]> {
-    return this.toScopedSubclass().destroyAll();
-  }
-  increment(column: string, by = 1): Promise<number> {
-    return this.toScopedSubclass().increment(column, by);
-  }
-  decrement(column: string, by = 1): Promise<number> {
-    return this.toScopedSubclass().decrement(column, by);
-  }
-  paginate(page: number, perPage = 25) {
-    return this.toScopedSubclass().paginate(page, perPage);
-  }
-  paginateCursor(options?: { after?: string; before?: string; limit?: number }) {
-    return this.toScopedSubclass().paginateCursor(options);
-  }
-  inBatchesOf(size: number) {
-    return this.toScopedSubclass().inBatchesOf(size);
-  }
-  findEach(size?: number) {
-    return this.toScopedSubclass().findEach(size);
-  }
-  select(...keys: any[]) {
-    return this.toScopedSubclass().select(...keys);
+  /**
+   * `pluck` deduplicated — equivalent to a SQL `SELECT DISTINCT`. Mirrors the
+   * legacy `Model.pluckUnique(key)` — preserves the order of first appearance.
+   */
+  async pluckUnique(key: string): Promise<unknown[]> {
+    const values = (await this.pluck(key)) as unknown[];
+    const seen = new Set<unknown>();
+    const result: unknown[] = [];
+    for (const v of values) {
+      if (seen.has(v)) continue;
+      seen.add(v);
+      result.push(v);
+    }
+    return result;
   }
 
   /**
-   * Project this CollectionQuery's state onto a temp Model subclass so
-   * legacy Model statics can be called against the chained scope. Used by
-   * mutation / batch / pagination methods that aren't yet ported to the
-   * builder pipeline.
+   * Pluck the primary-key column. One-line shorthand for `pluck(<pk>)` —
+   * mirrors the legacy `Model.ids()` static.
    */
-  protected toScopedSubclass(): any {
-    return makeScopedSubclass(this.model as any, this.state);
+  ids(): Promise<unknown[]> {
+    const pk = Object.keys(this.model.keys)[0] ?? 'id';
+    return this.pluck(pk) as Promise<unknown[]>;
+  }
+
+  /**
+   * Group rows by the value of `key` and count each bucket. Honours the
+   * `having(...)` predicate when present (drops buckets the predicate rejects).
+   */
+  async countBy(key: string): Promise<Map<unknown, number>> {
+    const values = (await this.pluck(key)) as unknown[];
+    const result = new Map<unknown, number>();
+    for (const value of values) {
+      result.set(value, (result.get(value) ?? 0) + 1);
+    }
+    const predicate = this.state.havingPredicate;
+    if (predicate) {
+      for (const [bucket, count] of result) {
+        if (!predicate(count)) result.delete(bucket);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Cheap existence probe — `count() > 0` on the chained scope. Pass `filter`
+   * to narrow further before testing without mutating the chain.
+   */
+  async exists(filter?: Filter<any>): Promise<boolean> {
+    const scoped = filter === undefined ? this : this.filterBy(filter);
+    return (await scoped.count()) > 0;
+  }
+
+  /**
+   * Group rows by the value of `key`. Materialises every record (so callbacks
+   * fire) and buckets them by attribute value. Use `countBy` when only counts
+   * are needed — that path avoids hydrating records.
+   */
+  async groupBy(key: string): Promise<Map<unknown, unknown[]>> {
+    const items = (await this.materialize()) as unknown as any[];
+    const result = new Map<unknown, unknown[]>();
+    for (const item of items) {
+      const bucket = (item.attributes as Dict<any>)[key];
+      const list = result.get(bucket);
+      if (list) list.push(item);
+      else result.set(bucket, [item]);
+    }
+    return result;
+  }
+
+  /**
+   * Bulk UPDATE on the chained scope. Auto-stamps `updatedAt` (when the Model
+   * declares one) and forwards the resolved scope (with parentScopes /
+   * pendingJoins / soft-delete / STI implicit filters all folded into the
+   * filter) to `connector.updateAll`. Per-row `beforeUpdate` / `afterUpdate`
+   * callbacks DO NOT fire — use `findEach` + `record.update(...)` for that.
+   */
+  async updateAll(attrs: Dict<any>): Promise<unknown[]> {
+    if (this.state.nullScoped) return [];
+    const M = this.model as any;
+    const effectiveAttrs = { ...attrs };
+    const updatedCol = M.updatedAtColumn as string | undefined;
+    if (updatedCol && effectiveAttrs[updatedCol] === undefined) {
+      effectiveAttrs[updatedCol] = new Date();
+    }
+    const scope = await this.resolvedScope();
+    return await (M.connector as Connector).updateAll(scope, effectiveAttrs);
+  }
+
+  /**
+   * Bulk DELETE on the chained scope. Per-row `beforeDelete` / `afterDelete`
+   * callbacks DO NOT fire — use `destroyAll()` for that. Returns the deleted
+   * row payloads from the connector.
+   */
+  async deleteAll(): Promise<unknown[]> {
+    if (this.state.nullScoped) return [];
+    const M = this.model as any;
+    const scope = await this.resolvedScope();
+    return await (M.connector as Connector).deleteAll(scope);
+  }
+
+  /**
+   * Materialise every matching record, then call `.delete()` on each so
+   * per-row callbacks fire and any `cascade` config takes effect. Slower than
+   * `deleteAll()` (N round-trips) but matches Rails' `destroy_all` semantics.
+   */
+  async destroyAll(): Promise<unknown[]> {
+    const records = (await this.materialize()) as unknown as any[];
+    for (const record of records) {
+      await record.delete();
+    }
+    return records;
+  }
+
+  /**
+   * Atomic `column = column + by` on the chained scope. Routes through the
+   * connector's `deltaUpdate(spec)` so each connector picks the most efficient
+   * native shape. Returns the affected row count.
+   */
+  async increment(column: string, by = 1): Promise<number> {
+    if (this.state.nullScoped) return 0;
+    const M = this.model as any;
+    const updatedCol = M.updatedAtColumn as string | undefined;
+    const scope = await this.resolvedScope();
+    const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
+    return await (M.connector as Connector).deltaUpdate({
+      tableName: scope.tableName,
+      filter: scope.filter,
+      deltas: [{ column, by }],
+      set,
+    });
+  }
+
+  /** Sugar for `increment(column, -by)`. */
+  async decrement(column: string, by = 1): Promise<number> {
+    return this.increment(column, -by);
+  }
+
+  /**
+   * Offset-based pagination on the chained scope. Returns the page items,
+   * total count, and computed metadata (total pages, hasNext, hasPrev).
+   * Shape mirrors the legacy `Model.paginate(page, perPage)`.
+   */
+  async paginate(page: number, perPage = 25): Promise<{
+    items: unknown[];
+    total: number;
+    page: number;
+    perPage: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }> {
+    const safePage = Math.max(1, Math.floor(page));
+    const safePerPage = Math.max(1, Math.floor(perPage));
+    const skip = (safePage - 1) * safePerPage;
+    const scoped = this.limitBy(safePerPage).skipBy(skip);
+    const [items, total] = await Promise.all([
+      scoped.materialize() as unknown as Promise<unknown[]>,
+      this.unlimited().unskipped().count(),
+    ]);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / safePerPage);
+    return {
+      items,
+      total,
+      page: safePage,
+      perPage: safePerPage,
+      totalPages,
+      hasNext: safePage < totalPages,
+      hasPrev: safePage > 1,
+    };
+  }
+
+  /**
+   * Cursor-based pagination on the chained scope. Avoids the O(skip) cost of
+   * `paginate(...)`'s LIMIT/OFFSET path. Pass `after` to advance, `before` to
+   * walk backward; without either, returns the first page. The chain's lead
+   * `orderBy` column is the cursor key; the primary key is always included as
+   * a tie-breaker so identical sort values paginate deterministically.
+   */
+  async paginateCursor(
+    options: { after?: string; before?: string; limit?: number } = {},
+  ): Promise<{
+    items: unknown[];
+    nextCursor?: string;
+    prevCursor?: string;
+    hasMore: boolean;
+  }> {
+    const limit = Math.max(1, Math.floor(options.limit ?? 25));
+    const primaryKey = Object.keys(this.model.keys)[0] ?? 'id';
+    const leadOrder = this.state.order[0];
+    const orderKey = (leadOrder?.key as string | undefined) ?? primaryKey;
+    const orderDir = leadOrder?.dir ?? SortDirection.Asc;
+    const usesPrimaryOnly = orderKey === primaryKey;
+    let scoped: this = this;
+    let reverse = false;
+
+    const stepDirection = (walk: 'after' | 'before'): 'forward' | 'backward' => {
+      const forward = walk === 'after';
+      if (orderDir === SortDirection.Desc) return forward ? 'backward' : 'forward';
+      return forward ? 'forward' : 'backward';
+    };
+
+    const buildFilter = (token: string, walk: 'after' | 'before'): Filter<any> => {
+      const payload = decodeCompositeCursor(token);
+      const orderValue = payload[orderKey];
+      const primaryValue = payload[primaryKey];
+      const direction = stepDirection(walk);
+      const cmp = direction === 'forward' ? '$gt' : '$lt';
+      if (usesPrimaryOnly) {
+        return { [cmp]: { [primaryKey]: primaryValue } } as Filter<any>;
+      }
+      return {
+        $or: [
+          { [cmp]: { [orderKey]: orderValue } },
+          {
+            $and: [{ [orderKey]: orderValue }, { [cmp]: { [primaryKey]: primaryValue } }],
+          },
+        ],
+      } as Filter<any>;
+    };
+
+    if (options.after !== undefined) {
+      scoped = scoped.filterBy(buildFilter(options.after, 'after'));
+    } else if (options.before !== undefined) {
+      scoped = scoped.filterBy(buildFilter(options.before, 'before')).reverse();
+      reverse = true;
+    }
+    const fetched = (await scoped.limitBy(limit + 1).materialize()) as unknown as any[];
+    const hasMore = fetched.length > limit;
+    let items = hasMore ? fetched.slice(0, limit) : fetched;
+    if (reverse) items = items.reverse();
+    const first = items[0] as Dict<any> | undefined;
+    const last = items[items.length - 1] as Dict<any> | undefined;
+    const tokenFor = (row: Dict<any>): string =>
+      usesPrimaryOnly
+        ? encodeCursor(row[primaryKey], primaryKey)
+        : encodeCompositeCursor({
+            [orderKey]: row[orderKey],
+            [primaryKey]: row[primaryKey],
+          });
+    return {
+      items: items as unknown[],
+      nextCursor: hasMore && last ? tokenFor(last) : undefined,
+      prevCursor: first ? tokenFor(first) : undefined,
+      hasMore,
+    };
+  }
+
+  /**
+   * Yield batches of records of size `size` from the chained scope. Walks via
+   * keyset pagination on the chain's existing order (or primary key when
+   * unset) so each batch is one round-trip.
+   */
+  async *inBatchesOf(size: number): AsyncGenerator<unknown[], void, void> {
+    const batchSize = Math.max(1, Math.floor(size));
+    const primaryKey = Object.keys(this.model.keys)[0] ?? 'id';
+    const ordered = this.state.order.length > 0 ? this : this.orderBy({ key: primaryKey });
+    const baseSkip = this.state.skip ?? 0;
+    const totalLimit = this.state.limit;
+    let offset = 0;
+    while (true) {
+      const remaining = totalLimit === undefined ? batchSize : totalLimit - offset;
+      if (remaining <= 0) return;
+      const take = Math.min(batchSize, remaining);
+      const batch = (await ordered
+        .unlimited()
+        .unskipped()
+        .skipBy(baseSkip + offset)
+        .limitBy(take)
+        .materialize()) as unknown as unknown[];
+      if (batch.length === 0) return;
+      yield batch;
+      if (batch.length < take) return;
+      offset += batch.length;
+    }
+  }
+
+  /**
+   * Yield records one at a time from the chained scope, batching internally.
+   * Default batch size 100. Useful for streaming large result sets without
+   * loading everything into memory.
+   */
+  async *findEach(size = 100): AsyncGenerator<unknown, void, void> {
+    for await (const batch of this.inBatchesOf(size)) {
+      for (const item of batch) yield item;
+    }
+  }
+
+  /**
+   * Project the chained scope to specific columns via the connector's `select`.
+   * Returns rows shaped with only the requested keys — does NOT hydrate Model
+   * instances (use `fields(...)` + `all()` for that).
+   */
+  async select(...keys: string[]): Promise<Dict<any>[]> {
+    if (this.state.nullScoped) return [];
+    const M = this.model as any;
+    const scope = await this.resolvedScope();
+    return await (M.connector as Connector).select(scope, ...(keys as string[]));
+  }
+
+  /**
+   * Resolve the chained state into a connector-facing `Scope` ready for
+   * `updateAll` / `deleteAll` / `select` / `deltaUpdate`. Folds in:
+   *   - operator-form subquery resolution (`{$gt: scalarQuery}` → `{$gt: N}`)
+   *   - parent-scope resolution (state.parent + top-level builder values →
+   *     `$in` filters)
+   *   - soft-delete / STI implicit filters
+   *   - `pendingJoins` resolution into `$in` / `$notIn` filters
+   */
+  private async resolvedScope() {
+    const M = this.model as any;
+    const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
+    const builderForLower =
+      resolvedFilter !== this.state.filter
+        ? new (this.constructor as any)(this.model, { ...this.state, filter: resolvedFilter })
+        : this;
+    const spec = lower(builderForLower, 'rows');
+    let cleanFilter: Filter<any> | undefined = spec.filter;
+    if (spec.parentScopes && spec.parentScopes.length > 0) {
+      const fragmentFilter = await resolveParentScopesToFilter(M.connector, spec.parentScopes);
+      cleanFilter = mergeFiltersForLegacy(cleanFilter, fragmentFilter);
+    }
+    return resolvePendingJoinsToScope(M, { ...this.state, filter: cleanFilter });
   }
 
   merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {
