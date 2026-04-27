@@ -244,6 +244,46 @@ describe('MariaDbConnector#queryScoped', () => {
   });
 });
 
+// MariaDbConnector inherits `reflectSchema` from `MysqlConnector` — MariaDB
+// is wire-compatible with MySQL's `information_schema` views, so the same
+// queries Just Work. This test verifies the inherited path works against
+// a real MariaDB server.
+describe('MariaDbConnector#reflectSchema (inherited)', () => {
+  const tableName = 'mariadb_reflect_basic';
+
+  afterEach(async () => {
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+  });
+
+  it('round-trips a simple table created via createTable', async () => {
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('email', { limit: 320, null: false, unique: true });
+      t.integer('count', { default: 0, null: false });
+      t.boolean('active', { default: true, null: false });
+      t.index(['email'], { name: 'idx_mariadb_reflect_email' });
+    });
+    const reflected = await connector.reflectSchema!();
+    const table = reflected.find((r) => r.name === tableName);
+    expect(table).toBeDefined();
+    expect(table!.primaryKey).toBe('id');
+
+    const id = table!.columns.find((c) => c.name === 'id')!;
+    expect(id.primary).toBe(true);
+    expect(id.autoIncrement).toBe(true);
+    expect(id.type).toBe('integer');
+
+    const email = table!.columns.find((c) => c.name === 'email')!;
+    expect(email.type).toBe('string');
+    expect(email.limit).toBe(320);
+    expect(email.unique).toBe(true);
+
+    const active = table!.columns.find((c) => c.name === 'active')!;
+    expect(active.type).toBe('boolean');
+    expect(active.default).toBe(true);
+  });
+});
+
 runModelConformance({
   name: 'MariaDbConnector',
   makeConnector: () => connector,

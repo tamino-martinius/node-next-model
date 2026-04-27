@@ -63,6 +63,10 @@ class MariaDbConnector extends MysqlConnector {
 
 Now it's just step 1 with `RETURNING *`. Same pattern for `updateAll` / `deleteAll`.
 
+## Schema reflection (`reflectSchema`)
+
+Inherited verbatim from `MysqlConnector` — MariaDB's `information_schema` views (`TABLES`, `COLUMNS`, `STATISTICS`) are wire-compatible with MySQL's, so the parent's introspection path works as-is. Returns a `TableDefinition[]` for every base table in the current `DATABASE()`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
+
 ## Testing matrix
 
 CI runs the shared `runModelConformance` suite (every Model feature) plus `RETURNING`-specific assertions against a real MariaDB 11 service container.
