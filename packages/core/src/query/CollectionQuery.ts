@@ -1,5 +1,7 @@
+import { normalizeFilterShape } from '../FilterEngine.js';
+import { type Filter, type Order, SortDirection } from '../types.js';
 import type { Dict, KeyType } from '../types.js';
-import type { QueryState } from './QueryState.js';
+import { mergeFilters, mergeOrders, type QueryState } from './QueryState.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -10,6 +12,65 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     public readonly model: ModelLike,
     public readonly state: QueryState,
   ) {}
+
+  protected with(patch: Partial<QueryState>): this {
+    return new (this.constructor as any)(this.model, { ...this.state, ...patch });
+  }
+
+  filterBy(input: Filter<any>): this {
+    const f = normalizeFilterShape(input);
+    return this.with({ filter: mergeFilters(this.state.filter, f) });
+  }
+
+  orFilterBy(input: Filter<any>): this {
+    const f = normalizeFilterShape(input);
+    if (Object.keys(f).length === 0) return this;
+    const next = this.state.filter ? ({ $or: [this.state.filter, f] } as Filter<any>) : f;
+    return this.with({ filter: next });
+  }
+
+  unfiltered(): this { return this.with({ filter: undefined }); }
+
+  orderBy(order: Order<any>): this {
+    const next = Array.isArray(order) ? order : [order];
+    return this.with({ order: mergeOrders(this.state.order, next) });
+  }
+
+  reorder(order: Order<any>): this {
+    return this.with({ order: Array.isArray(order) ? [...order] : [order] });
+  }
+
+  unordered(): this { return this.with({ order: [] }); }
+
+  reverse(): this {
+    const pk = Object.keys(this.model.keys)[0] ?? 'id';
+    const existing = this.state.order.length > 0 ? this.state.order : [{ key: pk } as any];
+    const flipped = existing.map((c) => ({
+      key: c.key,
+      dir: (c.dir ?? SortDirection.Asc) === SortDirection.Asc ? SortDirection.Desc : SortDirection.Asc,
+    }));
+    return this.with({ order: flipped });
+  }
+
+  limitBy(n: number): this { return this.with({ limit: n }); }
+  unlimited(): this { return this.with({ limit: undefined }); }
+  skipBy(n: number): this { return this.with({ skip: n }); }
+  unskipped(): this { return this.with({ skip: undefined }); }
+
+  unscoped(): this {
+    return this.with({
+      filter: undefined,
+      order: [],
+      limit: undefined,
+      skip: undefined,
+      selectedFields: undefined,
+      selectedIncludes: [],
+      includeStrategy: 'preload',
+      pendingJoins: [],
+      havingPredicate: undefined,
+      softDelete: false,
+    });
+  }
 
   static fromModel(M: typeof import('../Model.js').ModelClass): CollectionQuery {
     return new CollectionQuery(M, {
