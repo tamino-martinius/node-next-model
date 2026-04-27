@@ -1,9 +1,11 @@
 import { NotFoundError, PersistenceError } from '../errors.js';
+import type { AssociationDefinition } from '../Model.js';
 import type { AssociationLink, Dict, KeyType } from '../types.js';
 import type { CollectionQuery } from './CollectionQuery.js';
 import { lower } from './lower.js';
 import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
+import { createAssociationQuery } from './associationQuery.js';
 
 export type { TerminalKind };
 
@@ -16,7 +18,22 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     public readonly model: ModelLike,
     public readonly terminalKind: TerminalKind,
     public readonly state: QueryState,
-  ) {}
+  ) {
+    const associations = (this.model as any).associations as
+      | Record<string, AssociationDefinition>
+      | undefined;
+    if (associations) {
+      for (const name in associations) {
+        if (Object.getOwnPropertyDescriptor(this, name)) continue;
+        const spec = associations[name];
+        Object.defineProperty(this, name, {
+          get: () => createAssociationQuery(this, spec),
+          enumerable: false,
+          configurable: true,
+        });
+      }
+    }
+  }
 
   protected async materialize(): Promise<Result> {
     if (!this.memo) {
