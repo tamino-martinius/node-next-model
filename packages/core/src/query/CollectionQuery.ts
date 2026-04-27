@@ -15,15 +15,15 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return new CollectionQuery(M, {
       Model: M,
       filter: M.filter,
-      order: [...M.order],
+      order: [...(M.order ?? [])],
       limit: M.limit,
       skip: M.skip,
       selectedFields: M.selectedFields,
-      selectedIncludes: [...M.selectedIncludes],
-      includeStrategy: M.includeStrategy,
-      pendingJoins: [...M.pendingJoins],
+      selectedIncludes: [...(M.selectedIncludes ?? [])],
+      includeStrategy: M.includeStrategy ?? 'preload',
+      pendingJoins: [...(M.pendingJoins ?? [])],
       havingPredicate: M.havingPredicate,
-      softDelete: M.softDelete,
+      softDelete: M.softDelete ?? false,
     });
   }
 

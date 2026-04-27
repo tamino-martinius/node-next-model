@@ -27,4 +27,60 @@ describe('CollectionQuery.fromModel', () => {
     Todo.order.push({ key: 'b' } as any);
     expect(q.state.order).toEqual([{ key: 'a' }]);
   });
+
+  it('tolerates a Model class with uninitialized array statics', () => {
+    class Bare extends ModelClass {
+      static tableName = 'bare';
+      static keys = { id: 1 } as any;
+      static connector = { query: async () => [] } as any;
+    }
+    expect(() => CollectionQuery.fromModel(Bare as any)).not.toThrow();
+    const q = CollectionQuery.fromModel(Bare as any);
+    expect(q.state.order).toEqual([]);
+    expect(q.state.selectedIncludes).toEqual([]);
+    expect(q.state.pendingJoins).toEqual([]);
+    expect(q.state.softDelete).toBe(false);
+  });
+});
+
+describe('CollectionQuery thenable contract', () => {
+  // Stub-driven tests: Task 23 will replace materialize() with the real
+  // queryScoped path. These guard the thenable interface stays intact.
+  class StubMaterialize<Items> extends CollectionQuery<Items> {
+    constructor(model: any, state: any, private stub: () => Promise<Items>) {
+      super(model, state);
+    }
+    protected materialize() {
+      if (!this.memo) this.memo = this.stub();
+      return this.memo;
+    }
+  }
+
+  const seedState = (M: any) => CollectionQuery.fromModel(M).state;
+
+  it('await resolves to the materialize() result', async () => {
+    const q = new StubMaterialize(Todo as any, seedState(Todo), async () => [
+      { id: 1 },
+    ] as unknown[]);
+    expect(await q).toEqual([{ id: 1 }]);
+  });
+
+  it('memoizes — multiple awaits trigger materialize once', async () => {
+    let calls = 0;
+    const q = new StubMaterialize(Todo as any, seedState(Todo), async () => {
+      calls += 1;
+      return [];
+    });
+    await q;
+    await q;
+    expect(calls).toBe(1);
+  });
+
+  it('catch routes rejections through the chain', async () => {
+    const q = new StubMaterialize(Todo as any, seedState(Todo), async () => {
+      throw new Error('boom');
+    });
+    const recovered = await q.catch((e: Error) => e.message);
+    expect(recovered).toBe('boom');
+  });
 });
