@@ -22,7 +22,10 @@ import {
   type JoinClause,
   type JoinQuerySpec,
   type KeyType,
+  type ParentScope,
   PersistenceError,
+  type Projection,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type TableBuilder,
@@ -213,6 +216,100 @@ export class PostgresConnector implements Connector {
     if (scope.skip !== undefined) sql += ` OFFSET ${Number(scope.skip)}`;
     const result = await this.run(sql, where.params);
     return result.rows;
+  }
+
+  /**
+   * Emits ONE SQL statement using nested `WHERE col IN (SELECT … FROM …)`
+   * subqueries — one per `parentScope`. The leaf SELECT runs against the
+   * target table; each parent scope projects its `link.parentColumn` and
+   * gates the next level (or the leaf) via that scope's `link.childColumn`.
+   * Builders resolve `pendingJoins` to `$in` / `$notIn` filters before calling
+   * this method, so the connector only sees a flat scope.
+   */
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    if (spec.pendingJoins.length > 0) {
+      throw new PersistenceError(
+        `PostgresConnector.queryScoped expects pendingJoins to be resolved upstream; received ${spec.pendingJoins.length} unresolved join(s). Use the CollectionQuery / ScalarQuery / ColumnQuery builders to materialise scopes with joins.`,
+      );
+    }
+
+    const params: BaseType[] = [];
+    const whereClauses: string[] = [];
+
+    for (const parent of spec.parentScopes) {
+      whereClauses.push(this.compileParentScope(parent, params));
+    }
+    if (spec.filter !== undefined) {
+      whereClauses.push(this.compileFilter(spec.filter, params));
+    }
+
+    const projection: Projection = spec.projection;
+    const selectClause = this.projectionSelect(projection, spec.target.keys);
+
+    let sql = `SELECT ${selectClause} FROM ${quoteIdent(spec.target.tableName)}`;
+    if (whereClauses.length > 0) sql += ` WHERE ${whereClauses.map((c) => `(${c})`).join(' AND ')}`;
+    sql += this.buildOrder(spec.order);
+    if (spec.limit !== undefined) sql += ` LIMIT ${Number(spec.limit)}`;
+    if (spec.skip !== undefined) sql += ` OFFSET ${Number(spec.skip)}`;
+
+    const result = await this.run(sql, params);
+    return this.materializeProjection(result.rows, projection, spec.target.keys);
+  }
+
+  /** `link.childColumn IN (SELECT link.parentColumn FROM parentTable WHERE … ORDER BY … LIMIT N)` */
+  private compileParentScope(parent: ParentScope, params: BaseType[]): string {
+    const { link, parentTable, parentFilter, parentOrder, parentLimit } = parent;
+    let inner = `SELECT ${quoteIdent(link.parentColumn)} FROM ${quoteIdent(parentTable)}`;
+    if (parentFilter !== undefined) {
+      inner += ` WHERE ${this.compileFilter(parentFilter, params)}`;
+    }
+    inner += this.buildOrder(parentOrder);
+    if (parentLimit !== undefined) inner += ` LIMIT ${Number(parentLimit)}`;
+    return `${quoteIdent(link.childColumn)} IN (${inner})`;
+  }
+
+  private projectionSelect(projection: Projection, keys: Dict<KeyType>): string {
+    if (projection === 'rows') return '*';
+    if (projection.kind === 'pk') {
+      const pkName = Object.keys(keys)[0] ?? 'id';
+      return quoteIdent(pkName);
+    }
+    if (projection.kind === 'column') return quoteIdent(projection.column);
+    if (projection.kind === 'aggregate') {
+      if (projection.op === 'count') return 'COUNT(*) AS result';
+      if (!projection.column) {
+        throw new PersistenceError(
+          `Aggregate '${projection.op}' requires a column; received undefined.`,
+        );
+      }
+      return `${projection.op.toUpperCase()}(${quoteIdent(projection.column)}) AS result`;
+    }
+    throw new PersistenceError(`Unknown projection: ${JSON.stringify(projection)}`);
+  }
+
+  private materializeProjection(
+    rows: Dict<any>[],
+    projection: Projection,
+    keys: Dict<KeyType>,
+  ): unknown {
+    if (projection === 'rows') return rows;
+    if (projection.kind === 'pk') {
+      const pkName = Object.keys(keys)[0] ?? 'id';
+      return rows.map((r) => (r as Dict<any>)[pkName]);
+    }
+    if (projection.kind === 'column') {
+      const col = projection.column;
+      return rows.map((r) => (r as Dict<any>)[col]);
+    }
+    if (projection.kind === 'aggregate') {
+      if (projection.op === 'count') {
+        const v = rows[0]?.result;
+        return v == null ? 0 : Number(v);
+      }
+      const v = rows[0]?.result;
+      return v == null ? undefined : Number(v);
+    }
+    throw new PersistenceError(`Unknown projection: ${JSON.stringify(projection)}`);
   }
 
   async queryWithJoins(spec: JoinQuerySpec): Promise<Dict<any>[]> {

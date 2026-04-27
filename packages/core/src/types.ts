@@ -155,6 +155,15 @@ export interface Connector {
    * leave `queryWithJoins` undefined.
    */
   queryWithJoins?(spec: JoinQuerySpec): Promise<Dict<any>[]>;
+
+  /**
+   * Run `spec` with optional nested parent-scope subqueries and a projection.
+   * Returns rows, primary keys, plucked column values, or a single aggregate
+   * scalar depending on `spec.projection`. Connectors that don't override get
+   * the default `baseQueryScoped` fallback (pre-resolves nested scopes into
+   * `$in: [...]` filters).
+   */
+  queryScoped?(spec: QueryScopedSpec): Promise<unknown>;
 }
 
 export interface UpsertSpec {
@@ -224,6 +233,45 @@ export interface JoinClause {
 export interface JoinQuerySpec {
   parent: Scope;
   joins: JoinClause[];
+}
+
+export type Projection =
+  | 'rows'
+  | { kind: 'pk' }
+  | { kind: 'column'; column: string }
+  | { kind: 'aggregate'; op: 'count' | 'sum' | 'avg' | 'min' | 'max'; column?: string };
+
+export interface AssociationLink {
+  childColumn: string;
+  parentColumn: string;
+  /**
+   * FK link direction. `hasManyThrough` is not represented here; the
+   * builder layer decomposes it into two consecutive `ParentScope`
+   * entries (target → through → parent).
+   */
+  direction: 'belongsTo' | 'hasOne' | 'hasMany';
+}
+
+export interface ParentScope {
+  parentTable: string;
+  /** Column-name → KeyType map for the parent table; used to project the correct PK column in the subquery. */
+  parentKeys: Dict<KeyType>;
+  parentFilter?: Filter<any>;
+  parentOrder?: OrderColumn<any>[];
+  parentLimit?: number;
+  link: AssociationLink;
+}
+
+export interface QueryScopedSpec {
+  target: { tableName: string; keys: Dict<KeyType> };
+  filter?: Filter<any>;
+  order?: OrderColumn<any>[];
+  limit?: number;
+  skip?: number;
+  selectedFields?: string[];
+  pendingJoins: JoinClause[];
+  parentScopes: ParentScope[];
+  projection: Projection;
 }
 
 export type Validator<T> = (instance: T) => boolean | Promise<boolean>;

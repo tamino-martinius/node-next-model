@@ -84,8 +84,8 @@ describe('fromTypeBox — init + validators', () => {
 
   it('validator returns true/false', () => {
     const { validators } = fromTypeBox(schema);
-    expect(validators[0]({ attributes: () => ({ name: 'Ada', age: 36 }) })).toBe(true);
-    expect(validators[0]({ attributes: () => ({ name: 'A', age: -1 }) })).toBe(false);
+    expect(validators[0]({ attributes: { name: 'Ada', age: 36 } })).toBe(true);
+    expect(validators[0]({ attributes: { name: 'A', age: -1 } })).toBe(false);
   });
 });
 
@@ -106,7 +106,7 @@ describe('fromTypeBox — end-to-end with Model', () => {
     }) {}
 
     const ada = await User.create({ name: 'Ada', age: 36 });
-    expect((ada.attributes() as { name: string }).name).toBe('Ada');
+    expect((ada.attributes as { name: string }).name).toBe('Ada');
 
     await expect(User.create({ name: 'A', age: -1 } as any)).rejects.toBeInstanceOf(
       ValidationError,

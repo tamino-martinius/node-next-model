@@ -123,7 +123,7 @@ describe('persistence ergonomics', () => {
       // Note: by the time afterDelete fires, `record.keys` is already cleared,
       // but the previous id has been merged into persistentProps via attributes().
       Post.on('afterDelete', (record: any) => {
-        deleted.push(record.attributes().id);
+        deleted.push(record.attributes.id);
       });
       const records = await Post.destroyAll();
       expect(records).toHaveLength(3);

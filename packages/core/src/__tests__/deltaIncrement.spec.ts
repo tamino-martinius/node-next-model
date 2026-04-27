@@ -35,7 +35,7 @@ describe('delta increment / decrement', () => {
       validatorCalls = 0;
       await seeded.increment('count', 5);
       expect(validatorCalls).toBe(0);
-      expect((seeded.attributes() as any).count).toBe(6);
+      expect((seeded.attributes as any).count).toBe(6);
       void record;
     });
 
@@ -48,10 +48,10 @@ describe('delta increment / decrement', () => {
         init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const record = await Klass.create({ count: 0 });
-      const before = (record.attributes() as any).updatedAt as Date;
+      const before = (record.attributes as any).updatedAt as Date;
       await new Promise((r) => setTimeout(r, 5));
       await record.increment('count');
-      const after = (record.attributes() as any).updatedAt as Date;
+      const after = (record.attributes as any).updatedAt as Date;
       expect(after.getTime()).toBeGreaterThan(before.getTime());
     });
 
@@ -152,7 +152,7 @@ describe('delta increment / decrement', () => {
         init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const a = await Klass.create({ count: 0 });
-      const before = (a.attributes() as any).updatedAt as Date;
+      const before = (a.attributes as any).updatedAt as Date;
       await new Promise((r) => setTimeout(r, 5));
       await (Klass.filterBy({ id: a.id }) as any).increment('count');
       const reloaded = (await Klass.find(a.id)) as any;

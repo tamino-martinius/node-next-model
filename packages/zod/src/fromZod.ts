@@ -122,10 +122,8 @@ export function fromZod<Schema extends ZodTypeAny & ZodObjectShape>(
   const init = (props: unknown): z.infer<Schema> => parse(props);
 
   const validator = (instance: unknown): boolean => {
-    const attrs =
-      typeof (instance as { attributes?: () => unknown })?.attributes === 'function'
-        ? (instance as { attributes: () => unknown }).attributes()
-        : instance;
+    const candidate = (instance as { attributes?: unknown })?.attributes;
+    const attrs = candidate && typeof candidate === 'object' ? candidate : instance;
     const result = (schema as any).safeParse(attrs);
     return result.success === true;
   };

@@ -38,13 +38,13 @@ describe('Model.fields chainable', () => {
     await seed(User);
     const rows = await User.fields('name').all();
     for (const row of rows) {
-      const attrs = row.attributes() as Record<string, unknown>;
+      const attrs = row.attributes as Record<string, unknown>;
       expect(attrs.id).toBeDefined(); // primary key always included
       expect(attrs.name).toBeDefined();
       expect(attrs.age).toBeUndefined();
       expect(attrs.note).toBeUndefined();
     }
-    expect(rows.map((r) => (r.attributes() as Row).name)).toEqual(['Ada', 'Linus', 'Old']);
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['Ada', 'Linus', 'Old']);
   });
 
   it('composes with filterBy + orderBy', async () => {
@@ -55,8 +55,8 @@ describe('Model.fields chainable', () => {
       .orderBy({ key: 'age', dir: -1 })
       .fields('name', 'age')
       .all();
-    expect(rows.map((r) => (r.attributes() as Row).name)).toEqual(['Ada', 'Linus']);
-    const sample = rows[0].attributes() as Record<string, unknown>;
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['Ada', 'Linus']);
+    const sample = rows[0].attributes as Record<string, unknown>;
     expect(sample.note).toBeUndefined();
   });
 
@@ -66,12 +66,12 @@ describe('Model.fields chainable', () => {
     await seed(User);
     const first = await User.fields('name').first();
     expect(first).toBeDefined();
-    const firstAttrs = first!.attributes() as Record<string, unknown>;
+    const firstAttrs = first!.attributes as Record<string, unknown>;
     expect(firstAttrs.name).toBe('Ada');
     expect(firstAttrs.note).toBeUndefined();
 
     const last = await User.fields('name').last();
-    expect((last!.attributes() as Row).name).toBe('Old');
+    expect((last!.attributes as Row).name).toBe('Old');
   });
 
   it('find() honours the chain', async () => {
@@ -79,7 +79,7 @@ describe('Model.fields chainable', () => {
     const User = buildUser(connector);
     await seed(User);
     const row = await User.fields('name').find(2);
-    const attrs = row.attributes() as Record<string, unknown>;
+    const attrs = row.attributes as Record<string, unknown>;
     expect(attrs.id).toBe(2);
     expect(attrs.name).toBe('Linus');
     expect(attrs.note).toBeUndefined();
@@ -91,7 +91,7 @@ describe('Model.fields chainable', () => {
     await seed(User);
     const rows = await User.fields('name').all();
     for (const row of rows) {
-      expect((row.attributes() as Row).id).toBeDefined();
+      expect((row.attributes as Row).id).toBeDefined();
     }
   });
 
@@ -101,7 +101,7 @@ describe('Model.fields chainable', () => {
     await seed(User);
     const partial = User.fields('name');
     const full = partial.allFields();
-    const row = (await full.first())!.attributes() as Row;
+    const row = (await full.first())!.attributes as Row;
     expect(row.age).toBe(36);
     expect(row.note).toBe('secret a');
   });
@@ -112,7 +112,7 @@ describe('Model.fields chainable', () => {
     await seed(User);
     const partial = User.fields('name');
     const reset = partial.unscoped();
-    const row = (await reset.first())!.attributes() as Row;
+    const row = (await reset.first())!.attributes as Row;
     expect(row.age).toBe(36);
     expect(row.note).toBe('secret a');
   });

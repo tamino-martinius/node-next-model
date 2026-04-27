@@ -1,5 +1,6 @@
 import { UnsupportedOperationError } from './errors.js';
 import { filterList } from './FilterEngine.js';
+import { baseQueryScoped } from './query/baseQueryScoped.js';
 import { type AlterTableSpec, defineTable, type TableBuilder } from './schema.js';
 import {
   type AggregateKind,
@@ -8,6 +9,7 @@ import {
   type DeltaUpdateSpec,
   type Dict,
   KeyType,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type UpsertSpec,
@@ -92,6 +94,10 @@ export class MemoryConnector implements Connector {
   async query(scope: Scope): Promise<Dict<any>[]> {
     const items = await this.items(scope);
     return clone(items);
+  }
+
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
   }
 
   async count(scope: Scope): Promise<number> {

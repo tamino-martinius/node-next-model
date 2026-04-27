@@ -45,8 +45,9 @@ async function defaultSerialize(record: unknown): Promise<unknown> {
   if (typeof (record as { toJSON?: () => unknown }).toJSON === 'function') {
     return (record as { toJSON: () => unknown }).toJSON();
   }
-  if (typeof (record as { attributes?: () => unknown }).attributes === 'function') {
-    return (record as { attributes: () => unknown }).attributes();
+  const attrs = (record as { attributes?: unknown }).attributes;
+  if (attrs && typeof attrs === 'object') {
+    return attrs;
   }
   return record;
 }

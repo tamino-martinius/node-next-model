@@ -240,7 +240,7 @@ describe('buildModelResource — serialize', () => {
     const connector = freshConnector();
     const { User, resource } = makeResource(connector, {
       serialize: async (row) => {
-        const attrs = (row as { attributes: () => UserShape }).attributes();
+        const attrs = (row as { attributes: UserShape }).attributes;
         return { ...attrs, name: attrs.name.toUpperCase() };
       },
     });

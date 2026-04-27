@@ -1,6 +1,11 @@
 import { NotFoundError, PersistenceError, StaleObjectError, ValidationError } from './errors.js';
-import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
+import { createAssociationQuery } from './query/associationQuery.js';
+import { CollectionQuery } from './query/CollectionQuery.js';
+import type { ColumnQuery } from './query/ColumnQuery.js';
+import { InstanceQuery } from './query/InstanceQuery.js';
+import type { QueryState } from './query/QueryState.js';
+import type { ScalarQuery } from './query/ScalarQuery.js';
 import {
   type AggregateKind,
   type AroundCallback,
@@ -15,7 +20,6 @@ import {
   type OrderColumn,
   type Schema,
   type Scope,
-  SortDirection,
   type Validator,
 } from './types.js';
 import { camelize, pascalize, singularize } from './util.js';
@@ -110,21 +114,41 @@ export type AssociationDefinition =
       belongsTo: typeof ModelClass | (() => typeof ModelClass);
       foreignKey: string;
       primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
     }
   | {
       hasMany: typeof ModelClass | (() => typeof ModelClass);
       foreignKey: string;
       primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
     }
   | {
       hasOne: typeof ModelClass | (() => typeof ModelClass);
       foreignKey: string;
       primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasManyThrough: typeof ModelClass | (() => typeof ModelClass);
+      through: typeof ModelClass | (() => typeof ModelClass);
+      throughForeignKey?: string;
+      targetForeignKey?: string;
+      selfPrimaryKey?: string;
+      targetPrimaryKey?: string;
     };
 
 export type AssociationsMap = Record<string, AssociationDefinition>;
 
-function resolveAssociationTarget(spec: AssociationDefinition): {
+export type SimpleAssociationDefinition = Exclude<AssociationDefinition, { hasManyThrough: any }>;
+export type HasManyThroughDefinition = Extract<AssociationDefinition, { hasManyThrough: any }>;
+
+export function resolveAssociationTarget(spec: SimpleAssociationDefinition): {
   target: typeof ModelClass;
   parentColumn: string;
   childColumn: string;
@@ -153,6 +177,37 @@ function resolveAssociationTarget(spec: AssociationDefinition): {
     parentColumn: spec.primaryKey ?? 'id',
     childColumn: spec.foreignKey,
     cardinality,
+  };
+}
+
+export function resolveHasManyThrough(
+  spec: HasManyThroughDefinition,
+  selfModel: { tableName: string; keys: Dict<KeyType> },
+): {
+  target: typeof ModelClass;
+  through: typeof ModelClass;
+  throughForeignKey: string;
+  targetForeignKey: string;
+  selfPrimaryKey: string;
+  targetPrimaryKey: string;
+} {
+  const targetLazy = spec.hasManyThrough as typeof ModelClass | (() => typeof ModelClass);
+  const throughLazy = spec.through as typeof ModelClass | (() => typeof ModelClass);
+  const target =
+    typeof targetLazy === 'function' && !(targetLazy as any).tableName
+      ? (targetLazy as () => typeof ModelClass)()
+      : (targetLazy as typeof ModelClass);
+  const through =
+    typeof throughLazy === 'function' && !(throughLazy as any).tableName
+      ? (throughLazy as () => typeof ModelClass)()
+      : (throughLazy as typeof ModelClass);
+  return {
+    target,
+    through,
+    throughForeignKey: spec.throughForeignKey ?? `${singularize(selfModel.tableName)}Id`,
+    targetForeignKey: spec.targetForeignKey ?? `${singularize(target.tableName)}Id`,
+    selfPrimaryKey: spec.selfPrimaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id',
+    targetPrimaryKey: spec.targetPrimaryKey ?? Object.keys(target.keys)[0] ?? 'id',
   };
 }
 
@@ -187,25 +242,6 @@ export type HasManyThroughOptions = {
   selfPrimaryKey?: string;
   targetPrimaryKey?: string;
 };
-
-function encodeCursor(value: unknown, key: string): string {
-  return Buffer.from(JSON.stringify({ [key]: value }), 'utf8').toString('base64url');
-}
-
-function encodeCompositeCursor(fields: Dict<unknown>): string {
-  return Buffer.from(JSON.stringify(fields), 'utf8').toString('base64url');
-}
-
-function decodeCompositeCursor(token: string): Dict<unknown> {
-  try {
-    const parsed = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
-    if (parsed && typeof parsed === 'object') return parsed as Dict<unknown>;
-    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
-  } catch (err) {
-    if (err instanceof PersistenceError) throw err;
-    throw new PersistenceError(`Invalid pagination cursor: ${token}`);
-  }
-}
 
 type TimestampsOption = boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
 
@@ -242,101 +278,32 @@ export function resolveTimestampColumns(option: TimestampsOption | undefined): {
   };
 }
 
-function resolveAutoAssociation(
-  record: ModelClass,
-  spec: AssociationDefinition,
-): Promise<unknown> | unknown {
-  const target = resolveAssociationTarget(spec).target;
-  if ('belongsTo' in spec) {
-    return record.belongsTo(target, {
-      foreignKey: spec.foreignKey,
-      primaryKey: spec.primaryKey,
-    });
-  }
-  if ('hasMany' in spec) {
-    // Auto-accessor returns the resolved array (matches eager-load shape).
-    // Users who need a chainable scope can still call `record.hasMany(Target)`.
-    return record
-      .hasMany(target, { foreignKey: spec.foreignKey, primaryKey: spec.primaryKey })
-      .all();
-  }
-  return record.hasOne(target, {
-    foreignKey: spec.foreignKey,
-    primaryKey: spec.primaryKey,
-  });
-}
+function resolveAutoAssociation(record: ModelClass, spec: AssociationDefinition): unknown {
+  // Build a query-builder traversal from this record outward via
+  // `createAssociationQuery`. Supports belongsTo / hasOne / hasMany / hasManyThrough
+  // (incl. polymorphic) and returns the same builder shapes as
+  // `<InstanceQuery>.<assocName>` and `<CollectionQuery>.<assocName>`:
+  //   - hasMany / hasManyThrough -> CollectionQuery<Related>
+  //   - belongsTo / hasOne       -> InstanceQuery<Related>
+  // Both are PromiseLike, so existing `await record.assocName` keeps working.
+  const M = record.constructor as typeof ModelClass;
+  const pk = Object.keys(M.keys)[0] ?? 'id';
+  const pkValue = (record as unknown as Dict<any>)[pk];
 
-function attachIncludesPayload(
-  record: ModelClass,
-  includes: Array<{ name: string; spec: AssociationDefinition; cardinality: 'many' | 'one' }>,
-  payload: Dict<Dict<any>[]>,
-): void {
-  for (const { name, spec, cardinality } of includes) {
-    const rows = payload[name] ?? [];
-    const target = resolveAssociationTarget(spec).target;
-    const childPkNames = Object.keys(target.keys);
-    const instances = rows.map((row) => {
-      const keys: Dict<any> = {};
-      const data: Dict<any> = { ...row };
-      for (const key of childPkNames) {
-        keys[key] = data[key];
-        delete data[key];
-      }
-      return new (target as any)(data, keys);
-    });
-    if (cardinality === 'many') {
-      (record as unknown as Dict<unknown>)[name] = instances;
-    } else {
-      (record as unknown as Dict<unknown>)[name] = instances[0];
-    }
-  }
-}
-
-async function applyIncludes(
-  records: ModelClass[],
-  parent: typeof ModelClass,
-  names: string[],
-): Promise<void> {
-  if (records.length === 0 || names.length === 0) return;
-  const associations = parent.associations ?? {};
-  for (const name of names) {
-    const spec = associations[name];
-    if (!spec) continue;
-    const target = resolveAssociationTarget(spec).target;
-    if ('belongsTo' in spec) {
-      const preloaded = await target.preloadBelongsTo(records, {
-        foreignKey: spec.foreignKey,
-        primaryKey: spec.primaryKey,
-      });
-      for (const record of records) {
-        const attrs = record.attributes() as Dict<any>;
-        const fk = attrs[spec.foreignKey];
-        (record as unknown as Dict<unknown>)[name] = fk == null ? undefined : preloaded.get(fk);
-      }
-    } else if ('hasMany' in spec) {
-      const selfPk = spec.primaryKey ?? 'id';
-      const preloaded = await target.preloadHasMany(records, {
-        foreignKey: spec.foreignKey,
-        primaryKey: selfPk,
-      });
-      for (const record of records) {
-        const attrs = record.attributes() as Dict<any>;
-        const id = attrs[selfPk];
-        (record as unknown as Dict<unknown>)[name] = preloaded.get(id) ?? [];
-      }
-    } else {
-      const selfPk = spec.primaryKey ?? 'id';
-      const preloaded = await target.preloadHasMany(records, {
-        foreignKey: spec.foreignKey,
-        primaryKey: selfPk,
-      });
-      for (const record of records) {
-        const attrs = record.attributes() as Dict<any>;
-        const id = attrs[selfPk];
-        (record as unknown as Dict<unknown>)[name] = preloaded.get(id)?.[0];
-      }
-    }
-  }
+  // Synthesize an upstream InstanceQuery whose state filters by this record's pk.
+  // Used as the parent for the association traversal.
+  const upstreamState: QueryState = {
+    Model: M,
+    filter: { [pk]: pkValue } as Filter<any>,
+    order: [],
+    limit: 1,
+    selectedIncludes: [],
+    includeStrategy: 'preload',
+    pendingJoins: [],
+    softDelete: M.softDelete ?? false,
+  };
+  const upstream = new InstanceQuery(M, 'find', upstreamState);
+  return createAssociationQuery(upstream, spec);
 }
 
 export function resolveSoftDelete(option: SoftDeleteOption | undefined): {
@@ -418,7 +385,7 @@ export type HavingComparison = {
   $lte?: number;
 };
 
-function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
+export function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
   if (typeof predicate === 'function') return predicate;
   const cmp = predicate.count;
   if (!cmp) return () => true;
@@ -432,12 +399,31 @@ function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
   };
 }
 
-export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
+/**
+ * Per-Model scope map. Each scope is a `Filter<any>` literal that's applied
+ * via `Model.filterBy(filter)` when the auto-generated no-arg static is
+ * invoked. Scopes are the preferred shorthand for predeclared filters; for
+ * complex / parameterized cases declare a static method on your subclass that
+ * composes `filterBy` / `orFilterBy` / etc. yourself.
+ */
+/**
+ * Each scope value is either:
+ * - A `Filter<any>` literal — the no-arg static method calls `this.filterBy(filter)`.
+ * - A function `(...args) => Filter<any>` — the generated static method
+ *   forwards its arguments to the function and calls `this.filterBy(...)`.
+ *
+ * Functions cover the "one-line parameterised filter" case
+ * (`olderThan: (age: number) => ({ age: { $gt: age } })`). For multi-line /
+ * multi-clause logic declare a static method on your subclass instead.
+ */
+export type ScopeDef = Filter<any> | ((...args: any[]) => Filter<any>);
 
-export type ScopeMap<Self> = Dict<ScopeFn<Self>>;
+export type ScopeMap = Dict<ScopeDef>;
 
-export type ScopesToMethods<Self, S extends ScopeMap<Self>> = {
-  [K in keyof S]: (...args: S[K] extends (self: any, ...rest: infer R) => any ? R : never) => Self;
+export type ScopesToMethods<Self, S extends ScopeMap> = {
+  [K in keyof S]: S[K] extends (...args: infer A) => Filter<any>
+    ? (...args: A) => Self
+    : () => Self;
 };
 
 export class ModelClass {
@@ -588,229 +574,66 @@ export class ModelClass {
     });
   }
 
-  /**
-   * Build the connector-facing scope WITHOUT folding `pendingJoins` into the
-   * filter. The fast path (`Connector.queryWithJoins`) consumes this base
-   * scope and the `pendingJoins` array separately.
-   */
-  static modelScopeBase(): Scope {
-    let filter = this.filter;
-    const softColumn = this.softDeleteColumn;
-    if (this.softDelete === 'active') {
-      filter = filter ? { $and: [{ $null: softColumn }, filter] } : { $null: softColumn };
-    } else if (this.softDelete === 'only') {
-      filter = filter ? { $and: [{ $notNull: softColumn }, filter] } : { $notNull: softColumn };
-    }
-    if (this.inheritColumn && this.inheritType !== undefined) {
-      const typeFilter = { [this.inheritColumn]: this.inheritType };
-      filter = filter ? { $and: [typeFilter, filter] } : typeFilter;
-    }
-    return {
-      tableName: this.tableName,
-      filter,
-      limit: this.limit,
-      skip: this.skip,
-      order: this.order,
-    } as Scope;
-  }
-
-  static async modelScope(): Promise<Scope> {
-    const base = this.modelScopeBase();
-    if (this.pendingJoins.length === 0) return base;
-    // Resolve each `select` / `antiJoin` clause into a concrete `$in` /
-    // `$notIn` filter by issuing the child query right now. Resolving on
-    // the Model side keeps native connectors (sqlite/pg/mysql/mariadb,
-    // which reject `$async` at the connector boundary) working, while
-    // connectors that implement `queryWithJoins` skip this entirely via
-    // the fast path in `all()`.
-    const joinFilters: Filter<any>[] = [];
-    const fallbackConnector = this.connector;
-    for (const join of this.pendingJoins) {
-      if (join.mode !== 'select' && join.mode !== 'antiJoin') continue;
-      const targetModel = join.target as typeof ModelClass | undefined;
-      const childConnector = targetModel?.connector ?? fallbackConnector;
-      const rows = await childConnector.select(
-        { tableName: join.childTableName, filter: join.filter },
-        join.on.childColumn,
-      );
-      const seen = new Set<unknown>();
-      const values: unknown[] = [];
-      for (const row of rows) {
-        const v = (row as Dict<any>)[join.on.childColumn];
-        if (v == null || seen.has(v)) continue;
-        seen.add(v);
-        values.push(v);
-      }
-      const op = join.mode === 'antiJoin' ? '$notIn' : '$in';
-      joinFilters.push({ [op]: { [join.on.parentColumn]: values } } as Filter<any>);
-    }
-    if (joinFilters.length === 0) return base;
-    const combined: Filter<any> =
-      joinFilters.length === 1
-        ? (joinFilters[0] as Filter<any>)
-        : ({ $and: joinFilters } as Filter<any>);
-    const merged: Filter<any> = base.filter
-      ? ({ $and: [base.filter, combined] } as Filter<any>)
-      : combined;
-    return { ...base, filter: merged } as Scope;
-  }
+  // ---------------------------------------------------------------------------
+  // Chain methods — forward to CollectionQuery.<method>(...).
+  //
+  // Runtime: each returns a CollectionQuery whose state carries the chained
+  // scope. CollectionQuery is PromiseLike (resolves to records[]) and exposes
+  // `.first()`, `.last()`, `.findBy()`, `.find()`, `.findOrFail()`,
+  // `.count()`, `.sum()` etc — so existing chain forms keep working.
+  //
+  // Types: cast back to the calling Model class so external callers continue
+  // to type-check via the existing static method shapes (`Todo.filterBy(...)`
+  // looks like it returns `typeof Todo` to TypeScript, but at runtime it's a
+  // CollectionQuery).
+  // ---------------------------------------------------------------------------
 
   static limitBy<M extends typeof ModelClass>(this: M, amount: number) {
-    return class extends (this as typeof ModelClass) {
-      static limit = amount;
-    } as M;
+    return CollectionQuery.fromModel(this as any).limitBy(amount) as unknown as M;
   }
 
   static unlimited<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static limit = undefined;
-    } as M;
+    return CollectionQuery.fromModel(this as any).unlimited() as unknown as M;
   }
 
   static skipBy<M extends typeof ModelClass>(this: M, amount: number) {
-    return class extends (this as typeof ModelClass) {
-      static skip = amount;
-    } as M;
+    return CollectionQuery.fromModel(this as any).skipBy(amount) as unknown as M;
   }
 
   static unskipped<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static skip = undefined;
-    } as M;
+    return CollectionQuery.fromModel(this as any).unskipped() as unknown as M;
   }
 
   static orderBy<M extends typeof ModelClass>(this: M, order: Order<any>) {
-    const newOrder = [...this.order, ...(Array.isArray(order) ? order : [order])];
-    return class extends (this as typeof ModelClass) {
-      static order = newOrder;
-    } as M;
+    return CollectionQuery.fromModel(this as any).orderBy(order) as unknown as M;
   }
 
   static unordered<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static order: OrderColumn<any>[] = [];
-    } as M;
+    return CollectionQuery.fromModel(this as any).unordered() as unknown as M;
   }
 
   static reorder<M extends typeof ModelClass>(this: M, order: Order<any>) {
-    return class extends (this as typeof ModelClass) {
-      static order = Array.isArray(order) ? order : [order];
-    } as M;
+    return CollectionQuery.fromModel(this as any).reorder(order) as unknown as M;
   }
 
-  static filterBy<M extends typeof ModelClass>(this: M, andFilterInput: Filter<any>) {
-    const andFilter = normalizeFilterShape(andFilterInput);
-    // Pull out keys that name an entry in `static associations` and convert
-    // them into INNER JOIN pendingJoins. The rest of the filter (column-keyed
-    // and operator-keyed) flows through the existing merge logic.
-    const associations = this.associations;
-    const associationJoins: JoinClause[] = [];
-    let columnFilter: Dict<any> = andFilter as Dict<any>;
-    if (associations) {
-      const keys = Object.keys(andFilter);
-      const matched: string[] = [];
-      for (const key of keys) {
-        if (key.startsWith('$')) continue;
-        if (associations[key]) matched.push(key);
-      }
-      if (matched.length > 0) {
-        const filtered: Dict<any> = {};
-        for (const key of keys) {
-          if (matched.includes(key)) continue;
-          filtered[key] = (andFilter as any)[key];
-        }
-        columnFilter = filtered;
-        for (const name of matched) {
-          const assoc = associations[name];
-          const resolved = resolveAssociationTarget(assoc);
-          const childFilterInput = (andFilter as any)[name];
-          const childFilter =
-            childFilterInput && typeof childFilterInput === 'object'
-              ? normalizeFilterShape(childFilterInput as Filter<any>)
-              : (childFilterInput as Filter<any>);
-          associationJoins.push({
-            kind: 'inner',
-            childTableName: resolved.target.tableName,
-            on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
-            filter: childFilter,
-            mode: 'select',
-            childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
-            target: resolved.target,
-          });
-        }
-      }
-    }
-    const hasSpecial = (f: Filter<any>) => Object.keys(f).some((k) => k.startsWith('$'));
-    let filter: Filter<any> | undefined = columnFilter as Filter<any>;
-    if (this.filter) {
-      if (hasSpecial(this.filter) || hasSpecial(filter)) {
-        filter = { $and: [this.filter, filter] };
-      } else {
-        for (const key in this.filter) {
-          if ((this.filter as any)[key] !== undefined && (filter as any)[key] !== undefined) {
-            filter = { $and: [filter, andFilter] };
-            break;
-          }
-          (filter as any)[key] = (this.filter as any)[key];
-        }
-      }
-    }
-    if (Object.keys(columnFilter).length === 0) filter = this.filter;
-    const nextJoins =
-      associationJoins.length > 0 ? [...this.pendingJoins, ...associationJoins] : this.pendingJoins;
-    return class extends (this as typeof ModelClass) {
-      static filter = filter;
-      static pendingJoins = nextJoins;
-    } as M;
+  static filterBy<M extends typeof ModelClass>(this: M, input: Filter<any>) {
+    return CollectionQuery.fromModel(this as any).filterBy(input) as unknown as M;
   }
 
-  static orFilterBy<M extends typeof ModelClass>(this: M, orFilterInput: Filter<any>) {
-    const orFilter = normalizeFilterShape(orFilterInput);
-    const filter =
-      Object.keys(orFilter).length === 0
-        ? this.filter
-        : this.filter
-          ? { $or: [this.filter, orFilter] }
-          : orFilter;
-    return class extends (this as typeof ModelClass) {
-      static filter = filter;
-    } as M;
+  static orFilterBy<M extends typeof ModelClass>(this: M, input: Filter<any>) {
+    return CollectionQuery.fromModel(this as any).orFilterBy(input) as unknown as M;
   }
 
   static unfiltered<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static filter = undefined;
-    } as M;
+    return CollectionQuery.fromModel(this as any).unfiltered() as unknown as M;
   }
 
   static reverse<M extends typeof ModelClass>(this: M) {
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const existing = this.order.length > 0 ? this.order : [{ key: primaryKey }];
-    const flipped = existing.map((col) => ({
-      key: col.key,
-      dir:
-        (col.dir ?? SortDirection.Asc) === SortDirection.Asc
-          ? SortDirection.Desc
-          : SortDirection.Asc,
-    }));
-    return class extends (this as typeof ModelClass) {
-      static order = flipped;
-    } as M;
+    return CollectionQuery.fromModel(this as any).reverse() as unknown as M;
   }
 
   static unscoped<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static filter = undefined;
-      static limit = undefined;
-      static skip = undefined;
-      static order: OrderColumn<any>[] = [];
-      static softDelete: 'active' | 'only' | false = false;
-      static selectedFields: string[] | undefined = undefined;
-      static selectedIncludes: string[] = [];
-      static includeStrategy: IncludeStrategy = 'preload';
-      static pendingJoins: JoinClause[] = [];
-      static havingPredicate: ((count: number) => boolean) | undefined = undefined;
-    } as M;
+    return CollectionQuery.fromModel(this as any).unscoped() as unknown as M;
   }
 
   /**
@@ -819,12 +642,7 @@ export class ModelClass {
    * this chain's when set. Mirrors Rails' `relation.merge`.
    */
   static merge<M extends typeof ModelClass>(this: M, other: typeof ModelClass): M {
-    let scoped: typeof ModelClass = this;
-    if (other.filter) scoped = scoped.filterBy(other.filter);
-    if (other.order && other.order.length > 0) scoped = scoped.reorder(other.order);
-    if (other.limit !== undefined) scoped = scoped.limitBy(other.limit);
-    if (other.skip !== undefined) scoped = scoped.skipBy(other.skip);
-    return scoped as M;
+    return CollectionQuery.fromModel(this as any).merge(other as any) as unknown as M;
   }
 
   /**
@@ -833,10 +651,7 @@ export class ModelClass {
    * unfiltered scope (`user.banned ? Post.none() : Post.filterBy({...})`).
    */
   static none<M extends typeof ModelClass>(this: M): M {
-    const nullConnector = new NullConnector();
-    return class extends (this as typeof ModelClass) {
-      static connector = nullConnector;
-    } as unknown as M;
+    return CollectionQuery.fromModel(this as any).none() as unknown as M;
   }
 
   /**
@@ -845,10 +660,7 @@ export class ModelClass {
    * object (`{ count: { $gt: 5 } }`).
    */
   static having<M extends typeof ModelClass>(this: M, predicate: HavingPredicate): M {
-    const fn = compileHaving(predicate);
-    return class extends (this as typeof ModelClass) {
-      static havingPredicate = fn;
-    } as M;
+    return CollectionQuery.fromModel(this as any).having(predicate) as unknown as M;
   }
 
   /**
@@ -858,15 +670,11 @@ export class ModelClass {
    * reload and delete.
    */
   static fields<M extends typeof ModelClass>(this: M, ...keys: string[]) {
-    return class extends (this as typeof ModelClass) {
-      static selectedFields = keys;
-    } as M;
+    return CollectionQuery.fromModel(this as any).fields(...keys) as unknown as M;
   }
 
   static allFields<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static selectedFields: string[] | undefined = undefined;
-    } as M;
+    return CollectionQuery.fromModel(this as any).allFields() as unknown as M;
   }
 
   static on(event: keyof Callbacks<any>, handler: Callback<any> | AroundCallback<any>): () => void {
@@ -904,15 +712,11 @@ export class ModelClass {
   }
 
   static withDiscarded<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static softDelete: 'active' | 'only' | false = false;
-    } as M;
+    return CollectionQuery.fromModel(this as any).withDiscarded() as unknown as M;
   }
 
   static onlyDiscarded<M extends typeof ModelClass>(this: M) {
-    return class extends (this as typeof ModelClass) {
-      static softDelete: 'active' | 'only' | false = 'only';
-    } as M;
+    return CollectionQuery.fromModel(this as any).onlyDiscarded() as unknown as M;
   }
 
   static build<M extends typeof ModelClass>(this: M, createProps: any) {
@@ -990,42 +794,11 @@ export class ModelClass {
     this: M,
     ...args: Array<string | IncludeOptions>
   ): M {
-    let options: IncludeOptions = {};
-    let names: string[];
-    const last = args[args.length - 1];
-    if (last !== undefined && typeof last !== 'string') {
-      options = last;
-      names = args.slice(0, -1) as string[];
-    } else {
-      names = args as string[];
-    }
-    const associations = this.associations;
-    if (!associations) {
-      throw new PersistenceError(
-        `Model.includes(...) requires the Model factory to declare 'associations'.`,
-      );
-    }
-    for (const name of names) {
-      if (!associations[name]) {
-        throw new PersistenceError(
-          `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
-        );
-      }
-    }
-    const previous = this.selectedIncludes ?? [];
-    const next = Array.from(new Set([...previous, ...names]));
-    const strategy = options.strategy ?? this.includeStrategy ?? 'preload';
-    return class extends (this as typeof ModelClass) {
-      static selectedIncludes = next;
-      static includeStrategy = strategy;
-    } as M;
+    return CollectionQuery.fromModel(this as any).includes(...args) as unknown as M;
   }
 
   static withoutIncludes<M extends typeof ModelClass>(this: M): M {
-    return class extends (this as typeof ModelClass) {
-      static selectedIncludes: string[] = [];
-      static includeStrategy: IncludeStrategy = 'preload';
-    } as M;
+    return CollectionQuery.fromModel(this as any).withoutIncludes() as unknown as M;
   }
 
   /**
@@ -1038,52 +811,7 @@ export class ModelClass {
    *   const active = await User.joins('posts').filterBy({ active: true }).all();
    */
   static joins<M extends typeof ModelClass>(this: M, ...names: string[]): M {
-    const associations = this.associations;
-    if (!associations) {
-      throw new PersistenceError(
-        `Model.joins(...) requires the Model factory to declare 'associations'.`,
-      );
-    }
-    if (names.length === 0) {
-      throw new PersistenceError(`Model.joins(...) requires at least one association name.`);
-    }
-    const parentDefaultPk = Object.keys(this.keys)[0] ?? 'id';
-    const newJoins: JoinClause[] = [];
-    for (const name of names) {
-      const spec = associations[name];
-      if (!spec) {
-        throw new PersistenceError(
-          `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
-        );
-      }
-      const normalized: AssociationDefinition =
-        'belongsTo' in spec
-          ? { belongsTo: spec.belongsTo, foreignKey: spec.foreignKey, primaryKey: spec.primaryKey }
-          : 'hasMany' in spec
-            ? {
-                hasMany: spec.hasMany,
-                foreignKey: spec.foreignKey,
-                primaryKey: spec.primaryKey ?? parentDefaultPk,
-              }
-            : {
-                hasOne: spec.hasOne,
-                foreignKey: spec.foreignKey,
-                primaryKey: spec.primaryKey ?? parentDefaultPk,
-              };
-      const resolved = resolveAssociationTarget(normalized);
-      newJoins.push({
-        kind: 'inner',
-        childTableName: resolved.target.tableName,
-        on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
-        mode: 'select',
-        childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
-        target: resolved.target,
-      });
-    }
-    const next = [...this.pendingJoins, ...newJoins];
-    return class extends (this as typeof ModelClass) {
-      static pendingJoins = next;
-    } as M;
+    return CollectionQuery.fromModel(this as any).joins(...names) as unknown as M;
   }
 
   /**
@@ -1101,36 +829,7 @@ export class ModelClass {
    *   await User.whereMissing('posts').filterBy({ active: true }).all();
    */
   static whereMissing<M extends typeof ModelClass>(this: M, name: string): M {
-    const associations = this.associations;
-    if (!associations) {
-      throw new PersistenceError(
-        `Model.whereMissing(...) requires the Model factory to declare 'associations'.`,
-      );
-    }
-    const spec = associations[name];
-    if (!spec) {
-      throw new PersistenceError(
-        `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
-      );
-    }
-    if ('belongsTo' in spec) {
-      throw new PersistenceError(
-        `Model.whereMissing(...) only supports hasMany / hasOne associations; '${name}' is belongsTo. Use filterBy({ $null: '${spec.foreignKey}' }) instead.`,
-      );
-    }
-    const resolved = resolveAssociationTarget(spec);
-    const join: JoinClause = {
-      kind: 'left',
-      childTableName: resolved.target.tableName,
-      on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
-      mode: 'antiJoin',
-      childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
-      target: resolved.target,
-    };
-    const next = [...this.pendingJoins, join];
-    return class extends (this as typeof ModelClass) {
-      static pendingJoins = next;
-    } as M;
+    return CollectionQuery.fromModel(this as any).whereMissing(name) as unknown as M;
   }
 
   /**
@@ -1177,139 +876,78 @@ export class ModelClass {
     return Sub as M;
   }
 
-  static async all<M extends typeof ModelClass>(this: M) {
-    const primaryKeys = Object.keys(this.keys);
-    const supportsJoins = typeof this.connector.queryWithJoins === 'function';
-    const associations = this.associations ?? {};
-    const includeNames = this.selectedIncludes ?? [];
-    const wantsIncludesViaJoin =
-      includeNames.length > 0 &&
-      (this.includeStrategy === 'join' || (this.includeStrategy === 'auto' && supportsJoins));
-    if (this.includeStrategy === 'join' && includeNames.length > 0 && !supportsJoins) {
-      throw new PersistenceError(
-        `Model.includes(..., { strategy: 'join' }) requires a connector that implements 'queryWithJoins'. Use 'preload' or 'auto' for connectors without JOIN execution.`,
-      );
-    }
-    const includesViaJoin: Array<{
-      name: string;
-      spec: AssociationDefinition;
-      cardinality: 'many' | 'one';
-    }> = [];
-    const joinClausesForFastPath: JoinClause[] = [];
-    if (supportsJoins && (this.pendingJoins.length > 0 || wantsIncludesViaJoin)) {
-      joinClausesForFastPath.push(...this.pendingJoins);
-      if (wantsIncludesViaJoin) {
-        for (const name of includeNames) {
-          const spec = associations[name];
-          if (!spec) continue;
-          const resolved = resolveAssociationTarget(spec);
-          includesViaJoin.push({ name, spec, cardinality: resolved.cardinality });
-          joinClausesForFastPath.push({
-            kind: 'left',
-            childTableName: resolved.target.tableName,
-            on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
-            mode: 'includes',
-            attachAs: name,
-            includesCardinality: resolved.cardinality,
-            childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
-            target: resolved.target,
-          });
-        }
-      }
-    }
-    const useFastPath = supportsJoins && joinClausesForFastPath.length > 0;
-    const items = useFastPath
-      ? await (this.connector.queryWithJoins as NonNullable<Connector['queryWithJoins']>)({
-          parent: this.modelScopeBase(),
-          joins: joinClausesForFastPath,
-        })
-      : this.selectedFields
-        ? await this.connector.select(
-            await this.modelScope(),
-            ...Array.from(new Set([...primaryKeys, ...this.selectedFields])),
-          )
-        : await this.connector.query(await this.modelScope());
-    const records = items.map((item) => {
-      const includesPayload = (item as Dict<any>).__includes as Dict<Dict<any>[]> | undefined;
-      delete (item as Dict<any>).__includes;
-      const keys: Dict<any> = {};
-      for (const key of primaryKeys) {
-        keys[key] = item[key];
-        delete item[key];
-      }
-      let Constructor: typeof ModelClass = this as typeof ModelClass;
-      if (this.inheritColumn && this.inheritRegistry) {
-        const typeValue = item[this.inheritColumn];
-        const registered = typeValue != null ? this.inheritRegistry.get(typeValue) : undefined;
-        if (registered) Constructor = registered;
-      }
-      const record = new (Constructor as any)(item, keys) as InstanceType<M>;
-      if (includesPayload && includesViaJoin.length > 0) {
-        attachIncludesPayload(record as ModelClass, includesViaJoin, includesPayload);
-      }
-      return record;
-    });
-    if (includeNames.length > 0 && includesViaJoin.length === 0) {
-      // Includes were declared but didn't go through the JOIN fast path
-      // (strategy === 'preload', or 'auto' on a connector without
-      // `queryWithJoins`) — preload via the existing batched-IN path.
-      await applyIncludes(records, this as typeof ModelClass, includeNames);
-    }
-    const findCallbacks = (this.callbacks as any).afterFind as Callback<any>[] | undefined;
-    if (findCallbacks) {
-      for (const record of records) {
-        for (const cb of findCallbacks) await cb(record);
-      }
-    }
-    return records;
+  /**
+   * Returns a chainable CollectionQuery that resolves to the matching
+   * records. PromiseLike, so `await Model.all()` keeps working unchanged.
+   * Chainable terminals (`.first()`, `.count()`, `.pluck(...)`, etc.) are
+   * available on the returned builder.
+   */
+  static all<M extends typeof ModelClass>(this: M): CollectionQuery<InstanceType<M>[]> {
+    return CollectionQuery.fromModel(this as any) as unknown as CollectionQuery<InstanceType<M>[]>;
   }
 
-  static async first<M extends typeof ModelClass>(this: M) {
-    const items = await this.limitBy(1).all<M>();
-    return items.pop();
+  /**
+   * Returns a chainable InstanceQuery that resolves to the first record in
+   * the current scope (or `undefined` when empty). PromiseLike, so
+   * `await Model.first()` works unchanged.
+   */
+  static first<M extends typeof ModelClass>(this: M): InstanceQuery<InstanceType<M> | undefined> {
+    return CollectionQuery.fromModel(this as any).first() as unknown as InstanceQuery<
+      InstanceType<M> | undefined
+    >;
   }
 
-  static async last<M extends typeof ModelClass>(this: M) {
-    return (this.reverse() as M).first<M>();
+  /**
+   * Returns a chainable InstanceQuery that resolves to the last record in
+   * the current scope (or `undefined` when empty). Reverses any existing
+   * orderBy and falls back to primary-key descending when no order is set.
+   */
+  static last<M extends typeof ModelClass>(this: M): InstanceQuery<InstanceType<M> | undefined> {
+    return CollectionQuery.fromModel(this as any).last() as unknown as InstanceQuery<
+      InstanceType<M> | undefined
+    >;
   }
 
-  static async *inBatchesOf<M extends typeof ModelClass>(
+  /**
+   * Walk the current scope in batches of `size`. Each yielded array holds at
+   * most `size` records; the final batch may be smaller. The chain's existing
+   * `orderBy` is preserved (defaulting to primary key when unset) so batches
+   * are deterministic.
+   */
+  static inBatchesOf<M extends typeof ModelClass>(
     this: M,
     size: number,
   ): AsyncGenerator<InstanceType<M>[], void, void> {
-    const batchSize = Math.max(1, Math.floor(size));
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const ordered = this.order.length > 0 ? this : this.orderBy({ key: primaryKey });
-    const baseSkip = this.skip ?? 0;
-    const totalLimit = this.limit;
-    let offset = 0;
-    while (true) {
-      const remaining = totalLimit === undefined ? batchSize : totalLimit - offset;
-      if (remaining <= 0) return;
-      const take = Math.min(batchSize, remaining);
-      const batch = await ordered
-        .unlimited()
-        .unskipped()
-        .skipBy(baseSkip + offset)
-        .limitBy(take)
-        .all<M>();
-      if (batch.length === 0) return;
-      yield batch;
-      if (batch.length < take) return;
-      offset += batch.length;
-    }
+    return CollectionQuery.fromModel(this as any).inBatchesOf(size) as AsyncGenerator<
+      InstanceType<M>[],
+      void,
+      void
+    >;
   }
 
-  static async *findEach<M extends typeof ModelClass>(
+  /**
+   * Walk the current scope record-by-record, batching internally for
+   * efficiency. Default batch size 100. Useful for streaming large result
+   * sets without loading everything into memory.
+   */
+  static findEach<M extends typeof ModelClass>(
     this: M,
     size = 100,
   ): AsyncGenerator<InstanceType<M>, void, void> {
-    for await (const batch of this.inBatchesOf<M>(size)) {
-      for (const item of batch) yield item;
-    }
+    return CollectionQuery.fromModel(this as any).findEach(size) as AsyncGenerator<
+      InstanceType<M>,
+      void,
+      void
+    >;
   }
 
-  static async paginate<M extends typeof ModelClass>(
+  /**
+   * Offset-based pagination on the current scope. Returns the page items,
+   * total count, and metadata (total pages, hasNext, hasPrev). For large
+   * tables prefer `paginateCursor()` — it avoids the O(skip) cost of
+   * LIMIT/OFFSET.
+   */
+  static paginate<M extends typeof ModelClass>(
     this: M,
     page: number,
     perPage = 25,
@@ -1322,42 +960,26 @@ export class ModelClass {
     hasNext: boolean;
     hasPrev: boolean;
   }> {
-    const safePage = Math.max(1, Math.floor(page));
-    const safePerPage = Math.max(1, Math.floor(perPage));
-    const skip = (safePage - 1) * safePerPage;
-    const scoped = this.limitBy(safePerPage).skipBy(skip);
-    const [items, total] = await Promise.all([
-      scoped.all<M>(),
-      this.unlimited().unskipped().count(),
-    ]);
-    const totalPages = total === 0 ? 0 : Math.ceil(total / safePerPage);
-    return {
-      items,
-      total,
-      page: safePage,
-      perPage: safePerPage,
-      totalPages,
-      hasNext: safePage < totalPages,
-      hasPrev: safePage > 1,
-    };
+    return CollectionQuery.fromModel(this as any).paginate(page, perPage) as Promise<{
+      items: InstanceType<M>[];
+      total: number;
+      page: number;
+      perPage: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    }>;
   }
 
   /**
    * Cursor-based ("keyset") pagination. Avoids the O(skip) cost of
    * `.paginate()`'s LIMIT/OFFSET path, so it stays cheap on large tables.
-   *
-   * Pass `after` to advance forward ("next page"), `before` to walk
-   * backward ("previous page"). Without either, returns the first page.
-   *
-   * The chain's lead `orderBy` column is used as the cursor key; the
-   * primary key is always included as a tie-breaker so rows with identical
-   * sort values paginate deterministically. Descending orders flip the
-   * `$gt` / `$lt` semantics so `after` always advances in the order
-   * direction the caller asked for.
-   *
-   * When no `orderBy` is set, cursor pagination uses the primary key.
+   * Pass `after` to advance, `before` to walk backward; without either,
+   * returns the first page. The chain's lead `orderBy` is the cursor key;
+   * primary key is always the tiebreaker so identical sort values paginate
+   * deterministically.
    */
-  static async paginateCursor<M extends typeof ModelClass>(
+  static paginateCursor<M extends typeof ModelClass>(
     this: M,
     options: { after?: string; before?: string; limit?: number } = {},
   ): Promise<{
@@ -1366,135 +988,74 @@ export class ModelClass {
     prevCursor?: string;
     hasMore: boolean;
   }> {
-    const limit = Math.max(1, Math.floor(options.limit ?? 25));
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const leadOrder = this.order[0];
-    const orderKey = (leadOrder?.key as string | undefined) ?? primaryKey;
-    const orderDir = leadOrder?.dir ?? SortDirection.Asc;
-    const usesPrimaryOnly = orderKey === primaryKey;
-    let scoped: M = this;
-    let reverse = false;
-
-    const stepDirection = (walk: 'after' | 'before'): 'forward' | 'backward' => {
-      const forward = walk === 'after';
-      if (orderDir === SortDirection.Desc) return forward ? 'backward' : 'forward';
-      return forward ? 'forward' : 'backward';
-    };
-
-    const buildFilter = (token: string, walk: 'after' | 'before'): Filter<any> => {
-      const payload = decodeCompositeCursor(token);
-      const orderValue = payload[orderKey];
-      const primaryValue = payload[primaryKey];
-      const direction = stepDirection(walk);
-      const cmp = direction === 'forward' ? '$gt' : '$lt';
-      if (usesPrimaryOnly) {
-        return { [cmp]: { [primaryKey]: primaryValue } } as Filter<any>;
-      }
-      // (orderKey <cmp> value) OR (orderKey == value AND primaryKey <cmp> id)
-      return {
-        $or: [
-          { [cmp]: { [orderKey]: orderValue } },
-          {
-            $and: [{ [orderKey]: orderValue }, { [cmp]: { [primaryKey]: primaryValue } }],
-          },
-        ],
-      } as Filter<any>;
-    };
-
-    if (options.after !== undefined) {
-      scoped = scoped.filterBy(buildFilter(options.after, 'after')) as M;
-    } else if (options.before !== undefined) {
-      scoped = scoped.filterBy(buildFilter(options.before, 'before')).reverse() as M;
-      reverse = true;
-    }
-    const fetched = await scoped.limitBy(limit + 1).all<M>();
-    const hasMore = fetched.length > limit;
-    let items = hasMore ? fetched.slice(0, limit) : fetched;
-    if (reverse) items = items.reverse();
-    const first = items[0] as Dict<any> | undefined;
-    const last = items[items.length - 1] as Dict<any> | undefined;
-    const tokenFor = (row: Dict<any>): string =>
-      usesPrimaryOnly
-        ? encodeCursor(row[primaryKey], primaryKey)
-        : encodeCompositeCursor({
-            [orderKey]: row[orderKey],
-            [primaryKey]: row[primaryKey],
-          });
-    return {
-      items,
-      nextCursor: hasMore && last ? tokenFor(last) : undefined,
-      prevCursor: first ? tokenFor(first) : undefined,
-      hasMore,
-    };
+    return CollectionQuery.fromModel(this as any).paginateCursor(options) as Promise<{
+      items: InstanceType<M>[];
+      nextCursor?: string;
+      prevCursor?: string;
+      hasMore: boolean;
+    }>;
   }
 
-  static async ids<M extends typeof ModelClass>(this: M) {
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    return this.pluck(primaryKey);
+  /** Pluck the primary-key column from the current scope. */
+  static ids<M extends typeof ModelClass>(this: M): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).ids();
   }
 
-  static async select(...keys: any[]) {
-    const items = await this.connector.select(await this.modelScope(), ...keys);
-    return items;
+  /**
+   * Project the current scope to specific columns via the connector's
+   * `select`. Returns rows shaped with only the requested keys — does NOT
+   * hydrate Model instances.
+   */
+  static select<M extends typeof ModelClass>(this: M, ...keys: string[]): Promise<Dict<any>[]> {
+    return CollectionQuery.fromModel(this as any).select(...keys);
   }
 
-  static async pluck(...keys: string[]): Promise<any[]> {
-    if (keys.length === 0) return [];
-    const items = await this.select(...(keys as any[]));
-    if (keys.length === 1) {
-      const [key] = keys;
-      return items.map((item) => item[key]);
-    }
-    return items.map((item) => keys.map((k) => item[k]));
+  /**
+   * Pluck columns from the current scope. With one column, returns a
+   * chainable ColumnQuery (PromiseLike) so `await Model.pluck('email')`
+   * resolves to `string[]`. With multiple columns, returns
+   * `Promise<unknown[][]>` (each row a tuple). With zero arguments, returns
+   * `Promise<[]>`.
+   */
+  static pluck<M extends typeof ModelClass>(
+    this: M,
+    ...keys: string[]
+  ): ColumnQuery<unknown[]> | Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).pluck(...keys);
   }
 
-  static async pluckUnique(key: string) {
-    const values = await this.pluck(key);
-    const seen = new Set<any>();
-    const result: any[] = [];
-    for (const v of values) {
-      if (!seen.has(v)) {
-        seen.add(v);
-        result.push(v);
-      }
-    }
-    return result;
+  /** Pluck a column with duplicates removed (preserving first-appearance order). */
+  static pluckUnique<M extends typeof ModelClass>(this: M, key: string): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).pluckUnique(key);
   }
 
-  static async count<M extends typeof ModelClass>(this: M) {
-    return await this.connector.count(await this.modelScope());
+  /**
+   * Returns a chainable ScalarQuery resolving to the count of records in the
+   * current scope. PromiseLike, so `await Model.count()` works unchanged.
+   */
+  static count<M extends typeof ModelClass>(this: M): ScalarQuery<number> {
+    return CollectionQuery.fromModel(this as any).count() as unknown as ScalarQuery<number>;
   }
 
-  static async countBy(key: string): Promise<Map<any, number>> {
-    const values = await this.pluck(key);
-    const result = new Map<any, number>();
-    for (const value of values) {
-      result.set(value, (result.get(value) ?? 0) + 1);
-    }
-    if (this.havingPredicate) {
-      for (const [bucket, count] of result) {
-        if (!this.havingPredicate(count)) result.delete(bucket);
-      }
-    }
-    return result;
+  /**
+   * Group rows by the value of `key` and count each bucket. Honours `having`
+   * — drops buckets the predicate rejects.
+   */
+  static countBy<M extends typeof ModelClass>(this: M, key: string): Promise<Map<unknown, number>> {
+    return CollectionQuery.fromModel(this as any).countBy(key);
   }
 
-  static async groupBy<M extends typeof ModelClass>(
+  /**
+   * Group rows by the value of `key`. Materialises every record (callbacks
+   * fire) and buckets them by attribute value.
+   */
+  static groupBy<M extends typeof ModelClass>(
     this: M,
     key: string,
-  ): Promise<Map<any, InstanceType<M>[]>> {
-    const items = await this.all<M>();
-    const result = new Map<any, InstanceType<M>[]>();
-    for (const item of items) {
-      const bucket = (item.attributes() as Dict<any>)[key];
-      const list = result.get(bucket);
-      if (list) {
-        list.push(item);
-      } else {
-        result.set(bucket, [item]);
-      }
-    }
-    return result;
+  ): Promise<Map<unknown, InstanceType<M>[]>> {
+    return CollectionQuery.fromModel(this as any).groupBy(key) as Promise<
+      Map<unknown, InstanceType<M>[]>
+    >;
   }
 
   static async preloadBelongsTo<M extends typeof ModelClass>(
@@ -1506,7 +1067,7 @@ export class ModelClass {
     const pk = options.primaryKey ?? Object.keys(this.keys)[0] ?? 'id';
     const ids = new Set<any>();
     for (const record of records) {
-      const attrs = typeof record?.attributes === 'function' ? record.attributes() : record;
+      const attrs = record instanceof ModelClass ? record.attributes : record;
       const value = attrs?.[fk];
       if (value !== undefined && value !== null) ids.add(value);
     }
@@ -1514,7 +1075,7 @@ export class ModelClass {
     const related = await this.filterBy({ $in: { [pk]: [...ids] } } as Filter<any>).all<M>();
     const result = new Map<any, InstanceType<M>>();
     for (const r of related) {
-      const key = (r.attributes() as Dict<any>)[pk];
+      const key = (r.attributes as Dict<any>)[pk];
       result.set(key, r);
     }
     return result;
@@ -1529,7 +1090,7 @@ export class ModelClass {
     const pk = options.primaryKey ?? 'id';
     const ids = new Set<any>();
     for (const record of records) {
-      const attrs = typeof record?.attributes === 'function' ? record.attributes() : record;
+      const attrs = record instanceof ModelClass ? record.attributes : record;
       const value = attrs?.[pk];
       if (value !== undefined && value !== null) ids.add(value);
     }
@@ -1538,7 +1099,7 @@ export class ModelClass {
     if (ids.size === 0) return result;
     const related = await this.filterBy({ $in: { [fk]: [...ids] } } as Filter<any>).all<M>();
     for (const r of related) {
-      const key = (r.attributes() as Dict<any>)[fk];
+      const key = (r.attributes as Dict<any>)[fk];
       const list = result.get(key);
       if (list) list.push(r);
       else result.set(key, [r]);
@@ -1546,111 +1107,144 @@ export class ModelClass {
     return result;
   }
 
+  /**
+   * Run a single aggregate (sum / min / max / avg) against the current scope.
+   * Most callers prefer `Model.sum(...)` / `Model.min(...)` etc. for the
+   * chainable form. Returns `undefined` for empty result sets (except sum,
+   * which returns 0 to match the `Model.sum` contract).
+   */
   static async aggregate<M extends typeof ModelClass>(
     this: M,
     kind: AggregateKind,
     key: string,
   ): Promise<number | undefined> {
-    return await this.connector.aggregate(await this.modelScope(), kind, key);
-  }
-
-  static async sum<M extends typeof ModelClass>(this: M, key: string) {
-    return (await this.aggregate('sum', key)) ?? 0;
-  }
-
-  static async min<M extends typeof ModelClass>(this: M, key: string) {
-    return this.aggregate('min', key);
-  }
-
-  static async max<M extends typeof ModelClass>(this: M, key: string) {
-    return this.aggregate('max', key);
-  }
-
-  static async avg<M extends typeof ModelClass>(this: M, key: string) {
-    return this.aggregate('avg', key);
-  }
-
-  static async deleteAll<M extends typeof ModelClass>(this: M) {
-    return await this.connector.deleteAll(await this.modelScope());
+    const q = CollectionQuery.fromModel(this as any);
+    if (kind === 'sum') return (await q.sum(key)) ?? 0;
+    if (kind === 'min') return q.minimum<number>(key);
+    if (kind === 'max') return q.maximum<number>(key);
+    return q.average(key);
   }
 
   /**
-   * Load every matching record and call `.delete()` on each so per-row
-   * `beforeDelete` / `afterDelete` callbacks fire and any `cascade` config
-   * (where supported) takes effect. Slower than `deleteAll()` for large
-   * scopes — `deleteAll` is one bulk DELETE, `destroyAll` is N round-trips —
-   * but matches Rails' `destroy_all` semantics. Returns the deleted records.
+   * SUM(column) on the current scope. Returns 0 on empty (the connector
+   * returns undefined; the static adapter normalises to 0 — consistent with
+   * the legacy `Model.sum(...)` contract).
    */
-  static async destroyAll<M extends typeof ModelClass>(this: M): Promise<InstanceType<M>[]> {
-    const records = await this.all<M>();
-    for (const record of records) {
-      await (record as any).delete();
-    }
-    return records;
+  static async sum<M extends typeof ModelClass>(this: M, key: string): Promise<number> {
+    return (await CollectionQuery.fromModel(this as any).sum(key)) ?? 0;
   }
 
-  static async updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>) {
-    const effectiveAttrs = { ...attrs };
-    const updatedCol = this.updatedAtColumn;
-    if (updatedCol && effectiveAttrs[updatedCol] === undefined) {
-      effectiveAttrs[updatedCol] = new Date();
-    }
-    return await this.connector.updateAll(await this.modelScope(), effectiveAttrs);
+  /** Returns a chainable ScalarQuery resolving to MIN(column) (or undefined on empty). */
+  static min<M extends typeof ModelClass>(this: M, key: string): ScalarQuery<number | undefined> {
+    return CollectionQuery.fromModel(this as any).minimum<number>(key) as unknown as ScalarQuery<
+      number | undefined
+    >;
+  }
+
+  /** Returns a chainable ScalarQuery resolving to MAX(column) (or undefined on empty). */
+  static max<M extends typeof ModelClass>(this: M, key: string): ScalarQuery<number | undefined> {
+    return CollectionQuery.fromModel(this as any).maximum<number>(key) as unknown as ScalarQuery<
+      number | undefined
+    >;
+  }
+
+  /** Returns a chainable ScalarQuery resolving to AVG(column) (or undefined on empty). */
+  static avg<M extends typeof ModelClass>(this: M, key: string): ScalarQuery<number | undefined> {
+    return CollectionQuery.fromModel(this as any).average(key) as unknown as ScalarQuery<
+      number | undefined
+    >;
   }
 
   /**
-   * Apply an atomic delta to `column` for every row matching the current
-   * scope. Returns the number of affected rows. Routes through the
-   * connector's `deltaUpdate(spec)` — each connector picks the most
-   * efficient native shape (single-statement `UPDATE col = col + ?` on
-   * SQL, `$inc` on Mongo, `HINCRBY` on Redis, in-process walk on memory).
+   * Bulk DELETE on the current scope. Per-row callbacks DO NOT fire — use
+   * `destroyAll()` for that. Returns the deleted row payloads.
    */
-  static async increment<M extends typeof ModelClass>(
+  static deleteAll<M extends typeof ModelClass>(this: M): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).deleteAll();
+  }
+
+  /**
+   * Materialise every matching record, then call `.delete()` on each so
+   * per-row `beforeDelete` / `afterDelete` callbacks fire and any `cascade`
+   * config takes effect. Slower than `deleteAll()` (N round-trips) but
+   * matches Rails' `destroy_all` semantics.
+   */
+  static destroyAll<M extends typeof ModelClass>(this: M): Promise<InstanceType<M>[]> {
+    return CollectionQuery.fromModel(this as any).destroyAll() as Promise<InstanceType<M>[]>;
+  }
+
+  /**
+   * Bulk UPDATE on the current scope. Auto-stamps `updatedAt` (when the Model
+   * declares one). Per-row `beforeUpdate` / `afterUpdate` callbacks DO NOT
+   * fire — use `findEach` + `record.update(...)` for that.
+   */
+  static updateAll<M extends typeof ModelClass>(this: M, attrs: Dict<any>): Promise<unknown[]> {
+    return CollectionQuery.fromModel(this as any).updateAll(attrs);
+  }
+
+  /**
+   * Atomic `column = column + by` on every row matching the current scope.
+   * Routes through the connector's `deltaUpdate(spec)` so each connector
+   * picks the most efficient native shape (single-statement `UPDATE col =
+   * col + ?` on SQL, `$inc` on Mongo, `HINCRBY` on Redis, in-process walk
+   * on memory). Returns the affected row count.
+   */
+  static increment<M extends typeof ModelClass>(this: M, column: string, by = 1): Promise<number> {
+    return CollectionQuery.fromModel(this as any).increment(column, by);
+  }
+
+  /** Sugar for `increment(column, -by)`. */
+  static decrement<M extends typeof ModelClass>(this: M, column: string, by = 1): Promise<number> {
+    return CollectionQuery.fromModel(this as any).decrement(column, by);
+  }
+
+  /**
+   * Returns a chainable InstanceQuery resolving to the first matching record
+   * (or `undefined` when no match). PromiseLike, so `await Model.findBy(x)`
+   * works unchanged.
+   */
+  static findBy<M extends typeof ModelClass>(
     this: M,
-    column: string,
-    by = 1,
-  ): Promise<number> {
-    const updatedCol = this.updatedAtColumn;
-    const scope = await this.modelScope();
-    const set: Dict<any> | undefined = updatedCol ? { [updatedCol]: new Date() } : undefined;
-    return await this.connector.deltaUpdate({
-      tableName: scope.tableName,
-      filter: scope.filter,
-      deltas: [{ column, by }],
-      set,
-    });
+    filter: Filter<any>,
+  ): InstanceQuery<InstanceType<M> | undefined> {
+    return CollectionQuery.fromModel(this as any).findBy(filter) as unknown as InstanceQuery<
+      InstanceType<M> | undefined
+    >;
   }
 
-  static async decrement<M extends typeof ModelClass>(
+  /**
+   * Cheap existence probe — `count() > 0` on the chained scope. Pass `filter`
+   * to narrow without mutating the chain.
+   */
+  static exists<M extends typeof ModelClass>(this: M, filter?: Filter<any>): Promise<boolean> {
+    return CollectionQuery.fromModel(this as any).exists(filter);
+  }
+
+  /**
+   * Returns a chainable InstanceQuery resolving to the matched record. Throws
+   * `NotFoundError` when no row matches (the terminal kind 'find' wires the
+   * throwing semantics).
+   */
+  static find<M extends typeof ModelClass>(
     this: M,
-    column: string,
-    by = 1,
-  ): Promise<number> {
-    return this.increment(column, -by);
+    id: number | string,
+  ): InstanceQuery<InstanceType<M>> {
+    return CollectionQuery.fromModel(this as any).find(id) as unknown as InstanceQuery<
+      InstanceType<M>
+    >;
   }
 
-  static async findBy<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
-    return await this.filterBy(filter).first<M>();
-  }
-
-  static async exists<M extends typeof ModelClass>(this: M, filter?: Filter<any>) {
-    const scoped = filter === undefined ? this : this.filterBy(filter);
-    return (await scoped.count()) > 0;
-  }
-
-  static async find<M extends typeof ModelClass>(this: M, id: number | string) {
-    const primaryKey = Object.keys(this.keys)[0] ?? 'id';
-    const record = await this.findBy<M>({ [primaryKey]: id });
-    if (!record) {
-      throw new NotFoundError(`${this.name || 'Record'} with ${primaryKey}=${id} not found`);
-    }
-    return record;
-  }
-
-  static async findOrFail<M extends typeof ModelClass>(this: M, filter: Filter<any>) {
-    const record = await this.findBy<M>(filter);
-    if (!record) throw new NotFoundError('Record not found');
-    return record;
+  /**
+   * Same as `find(id)` but lookup is by arbitrary filter. Throws
+   * `NotFoundError` when no row matches.
+   */
+  static findOrFail<M extends typeof ModelClass>(
+    this: M,
+    filter: Filter<any>,
+  ): InstanceQuery<InstanceType<M>> {
+    return CollectionQuery.fromModel(this as any).findOrFail(filter) as unknown as InstanceQuery<
+      InstanceType<M>
+    >;
   }
 
   static async findOrBuild<M extends typeof ModelClass>(
@@ -1825,7 +1419,7 @@ export class ModelClass {
 
     for (const key in this.persistentProps) {
       Object.defineProperty(this, key, {
-        get: () => this.attributes()[key],
+        get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
       });
     }
@@ -1856,11 +1450,11 @@ export class ModelClass {
         if (Object.getOwnPropertyDescriptor(this, subKey)) continue;
         Object.defineProperty(this, subKey, {
           get: () => {
-            const bag = (this.attributes() as Dict<any>)[column];
+            const bag = (this.attributes as Dict<any>)[column];
             return bag != null ? bag[subKey] : undefined;
           },
           set: (value) => {
-            const current = ((this.attributes() as Dict<any>)[column] ?? {}) as Dict<any>;
+            const current = ((this.attributes as Dict<any>)[column] ?? {}) as Dict<any>;
             this.assign({ [column]: { ...current, [subKey]: value } });
           },
         });
@@ -1897,16 +1491,16 @@ export class ModelClass {
     return this.keys === undefined;
   }
 
-  attributes(): Dict<any> {
+  get attributes(): Dict<any> {
     return { ...this.persistentProps, ...this.changedProps, ...this.keys };
   }
 
   toJSON(): Dict<any> {
-    return this.attributes();
+    return this.attributes;
   }
 
   pick(keys: string[]): Dict<any> {
-    const attrs = this.attributes();
+    const attrs = this.attributes;
     const result: Dict<any> = {};
     for (const key of keys) {
       if (key in attrs) result[key] = attrs[key];
@@ -1915,7 +1509,7 @@ export class ModelClass {
   }
 
   omit(keys: string[]): Dict<any> {
-    const attrs = this.attributes();
+    const attrs = this.attributes;
     const skip = new Set(keys);
     const result: Dict<any> = {};
     for (const key in attrs) {
@@ -1961,7 +1555,7 @@ export class ModelClass {
 
   was(key: string): any {
     if (key in this.changedProps) return this.persistentProps[key];
-    return this.attributes()[key];
+    return this.attributes[key];
   }
 
   savedChanges(): Dict<{ from: any; to: any }> {
@@ -1974,7 +1568,7 @@ export class ModelClass {
 
   savedWas(key: string): any {
     if (key in this.lastSavedChanges) return this.lastSavedChanges[key].from;
-    return this.attributes()[key];
+    return this.attributes[key];
   }
 
   wasChanged(): boolean {
@@ -2006,29 +1600,49 @@ export class ModelClass {
     };
   }
 
+  /**
+   * Manual belongsTo association — for user code that explicitly defines an
+   * accessor like `author() { return this.belongsTo(User); }`. Returns a
+   * chainable InstanceQuery (PromiseLike) so `await this.belongsTo(...)` works
+   * but the result also supports further chaining (`.pluck(...)` etc.). When
+   * the foreign-key value is null/undefined or polymorphic-type mismatches,
+   * returns a `none()`-scoped InstanceQuery that resolves to `undefined`.
+   */
   belongsTo<Related extends typeof ModelClass>(
     this: ModelClass,
     Related: Related,
     options: AssociationOptions = {},
-  ): Promise<InstanceType<Related> | undefined> {
+  ): InstanceQuery<InstanceType<Related> | undefined> {
     const poly = options.polymorphic;
     const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(Related.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(Related.keys)[0] ?? 'id';
-    const attrs = this.attributes() as Dict<any>;
+    const attrs = this.attributes as Dict<any>;
     const fkValue = attrs[fk];
     if (fkValue === undefined || fkValue === null) {
-      return Promise.resolve(undefined);
+      return Related.none().findBy({ [pk]: null } as Filter<any>) as unknown as InstanceQuery<
+        InstanceType<Related> | undefined
+      >;
     }
     if (poly) {
       const typeKey = options.typeKey ?? `${poly}Type`;
       const expectedType = options.typeValue ?? Related.tableName;
       if (attrs[typeKey] !== expectedType) {
-        return Promise.resolve(undefined);
+        return Related.none().findBy({ [pk]: null } as Filter<any>) as unknown as InstanceQuery<
+          InstanceType<Related> | undefined
+        >;
       }
     }
-    return Related.findBy({ [pk]: fkValue }) as Promise<InstanceType<Related> | undefined>;
+    return Related.findBy({ [pk]: fkValue }) as unknown as InstanceQuery<
+      InstanceType<Related> | undefined
+    >;
   }
 
+  /**
+   * Manual hasMany association — for user code that explicitly defines an
+   * accessor like `posts() { return this.hasMany(Post); }`. Returns a
+   * chainable scope so `(await this.posts()).map(...)` works and further
+   * chaining (`.where(...)`, `.pluck(...)`) is available.
+   */
   hasMany<Related extends typeof ModelClass>(
     this: ModelClass,
     Related: Related,
@@ -2047,25 +1661,33 @@ export class ModelClass {
     return Related.filterBy(filter) as Related;
   }
 
+  /**
+   * Manual hasOne association — for user code that explicitly defines an
+   * accessor like `profile() { return this.hasOne(Profile); }`. Returns a
+   * chainable InstanceQuery (PromiseLike); resolves to `undefined` when no
+   * matching row exists or when the parent record is unsaved.
+   */
   hasOne<Related extends typeof ModelClass>(
     this: ModelClass,
     Related: Related,
     options: AssociationOptions = {},
-  ): Promise<InstanceType<Related> | undefined> {
+  ): InstanceQuery<InstanceType<Related> | undefined> {
     const selfModel = this.constructor as typeof ModelClass;
     const poly = options.polymorphic;
     const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(selfModel.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id';
     const pkValue = (this as any)[pk];
     if (pkValue === undefined || pkValue === null) {
-      return Promise.resolve(undefined);
+      return Related.none().findBy({ [fk]: null } as Filter<any>) as unknown as InstanceQuery<
+        InstanceType<Related> | undefined
+      >;
     }
     const filter: Dict<any> = { [fk]: pkValue };
     if (poly) {
       const typeKey = options.typeKey ?? `${poly}Type`;
       filter[typeKey] = options.typeValue ?? selfModel.tableName;
     }
-    return Related.findBy(filter) as Promise<InstanceType<Related> | undefined>;
+    return Related.findBy(filter) as unknown as InstanceQuery<InstanceType<Related> | undefined>;
   }
 
   hasManyThrough<Target extends typeof ModelClass, Through extends typeof ModelClass>(
@@ -2200,7 +1822,7 @@ export class ModelClass {
         const lockColumn = model.lockVersionColumn;
         let expectedLock: number | undefined;
         if (lockColumn) {
-          expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+          expectedLock = (this.attributes as Dict<any>)[lockColumn] ?? 0;
           scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
           this.changedProps[lockColumn] = (expectedLock as number) + 1;
         }
@@ -2373,7 +1995,7 @@ export class ModelClass {
       ) as typeof ModelClass;
       const fk = spec.foreignKey;
       const pkName = spec.primaryKey ?? Object.keys(model.keys)[0] ?? 'id';
-      const pkValue = (this.attributes() as Dict<any>)[pkName];
+      const pkValue = (this.attributes as Dict<any>)[pkName];
       if (pkValue === undefined || pkValue === null) continue;
       const childScope = target.filterBy({ [fk]: pkValue } as Filter<any>);
       switch (spec.dependent) {
@@ -2427,7 +2049,7 @@ export class ModelClass {
     const lockColumn = model.lockVersionColumn;
     let expectedLock: number | undefined;
     if (lockColumn) {
-      expectedLock = (this.attributes() as Dict<any>)[lockColumn] ?? 0;
+      expectedLock = (this.attributes as Dict<any>)[lockColumn] ?? 0;
       scope = { ...scope, filter: { ...scope.filter, [lockColumn]: expectedLock } };
     }
     const items = await model.connector.deleteAll(scope);
@@ -2448,7 +2070,7 @@ export class ModelClass {
 
   isDiscarded(): boolean {
     const model = this.constructor as typeof ModelClass;
-    const value = (this.attributes() as Dict<any>)[model.softDeleteColumn];
+    const value = (this.attributes as Dict<any>)[model.softDeleteColumn];
     return value !== null && value !== undefined;
   }
 
@@ -2475,7 +2097,7 @@ export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
   Keys extends Dict<KeyType> = { id: KeyType.number },
-  Scopes extends ScopeMap<any> = {},
+  Scopes extends ScopeMap = {},
 >(props: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
@@ -2578,7 +2200,7 @@ export function Model<
   const builtInValidators: Validator<any>[] = [];
   if (Object.keys(enumDefs).length > 0) {
     builtInValidators.push((record) => {
-      const attrs = record.attributes() as Dict<any>;
+      const attrs = record.attributes as Dict<any>;
       for (const column in enumDefs) {
         const value = attrs[column];
         if (value === undefined || value === null) continue;
@@ -2723,40 +2345,50 @@ export function Model<
       return super.on(event, handler as Callback<any>);
     }
 
-    static async select(...keys: [keyof Keys | keyof PersistentProps][]) {
-      return super.select(...(keys as any[])) as any as Partial<
-        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-      >[];
+    static select(...keys: Array<keyof Keys | keyof PersistentProps>) {
+      return super.select(...(keys as string[])) as Promise<
+        Partial<
+          PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+        >[]
+      >;
     }
 
-    static async pluck<K extends Array<keyof Keys | keyof PersistentProps>>(...keys: K) {
-      return super.pluck(...(keys as unknown as string[])) as Promise<any[]>;
+    static pluck(...keys: Array<keyof Keys | keyof PersistentProps>) {
+      return super.pluck(...(keys as string[]));
     }
 
-    static async pluckUnique(key: keyof Keys | keyof PersistentProps) {
+    static pluckUnique(key: keyof Keys | keyof PersistentProps) {
       return super.pluckUnique(key as string);
     }
 
-    static async ids<M extends typeof ModelClass>(this: M) {
+    static ids<M extends typeof ModelClass>(this: M) {
       return super.ids();
     }
 
-    static async all<M extends typeof ModelClass>(this: M) {
-      return (await super.all()) as (InstanceType<M> &
-        PersistentProps &
-        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
+    static all<M extends typeof ModelClass>(this: M) {
+      return super.all() as unknown as CollectionQuery<
+        (InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[]
+      >;
     }
 
-    static async first<M extends typeof ModelClass>(this: M) {
-      return (await super.first()) as InstanceType<M> &
-        PersistentProps &
-        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    static first<M extends typeof ModelClass>(this: M) {
+      return super.first() as unknown as InstanceQuery<
+        | (InstanceType<M> &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
+        | undefined
+      >;
     }
 
-    static async last<M extends typeof ModelClass>(this: M) {
-      return (await super.last()) as InstanceType<M> &
-        PersistentProps &
-        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+    static last<M extends typeof ModelClass>(this: M) {
+      return super.last() as unknown as InstanceQuery<
+        | (InstanceType<M> &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
+        | undefined
+      >;
     }
 
     static async *inBatchesOf<M extends typeof ModelClass>(this: M, size: number) {
@@ -2775,9 +2407,8 @@ export function Model<
       }
     }
 
-    static async paginate<M extends typeof ModelClass>(this: M, page: number, perPage?: number) {
-      const result = await super.paginate(page, perPage);
-      return result as {
+    static paginate<M extends typeof ModelClass>(this: M, page: number, perPage?: number) {
+      return super.paginate(page, perPage) as Promise<{
         items: (InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
@@ -2787,29 +2418,28 @@ export function Model<
         totalPages: number;
         hasNext: boolean;
         hasPrev: boolean;
-      };
+      }>;
     }
 
-    static async paginateCursor<M extends typeof ModelClass>(
+    static paginateCursor<M extends typeof ModelClass>(
       this: M,
       options?: { after?: string; before?: string; limit?: number },
     ) {
-      const result = await super.paginateCursor(options);
-      return result as {
+      return super.paginateCursor(options) as Promise<{
         items: (InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)[];
         nextCursor?: string;
         prevCursor?: string;
         hasMore: boolean;
-      };
+      }>;
     }
 
-    static async count<M extends typeof ModelClass>(this: M) {
-      return await super.count();
+    static count<M extends typeof ModelClass>(this: M) {
+      return super.count();
     }
 
-    static async countBy(key: keyof Keys | keyof PersistentProps) {
+    static countBy(key: keyof Keys | keyof PersistentProps) {
       return super.countBy(key as string);
     }
 
@@ -2854,19 +2484,19 @@ export function Model<
       >;
     }
 
-    static async sum<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static sum<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.sum(key as string);
     }
 
-    static async min<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static min<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.min(key as string);
     }
 
-    static async max<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static max<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.max(key as string);
     }
 
-    static async avg<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
+    static avg<M extends typeof ModelClass>(this: M, key: keyof PersistentProps) {
       return super.avg(key as string);
     }
 
@@ -2882,44 +2512,51 @@ export function Model<
       })[];
     }
 
-    static async findBy<M extends typeof ModelClass>(
+    static findBy<M extends typeof ModelClass>(
       this: M,
       filter: Filter<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return (await super.findBy(filter)) as InstanceType<M> &
-        PersistentProps &
-        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+      return super.findBy(filter) as unknown as InstanceQuery<
+        | (InstanceType<M> &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
+        | undefined
+      >;
     }
 
-    static async exists<M extends typeof ModelClass>(
+    static exists<M extends typeof ModelClass>(
       this: M,
       filter?: Filter<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return await super.exists(filter);
+      return super.exists(filter);
     }
 
-    static async find<M extends typeof ModelClass>(
+    static find<M extends typeof ModelClass>(
       this: M,
       id: Keys[keyof Keys] extends KeyType.uuid ? string : number,
     ) {
-      return (await super.find(id as number | string)) as InstanceType<M> &
-        PersistentProps &
-        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+      return super.find(id as number | string) as unknown as InstanceQuery<
+        InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
+      >;
     }
 
-    static async findOrFail<M extends typeof ModelClass>(
+    static findOrFail<M extends typeof ModelClass>(
       this: M,
       filter: Filter<
         PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
       >,
     ) {
-      return (await super.findOrFail(filter)) as InstanceType<M> &
-        PersistentProps &
-        Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
+      return super.findOrFail(filter) as unknown as InstanceQuery<
+        InstanceType<M> &
+          PersistentProps &
+          Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
+      >;
     }
 
     static async findOrBuild<M extends typeof ModelClass>(
@@ -3000,7 +2637,7 @@ export function Model<
       super(props, keys);
     }
 
-    attributes() {
+    get attributes() {
       return {
         ...(this.persistentProps as object),
         ...(this.changedProps as object),
@@ -3009,7 +2646,7 @@ export function Model<
     }
 
     toJSON() {
-      return this.attributes();
+      return this.attributes;
     }
 
     pick<K extends keyof PersistentProps | keyof Keys>(keys: K[]) {
@@ -3059,10 +2696,21 @@ export function Model<
     }
   };
 
+  // Named scopes are either `Filter<any>` literals (no-arg method) or
+  // `(...args) => Filter<any>` factories (args-forwarding method). Both
+  // call `this.filterBy(...)`. For multi-clause logic declare a static
+  // method on the user's subclass instead.
   for (const name in scopeDefs) {
-    (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
-      return scopeDefs[name](this, ...args);
-    };
+    const def = scopeDefs[name];
+    if (typeof def === 'function') {
+      (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
+        return this.filterBy((def as (...args: any[]) => Filter<any>)(...args) as any);
+      };
+    } else {
+      (ModelSubclass as any)[name] = function (this: typeof ModelSubclass) {
+        return this.filterBy(def as any);
+      };
+    }
   }
 
   for (const column in enumDefs) {
@@ -3085,7 +2733,7 @@ export function Model<
         return this.filterBy({ [column]: value } as any);
       };
       (ModelSubclass.prototype as any)[predicateName] = function (this: ModelClass) {
-        return (this.attributes() as Dict<any>)[column] === value;
+        return (this.attributes as Dict<any>)[column] === value;
       };
     }
   }
@@ -3113,11 +2761,11 @@ export function Model<
     };
     for (const spec of props.counterCaches) {
       ModelSubclass.on('afterCreate', async (record) => {
-        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        const fkValue = (record.attributes as Dict<any>)[spec.foreignKey];
         await adjustCounter(spec, fkValue, +1);
       });
       ModelSubclass.on('afterDelete', async (record) => {
-        const fkValue = (record.attributes() as Dict<any>)[spec.foreignKey];
+        const fkValue = (record.attributes as Dict<any>)[spec.foreignKey];
         await adjustCounter(spec, fkValue, -1);
       });
       ModelSubclass.on('afterUpdate', async (record) => {

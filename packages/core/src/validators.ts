@@ -53,7 +53,7 @@ export class Errors {
 }
 
 type RecordLike = {
-  attributes: () => Dict<any>;
+  attributes: Dict<any>;
   errors: Errors;
   isPersistent: () => boolean;
   keys?: Dict<any>;
@@ -80,7 +80,7 @@ function isBlank(value: unknown): boolean {
 
 function skip(record: any, value: unknown, opts: BaseValidatorOptions): boolean {
   if (opts.if && !opts.if(record)) return true;
-  if (opts.unless && opts.unless(record)) return true;
+  if (opts.unless?.(record)) return true;
   if (opts.allowNull && (value === null || value === undefined)) return true;
   if (opts.allowBlank && isBlank(value)) return true;
   return false;
@@ -93,8 +93,8 @@ export function validatePresence(
   const list = toArray(keys);
   return (record: RecordLike) => {
     if (opts.if && !opts.if(record)) return true;
-    if (opts.unless && opts.unless(record)) return true;
-    const attrs = record.attributes();
+    if (opts.unless?.(record)) return true;
+    const attrs = record.attributes;
     let valid = true;
     for (const key of list) {
       if (isBlank(attrs[key])) {
@@ -112,7 +112,7 @@ export interface FormatOptions extends BaseValidatorOptions {
 
 export function validateFormat(key: string, opts: FormatOptions): Validator<any> {
   return (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     if (!opts.with.test(String(value ?? ''))) {
@@ -131,7 +131,7 @@ export interface LengthOptions extends BaseValidatorOptions {
 
 export function validateLength(key: string, opts: LengthOptions): Validator<any> {
   return (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     const length = String(value ?? '').length;
@@ -158,7 +158,7 @@ export function validateInclusion<T>(
   opts: BaseValidatorOptions = {},
 ): Validator<any> {
   return (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     if (!values.includes(value)) {
@@ -175,7 +175,7 @@ export function validateExclusion<T>(
   opts: BaseValidatorOptions = {},
 ): Validator<any> {
   return (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     if (values.includes(value)) {
@@ -199,7 +199,7 @@ export interface NumericalityOptions extends BaseValidatorOptions {
 
 export function validateNumericality(key: string, opts: NumericalityOptions = {}): Validator<any> {
   return (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     const num = typeof value === 'number' ? value : Number(value);
@@ -259,7 +259,7 @@ export interface UniquenessOptions extends BaseValidatorOptions {
 
 export function validateUniqueness(key: string, opts: UniquenessOptions = {}): Validator<any> {
   return async (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     const Model = record.constructor as {
@@ -281,12 +281,12 @@ export function validateUniqueness(key: string, opts: UniquenessOptions = {}): V
     const selfId = record.keys ? record.keys[pkName] : undefined;
     const collisions = rows.filter((row: any) => {
       if (!record.isPersistent()) return true;
-      return row.attributes()[pkName] !== selfId;
+      return row.attributes[pkName] !== selfId;
     });
     if (opts.caseSensitive === false && typeof value === 'string') {
       const needle = value.toLowerCase();
       const filtered = collisions.filter(
-        (row: any) => String(row.attributes()[key] ?? '').toLowerCase() === needle,
+        (row: any) => String(row.attributes[key] ?? '').toLowerCase() === needle,
       );
       if (filtered.length > 0) {
         record.errors.add(key, opts.message ?? 'has already been taken');
@@ -304,7 +304,7 @@ export function validateUniqueness(key: string, opts: UniquenessOptions = {}): V
 
 export function validateConfirmation(key: string, opts: BaseValidatorOptions = {}): Validator<any> {
   return (record: RecordLike) => {
-    const attrs = record.attributes();
+    const attrs = record.attributes;
     const value = attrs[key];
     if (skip(record, value, opts)) return true;
     const confirmation = (record as any)[`${key}Confirmation`];

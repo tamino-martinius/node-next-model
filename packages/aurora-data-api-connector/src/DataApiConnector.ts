@@ -23,6 +23,8 @@ import {
   type JoinQuerySpec,
   type KeyType,
   PersistenceError,
+  type Projection,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type TableBuilder,
@@ -279,6 +281,79 @@ export class DataApiConnector implements Connector {
     query = this.applyOrder(query, scope.order);
     const result = await this.runQuery(query.select('*'));
     return result.records ?? [];
+  }
+
+  /**
+   * Emits ONE SQL statement using nested `WHERE col IN (SELECT … FROM …)`
+   * subqueries — one per `parentScope`. The leaf builder runs against the
+   * target table; each parent scope projects its `link.parentColumn` and
+   * gates the next level (or the leaf) via that scope's `link.childColumn`.
+   * Builders resolve `pendingJoins` to `$in` / `$notIn` filters before calling
+   * this method, so the connector only sees a flat scope.
+   */
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    if (spec.pendingJoins.length > 0) {
+      throw new PersistenceError(
+        `DataApiConnector.queryScoped expects pendingJoins to be resolved upstream; received ${spec.pendingJoins.length} unresolved join(s). Use the CollectionQuery / ScalarQuery / ColumnQuery builders to materialise scopes with joins.`,
+      );
+    }
+
+    let builder = this.table(spec.target.tableName);
+
+    for (const parent of spec.parentScopes) {
+      const self = this;
+      builder = builder.whereIn(parent.link.childColumn, async function (this: Knex.QueryBuilder) {
+        this.from(parent.parentTable).select(parent.link.parentColumn);
+        if (parent.parentFilter) await self.filter(this, parent.parentFilter);
+        self.applyOrder(this, parent.parentOrder);
+        if (parent.parentLimit !== undefined) this.limit(parent.parentLimit);
+      });
+    }
+
+    if (spec.filter) {
+      ({ query: builder } = await this.filter(builder, spec.filter));
+    }
+    builder = this.applyOrder(builder, spec.order);
+    if (spec.limit !== undefined) builder = builder.limit(spec.limit);
+    if (spec.skip !== undefined) builder = builder.offset(spec.skip);
+
+    const projection: Projection = spec.projection;
+    if (projection === 'rows') {
+      const result = await this.runQuery(builder.select('*'));
+      return result.records ?? [];
+    }
+    if (typeof projection === 'object' && projection.kind === 'pk') {
+      const pkName = Object.keys(spec.target.keys)[0] ?? 'id';
+      const result = await this.runQuery(builder.select(pkName));
+      return (result.records ?? []).map((r) => r[pkName]);
+    }
+    if (typeof projection === 'object' && projection.kind === 'column') {
+      const result = await this.runQuery(builder.select(projection.column));
+      return (result.records ?? []).map((r) => r[projection.column]);
+    }
+    if (typeof projection === 'object' && projection.kind === 'aggregate') {
+      if (projection.op === 'count') {
+        const result = await this.runQuery(builder.count('* as c'));
+        const rows = result.records ?? [];
+        if (rows.length === 0) return 0;
+        const v = rows[0].c;
+        return v == null ? 0 : Number(v);
+      }
+      if (!projection.column) {
+        throw new PersistenceError(
+          `Aggregate '${projection.op}' requires a column; received undefined.`,
+        );
+      }
+      const fn = projection.op as AggregateKind;
+      const result = await this.runQuery(
+        (builder as any)[fn](`${projection.column} as v`) as Knex.QueryBuilder,
+      );
+      const rows = result.records ?? [];
+      if (rows.length === 0) return undefined;
+      const v = rows[0].v;
+      return v == null ? undefined : Number(v);
+    }
+    throw new PersistenceError(`Unknown projection: ${JSON.stringify(projection)}`);
   }
 
   async queryWithJoins(spec: JoinQuerySpec): Promise<Dict<any>[]> {

@@ -83,8 +83,8 @@ describe('Model.includes — eager loading', () => {
 
     expect(posts).toHaveLength(3);
     expect(posts[0].user).toBeDefined();
-    expect((posts[0].user?.attributes() as UserRow).name).toBe('Ada');
-    expect((posts[2].user?.attributes() as UserRow).name).toBe('Linus');
+    expect((posts[0].user?.attributes as UserRow).name).toBe('Ada');
+    expect((posts[2].user?.attributes as UserRow).name).toBe('Linus');
   });
 
   it('eager-loads a hasMany association', async () => {
@@ -97,8 +97,8 @@ describe('Model.includes — eager loading', () => {
       InstanceType<typeof User> & { posts?: InstanceType<typeof Post>[] }
     >;
 
-    expect(users[0].posts?.map((p) => (p.attributes() as PostRow).title)).toEqual(['P1', 'P2']);
-    expect(users[1].posts?.map((p) => (p.attributes() as PostRow).title)).toEqual(['P3']);
+    expect(users[0].posts?.map((p) => (p.attributes as PostRow).title)).toEqual(['P1', 'P2']);
+    expect(users[1].posts?.map((p) => (p.attributes as PostRow).title)).toEqual(['P3']);
   });
 
   it('composes multiple associations at once', async () => {
@@ -115,11 +115,8 @@ describe('Model.includes — eager loading', () => {
     >;
 
     expect(posts[0].user).toBeDefined();
-    expect(posts[0].comments?.map((c) => (c.attributes() as CommentRow).body)).toEqual([
-      'C1',
-      'C2',
-    ]);
-    expect(posts[1].comments?.map((c) => (c.attributes() as CommentRow).body)).toEqual(['C3']);
+    expect(posts[0].comments?.map((c) => (c.attributes as CommentRow).body)).toEqual(['C1', 'C2']);
+    expect(posts[1].comments?.map((c) => (c.attributes as CommentRow).body)).toEqual(['C3']);
     expect(posts[2].comments).toEqual([]);
   });
 
@@ -132,7 +129,7 @@ describe('Model.includes — eager loading', () => {
     const first = (await Post.includes('user').first()) as
       | (InstanceType<typeof Post> & { user?: InstanceType<typeof User> })
       | undefined;
-    expect((first?.user?.attributes() as UserRow).name).toBe('Ada');
+    expect((first?.user?.attributes as UserRow).name).toBe('Ada');
   });
 
   it('find() preserves the eager-loaded association', async () => {
@@ -144,7 +141,7 @@ describe('Model.includes — eager loading', () => {
     const p = (await Post.includes('user').find(3)) as InstanceType<typeof Post> & {
       user?: InstanceType<typeof User>;
     };
-    expect((p.user?.attributes() as UserRow).name).toBe('Linus');
+    expect((p.user?.attributes as UserRow).name).toBe('Linus');
   });
 
   it('consecutive includes() calls merge', async () => {
@@ -177,7 +174,7 @@ describe('Model.includes — eager loading', () => {
     >;
     // Auto-accessor still resolves lazily; await Promise<User | undefined>.
     const lazyUser = await rows[0].user;
-    expect((lazyUser?.attributes() as UserRow).name).toBe('Ada');
+    expect((lazyUser?.attributes as UserRow).name).toBe('Ada');
   });
 
   it('unscoped() also clears includes', async () => {
@@ -191,7 +188,7 @@ describe('Model.includes — eager loading', () => {
       InstanceType<typeof Post> & { user?: Promise<InstanceType<typeof User> | undefined> }
     >;
     const lazyUser = await rows[0].user;
-    expect((lazyUser?.attributes() as UserRow).name).toBe('Ada');
+    expect((lazyUser?.attributes as UserRow).name).toBe('Ada');
   });
 
   it('auto-defined instance accessor lazy-loads when not eager-loaded', async () => {
@@ -205,27 +202,23 @@ describe('Model.includes — eager loading', () => {
       comments: Promise<InstanceType<typeof Comment>[]>;
     };
     const user = await post.user;
-    expect((user?.attributes() as UserRow).name).toBe('Ada');
+    expect((user?.attributes as UserRow).name).toBe('Ada');
     const comments = await post.comments;
-    expect(comments.map((c) => (c.attributes() as CommentRow).body)).toEqual(['C1', 'C2']);
+    expect(comments.map((c) => (c.attributes as CommentRow).body)).toEqual(['C1', 'C2']);
   });
 
-  it('instance-level .belongsTo / .hasMany still return a Promise (lazy)', async () => {
+  it('instance-level .belongsTo / .hasMany return a chainable query (PromiseLike)', async () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
     const { User, Post } = models;
 
-    const post = (await Post.find(1)) as unknown as {
-      belongsTo: (
-        M: typeof User,
-        opts?: { foreignKey?: string },
-      ) => Promise<InstanceType<typeof User> | undefined>;
-    };
+    const post = (await Post.find(1)) as Awaited<ReturnType<typeof Post.find>>;
     const lazy = post.belongsTo(User, { foreignKey: 'userId' });
-    expect(lazy).toBeInstanceOf(Promise);
+    // Awaiting the InstanceQuery resolves the lookup; the builder is
+    // PromiseLike so existing `await this.belongsTo(...)` keeps working.
     const resolved = await lazy;
-    expect((resolved?.attributes() as UserRow).name).toBe('Ada');
+    expect((resolved?.attributes as UserRow).name).toBe('Ada');
   });
 
   it('throws when the Model declares no associations', async () => {

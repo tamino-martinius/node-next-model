@@ -3,6 +3,7 @@
 ## vNext
 
 - Inherits `Connector.queryWithJoins(spec)` from `MysqlConnector` — MariaDB's wire-compatible `mysql2` driver and identical SQL surface mean the EXISTS / NOT EXISTS / batched-IN paths work without any MariaDB-specific override. Powers `Model.whereMissing` / `Model.joins` / `Model.includes({...}, { strategy: 'join' | 'auto' })` / cross-association `filterBy` natively.
+- Inherits `Connector.queryScoped(spec)` from `MysqlConnector` — same nested `WHERE col IN (SELECT …)` shape, identifier quoting, and projection routing. Powers promise-like chainable query builders (`User.where(...).pluck('email')`, `Order.where(...).sum('total')`, parent-scoped chains like `user.todos.where(...)`) on MariaDB without any MariaDB-specific override.
 
 ### Native UPSERT
 - Overrides the parent's `upsert` to use MariaDB's `INSERT … ON DUPLICATE KEY UPDATE … RETURNING *` (10.5+). RETURNING only emits inserted rows, so updates / `IGNORE`-skipped rows are backfilled via a single follow-up `SELECT`. Returns rows in input order.

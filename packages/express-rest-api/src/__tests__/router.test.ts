@@ -285,7 +285,7 @@ describe('createRestRouter — validation errors', () => {
       init: (props: { name: string }) => props,
       validators: [
         (instance) => {
-          const name = (instance.attributes() as { name: string }).name;
+          const name = (instance.attributes as { name: string }).name;
           return typeof name === 'string' && name.length >= 2;
         },
       ],

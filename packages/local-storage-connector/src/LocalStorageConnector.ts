@@ -2,10 +2,12 @@ import {
   type AggregateKind,
   type AlterTableSpec,
   type BaseType,
+  baseQueryScoped,
   type DeltaUpdateSpec,
   type Dict,
   type KeyType,
   MemoryConnector,
+  type QueryScopedSpec,
   type Scope,
   type Storage,
   type TableBuilder,
@@ -94,6 +96,10 @@ export class LocalStorageConnector extends MemoryConnector {
   async query(scope: Scope): Promise<Dict<any>[]> {
     this.hydrate(scope.tableName);
     return super.query(scope);
+  }
+
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
   }
 
   async count(scope: Scope): Promise<number> {

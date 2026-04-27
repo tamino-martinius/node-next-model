@@ -46,8 +46,8 @@ const userResource = buildModelResource<Ctx>({
   },
   serialize: (row, ctx) => {
     const attrs = (
-      row as { attributes: () => { id: number; name: string; role: string; active: boolean } }
-    ).attributes();
+      row as { attributes: { id: number; name: string; role: string; active: boolean } }
+    ).attributes;
     if (ctx.context.role === 'admin') return attrs;
     // Members don't see the `active` flag.
     const { active: _hidden, ...rest } = attrs;

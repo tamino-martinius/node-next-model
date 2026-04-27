@@ -83,7 +83,7 @@ createRestRouter(User, {
 createRestRouter(User, {
   // Per-row — strip sensitive fields, rename columns, …
   serialize: (row, ctx) => {
-    const attrs = row.attributes() as Record<string, unknown>;
+    const attrs = row.attributes as Record<string, unknown>;
     const { passwordHash, ...safe } = attrs;
     return safe;
   },

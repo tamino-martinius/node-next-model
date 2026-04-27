@@ -77,7 +77,7 @@ export interface RouterOptions<M extends ModelConstructor = ModelConstructor> {
   actions?: Partial<Record<ActionName, ActionConfig<M>>>;
   /** Global authorize applied to every action (runs before per-action authorize). */
   authorize?: Authorize<M>;
-  /** Per-row serializer. Defaults to `record.toJSON()` when available, otherwise `record.attributes()`. */
+  /** Per-row serializer. Defaults to `record.toJSON()` when available, otherwise `record.attributes`. */
   serialize?: SerializeRow<M>;
   /** Wraps the full response. Defaults to `{ data, meta }` when meta is present, else just `data`. */
   envelope?: Envelope<M>;

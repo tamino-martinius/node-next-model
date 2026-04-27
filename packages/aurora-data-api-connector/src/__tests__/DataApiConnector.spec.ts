@@ -1,4 +1,4 @@
-import { defineAlter, FilterError, Model } from '@next-model/core';
+import { defineAlter, FilterError, KeyType, Model } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DataApiConnector } from '../index.js';
@@ -828,6 +828,128 @@ describe('DataApiConnector', () => {
         joins: [],
       });
       expect(ids(rows as any)).toEqual([alice.id, bob.id, carol.id]);
+    });
+  });
+
+  describe('#queryScoped', () => {
+    const qsUsersTable = 'qs_users';
+    const qsTodosTable = 'qs_todos';
+    const qsOrdersTable = 'qs_orders';
+
+    beforeEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(qsTodosTable);
+      await mockClient.knex.schema.dropTableIfExists(qsUsersTable);
+      await mockClient.knex.schema.dropTableIfExists(qsOrdersTable);
+      await mockClient.knex.schema.createTable(qsUsersTable, (t: Knex.CreateTableBuilder) => {
+        t.increments('id').primary().unsigned();
+        t.string('email');
+        t.integer('age');
+      });
+      await mockClient.knex.schema.createTable(qsTodosTable, (t: Knex.CreateTableBuilder) => {
+        t.increments('id').primary().unsigned();
+        t.integer('userId');
+        t.string('title');
+      });
+      await mockClient.knex.schema.createTable(qsOrdersTable, (t: Knex.CreateTableBuilder) => {
+        t.increments('id').primary().unsigned();
+        t.integer('total');
+      });
+    });
+
+    afterEach(async () => {
+      await mockClient.knex.schema.dropTableIfExists(qsTodosTable);
+      await mockClient.knex.schema.dropTableIfExists(qsUsersTable);
+      await mockClient.knex.schema.dropTableIfExists(qsOrdersTable);
+    });
+
+    it('returns rows for a flat query (no parent scopes)', async () => {
+      await connector.batchInsert(qsUsersTable, { id: KeyType.number } as any, [
+        { email: 'a@b', age: 18 },
+        { email: 'c@d', age: 21 },
+      ]);
+      const rows = (await connector.queryScoped!({
+        target: { tableName: qsUsersTable, keys: { id: KeyType.number } },
+        pendingJoins: [],
+        parentScopes: [],
+        projection: 'rows',
+      })) as { email: string }[];
+      expect(rows.map((r) => r.email).sort()).toEqual(['a@b', 'c@d']);
+    });
+
+    it('emits nested IN subquery for parentScopes (one statement)', async () => {
+      const inserted = await connector.batchInsert(qsUsersTable, { id: KeyType.number } as any, [
+        { email: 'alice@x', age: 18 },
+        { email: 'bob@x', age: 21 },
+      ]);
+      const aliceId = inserted[0].id;
+      const bobId = inserted[1].id;
+      await connector.batchInsert(qsTodosTable, { id: KeyType.number } as any, [
+        { userId: aliceId, title: 'a-1' },
+        { userId: aliceId, title: 'a-2' },
+        { userId: bobId, title: 'b-1' },
+      ]);
+
+      const rows = (await connector.queryScoped!({
+        target: { tableName: qsTodosTable, keys: { id: KeyType.number } },
+        pendingJoins: [],
+        parentScopes: [
+          {
+            parentTable: qsUsersTable,
+            parentKeys: { id: KeyType.number },
+            parentFilter: { age: 18 },
+            link: { parentColumn: 'id', childColumn: 'userId', direction: 'hasMany' },
+          },
+        ],
+        projection: 'rows',
+      })) as { title: string; userId: number }[];
+      expect(rows.map((r) => r.title).sort()).toEqual(['a-1', 'a-2']);
+      for (const row of rows) expect(row.userId).toBe(aliceId);
+    });
+
+    it('aggregate count returns total matching row count', async () => {
+      await connector.batchInsert(qsUsersTable, { id: KeyType.number } as any, [
+        { email: 'a@b', age: 18 },
+        { email: 'c@d', age: 21 },
+        { email: 'e@f', age: 30 },
+      ]);
+      const result = await connector.queryScoped!({
+        target: { tableName: qsUsersTable, keys: { id: KeyType.number } },
+        pendingJoins: [],
+        parentScopes: [],
+        projection: { kind: 'aggregate', op: 'count' },
+      });
+      expect(result).toBe(3);
+      expect(typeof result).toBe('number');
+    });
+
+    it('aggregate sum on a column returns the total', async () => {
+      await connector.batchInsert(qsOrdersTable, { id: KeyType.number } as any, [
+        { total: 3 },
+        { total: 4 },
+        { total: 5 },
+      ]);
+      const result = await connector.queryScoped!({
+        target: { tableName: qsOrdersTable, keys: { id: KeyType.number } },
+        pendingJoins: [],
+        parentScopes: [],
+        projection: { kind: 'aggregate', op: 'sum', column: 'total' },
+      });
+      expect(result).toBe(12);
+    });
+
+    it('column projection plucks values', async () => {
+      await connector.batchInsert(qsUsersTable, { id: KeyType.number } as any, [
+        { email: 'a@b', age: 18 },
+        { email: 'c@d', age: 21 },
+      ]);
+      const result = (await connector.queryScoped!({
+        target: { tableName: qsUsersTable, keys: { id: KeyType.number } },
+        pendingJoins: [],
+        parentScopes: [],
+        order: [{ key: 'id' }],
+        projection: { kind: 'column', column: 'email' },
+      })) as string[];
+      expect(result).toEqual(['a@b', 'c@d']);
     });
   });
 });

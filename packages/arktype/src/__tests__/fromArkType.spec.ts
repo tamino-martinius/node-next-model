@@ -109,8 +109,8 @@ describe('fromArkType — init + validators', () => {
 
   it('validator returns true/false', () => {
     const { validators } = fromArkType(t);
-    expect(validators[0]({ attributes: () => ({ name: 'Ada', age: 36 }) })).toBe(true);
-    expect(validators[0]({ attributes: () => ({ name: 'A', age: -1 }) })).toBe(false);
+    expect(validators[0]({ attributes: { name: 'Ada', age: 36 } })).toBe(true);
+    expect(validators[0]({ attributes: { name: 'A', age: -1 } })).toBe(false);
   });
 });
 
@@ -131,7 +131,7 @@ describe('fromArkType — end-to-end with Model', () => {
     }) {}
 
     const ada = await User.create({ name: 'Ada', age: 36 });
-    expect((ada.attributes() as { name: string }).name).toBe('Ada');
+    expect((ada.attributes as { name: string }).name).toBe('Ada');
 
     await expect(User.create({ name: 'A', age: -1 } as any)).rejects.toBeInstanceOf(
       ValidationError,

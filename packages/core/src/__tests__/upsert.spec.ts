@@ -117,7 +117,7 @@ describe('upsert / upsertAll', () => {
         { id: 99, title: 'New' },
         { id: 2, title: 'B2' },
       ])) as any[];
-      expect(results.map((r) => r.attributes().title)).toEqual(['A2', 'New', 'B2']);
+      expect(results.map((r) => r.attributes.title)).toEqual(['A2', 'New', 'B2']);
       expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A2');
       expect(storage.posts.find((r) => r.id === 2)?.title).toBe('B2');
       expect(storage.posts.find((r) => r.title === 'New')).toBeDefined();
@@ -131,7 +131,7 @@ describe('upsert / upsertAll', () => {
         { id: 101, title: 'Y' },
       ])) as any[];
       expect(results).toHaveLength(2);
-      expect(results.map((r) => r.attributes().title)).toEqual(['X', 'Y']);
+      expect(results.map((r) => r.attributes.title)).toEqual(['X', 'Y']);
       expect(storage.posts).toHaveLength(4);
     });
 
@@ -141,7 +141,7 @@ describe('upsert / upsertAll', () => {
         { id: 1, title: 'A2' },
         { id: 2, title: 'B2' },
       ])) as any[];
-      expect(results.map((r) => r.attributes().title)).toEqual(['A2', 'B2']);
+      expect(results.map((r) => r.attributes.title)).toEqual(['A2', 'B2']);
       expect(storage.posts).toHaveLength(2);
     });
 
@@ -181,10 +181,10 @@ describe('upsert / upsertAll', () => {
         { onConflict: ['tenantId', 'key'] },
       )) as any[];
       expect(results[0].id).toBe(1);
-      expect(results[0].attributes().value).toBe('new1');
+      expect(results[0].attributes.value).toBe('new1');
       expect(results[1].id).not.toBe(1);
       expect(results[1].id).not.toBe(2);
-      expect(results[1].attributes().value).toBe('fresh');
+      expect(results[1].attributes.value).toBe('fresh');
       expect(await Slot.count()).toBe(3);
     });
 
@@ -225,7 +225,7 @@ describe('upsert / upsertAll', () => {
         ],
         { ignoreOnly: true },
       )) as any[];
-      expect(results.map((r) => r.attributes().title)).toEqual(['A', 'INSERT', 'B']);
+      expect(results.map((r) => r.attributes.title)).toEqual(['A', 'INSERT', 'B']);
       expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A');
       expect(storage.posts.find((r) => r.id === 2)?.title).toBe('B');
     });

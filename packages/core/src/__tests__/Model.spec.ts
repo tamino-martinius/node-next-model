@@ -7,6 +7,8 @@ import {
   type Order,
   type Storage,
 } from '../index.js';
+import { CollectionQuery } from '../query/CollectionQuery.js';
+import { InstanceQuery } from '../query/InstanceQuery.js';
 import { context, it } from './index.js';
 
 describe('Model', () => {
@@ -38,14 +40,21 @@ describe('Model', () => {
   }
 
   function itReturnsClass(subject: () => any) {
-    it('returns class', () => {
-      const Model = subject();
-      expect(typeof Model).toEqual('function');
-      expect(typeof Model.prototype).toEqual('object');
+    it('returns a chainable scope', () => {
+      const result = subject();
+      // Chain methods now return CollectionQuery (PromiseLike) instead of a
+      // Model subclass. The returned value should still be chainable
+      // (.filterBy, .all etc.) and awaitable to a record list.
+      expect(result).toBeDefined();
+      expect(typeof result).toMatch(/^(function|object)$/);
+      // Either a class (top-level Model() factory result) or a CollectionQuery
+      // instance — both expose chain methods.
+      expect(typeof result.filterBy).toEqual('function');
+      expect(typeof result.all).toEqual('function');
     });
   }
 
-  const attributesOf = (items: any[]) => items.map((item) => item.attributes() as Dict<any>);
+  const attributesOf = (items: any[]) => items.map((item) => item.attributes as Dict<any>);
 
   const CreateModel = () =>
     ///@ts-expect-error
@@ -381,7 +390,7 @@ describe('Model', () => {
     withSeededData(() => {
       it('returns the first matching record', async () => {
         const record = await CreateModel().findBy({ foo: 'bar' });
-        expect(record?.attributes()).toEqual(seed[0]);
+        expect(record?.attributes).toEqual(seed[0]);
       });
 
       it('returns undefined when no record matches', async () => {
@@ -395,12 +404,12 @@ describe('Model', () => {
         tests: () => {
           it('combines the class-level filter with the argument filter', async () => {
             const record = await CreateModel().findBy({ foo: 'bar' });
-            expect(record?.attributes()).toEqual(seed[0]);
+            expect(record?.attributes).toEqual(seed[0]);
           });
 
           it('returns undefined when the combination has no matches', async () => {
             const record = await CreateModel().findBy({ foo: null });
-            expect(record?.attributes()).toEqual(seed[1]);
+            expect(record?.attributes).toEqual(seed[1]);
           });
         },
       });
@@ -504,7 +513,7 @@ describe('Model', () => {
 
       it('returns false after assigning the same value back', async () => {
         const record = await CreateModel().findBy({ id: 1 });
-        record!.assign({ foo: record!.attributes().foo });
+        record!.assign({ foo: record!.attributes.foo });
         expect(record!.isChanged()).toBe(false);
       });
 
@@ -711,7 +720,7 @@ describe('Model', () => {
       const before = Date.now();
       const record = await CreateModel().create({ foo: 'bar' });
       const after = Date.now();
-      const attrs = record.attributes();
+      const attrs = record.attributes;
       expect(attrs.createdAt).toBeInstanceOf(Date);
       expect(attrs.updatedAt).toBeInstanceOf(Date);
       expect(attrs.createdAt.getTime()).toBeGreaterThanOrEqual(before);
@@ -723,11 +732,11 @@ describe('Model', () => {
     it('updates updatedAt but not createdAt on save after assign', async () => {
       storage = {};
       const record = await CreateModel().create({ foo: 'bar' });
-      const created = record.attributes().createdAt;
+      const created = record.attributes.createdAt;
       await new Promise((resolve) => setTimeout(resolve, 5));
       record.assign({ foo: 'changed' });
       await record.save();
-      const attrs = record.attributes();
+      const attrs = record.attributes;
       expect(attrs.createdAt).toEqual(created);
       expect(attrs.updatedAt.getTime()).toBeGreaterThan(created.getTime());
       storage = {};
@@ -743,7 +752,7 @@ describe('Model', () => {
       const createdAt = new Date('2020-01-01');
       const updatedAt = new Date('2021-01-01');
       const record = await Klass.create({ foo: 'bar', createdAt, updatedAt });
-      const attrs = record.attributes();
+      const attrs = record.attributes;
       expect(attrs.createdAt).toEqual(createdAt);
       expect(attrs.updatedAt).toEqual(updatedAt);
       storage = {};
@@ -758,7 +767,7 @@ describe('Model', () => {
         timestamps: false,
       });
       const record = await Klass.create({ foo: 'bar' });
-      const attrs = record.attributes();
+      const attrs = record.attributes;
       expect(attrs.createdAt).toBeUndefined();
       expect(attrs.updatedAt).toBeUndefined();
       storage = {};
@@ -775,7 +784,7 @@ describe('Model', () => {
       const record = await Klass.create({ foo: 'bar' });
       record.assign({ foo: 'changed' });
       await record.save();
-      const attrs = record.attributes();
+      const attrs = record.attributes;
       expect(attrs.updatedAt).toBeUndefined();
       storage = {};
     });
@@ -1048,8 +1057,8 @@ describe('Model', () => {
           throw new Error('rollback');
         }),
       ).rejects.toThrow('rollback');
-      const reloaded = await Klass.findBy({ id: record.attributes().id });
-      expect(reloaded?.attributes().foo).toBe('original');
+      const reloaded = await Klass.findBy({ id: record.attributes.id });
+      expect(reloaded?.attributes.foo).toBe('original');
       expect(await Klass.count()).toBe(1);
       storage = {};
     });
@@ -1154,8 +1163,8 @@ describe('Model', () => {
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'a' });
-      const found = await Klass.find(record.attributes().id);
-      expect(found.attributes().foo).toBe('a');
+      const found = await Klass.find(record.attributes.id);
+      expect(found.attributes.foo).toBe('a');
       storage = {};
     });
 
@@ -1181,7 +1190,7 @@ describe('Model', () => {
       });
       await Klass.create({ foo: 'match' });
       const found = await Klass.findOrFail({ foo: 'match' });
-      expect(found.attributes().foo).toBe('match');
+      expect(found.attributes.foo).toBe('match');
       storage = {};
     });
 
@@ -1192,7 +1201,11 @@ describe('Model', () => {
         init: (props: any) => props,
         connector: connector(),
       });
-      await expect(Klass.findOrFail({ foo: 'missing' })).rejects.toThrow('Record not found');
+      // After Task 13/26 the terminal materialises through InstanceQuery,
+      // whose missing-result error includes the model.name / tableName as a
+      // label (e.g. 'Model not found' / 'foo not found' instead of the bare
+      // 'Record not found' the legacy path used). Test just the suffix.
+      await expect(Klass.findOrFail({ foo: 'missing' })).rejects.toThrow(/not found/);
       storage = {};
     });
   });
@@ -1207,7 +1220,7 @@ describe('Model', () => {
       });
       await Klass.create({ foo: 'a', bar: 1 });
       const record = await Klass.findOrBuild({ foo: 'a' }, { bar: 99 });
-      expect(record.attributes().bar).toBe(1);
+      expect(record.attributes.bar).toBe(1);
       expect(record.isNew()).toBe(false);
       storage = {};
     });
@@ -1220,8 +1233,8 @@ describe('Model', () => {
         connector: connector(),
       });
       const record = await Klass.findOrBuild({ foo: 'missing' }, { bar: 42 });
-      expect(record.attributes().foo).toBe('missing');
-      expect(record.attributes().bar).toBe(42);
+      expect(record.attributes.foo).toBe('missing');
+      expect(record.attributes.bar).toBe(42);
       expect(record.isNew()).toBe(true);
       expect(await Klass.count()).toBe(0);
       storage = {};
@@ -1239,7 +1252,7 @@ describe('Model', () => {
       await Klass.create({ foo: 'a' });
       const before = await Klass.count();
       const record = await Klass.firstOrCreate({ foo: 'a' }, { bar: 1 });
-      expect(record.attributes().foo).toBe('a');
+      expect(record.attributes.foo).toBe('a');
       expect(await Klass.count()).toBe(before);
       storage = {};
     });
@@ -1252,8 +1265,8 @@ describe('Model', () => {
         connector: connector(),
       });
       const record = await Klass.firstOrCreate({ foo: 'new' }, { bar: 42 });
-      expect(record.attributes().foo).toBe('new');
-      expect(record.attributes().bar).toBe(42);
+      expect(record.attributes.foo).toBe('new');
+      expect(record.attributes.bar).toBe(42);
       expect(record.isPersistent()).toBe(true);
       storage = {};
     });
@@ -1269,8 +1282,8 @@ describe('Model', () => {
       });
       const original = await Klass.create({ foo: 'a', bar: 1 });
       const record = await Klass.updateOrCreate({ foo: 'a' }, { bar: 99 });
-      expect(record.attributes().id).toBe(original.attributes().id);
-      expect(record.attributes().bar).toBe(99);
+      expect(record.attributes.id).toBe(original.attributes.id);
+      expect(record.attributes.bar).toBe(99);
       expect(await Klass.count()).toBe(1);
       storage = {};
     });
@@ -1283,8 +1296,8 @@ describe('Model', () => {
         connector: connector(),
       });
       const record = await Klass.updateOrCreate({ foo: 'new' }, { bar: 7 });
-      expect(record.attributes().foo).toBe('new');
-      expect(record.attributes().bar).toBe(7);
+      expect(record.attributes.foo).toBe('new');
+      expect(record.attributes.bar).toBe(7);
       expect(record.isPersistent()).toBe(true);
       storage = {};
     });
@@ -1300,9 +1313,9 @@ describe('Model', () => {
       });
       const record = await Klass.create({ count: 5 });
       await record.increment('count');
-      expect(record.attributes().count).toBe(6);
-      const reloaded = (await Klass.findBy({ id: record.attributes().id }))!;
-      expect(reloaded.attributes().count).toBe(6);
+      expect(record.attributes.count).toBe(6);
+      const reloaded = (await Klass.findBy({ id: record.attributes.id }))!;
+      expect(reloaded.attributes.count).toBe(6);
       storage = {};
     });
 
@@ -1315,7 +1328,7 @@ describe('Model', () => {
       });
       const record = await Klass.create({ count: 10 });
       await record.increment('count', 3);
-      expect(record.attributes().count).toBe(13);
+      expect(record.attributes.count).toBe(13);
       storage = {};
     });
 
@@ -1328,7 +1341,7 @@ describe('Model', () => {
       });
       const record = await Klass.create({ count: 5 });
       await record.decrement('count', 2);
-      expect(record.attributes().count).toBe(3);
+      expect(record.attributes.count).toBe(3);
       storage = {};
     });
 
@@ -1341,7 +1354,7 @@ describe('Model', () => {
       });
       const record = await Klass.create({});
       await record.increment('count');
-      expect(record.attributes().count).toBe(1);
+      expect(record.attributes.count).toBe(1);
       storage = {};
     });
 
@@ -1368,9 +1381,9 @@ describe('Model', () => {
       });
       const record = await Klass.create({ foo: 'a' });
       const updated = await record.update({ foo: 'b' });
-      expect(updated.attributes().foo).toBe('b');
-      const reloaded = await Klass.findBy({ id: record.attributes().id });
-      expect(reloaded?.attributes().foo).toBe('b');
+      expect(updated.attributes.foo).toBe('b');
+      const reloaded = await Klass.findBy({ id: record.attributes.id });
+      expect(reloaded?.attributes.foo).toBe('b');
       storage = {};
     });
   });
@@ -1388,7 +1401,7 @@ describe('Model', () => {
       expect(record.isChanged()).toBe(true);
       await record.reload();
       expect(record.isChanged()).toBe(false);
-      expect(record.attributes().foo).toBe('original');
+      expect(record.attributes.foo).toBe('original');
       storage = {};
     });
 
@@ -1400,10 +1413,10 @@ describe('Model', () => {
         connector: connector(),
       });
       const a = await Klass.create({ foo: 'a' });
-      const b = (await Klass.findBy({ id: a.attributes().id }))!;
+      const b = (await Klass.findBy({ id: a.attributes.id }))!;
       await a.update({ foo: 'changed' });
       await b.reload();
-      expect(b.attributes().foo).toBe('changed');
+      expect(b.attributes.foo).toBe('changed');
       storage = {};
     });
 
@@ -1429,12 +1442,12 @@ describe('Model', () => {
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'a' });
-      const originalUpdatedAt = record.attributes().updatedAt as Date;
+      const originalUpdatedAt = record.attributes.updatedAt as Date;
       await new Promise((r) => setTimeout(r, 5));
       await record.touch();
-      const newUpdatedAt = record.attributes().updatedAt as Date;
+      const newUpdatedAt = record.attributes.updatedAt as Date;
       expect(newUpdatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
-      expect(record.attributes().foo).toBe('a');
+      expect(record.attributes.foo).toBe('a');
       storage = {};
     });
 
@@ -1479,7 +1492,7 @@ describe('Model', () => {
       await Klass.updateAll({ foo: 'b' });
       const after = Date.now();
       const row = (await Klass.first())!;
-      const updatedAt = row.attributes().updatedAt as Date;
+      const updatedAt = row.attributes.updatedAt as Date;
       expect(updatedAt.getTime()).toBeGreaterThanOrEqual(before);
       expect(updatedAt.getTime()).toBeLessThanOrEqual(after);
       storage = {};
@@ -1509,7 +1522,7 @@ describe('Model', () => {
         const user = await UserKlass.create({ name: 'Alice' });
         const post = await PostKlass.create({ userId: user.id, title: 'Hello' });
         const author = await post.belongsTo(UserKlass);
-        expect(author?.attributes().name).toBe('Alice');
+        expect(author?.attributes.name).toBe('Alice');
       });
 
       it('returns undefined when the foreign key is null', async () => {
@@ -1558,7 +1571,7 @@ describe('Model', () => {
         const user = await UserKlass.create({ name: 'Alice' });
         const post = await PostKlass.create({ authorId: user.id, title: 'Hello' });
         const author = await post.belongsTo(UserKlass, { foreignKey: 'authorId' });
-        expect(author?.attributes().name).toBe('Alice');
+        expect(author?.attributes.name).toBe('Alice');
       });
     });
 
@@ -1581,7 +1594,7 @@ describe('Model', () => {
         await PostKlass.create({ userId: other.id, title: 'C' });
         const userPosts = await user.hasMany(PostKlass).all();
         expect(userPosts).toHaveLength(2);
-        expect(userPosts.map((p) => p.attributes().title).sort()).toEqual(['A', 'B']);
+        expect(userPosts.map((p) => p.attributes.title).sort()).toEqual(['A', 'B']);
       });
 
       it('supports count on the scoped query', async () => {
@@ -1617,7 +1630,7 @@ describe('Model', () => {
         await PostKlass.create({ userId: user.id, title: 'B', published: false });
         const published = await user.hasMany(PostKlass).filterBy({ published: true }).all();
         expect(published).toHaveLength(1);
-        expect(published[0].attributes().title).toBe('A');
+        expect(published[0].attributes.title).toBe('A');
       });
 
       it('accepts an explicit foreignKey', async () => {
@@ -1665,7 +1678,7 @@ describe('Model', () => {
         await AuthorshipKlass.create({ userId: bob.id, postId: postC.id });
 
         const alicePosts = await alice.hasManyThrough(PostKlass, AuthorshipKlass).all();
-        expect(alicePosts.map((p) => p.attributes().title).sort()).toEqual(['A', 'B']);
+        expect(alicePosts.map((p) => p.attributes.title).sort()).toEqual(['A', 'B']);
       });
 
       it('supports further chained scopes on the returned class', async () => {
@@ -1695,7 +1708,7 @@ describe('Model', () => {
           .filterBy({ published: true })
           .all();
         expect(published).toHaveLength(1);
-        expect(published[0].attributes().title).toBe('A');
+        expect(published[0].attributes.title).toBe('A');
       });
 
       it('returns an empty result when no join rows match', async () => {
@@ -1744,7 +1757,7 @@ describe('Model', () => {
             targetForeignKey: 'articleId',
           })
           .all();
-        expect(posts.map((p) => p.attributes().title)).toEqual(['A']);
+        expect(posts.map((p) => p.attributes.title)).toEqual(['A']);
       });
     });
 
@@ -1763,7 +1776,7 @@ describe('Model', () => {
         const user = await UserKlass.create({ name: 'Alice' });
         await ProfileKlass.create({ userId: user.id, bio: 'hello' });
         const profile = await user.hasOne(ProfileKlass);
-        expect(profile?.attributes().bio).toBe('hello');
+        expect(profile?.attributes.bio).toBe('hello');
       });
 
       it('returns undefined when no related record exists', async () => {
@@ -1796,7 +1809,7 @@ describe('Model', () => {
         const user = await UserKlass.create({ name: 'Alice' });
         await ProfileKlass.create({ ownerId: user.id, bio: 'hi' });
         const profile = await user.hasOne(ProfileKlass, { foreignKey: 'ownerId' });
-        expect(profile?.attributes().bio).toBe('hi');
+        expect(profile?.attributes.bio).toBe('hi');
       });
     });
 
@@ -1831,8 +1844,8 @@ describe('Model', () => {
         });
         const resolvedPost = await c1.belongsTo(PostKlass, { polymorphic: 'commentable' });
         const resolvedPhoto = await c2.belongsTo(PhotoKlass, { polymorphic: 'commentable' });
-        expect(resolvedPost?.attributes().title).toBe('Hello');
-        expect(resolvedPhoto?.attributes().url).toBe('/a.jpg');
+        expect(resolvedPost?.attributes.title).toBe('Hello');
+        expect(resolvedPhoto?.attributes.url).toBe('/a.jpg');
       });
 
       it('belongsTo returns undefined when type does not match target tableName', async () => {
@@ -1891,7 +1904,7 @@ describe('Model', () => {
           commentableType: 'posts',
         });
         const comments = await post1.hasMany(CommentKlass, { polymorphic: 'commentable' }).all();
-        expect(comments.map((c) => c.attributes().body)).toEqual(['a']);
+        expect(comments.map((c) => c.attributes.body)).toEqual(['a']);
       });
 
       it('honours explicit typeValue override', async () => {
@@ -1936,7 +1949,7 @@ describe('Model', () => {
           typeKey: 'targetKind',
           polymorphic: 'target',
         });
-        expect(resolved?.attributes().title).toBe('P');
+        expect(resolved?.attributes.title).toBe('P');
       });
     });
 
@@ -1960,8 +1973,8 @@ describe('Model', () => {
         const posts = await PostKlass.all();
         const authorsByKey = await UserKlass.preloadBelongsTo(posts, { foreignKey: 'userId' });
         expect(authorsByKey.size).toBe(2);
-        expect(authorsByKey.get(alice.id)?.attributes().name).toBe('Alice');
-        expect(authorsByKey.get(bob.id)?.attributes().name).toBe('Bob');
+        expect(authorsByKey.get(alice.id)?.attributes.name).toBe('Alice');
+        expect(authorsByKey.get(bob.id)?.attributes.name).toBe('Bob');
       });
 
       it('de-duplicates parent lookups to a single query', async () => {
@@ -2014,7 +2027,7 @@ describe('Model', () => {
         const posts = await PostKlass.all();
         const authorsByKey = await UserKlass.preloadBelongsTo(posts, { foreignKey: 'userId' });
         expect(authorsByKey.size).toBe(1);
-        expect(authorsByKey.get(alice.id)?.attributes().name).toBe('Alice');
+        expect(authorsByKey.get(alice.id)?.attributes.name).toBe('Alice');
       });
 
       it('supports a custom primaryKey on the parent', async () => {
@@ -2035,7 +2048,7 @@ describe('Model', () => {
           foreignKey: 'userSlug',
           primaryKey: 'slug',
         });
-        expect(authorsBySlug.get('alice')?.attributes().name).toBe('Alice');
+        expect(authorsBySlug.get('alice')?.attributes.name).toBe('Alice');
       });
 
       it('accepts plain objects as records', async () => {
@@ -2049,7 +2062,7 @@ describe('Model', () => {
           [{ userId: alice.id }, { userId: alice.id }],
           { foreignKey: 'userId' },
         );
-        expect(authorsByKey.get(alice.id)?.attributes().name).toBe('Alice');
+        expect(authorsByKey.get(alice.id)?.attributes.name).toBe('Alice');
       });
     });
 
@@ -2076,10 +2089,10 @@ describe('Model', () => {
         expect(
           postsByUser
             .get(alice.id)
-            ?.map((p) => p.attributes().title)
+            ?.map((p) => p.attributes.title)
             .sort(),
         ).toEqual(['A1', 'A2']);
-        expect(postsByUser.get(bob.id)?.map((p) => p.attributes().title)).toEqual(['B1']);
+        expect(postsByUser.get(bob.id)?.map((p) => p.attributes.title)).toEqual(['B1']);
         expect(postsByUser.get(carol.id)).toEqual([]);
       });
 
@@ -2134,7 +2147,119 @@ describe('Model', () => {
           foreignKey: 'userSlug',
           primaryKey: 'slug',
         });
-        expect(postsBySlug.get('alice')?.map((p) => p.attributes().title)).toEqual(['A']);
+        expect(postsBySlug.get('alice')?.map((p) => p.attributes.title)).toEqual(['A']);
+      });
+    });
+
+    describe('auto-installed instance accessor returns query builders', () => {
+      it('hasMany accessor returns a CollectionQuery (awaitable to records[])', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+          associations: {
+            todos: { hasMany: () => Todo, foreignKey: 'userId' },
+          },
+        }) {}
+        class Todo extends Model({
+          tableName: 'todos',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; title: string }) => p,
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        await Todo.create({ userId: user.id as number, title: 'A' });
+        await Todo.create({ userId: user.id as number, title: 'B' });
+
+        const todos = (user as unknown as { todos: unknown }).todos;
+        expect(todos).toBeInstanceOf(CollectionQuery);
+        const resolved = (await todos) as Array<InstanceType<typeof Todo>>;
+        expect(Array.isArray(resolved)).toBe(true);
+        expect(resolved.map((t) => t.attributes.title).sort()).toEqual(['A', 'B']);
+      });
+
+      it('belongsTo accessor returns an InstanceQuery (awaitable to record|undefined)', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+        }) {}
+        class Post extends Model({
+          tableName: 'posts',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; title: string }) => p,
+          associations: {
+            author: { belongsTo: () => User, foreignKey: 'userId' },
+          },
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        const post = await Post.create({ userId: user.id as number, title: 'Hi' });
+
+        const author = (post as unknown as { author: unknown }).author;
+        expect(author).toBeInstanceOf(InstanceQuery);
+        const resolved = (await author) as InstanceType<typeof User> | undefined;
+        expect(resolved?.attributes.name).toBe('Alice');
+      });
+
+      it('hasOne accessor returns an InstanceQuery', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+          associations: {
+            profile: { hasOne: () => Profile, foreignKey: 'userId' },
+          },
+        }) {}
+        class Profile extends Model({
+          tableName: 'profiles',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; bio: string }) => p,
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        await Profile.create({ userId: user.id as number, bio: 'Hello' });
+
+        const profile = (user as unknown as { profile: unknown }).profile;
+        expect(profile).toBeInstanceOf(InstanceQuery);
+        const resolved = (await profile) as InstanceType<typeof Profile> | undefined;
+        expect(resolved?.attributes.bio).toBe('Hello');
+      });
+
+      it('hasManyThrough accessor returns a CollectionQuery with nested withParent chain', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+          associations: {
+            roles: { hasManyThrough: () => Role, through: () => UserRole },
+          },
+        }) {}
+        class Role extends Model({
+          tableName: 'roles',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+        }) {}
+        class UserRole extends Model({
+          tableName: 'userRoles',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; roleId: number }) => p,
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        const admin = await Role.create({ name: 'admin' });
+        await UserRole.create({ userId: user.id as number, roleId: admin.id as number });
+
+        const roles = (user as unknown as { roles: unknown }).roles;
+        expect(roles).toBeInstanceOf(CollectionQuery);
+        // Nested chain: leaf (Role) → parent (UserRole) → upstream (User-instance).
+        const state = (roles as CollectionQuery).state;
+        expect(state.parent?.upstream.state.parent).toBeDefined();
       });
     });
   });
@@ -2147,37 +2272,51 @@ describe('Model', () => {
       scopeStorage = {};
     });
 
-    it('registers scope as static method returning scoped class', async () => {
+    it('registers scope as static method that applies the filter literal', async () => {
       const Klass = Model({
         tableName: 'posts',
         init: (props: { title: string; published: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
-          published: (self) => self.filterBy({ published: true }),
+          published: { published: true } as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', published: true });
       await Klass.create({ title: 'B', published: false });
       const results = await Klass.published().all();
       expect(results).toHaveLength(1);
-      expect(results[0].attributes().title).toBe('A');
+      expect(results[0].attributes.title).toBe('A');
     });
 
-    it('supports parameterized scopes', async () => {
+    it('filter-literal scope produces a CollectionQuery exposing the filter', async () => {
       const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: { published: true } as Filter<any>,
+        },
+      });
+      const q = (Klass as any).published();
+      expect(q).toBeInstanceOf(CollectionQuery);
+      expect(q.state.filter).toEqual({ published: true });
+    });
+
+    it('parameterized cases use a static method on the user subclass', async () => {
+      class Klass extends Model({
         tableName: 'posts',
         init: (props: { title: string; views: number }) => props,
         connector: scopeConnector(),
-        scopes: {
-          minViews: (self, threshold: number) =>
-            self.filterBy({ $gte: { views: threshold } } as Filter<any>),
-        },
-      });
+      }) {
+        static minViews(threshold: number) {
+          return this.filterBy({ $gte: { views: threshold } } as Filter<any>);
+        }
+      }
       await Klass.create({ title: 'A', views: 5 });
       await Klass.create({ title: 'B', views: 50 });
       await Klass.create({ title: 'C', views: 100 });
       const popular = await Klass.minViews(50).all();
-      expect(popular.map((p) => p.attributes().title).sort()).toEqual(['B', 'C']);
+      expect(popular.map((p) => p.attributes.title).sort()).toEqual(['B', 'C']);
     });
 
     it('allows chaining scopes with other queries', async () => {
@@ -2186,17 +2325,18 @@ describe('Model', () => {
         init: (props: { title: string; published: boolean; views: number }) => props,
         connector: scopeConnector(),
         scopes: {
-          published: (self) => self.filterBy({ published: true }),
+          published: { published: true } as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', published: true, views: 10 });
       await Klass.create({ title: 'B', published: true, views: 5 });
       await Klass.create({ title: 'C', published: false, views: 100 });
-      const hits = await Klass.published()
+      const hits = await (Klass as any)
+        .published()
         .filterBy({ $gte: { views: 10 } } as Filter<any>)
         .all();
       expect(hits).toHaveLength(1);
-      expect(hits[0].attributes().title).toBe('A');
+      expect(hits[0].attributes.title).toBe('A');
     });
 
     it('composes multiple scopes together', async () => {
@@ -2205,16 +2345,81 @@ describe('Model', () => {
         init: (props: { title: string; published: boolean; featured: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
-          published: (self) => self.filterBy({ published: true }),
-          featured: (self) => self.filterBy({ featured: true }),
+          published: { published: true } as Filter<any>,
+          featured: { featured: true } as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', published: true, featured: true });
       await Klass.create({ title: 'B', published: true, featured: false });
       await Klass.create({ title: 'C', published: false, featured: true });
-      const results = await Klass.published().featured().all();
+      const results = await (Klass as any).published().featured().all();
       expect(results).toHaveLength(1);
-      expect(results[0].attributes().title).toBe('A');
+      expect(results[0].attributes.title).toBe('A');
+    });
+
+    it('filter-literal scope chains on top of another query', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean; authorId: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: { published: true } as Filter<any>,
+        },
+      });
+      await Klass.create({ title: 'A', published: true, authorId: 1 });
+      await Klass.create({ title: 'B', published: false, authorId: 1 });
+      await Klass.create({ title: 'C', published: true, authorId: 2 });
+      const q = (Klass.filterBy({ authorId: 1 }) as any).published();
+      expect(q).toBeInstanceOf(CollectionQuery);
+      const results = await q.all();
+      expect(results).toHaveLength(1);
+      expect(results[0].attributes.title).toBe('A');
+    });
+
+    it('function-form scope receives args and applies the returned filter', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; views: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          minViews: (threshold: number) => ({ $gte: { views: threshold } }) as Filter<any>,
+        },
+      });
+      await Klass.create({ title: 'A', views: 5 });
+      await Klass.create({ title: 'B', views: 50 });
+      await Klass.create({ title: 'C', views: 100 });
+      const popular = await Klass.minViews(50).all();
+      expect(popular.map((p) => p.attributes.title).sort()).toEqual(['B', 'C']);
+    });
+
+    it('function-form scope produces a CollectionQuery with the resolved filter', () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { age: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          olderThan: (age: number) => ({ $gt: { age } }) as Filter<any>,
+        },
+      });
+      const q = (Klass as any).olderThan(18);
+      expect(q).toBeInstanceOf(CollectionQuery);
+      expect(q.state.filter).toEqual({ $gt: { age: 18 } });
+    });
+
+    it('function-form scope chains with other chain methods', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; views: number; published: boolean }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          minViews: (threshold: number) => ({ $gte: { views: threshold } }) as Filter<any>,
+        },
+      });
+      await Klass.create({ title: 'A', views: 50, published: true });
+      await Klass.create({ title: 'B', views: 50, published: false });
+      await Klass.create({ title: 'C', views: 5, published: true });
+      const hits = await (Klass as any).minViews(10).filterBy({ published: true }).all();
+      expect(hits.map((p: any) => p.attributes.title)).toEqual(['A']);
     });
   });
 
@@ -2235,7 +2440,7 @@ describe('Model', () => {
       for (const r of results) {
         expect(r.isPersistent()).toBe(true);
       }
-      expect(results.map((r) => r.attributes().foo).sort()).toEqual(['a', 'b', 'c']);
+      expect(results.map((r) => r.attributes.foo).sort()).toEqual(['a', 'b', 'c']);
       expect(await Klass.count()).toBe(3);
       storage = {};
     });
@@ -2243,7 +2448,7 @@ describe('Model', () => {
     it('assigns distinct primary keys', async () => {
       const Klass = buildKlass();
       const results = await Klass.createMany([{ foo: 'a' }, { foo: 'b' }]);
-      const ids = results.map((r) => r.attributes().id);
+      const ids = results.map((r) => r.attributes.id);
       expect(new Set(ids).size).toBe(2);
       storage = {};
     });
@@ -2252,8 +2457,8 @@ describe('Model', () => {
       const Klass = buildKlass();
       const results = await Klass.createMany([{ foo: 'a' }, { foo: 'b' }]);
       for (const r of results) {
-        expect(r.attributes().createdAt).toBeInstanceOf(Date);
-        expect(r.attributes().updatedAt).toBeInstanceOf(Date);
+        expect(r.attributes.createdAt).toBeInstanceOf(Date);
+        expect(r.attributes.updatedAt).toBeInstanceOf(Date);
       }
       storage = {};
     });
@@ -2282,7 +2487,7 @@ describe('Model', () => {
       await Klass.create({ foo: 'b' });
       await Klass.create({ foo: 'c' });
       const last = await Klass.last();
-      expect(last?.attributes().foo).toBe('c');
+      expect(last?.attributes.foo).toBe('c');
       storage = {};
     });
 
@@ -2292,7 +2497,7 @@ describe('Model', () => {
       await Klass.create({ foo: 'a' });
       await Klass.create({ foo: 'b' });
       const last = await Klass.orderBy({ key: 'foo' as any }).last();
-      expect(last?.attributes().foo).toBe('c');
+      expect(last?.attributes.foo).toBe('c');
       storage = {};
     });
 
@@ -2499,11 +2704,11 @@ describe('Model', () => {
       const created: number[] = [];
       for (const foo of ['z', 'a', 'm']) {
         const row = await Klass.create({ foo });
-        created.push((row.attributes() as any).id);
+        created.push((row.attributes as any).id);
       }
       const seen: number[] = [];
       for await (const batch of Klass.inBatchesOf(1)) {
-        for (const instance of batch) seen.push((instance.attributes() as any).id);
+        for (const instance of batch) seen.push((instance.attributes as any).id);
       }
       expect(seen).toEqual([...created].sort((a, b) => a - b));
       storage = {};
@@ -2676,7 +2881,7 @@ describe('Model', () => {
       const a = await Klass.create({ foo: 'a' });
       const b = await Klass.create({ foo: 'b' });
       const ids = await Klass.ids();
-      expect(ids.sort()).toEqual([a.attributes().id, b.attributes().id].sort());
+      expect(ids.sort()).toEqual([a.attributes.id, b.attributes.id].sort());
       storage = {};
     });
   });
@@ -2719,7 +2924,7 @@ describe('Model', () => {
       const a = await Klass.create({ title: 'A' });
       await Klass.create({ title: 'B' });
       await a.discard();
-      const titles = (await Klass.all()).map((r) => r.attributes().title);
+      const titles = (await Klass.all()).map((r) => r.attributes.title);
       expect(titles).toEqual(['B']);
       storage = {};
     });
@@ -2730,7 +2935,7 @@ describe('Model', () => {
       expect(a.isDiscarded()).toBe(false);
       await a.discard();
       expect(a.isDiscarded()).toBe(true);
-      expect(a.attributes().discardedAt).toBeInstanceOf(Date);
+      expect(a.attributes.discardedAt).toBeInstanceOf(Date);
       storage = {};
     });
 
@@ -2751,7 +2956,7 @@ describe('Model', () => {
       await Klass.create({ title: 'B' });
       await a.discard();
       const all = await Klass.withDiscarded().all();
-      expect(all.map((r) => r.attributes().title).sort()).toEqual(['A', 'B']);
+      expect(all.map((r) => r.attributes.title).sort()).toEqual(['A', 'B']);
       storage = {};
     });
 
@@ -2761,7 +2966,7 @@ describe('Model', () => {
       await Klass.create({ title: 'B' });
       await a.discard();
       const only = await Klass.onlyDiscarded().all();
-      expect(only.map((r) => r.attributes().title)).toEqual(['A']);
+      expect(only.map((r) => r.attributes.title)).toEqual(['A']);
       storage = {};
     });
 
@@ -2811,7 +3016,7 @@ describe('Model', () => {
       const r = await Klass.create({ foo: 'x', bar: 42 });
       const json = r.toJSON();
       expect(json).toMatchObject({ foo: 'x', bar: 42 });
-      expect(json.id).toBe(r.attributes().id);
+      expect(json.id).toBe(r.attributes.id);
       storage = {};
     });
 
@@ -2844,7 +3049,7 @@ describe('Model', () => {
       const result = r.omit(['bar']);
       expect(result).not.toHaveProperty('bar');
       expect(result.foo).toBe('x');
-      expect((result as any).id).toBe(r.attributes().id);
+      expect((result as any).id).toBe(r.attributes.id);
       storage = {};
     });
 
@@ -2855,6 +3060,35 @@ describe('Model', () => {
       expect(r.pick(['foo'])).toEqual({ foo: 'y' });
       const omitted = r.omit(['bar', 'id' as any, 'createdAt' as any, 'updatedAt' as any]);
       expect(omitted).toEqual({ foo: 'y' });
+      storage = {};
+    });
+
+    it('attributes is a getter (no parens)', async () => {
+      const Klass = buildKlass();
+      const r = await Klass.create({ foo: 'x', bar: 1 });
+      expect(typeof r.attributes).toBe('object');
+      expect(r.attributes).not.toBeInstanceOf(Function);
+      expect(JSON.stringify(r.attributes)).toBe(JSON.stringify(r.toJSON()));
+      storage = {};
+    });
+
+    it('attributes excludes association accessors', async () => {
+      storage = {};
+      const UserKlass = Model({
+        tableName: 'users',
+        init: (props: { name: string }) => props,
+        connector: connector(),
+      });
+      const PostKlass = Model({
+        tableName: 'posts',
+        init: (props: { userId: number; title: string }) => props,
+        connector: connector(),
+        associations: { user: { belongsTo: () => UserKlass, foreignKey: 'userId' } },
+      });
+      const ada = await UserKlass.create({ name: 'Ada' });
+      const post = await PostKlass.create({ userId: ada.id as number, title: 'P' });
+      const json = JSON.parse(JSON.stringify(post.attributes));
+      expect(json.user).toBeUndefined();
       storage = {};
     });
   });
@@ -2875,7 +3109,7 @@ describe('Model', () => {
       await Klass.create({ foo: 'b' });
       await Klass.create({ foo: 'c' });
       const reversed = await Klass.reverse().all();
-      expect(reversed.map((r) => r.attributes().foo)).toEqual(['c', 'b', 'a']);
+      expect(reversed.map((r) => r.attributes.foo)).toEqual(['c', 'b', 'a']);
       storage = {};
     });
 
@@ -2887,7 +3121,7 @@ describe('Model', () => {
       const ordered = await Klass.orderBy({ key: 'foo' as any })
         .reverse()
         .all();
-      expect(ordered.map((r) => r.attributes().foo)).toEqual(['c', 'b', 'a']);
+      expect(ordered.map((r) => r.attributes.foo)).toEqual(['c', 'b', 'a']);
       storage = {};
     });
 
@@ -2901,7 +3135,7 @@ describe('Model', () => {
         .limitBy(1)
         .all();
       expect(top).toHaveLength(1);
-      expect(top[0].attributes().foo).toBe('c');
+      expect(top[0].attributes.foo).toBe('c');
       storage = {};
     });
   });

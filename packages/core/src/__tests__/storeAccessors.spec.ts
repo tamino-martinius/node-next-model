@@ -44,16 +44,16 @@ describe('storeAccessors (typed JSON sub-attribute accessors)', () => {
     const u = (await User.find(1)) as any;
     u.theme = 'light';
     expect(u.theme).toBe('light');
-    expect(u.attributes().settings).toEqual({ theme: 'light', locale: 'en' });
+    expect(u.attributes.settings).toEqual({ theme: 'light', locale: 'en' });
   });
 
   it('initializes the JSON column when writing into a missing/undefined bag', async () => {
     const User = makeUser() as any;
     const u = (await User.find(1)) as any;
     u.emailFreq = 'daily';
-    expect(u.attributes().preferences).toEqual({ emailFreq: 'daily' });
+    expect(u.attributes.preferences).toEqual({ emailFreq: 'daily' });
     u.tz = 'UTC';
-    expect(u.attributes().preferences).toEqual({ emailFreq: 'daily', tz: 'UTC' });
+    expect(u.attributes.preferences).toEqual({ emailFreq: 'daily', tz: 'UTC' });
   });
 
   it('persists changes through save() and reload()', async () => {
@@ -73,8 +73,8 @@ describe('storeAccessors (typed JSON sub-attribute accessors)', () => {
     const u = (await User.find(1)) as any;
     u.theme = 'light';
     u.emailFreq = 'weekly';
-    expect(u.attributes().settings).toEqual({ theme: 'light', locale: 'en' });
-    expect(u.attributes().preferences).toEqual({ emailFreq: 'weekly' });
+    expect(u.attributes.settings).toEqual({ theme: 'light', locale: 'en' });
+    expect(u.attributes.preferences).toEqual({ emailFreq: 'weekly' });
   });
 
   it('does not clobber persistent column accessors when a sub-key matches a column name', async () => {

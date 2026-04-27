@@ -81,7 +81,7 @@ buildModelResource({
   name: 'User',
   fields: {...},
   serialize: (row, ctx) => {
-    const attrs = row.attributes() as Record<string, unknown>;
+    const attrs = row.attributes as Record<string, unknown>;
     const { passwordHash, ...safe } = attrs;
     return safe;
   },
