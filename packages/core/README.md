@@ -127,6 +127,58 @@ class User extends Model({
 
 The legacy `init`-driven form stays available for cases where the row shape doesn't map to a single declared schema (e.g. when validators from a third-party library — `@next-model/zod`, `@next-model/typebox`, `@next-model/arktype` — provide both `init` and the column list).
 
+### Schema generation
+
+You don't have to hand-write `defineSchema(...)` calls. Two pipelines emit them for you:
+
+#### From migrations
+
+`@next-model/migrations`' `Migrator` writes a typed-schema TS file after every successful `migrate()` run when the connector is wrapped in `SchemaCollector`:
+
+```ts
+import { Migrator, SchemaCollector } from '@next-model/migrations';
+import { SqliteConnector } from '@next-model/sqlite-connector';
+
+const collector = new SchemaCollector(new SqliteConnector(':memory:'));
+const migrator = new Migrator({
+  connector: collector,
+  schemaOutputPath: './src/generated/schema.ts',
+});
+
+await migrator.migrate(allMigrations);
+// → ./src/generated/schema.ts now contains
+//   export const usersSchema = defineSchema({...});
+//   export const postsSchema = defineSchema({...});
+```
+
+Pass the generated `usersSchema` / `postsSchema` straight into `Model({ schema })`.
+
+#### From a live database
+
+`@next-model/migrations-generator`'s `schema-from-db` subcommand reflects the schema of any connector that implements `Connector.reflectSchema?()`:
+
+```sh
+npx nm-generate-migration schema-from-db \
+  --connector ./db-connector.js \
+  --output ./src/schema.ts
+```
+
+The connector module exports a default `Connector` instance (or a `connector` named export, or a factory). The CLI calls `connector.reflectSchema()` and writes the same `defineSchema(...)` declarations as the migrator. Bundled support: `@next-model/sqlite-connector` (SQLite reflects via `PRAGMA table_info` + `PRAGMA index_list`); native Postgres / MySQL / MariaDB / Aurora ships in follow-up releases. Memory / Redis / Valkey / Mongo connectors do not implement `reflectSchema` (no canonical schema to reflect).
+
+The runtime helper `generateSchemaSource(tables, options?)` is exported alongside `defineSchema` for ad-hoc emission:
+
+```ts
+import { defineTable, generateSchemaSource } from '@next-model/core';
+
+const usersTable = defineTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true, null: false });
+  t.string('email', { null: false });
+});
+const source = generateSchemaSource([usersTable]);
+// `source` is a parseable .ts module with `import { defineSchema } from
+// '@next-model/core'` + `export const usersSchema = defineSchema({...});`.
+```
+
 ### Factory options
 
 ```ts
