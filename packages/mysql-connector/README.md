@@ -117,6 +117,10 @@ MySQL also has no `RETURNING` on `UPDATE` / `DELETE`. The connector captures the
 
 `{ default: 'currentTimestamp' }` becomes `DEFAULT CURRENT_TIMESTAMP`. New tables are created with `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`. `t.index(...)` issues a follow-up `CREATE [UNIQUE] INDEX`. `dropTable` uses `DROP TABLE IF EXISTS`.
 
+### Schema reflection (`reflectSchema`)
+
+Returns a `TableDefinition[]` for every base table in the current `DATABASE()`. Reads `information_schema.TABLES` / `information_schema.COLUMNS` for column types / defaults / nullability / `VARCHAR(N)` limits / `DECIMAL(p,s)` precision and scale, and `information_schema.STATISTICS` for primary key + index definitions. `tinyint(1)` round-trips as `boolean`; `EXTRA = 'auto_increment'` flags `autoIncrement: true`; `CURRENT_TIMESTAMP` defaults map back to `'currentTimestamp'`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
+
 ## Testing matrix
 
 CI runs the shared `runModelConformance` suite (every Model feature) against a real MySQL 8 service container.
