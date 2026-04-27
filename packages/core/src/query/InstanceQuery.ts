@@ -37,7 +37,11 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
   }
 
   pluck<T = unknown>(column: string): ScalarQuery<T | undefined> {
-    return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'column', column });
+    return new ScalarQuery<T | undefined>(
+      this.model,
+      { ...this.state, limit: 1 },
+      { kind: 'column', column },
+    );
   }
 
   then<R1 = Result, R2 = never>(
