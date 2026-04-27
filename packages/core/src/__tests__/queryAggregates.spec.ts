@@ -14,6 +14,7 @@ describe('count', () => {
   it('returns ScalarQuery awaitable to a number', async () => {
     const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).count();
     expect(q).toBeInstanceOf(ScalarQuery);
+    expect(typeof (await q)).toBe('number');
   });
 
   it('count carries the upstream filter into state', () => {
