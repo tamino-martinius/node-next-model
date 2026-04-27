@@ -284,7 +284,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   constructor(
     public readonly model: ModelLike,
-    public readonly execute: () => Promise<Items>,
+    private readonly execute: () => Promise<Items>,
   ) {}
 
   protected materialize(): Promise<Items> {
@@ -374,7 +374,7 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
   constructor(
     public readonly model: ModelLike,
     public readonly terminalKind: TerminalKind,
-    public readonly execute: () => Promise<Result | undefined>,
+    private readonly execute: () => Promise<Result | undefined>,
   ) {}
 
   protected materialize(): Promise<Result> {
@@ -464,7 +464,7 @@ export class ColumnQuery<Shape = unknown> implements PromiseLike<Shape> {
   constructor(
     public readonly model: ModelLike,
     public readonly column: string,
-    public readonly execute: () => Promise<Shape>,
+    private readonly execute: () => Promise<Shape>,
   ) {}
   protected materialize() {
     if (!this.memo) this.memo = this.execute();
@@ -495,7 +495,7 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
   protected memo: Promise<T> | undefined;
   constructor(
     public readonly model: ModelLike,
-    public readonly execute: () => Promise<T>,
+    private readonly execute: () => Promise<T>,
   ) {}
   protected materialize() {
     if (!this.memo) this.memo = this.execute();

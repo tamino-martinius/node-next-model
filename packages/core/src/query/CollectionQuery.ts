@@ -7,7 +7,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   constructor(
     public readonly model: ModelLike,
-    public readonly execute: () => Promise<Items>,
+    private readonly execute: () => Promise<Items>,
   ) {}
 
   protected materialize(): Promise<Items> {
