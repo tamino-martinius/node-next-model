@@ -1,5 +1,7 @@
 import type { Dict, KeyType, Projection } from '../types.js';
 import type { QueryState } from './QueryState.js';
+import { lower } from './lower.js';
+import { PersistenceError } from '../errors.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -12,11 +14,27 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
     public readonly projection: Projection,
   ) {}
 
-  // STUB until Task 25 wires materialize to connector.queryScoped.
-  protected materialize(): Promise<T> {
+  protected async materialize(): Promise<T> {
     if (!this.memo) {
-      const result = this.isCountAggregate() ? (0 as T) : (undefined as T);
-      this.memo = Promise.resolve(result);
+      this.memo = (async () => {
+        if (this.state.nullScoped) {
+          return this.isCountAggregate() ? (0 as T) : (undefined as T);
+        }
+        const spec = lower(this, this.projection);
+        const M = this.model as any;
+        const connector = M.connector;
+        if (!connector || typeof connector.queryScoped !== 'function') {
+          throw new PersistenceError(
+            `${M.name || M.tableName || 'Model'}.connector does not implement queryScoped(spec).`,
+          );
+        }
+        const result = await connector.queryScoped(spec);
+        // For column projection on an InstanceQuery (limit 1 path), result is array; take [0]
+        if (typeof this.projection === 'object' && this.projection.kind === 'column') {
+          return ((result as unknown[])[0] as T) ?? (undefined as T);
+        }
+        return result as T;
+      })();
     }
     return this.memo;
   }

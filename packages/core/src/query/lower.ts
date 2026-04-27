@@ -1,9 +1,7 @@
 import type { Projection, QueryScopedSpec } from '../types.js';
-import type { CollectionQuery } from './CollectionQuery.js';
-import type { InstanceQuery } from './InstanceQuery.js';
 import type { QueryState } from './QueryState.js';
 
-type AnyBuilder = CollectionQuery<any> | InstanceQuery<any>;
+type AnyBuilder = { state: QueryState };
 
 function flattenParents(state: QueryState): QueryScopedSpec['parentScopes'] {
   const scopes: QueryScopedSpec['parentScopes'] = [];

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ColumnQuery } from '../query/ColumnQuery.js';
 import { ScalarQuery } from '../query/ScalarQuery.js';
+import { MemoryConnector } from '../MemoryConnector.js';
 
-const FakeModel = { tableName: 't', keys: { id: 1 } };
+const connector = new MemoryConnector({ storage: { t: [] } });
+const FakeModel = { tableName: 't', keys: { id: 1 }, connector };
 
 const stubState = {
   Model: FakeModel,
@@ -15,7 +17,7 @@ const stubState = {
 };
 
 describe('ColumnQuery', () => {
-  it('resolves to empty array (stub materialize)', async () => {
+  it('resolves to empty array when storage is empty', async () => {
     const q = new ColumnQuery(FakeModel as any, 'email', stubState as any, { kind: 'column', column: 'email' });
     expect(await q).toEqual([]);
   });
@@ -38,7 +40,7 @@ describe('ColumnQuery', () => {
 });
 
 describe('ScalarQuery', () => {
-  it('resolves to 0 for count aggregate (stub)', async () => {
+  it('resolves to 0 for count aggregate on empty table', async () => {
     const state = {
       Model: FakeModel,
       filter: undefined,
@@ -52,7 +54,7 @@ describe('ScalarQuery', () => {
     expect(await q).toBe(0);
   });
 
-  it('resolves to undefined for non-count aggregate (stub)', async () => {
+  it('resolves to undefined for non-count aggregate on empty table', async () => {
     const state = {
       Model: FakeModel,
       filter: undefined,

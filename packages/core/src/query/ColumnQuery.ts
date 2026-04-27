@@ -1,5 +1,7 @@
 import type { Dict, KeyType, Projection } from '../types.js';
 import type { QueryState } from './QueryState.js';
+import { lower } from './lower.js';
+import { PersistenceError } from '../errors.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -13,9 +15,22 @@ export class ColumnQuery<Shape = unknown> implements PromiseLike<Shape> {
     public readonly projection: Projection,
   ) {}
 
-  // STUB until Task 25 wires materialize to connector.queryScoped.
-  protected materialize(): Promise<Shape> {
-    if (!this.memo) this.memo = Promise.resolve([] as unknown as Shape);
+  protected async materialize(): Promise<Shape> {
+    if (!this.memo) {
+      this.memo = (async () => {
+        if (this.state.nullScoped) return [] as unknown as Shape;
+        const spec = lower(this, this.projection);
+        const M = this.model as any;
+        const connector = M.connector;
+        if (!connector || typeof connector.queryScoped !== 'function') {
+          throw new PersistenceError(
+            `${M.name || M.tableName || 'Model'}.connector does not implement queryScoped(spec).`,
+          );
+        }
+        const result = await connector.queryScoped(spec);
+        return result as Shape;
+      })();
+    }
     return this.memo;
   }
 
