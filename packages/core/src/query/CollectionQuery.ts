@@ -236,12 +236,16 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return this.with({ havingPredicate: compileHaving(predicate) });
   }
 
-  merge(other: typeof import('../Model.js').ModelClass): this {
+  merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {
+    const otherFilter = other instanceof CollectionQuery ? other.state.filter : other.filter;
+    const otherOrder = other instanceof CollectionQuery ? other.state.order : other.order;
+    const otherLimit = other instanceof CollectionQuery ? other.state.limit : other.limit;
+    const otherSkip = other instanceof CollectionQuery ? other.state.skip : other.skip;
     let q: this = this;
-    if (other.filter) q = q.filterBy(other.filter);
-    if (other.order && other.order.length > 0) q = q.reorder(other.order);
-    if (other.limit !== undefined) q = q.limitBy(other.limit);
-    if (other.skip !== undefined) q = q.skipBy(other.skip);
+    if (otherFilter) q = q.filterBy(otherFilter);
+    if (otherOrder && otherOrder.length > 0) q = q.reorder(otherOrder);
+    if (otherLimit !== undefined) q = q.limitBy(otherLimit);
+    if (otherSkip !== undefined) q = q.skipBy(otherSkip);
     return q;
   }
 

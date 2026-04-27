@@ -332,6 +332,17 @@ describe('CollectionQuery chain methods', () => {
     expect(q.state.skip).toBe(5);
   });
 
+  it('merge accepts another CollectionQuery and reads from its state', () => {
+    const other = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ archived: true })
+      .orderBy({ key: 'priority' as any })
+      .limitBy(3);
+    const q = CollectionQuery.fromModel(Todo as any).merge(other);
+    expect(q.state.filter).toEqual({ archived: true });
+    expect(q.state.order).toEqual([{ key: 'priority' }]);
+    expect(q.state.limit).toBe(3);
+  });
+
   it('none flags state.nullScoped (resolves to empty without hitting connector)', () => {
     const q = CollectionQuery.fromModel(Todo as any).none();
     expect(q.state.nullScoped).toBe(true);
