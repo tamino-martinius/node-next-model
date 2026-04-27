@@ -7,6 +7,8 @@ import {
   type Order,
   type Storage,
 } from '../index.js';
+import { CollectionQuery } from '../query/CollectionQuery.js';
+import { InstanceQuery } from '../query/InstanceQuery.js';
 import { context, it } from './index.js';
 
 describe('Model', () => {
@@ -2135,6 +2137,118 @@ describe('Model', () => {
           primaryKey: 'slug',
         });
         expect(postsBySlug.get('alice')?.map((p) => p.attributes().title)).toEqual(['A']);
+      });
+    });
+
+    describe('auto-installed instance accessor returns query builders', () => {
+      it('hasMany accessor returns a CollectionQuery (awaitable to records[])', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+          associations: {
+            todos: { hasMany: () => Todo, foreignKey: 'userId' },
+          },
+        }) {}
+        class Todo extends Model({
+          tableName: 'todos',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; title: string }) => p,
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        await Todo.create({ userId: user.id as number, title: 'A' });
+        await Todo.create({ userId: user.id as number, title: 'B' });
+
+        const todos = (user as unknown as { todos: unknown }).todos;
+        expect(todos).toBeInstanceOf(CollectionQuery);
+        const resolved = (await todos) as Array<InstanceType<typeof Todo>>;
+        expect(Array.isArray(resolved)).toBe(true);
+        expect(resolved.map((t) => t.attributes().title).sort()).toEqual(['A', 'B']);
+      });
+
+      it('belongsTo accessor returns an InstanceQuery (awaitable to record|undefined)', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+        }) {}
+        class Post extends Model({
+          tableName: 'posts',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; title: string }) => p,
+          associations: {
+            author: { belongsTo: () => User, foreignKey: 'userId' },
+          },
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        const post = await Post.create({ userId: user.id as number, title: 'Hi' });
+
+        const author = (post as unknown as { author: unknown }).author;
+        expect(author).toBeInstanceOf(InstanceQuery);
+        const resolved = (await author) as InstanceType<typeof User> | undefined;
+        expect(resolved?.attributes().name).toBe('Alice');
+      });
+
+      it('hasOne accessor returns an InstanceQuery', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+          associations: {
+            profile: { hasOne: () => Profile, foreignKey: 'userId' },
+          },
+        }) {}
+        class Profile extends Model({
+          tableName: 'profiles',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; bio: string }) => p,
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        await Profile.create({ userId: user.id as number, bio: 'Hello' });
+
+        const profile = (user as unknown as { profile: unknown }).profile;
+        expect(profile).toBeInstanceOf(InstanceQuery);
+        const resolved = (await profile) as InstanceType<typeof Profile> | undefined;
+        expect(resolved?.attributes().bio).toBe('Hello');
+      });
+
+      it('hasManyThrough accessor returns a CollectionQuery with nested withParent chain', async () => {
+        class User extends Model({
+          tableName: 'users',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+          associations: {
+            roles: { hasManyThrough: () => Role, through: () => UserRole },
+          },
+        }) {}
+        class Role extends Model({
+          tableName: 'roles',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { name: string }) => p,
+        }) {}
+        class UserRole extends Model({
+          tableName: 'userRoles',
+          connector: assocConnector(),
+          timestamps: false,
+          init: (p: { userId: number; roleId: number }) => p,
+        }) {}
+        const user = await User.create({ name: 'Alice' });
+        const admin = await Role.create({ name: 'admin' });
+        await UserRole.create({ userId: user.id as number, roleId: admin.id as number });
+
+        const roles = (user as unknown as { roles: unknown }).roles;
+        expect(roles).toBeInstanceOf(CollectionQuery);
+        // Nested chain: leaf (Role) → parent (UserRole) → upstream (User-instance).
+        const state = (roles as CollectionQuery).state;
+        expect(state.parent?.upstream.state.parent).toBeDefined();
       });
     });
   });

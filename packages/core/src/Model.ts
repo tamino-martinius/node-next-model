@@ -1,6 +1,9 @@
 import { NotFoundError, PersistenceError, StaleObjectError, ValidationError } from './errors.js';
 import { normalizeFilterShape } from './FilterEngine.js';
 import { MemoryConnector } from './MemoryConnector.js';
+import { createAssociationQuery } from './query/associationQuery.js';
+import { InstanceQuery } from './query/InstanceQuery.js';
+import type { QueryState } from './query/QueryState.js';
 import {
   type AggregateKind,
   type AroundCallback,
@@ -296,31 +299,32 @@ export function resolveTimestampColumns(option: TimestampsOption | undefined): {
 function resolveAutoAssociation(
   record: ModelClass,
   spec: AssociationDefinition,
-): Promise<unknown> | unknown {
-  if ('hasManyThrough' in spec) {
-    // hasManyThrough is handled via the InstanceQuery accessor path; not supported
-    // for raw instance-level auto-association resolution here.
-    return undefined;
-  }
-  const simpleSpec = spec as SimpleAssociationDefinition;
-  const target = resolveAssociationTarget(simpleSpec).target;
-  if ('belongsTo' in spec) {
-    return record.belongsTo(target, {
-      foreignKey: spec.foreignKey,
-      primaryKey: spec.primaryKey,
-    });
-  }
-  if ('hasMany' in spec) {
-    // Auto-accessor returns the resolved array (matches eager-load shape).
-    // Users who need a chainable scope can still call `record.hasMany(Target)`.
-    return record
-      .hasMany(target, { foreignKey: spec.foreignKey, primaryKey: spec.primaryKey })
-      .all();
-  }
-  return record.hasOne(target, {
-    foreignKey: spec.foreignKey,
-    primaryKey: spec.primaryKey,
-  });
+): unknown {
+  // Build a query-builder traversal from this record outward via
+  // `createAssociationQuery`. Supports belongsTo / hasOne / hasMany / hasManyThrough
+  // (incl. polymorphic) and returns the same builder shapes as
+  // `<InstanceQuery>.<assocName>` and `<CollectionQuery>.<assocName>`:
+  //   - hasMany / hasManyThrough -> CollectionQuery<Related>
+  //   - belongsTo / hasOne       -> InstanceQuery<Related>
+  // Both are PromiseLike, so existing `await record.assocName` keeps working.
+  const M = record.constructor as typeof ModelClass;
+  const pk = Object.keys(M.keys)[0] ?? 'id';
+  const pkValue = (record as unknown as Dict<any>)[pk];
+
+  // Synthesize an upstream InstanceQuery whose state filters by this record's pk.
+  // Used as the parent for the association traversal.
+  const upstreamState: QueryState = {
+    Model: M,
+    filter: { [pk]: pkValue } as Filter<any>,
+    order: [],
+    limit: 1,
+    selectedIncludes: [],
+    includeStrategy: 'preload',
+    pendingJoins: [],
+    softDelete: M.softDelete ?? false,
+  };
+  const upstream = new InstanceQuery(M, 'find', upstreamState);
+  return createAssociationQuery(upstream, spec);
 }
 
 function attachIncludesPayload(
