@@ -10,6 +10,7 @@ import {
 import { type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
 import type { Dict, KeyType } from '../types.js';
 import { mergeFilters, mergeOrders, type QueryState } from './QueryState.js';
+import { InstanceQuery } from './InstanceQuery.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -234,6 +235,16 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   having(predicate: HavingPredicate): this {
     return this.with({ havingPredicate: compileHaving(predicate) });
+  }
+
+  first(): InstanceQuery {
+    return new InstanceQuery(this.model, 'first', { ...this.state, limit: 1 });
+  }
+
+  last(): InstanceQuery {
+    // last = first with reversed order — reuse this.reverse() to flip the existing order
+    const reversed = this.reverse();
+    return new InstanceQuery(this.model, 'last', { ...reversed.state, limit: 1 });
   }
 
   merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {

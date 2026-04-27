@@ -1,9 +1,10 @@
 import { NotFoundError } from '../errors.js';
 import type { Dict, KeyType } from '../types.js';
+import type { QueryState, TerminalKind } from './QueryState.js';
+
+export type { TerminalKind };
 
 type ModelLike = { tableName: string; keys: Dict<KeyType>; name?: string };
-
-export type TerminalKind = 'first' | 'last' | 'findBy' | 'find' | 'findOrFail';
 
 export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
   protected memo: Promise<Result> | undefined;
@@ -11,17 +12,21 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
   constructor(
     public readonly model: ModelLike,
     public readonly terminalKind: TerminalKind,
-    private readonly execute: () => Promise<Result | undefined>,
+    public readonly state: QueryState,
   ) {}
 
+  // STUB until Task 24 wires materialize to connector.queryScoped.
   protected materialize(): Promise<Result> {
     if (!this.memo) {
-      this.memo = this.execute().then((result) => {
-        if (result === undefined && (this.terminalKind === 'find' || this.terminalKind === 'findOrFail')) {
+      this.memo = Promise.resolve(undefined as Result).then((result) => {
+        if (
+          (result as unknown) === undefined &&
+          (this.terminalKind === 'find' || this.terminalKind === 'findOrFail')
+        ) {
           const label = this.model.name || this.model.tableName || 'Record';
           throw new NotFoundError(`${label} not found`);
         }
-        return result as Result;
+        return result;
       });
     }
     return this.memo;
