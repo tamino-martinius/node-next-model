@@ -301,4 +301,63 @@ describe('CollectionQuery chain methods', () => {
     const q = CollectionQuery.fromModel(Todo as any).fields('id').allFields();
     expect(q.state.selectedFields).toBeUndefined();
   });
+
+  it('having sets a count predicate', () => {
+    const q = CollectionQuery.fromModel(Todo as any).having({ count: { $gt: 5 } });
+    expect(typeof q.state.havingPredicate).toBe('function');
+    expect(q.state.havingPredicate!(6)).toBe(true);
+    expect(q.state.havingPredicate!(5)).toBe(false);
+  });
+
+  it('having accepts a function predicate directly', () => {
+    const q = CollectionQuery.fromModel(Todo as any).having((c) => c >= 3);
+    expect(q.state.havingPredicate!(3)).toBe(true);
+    expect(q.state.havingPredicate!(2)).toBe(false);
+  });
+
+  it('merge folds another scope into this chain', () => {
+    class Other extends ModelClass {
+      static tableName = 't';
+      static keys = { id: 1 } as any;
+      static order = [{ key: 'createdAt' }] as any;
+      static filter = { active: true } as any;
+      static limit = 10;
+      static skip = 5;
+      static connector = {} as any;
+    }
+    const q = CollectionQuery.fromModel(Todo as any).merge(Other as any);
+    expect(q.state.filter).toEqual({ active: true });
+    expect(q.state.order).toEqual([{ key: 'createdAt' }]);
+    expect(q.state.limit).toBe(10);
+    expect(q.state.skip).toBe(5);
+  });
+
+  it('none flags state.nullScoped (resolves to empty without hitting connector)', () => {
+    const q = CollectionQuery.fromModel(Todo as any).none();
+    expect(q.state.nullScoped).toBe(true);
+  });
+
+  it('withDiscarded clears soft-delete to false', () => {
+    class Soft extends ModelClass {
+      static tableName = 'soft';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static softDelete: 'active' | 'only' | false = 'active';
+      static connector = {} as any;
+    }
+    const q = CollectionQuery.fromModel(Soft as any).withDiscarded();
+    expect(q.state.softDelete).toBe(false);
+  });
+
+  it('onlyDiscarded sets soft-delete to "only"', () => {
+    class Soft extends ModelClass {
+      static tableName = 'soft';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static softDelete: 'active' | 'only' | false = 'active';
+      static connector = {} as any;
+    }
+    const q = CollectionQuery.fromModel(Soft as any).onlyDiscarded();
+    expect(q.state.softDelete).toBe('only');
+  });
 });

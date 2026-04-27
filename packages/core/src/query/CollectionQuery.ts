@@ -3,6 +3,8 @@ import { PersistenceError } from '../errors.js';
 import {
   type AssociationDefinition,
   type IncludeOptions,
+  compileHaving,
+  type HavingPredicate,
   resolveAssociationTarget,
 } from '../Model.js';
 import { type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
@@ -228,6 +230,31 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   allFields(): this {
     return this.with({ selectedFields: undefined });
+  }
+
+  having(predicate: HavingPredicate): this {
+    return this.with({ havingPredicate: compileHaving(predicate) });
+  }
+
+  merge(other: typeof import('../Model.js').ModelClass): this {
+    let q: this = this;
+    if (other.filter) q = q.filterBy(other.filter);
+    if (other.order && other.order.length > 0) q = q.reorder(other.order);
+    if (other.limit !== undefined) q = q.limitBy(other.limit);
+    if (other.skip !== undefined) q = q.skipBy(other.skip);
+    return q;
+  }
+
+  none(): this {
+    return this.with({ nullScoped: true });
+  }
+
+  withDiscarded(): this {
+    return this.with({ softDelete: false });
+  }
+
+  onlyDiscarded(): this {
+    return this.with({ softDelete: 'only' });
   }
 
   unscoped(): this {

@@ -418,7 +418,7 @@ export type HavingComparison = {
   $lte?: number;
 };
 
-function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
+export function compileHaving(predicate: HavingPredicate): (count: number) => boolean {
   if (typeof predicate === 'function') return predicate;
   const cmp = predicate.count;
   if (!cmp) return () => true;

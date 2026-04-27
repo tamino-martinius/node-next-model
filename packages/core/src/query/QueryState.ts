@@ -28,6 +28,7 @@ export interface QueryState {
   pendingJoins: JoinClause[];
   havingPredicate?: (count: number) => boolean;
   softDelete: 'active' | 'only' | false;
+  nullScoped?: boolean;
   parent?: ParentRef;
 }
 
