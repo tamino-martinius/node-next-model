@@ -1283,8 +1283,6 @@ describe('#deltaUpdate(spec)', () => {
   });
 });
 
-import { baseQueryScoped } from '../query/baseQueryScoped.js';
-
 describe('#queryScoped(spec)', () => {
   it('queryScoped delegates to baseQueryScoped fallback', async () => {
     const c = new MemoryConnector({ storage: { items: [{ id: 1 }, { id: 2 }] } });
