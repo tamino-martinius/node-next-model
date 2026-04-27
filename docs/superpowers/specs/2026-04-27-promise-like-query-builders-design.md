@@ -180,9 +180,9 @@ A new entry point on `Connector`:
 
 ```ts
 queryScoped(spec: {
-  target: TableSpec;
-  filters: Filter;
-  order?: OrderClause;
+  target: { tableName: string; keys: Dict<KeyType> };
+  filter?: Filter<any>;
+  order?: OrderColumn<any>[];
   limit?: number;
   skip?: number;
   selectedFields?: string[];
@@ -196,12 +196,14 @@ with
 
 ```ts
 type ParentScope = {
-  parentTable: TableSpec;
-  parentFilters: Filter;
-  parentOrder?: OrderClause;
+  parentTable: string;
+  parentKeys: Dict<KeyType>;       // column-name → KeyType for the parent table
+  parentFilter?: Filter<any>;
+  parentOrder?: OrderColumn<any>[];
   parentLimit?: number;
   link: { childColumn: string; parentColumn: string; direction: 'belongsTo' | 'hasOne' | 'hasMany' };
   // child uses link.childColumn, parent projects link.parentColumn
+  // hasManyThrough decomposes into two ParentScope entries; not a direction value
 };
 
 type Projection =
@@ -219,7 +221,7 @@ type Projection =
 A default implementation (`baseQueryScoped` exported from `@next-model/core`) is used by every connector that doesn't override:
 
 1. Top-down, resolve each `parentScope` to concrete primary-key values (or projected column values) by issuing one query per scope using the connector's existing primitives.
-2. Rewrite the leaf's `filters` to splice those concrete values in as `$in: [...]` (or `$eq: …`) on the link's child column.
+2. Rewrite the leaf's `filter` to splice those concrete values in as `$in: [...]` (or `$eq: …`) on the link's child column.
 3. Resolve every subquery filter value the same way, rewriting them as concrete `$in: [...]` operators.
 4. Delegate to the existing `query` / `queryWithJoins` to fetch the leaf rows or aggregate.
 

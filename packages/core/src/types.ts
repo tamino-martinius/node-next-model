@@ -243,6 +243,7 @@ export type Projection =
 
 export interface ParentScope {
   parentTable: string;
+  /** Column-name → KeyType map for the parent table; used to project the correct PK column in the subquery. */
   parentKeys: Dict<KeyType>;
   parentFilter?: Filter<any>;
   parentOrder?: OrderColumn<any>[];
@@ -250,6 +251,11 @@ export interface ParentScope {
   link: {
     childColumn: string;
     parentColumn: string;
+    /**
+     * FK link direction. `hasManyThrough` is not represented here; the
+     * builder layer decomposes it into two consecutive `ParentScope`
+     * entries (target → through → parent).
+     */
     direction: 'belongsTo' | 'hasOne' | 'hasMany';
   };
 }
