@@ -178,6 +178,7 @@ export function resolveAssociationTarget(spec: SimpleAssociationDefinition): {
 
 export function resolveHasManyThrough(
   spec: HasManyThroughDefinition,
+  selfModel: { tableName: string; keys: Dict<KeyType> },
 ): {
   target: typeof ModelClass;
   through: typeof ModelClass;
@@ -199,9 +200,9 @@ export function resolveHasManyThrough(
   return {
     target,
     through,
-    throughForeignKey: spec.throughForeignKey ?? '',
+    throughForeignKey: spec.throughForeignKey ?? `${singularize(selfModel.tableName)}Id`,
     targetForeignKey: spec.targetForeignKey ?? `${singularize(target.tableName)}Id`,
-    selfPrimaryKey: spec.selfPrimaryKey ?? '',
+    selfPrimaryKey: spec.selfPrimaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id',
     targetPrimaryKey: spec.targetPrimaryKey ?? Object.keys(target.keys)[0] ?? 'id',
   };
 }

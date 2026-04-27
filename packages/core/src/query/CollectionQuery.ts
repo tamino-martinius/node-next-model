@@ -2,6 +2,7 @@ import { normalizeFilterShape } from '../FilterEngine.js';
 import { PersistenceError } from '../errors.js';
 import {
   type AssociationDefinition,
+  type SimpleAssociationDefinition,
   type IncludeOptions,
   compileHaving,
   type HavingPredicate,
@@ -52,7 +53,12 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
         columnFilter = filtered;
         for (const name of matched) {
           const assoc = associations[name];
-          const resolved = resolveAssociationTarget(assoc);
+          if ('hasManyThrough' in assoc) {
+            throw new PersistenceError(
+              `CollectionQuery.filterBy({ ${name}: ... }) does not support hasManyThrough associations. Traverse the chain explicitly via the association accessor instead.`,
+            );
+          }
+          const resolved = resolveAssociationTarget(assoc as SimpleAssociationDefinition);
           const childFilterInput = (andFilter as any)[name];
           const childFilter =
             childFilterInput && typeof childFilterInput === 'object'
@@ -99,7 +105,12 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
           `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
         );
       }
-      const normalized: AssociationDefinition =
+      if ('hasManyThrough' in spec) {
+        throw new PersistenceError(
+          `CollectionQuery.joins(...) does not support hasManyThrough associations. Use query builder traversal instead.`,
+        );
+      }
+      const normalized: SimpleAssociationDefinition =
         'belongsTo' in spec
           ? { belongsTo: spec.belongsTo, foreignKey: spec.foreignKey, primaryKey: spec.primaryKey }
           : 'hasMany' in spec
@@ -141,12 +152,17 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
         `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
       );
     }
+    if ('hasManyThrough' in spec) {
+      throw new PersistenceError(
+        `CollectionQuery.whereMissing(...) does not support hasManyThrough associations.`,
+      );
+    }
     if ('belongsTo' in spec) {
       throw new PersistenceError(
         `CollectionQuery.whereMissing(...) only supports hasMany / hasOne associations; '${name}' is belongsTo. Use filterBy({ $null: '${spec.foreignKey}' }) instead.`,
       );
     }
-    const resolved = resolveAssociationTarget(spec);
+    const resolved = resolveAssociationTarget(spec as SimpleAssociationDefinition);
     const join: JoinClause = {
       kind: 'left',
       childTableName: resolved.target.tableName,

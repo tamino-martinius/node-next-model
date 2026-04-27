@@ -5,7 +5,6 @@ import {
   resolveAssociationTarget,
   resolveHasManyThrough,
 } from '../Model.js';
-import { singularize } from '../util.js';
 import type { AssociationLink } from '../types.js';
 import { CollectionQuery } from './CollectionQuery.js';
 import { mergeFilters } from './QueryState.js';
@@ -19,15 +18,12 @@ function createHasManyThroughQuery(
   upstream: InstanceQuery,
   spec: HasManyThroughDefinition,
 ): CollectionQuery {
-  const resolved = resolveHasManyThrough(spec);
-  const selfModel = upstream.model;
-  const selfPk = resolved.selfPrimaryKey || Object.keys(selfModel.keys)[0] || 'id';
-  const throughFk = resolved.throughForeignKey || `${singularize((selfModel as any).tableName)}Id`;
+  const resolved = resolveHasManyThrough(spec, upstream.model);
 
   // Step A: CollectionQuery on `through`, parent-scoped by `upstream` (User → UserRole)
   const throughLink: AssociationLink = {
-    childColumn: throughFk,           // UserRole.userId
-    parentColumn: selfPk,             // User.id
+    childColumn: resolved.throughForeignKey, // UserRole.userId
+    parentColumn: resolved.selfPrimaryKey,   // User.id
     direction: 'hasMany',
   };
   const throughQuery = CollectionQuery.fromModel(resolved.through as any).withParent(upstream, throughLink);
