@@ -119,3 +119,27 @@ describe('CollectionQuery materialize', () => {
     expect(items).toEqual([]);
   });
 });
+
+describe('bare Model class is not thenable', () => {
+  // The base class itself is intentionally NOT a PromiseLike — only
+  // CollectionQuery / InstanceQuery / ScalarQuery (returned by chain methods)
+  // are. Awaiting a bare class is a runtime no-op (typeof Class is 'function')
+  // and resolves to the class itself, NOT a record list. Users must call at
+  // least one chain method (`.all()`, `.filterBy(...)`, etc.) to obtain a
+  // thenable builder. This test pins the invariant.
+  class BareTodo extends ModelClass {
+    static tableName = 'bare-todos';
+    static keys = { id: 1 } as any;
+    static order = [] as any;
+    static connector = new MemoryConnector({ storage: { 'bare-todos': [{ id: 1 }] } });
+  }
+
+  it('await on the bare Model class does not return records (use .all())', async () => {
+    const result = await BareTodo;
+    // `await` on a non-thenable resolves to the value itself — i.e. the class.
+    expect(result).toBe(BareTodo);
+    // Sanity: the same class has working chain methods that DO return records.
+    const items = await CollectionQuery.fromModel(BareTodo as any).all();
+    expect(items).toHaveLength(1);
+  });
+});
