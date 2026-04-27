@@ -32,18 +32,27 @@ describe('aggregates', () => {
     expect(q.state.filter).toEqual({ active: true });
   });
 
-  it('average returns ScalarQuery with op avg', () => {
-    const q = CollectionQuery.fromModel(Todo as any).average('priority');
+  it('average returns ScalarQuery with op avg and carries upstream filter', () => {
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .average('priority');
     expect(q.projection).toEqual({ kind: 'aggregate', op: 'avg', column: 'priority' });
+    expect(q.state.filter).toEqual({ active: true });
   });
 
-  it('minimum returns ScalarQuery with op min', () => {
-    const q = CollectionQuery.fromModel(Todo as any).minimum('createdAt');
+  it('minimum returns ScalarQuery with op min and carries upstream filter', () => {
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .minimum('createdAt');
     expect(q.projection).toEqual({ kind: 'aggregate', op: 'min', column: 'createdAt' });
+    expect(q.state.filter).toEqual({ active: true });
   });
 
-  it('maximum returns ScalarQuery with op max', () => {
-    const q = CollectionQuery.fromModel(Todo as any).maximum('priority');
+  it('maximum returns ScalarQuery with op max and carries upstream filter', () => {
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .maximum('priority');
     expect(q.projection).toEqual({ kind: 'aggregate', op: 'max', column: 'priority' });
+    expect(q.state.filter).toEqual({ active: true });
   });
 });
