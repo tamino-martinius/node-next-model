@@ -13,6 +13,7 @@ import { mergeFilters, mergeOrders, type ParentRef, type QueryState } from './Qu
 import { InstanceQuery } from './InstanceQuery.js';
 import { ScalarQuery } from './ScalarQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
+import { lower } from './lower.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -356,10 +357,31 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     });
   }
 
-  // STUB until Task 23 wires materialize to connector.queryScoped.
-  protected materialize(): Promise<Items> {
-    if (!this.memo) this.memo = Promise.resolve([] as unknown as Items);
+  protected async materialize(): Promise<Items> {
+    if (!this.memo) {
+      this.memo = (async () => {
+        if (this.state.nullScoped) return [] as unknown as Items;
+        const spec = lower(this, 'rows');
+        const M = this.model as any;
+        const connector = M.connector;
+        const rows = (await connector.queryScoped(spec)) as Dict<any>[];
+        return this.hydrate(rows) as unknown as Items;
+      })();
+    }
     return this.memo;
+  }
+
+  protected hydrate(rows: Dict<any>[]): unknown[] {
+    const M = this.model as any;
+    return rows.map((row) => {
+      const keys: Dict<any> = {};
+      const data: Dict<any> = { ...row };
+      for (const k in M.keys) {
+        keys[k] = data[k];
+        delete data[k];
+      }
+      return new M(data, keys);
+    });
   }
 
   then<R1 = Items, R2 = never>(

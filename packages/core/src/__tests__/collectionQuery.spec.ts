@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { ModelClass } from '../Model.js';
+import { MemoryConnector } from '../MemoryConnector.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';
@@ -82,5 +83,39 @@ describe('CollectionQuery thenable contract', () => {
     });
     const recovered = await q.catch((e: Error) => e.message);
     expect(recovered).toBe('boom');
+  });
+});
+
+describe('CollectionQuery materialize', () => {
+  class TestModel extends ModelClass {
+    static tableName = 'items';
+    static keys = { id: 1 } as any;
+    static order = [] as any;
+    // connector populated per-test
+    static connector = new MemoryConnector({
+      storage: { items: [{ id: 1, name: 'a' }, { id: 2, name: 'b' }] },
+    });
+  }
+
+  it('awaiting CollectionQuery materializes via connector.queryScoped', async () => {
+    const items = await CollectionQuery.fromModel(TestModel as any);
+    expect(items).toHaveLength(2);
+  });
+
+  it('hydrates rows into Model instances', async () => {
+    const items = (await CollectionQuery.fromModel(TestModel as any)) as any[];
+    expect(items[0]).toBeInstanceOf(TestModel);
+    expect(items[0].name).toBe('a');
+  });
+
+  it('honours filterBy when materializing', async () => {
+    const items = (await CollectionQuery.fromModel(TestModel as any).filterBy({ id: 1 })) as any[];
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe(1);
+  });
+
+  it('short-circuits when state.nullScoped is true (returns empty without hitting connector)', async () => {
+    const items = await CollectionQuery.fromModel(TestModel as any).none();
+    expect(items).toEqual([]);
   });
 });
