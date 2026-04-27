@@ -17,6 +17,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
   - [orderBy / reorder / reverse / unordered](#orderby--reorder--reverse--unordered)
   - [limitBy / skipBy / unlimited / unskipped](#limitby--skipby--unlimited--unskipped)
   - [unfiltered / unscoped](#unfiltered--unscoped)
+  - [Default scope](#default-scope)
   - [Filter operators](#filter-operators)
   - [Subquery filter values](#subquery-filter-values)
 - [Fetching](#fetching)
@@ -75,14 +76,15 @@ user.name;   // 'John Doe'
 Model({
   tableName: 'users',
   init: (props: UserProps) => props,
-  connector,                    // defaults to an in-memory connector
-  keys: { id: KeyType.number }, // or { id: KeyType.uuid }, or composite
-  filter: { active: true },     // default scope
-  order: { key: 'createdAt' },  // default sort
-  limit: 25,                    // default limit
-  skip: 0,                      // default offset
-  timestamps: true,             // createdAt / updatedAt columns (default)
-  softDelete: true,             // enables discard/restore against discardedAt
+  connector,                          // defaults to an in-memory connector
+  keys: { id: KeyType.number },       // or { id: KeyType.uuid }, or composite
+  filter: { active: true },           // initial chain filter (cleared by `unfiltered()`)
+  defaultScope: { $null: 'deletedAt' }, // sticky filter — only `unscope` / `unscoped` removes it
+  order: { key: 'createdAt' },        // default sort
+  limit: 25,                          // default limit
+  skip: 0,                            // default offset
+  timestamps: true,                   // createdAt / updatedAt columns (default)
+  softDelete: true,                   // enables discard/restore against discardedAt
   validators: [ /* ... */ ],
   callbacks: { /* ... */ },
   scopes: { /* ... */ },
@@ -392,11 +394,54 @@ await User.limitBy(5).unlimited().count();
 ### unfiltered / unscoped
 
 - `unfiltered()` clears only the filter.
-- `unscoped()` clears filter, limit, skip, order, **and** the soft-delete scope.
+- `unscoped()` clears filter, limit, skip, order, the soft-delete scope, **and** the default scope.
 
 ```ts
 await User.filterBy({ active: true }).unscoped().count();  // ignore every default
 ```
+
+### Default scope
+
+The `defaultScope` factory option declares a sticky filter that's merged into
+every chained read on the Model — `Post.all()`, `Post.count()`,
+`Post.filterBy({...})`, terminals like `find` / `findBy`, and the deferred
+`pluck` / `select` paths all see it. It composes as AND with anything else the
+chain adds.
+
+Unlike the `filter` factory option (which is the chain's initial state and
+therefore cleared by `unfiltered()`), `defaultScope` is applied at materialise
+time regardless of what the chain did with `filter`. Only two methods remove
+it:
+
+- `Model.unscope('column', ...)` — drops the listed columns from the default
+  scope for this builder, leaving the rest intact (and leaving the chain's
+  regular `filter`, `order`, `limit`, etc. untouched).
+- `Model.unscoped()` — clears the filter / order / limit / skip / soft-delete
+  scope alongside the default scope (the existing "give me everything" escape
+  hatch, now extended to cover `defaultScope` too).
+
+```ts
+class Post extends Model({
+  tableName: 'posts',
+  init: (p: { title: string; archivedAt: Date | null; published: boolean }) => p,
+  defaultScope: { $and: [{ $null: 'archivedAt' }, { published: true }] },
+}) {}
+
+await Post.all();                        // archivedAt IS NULL AND published = true
+await Post.count();                      // same scope
+await Post.filterBy({ title: 'Hi' });    // + AND title = 'Hi'
+
+await Post.unfiltered().all();           // defaultScope still applies
+await Post.unscope('archivedAt').all();  // published = true (no archivedAt clause)
+await Post.unscope('archivedAt', 'published').all(); // both clauses dropped
+await Post.unscoped().all();             // every default cleared, including defaultScope
+```
+
+`unscope` walks the scope recursively: it drops column-keyed clauses
+(`{ active: true }`), `$null` / `$notNull` whose value is the column name,
+and entries inside column-value-map operators (`$gt`, `$in`, `$between`,
+`$like`, etc.); empty `$and` / `$or` arms collapse away; `$raw` / `$async`
+opaque payloads pass through untouched.
 
 ### Query helpers
 
