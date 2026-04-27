@@ -823,5 +823,278 @@ export function runModelConformance(opts: ConformanceOptions): void {
         expect(count).toBe(2);
       });
     });
+
+    describe('Builder pipeline (parent-scope, subqueries, attributes)', () => {
+      const usersTable = 'conformance_chain_users';
+      const todosTable = 'conformance_chain_todos';
+      const ordersTable = 'conformance_chain_orders';
+      const orderItemsTable = 'conformance_chain_order_items';
+      const customersTable = 'conformance_chain_customers';
+      const addressesTable = 'conformance_chain_addresses';
+
+      beforeEach(async () => {
+        for (const t of [
+          todosTable,
+          orderItemsTable,
+          ordersTable,
+          customersTable,
+          addressesTable,
+          usersTable,
+        ]) {
+          if (await connector.hasTable(t)) await connector.dropTable(t);
+        }
+        await connector.createTable(addressesTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('city');
+        });
+        await connector.createTable(customersTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('name');
+          t.integer('addressId');
+        });
+        await connector.createTable(ordersTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.integer('total');
+          t.integer('customerId');
+        });
+        await connector.createTable(orderItemsTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.integer('orderId');
+          t.integer('amount');
+        });
+        await connector.createTable(usersTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.string('email');
+          t.string('role');
+          t.integer('active');
+        });
+        await connector.createTable(todosTable, (t) => {
+          t.integer('id', { primary: true, autoIncrement: true, null: false });
+          t.integer('userId');
+          t.string('title');
+          t.string('ownerEmail');
+        });
+      });
+
+      it('parent-scope traversal: User.findBy({email}).todos returns the user todos', async () => {
+        type UserProps = { email: string; role?: string; active?: number };
+        type TodoProps = { userId: number; title: string; ownerEmail?: string };
+        let User: any;
+        const Todo: any = class extends (
+          Model({
+            tableName: todosTable,
+            connector,
+            timestamps: false,
+            init: (props: TodoProps) => props,
+          })
+        ) {};
+        User = class extends (
+          Model({
+            tableName: usersTable,
+            connector,
+            timestamps: false,
+            init: (props: UserProps) => props,
+            associations: {
+              todos: { hasMany: () => Todo, foreignKey: 'userId' },
+            },
+          })
+        ) {};
+
+        const user = await User.create({ email: 'a@b' });
+        const other = await User.create({ email: 'c@d' });
+        await Todo.create({ userId: user.id, title: 't1' });
+        await Todo.create({ userId: user.id, title: 't2' });
+        await Todo.create({ userId: other.id, title: 'other' });
+
+        const todos = (await User.findBy({ email: 'a@b' }).todos) as any[];
+        expect(todos).toHaveLength(2);
+        expect(todos.map((t: any) => t.attributes.title).sort()).toEqual(['t1', 't2']);
+      });
+
+      it('multi-level traversal: Order.first().customer.address resolves through 2 belongsTo hops', async () => {
+        type AddressProps = { city: string };
+        type CustomerProps = { name: string; addressId: number };
+        type OrderProps = { total: number; customerId: number };
+
+        let Customer: any;
+        let Address: any;
+        Address = class extends (
+          Model({
+            tableName: addressesTable,
+            connector,
+            timestamps: false,
+            init: (props: AddressProps) => props,
+          })
+        ) {};
+        Customer = class extends (
+          Model({
+            tableName: customersTable,
+            connector,
+            timestamps: false,
+            init: (props: CustomerProps) => props,
+            associations: {
+              address: { belongsTo: () => Address, foreignKey: 'addressId' },
+            },
+          })
+        ) {};
+        const Order: any = class extends (
+          Model({
+            tableName: ordersTable,
+            connector,
+            timestamps: false,
+            init: (props: OrderProps) => props,
+            associations: {
+              customer: { belongsTo: () => Customer, foreignKey: 'customerId' },
+            },
+          })
+        ) {};
+
+        const address = await Address.create({ city: 'Berlin' });
+        const customer = await Customer.create({ name: 'Ada', addressId: address.id });
+        await Order.create({ total: 100, customerId: customer.id });
+
+        const resolved = await Order.first().customer.address;
+        expect(resolved).toBeDefined();
+        expect(resolved.attributes.city).toBe('Berlin');
+      });
+
+      it('Todo.filterBy({userId: User.filterBy({...})}) — subquery as filter value', async () => {
+        type UserProps = { email: string; active?: number };
+        type TodoProps = { userId: number; title: string };
+        const User: any = class extends (
+          Model({
+            tableName: usersTable,
+            connector,
+            timestamps: false,
+            init: (props: UserProps) => props,
+          })
+        ) {};
+        const Todo: any = class extends (
+          Model({
+            tableName: todosTable,
+            connector,
+            timestamps: false,
+            init: (props: TodoProps) => props,
+          })
+        ) {};
+
+        const active = await User.create({ email: 'a@b', active: 1 });
+        const inactive = await User.create({ email: 'c@d', active: 0 });
+        await Todo.create({ userId: active.id, title: 'a1' });
+        await Todo.create({ userId: active.id, title: 'a2' });
+        await Todo.create({ userId: inactive.id, title: 'i1' });
+
+        const todos = (await Todo.filterBy({
+          userId: User.filterBy({ active: 1 }),
+        })) as any[];
+        expect(todos).toHaveLength(2);
+        expect(todos.map((t: any) => t.attributes.title).sort()).toEqual(['a1', 'a2']);
+      });
+
+      it('Order.filterBy({total: {$gt: OrderItem.filterBy({...}).sum(amount)}}) — aggregate subquery', async () => {
+        type OrderProps = { total: number; customerId?: number };
+        type ItemProps = { orderId: number; amount: number };
+
+        const Order: any = class extends (
+          Model({
+            tableName: ordersTable,
+            connector,
+            timestamps: false,
+            init: (props: OrderProps) => props,
+          })
+        ) {};
+        const OrderItem: any = class extends (
+          Model({
+            tableName: orderItemsTable,
+            connector,
+            timestamps: false,
+            init: (props: ItemProps) => props,
+          })
+        ) {};
+
+        await Order.create({ total: 10 });
+        await Order.create({ total: 50 });
+        await Order.create({ total: 100 });
+        // sum of amounts on order 99: 15 + 25 = 40
+        await OrderItem.create({ orderId: 99, amount: 15 });
+        await OrderItem.create({ orderId: 99, amount: 25 });
+
+        const orders = (await Order.filterBy({
+          $gt: { total: OrderItem.filterBy({ orderId: 99 }).sum('amount') },
+        } as any)) as any[];
+        expect(orders.map((o: any) => o.attributes.total).sort((a: number, b: number) => a - b)).toEqual([50, 100]);
+      });
+
+      it('Todo.filterBy({ownerEmail: User.filterBy({...}).pluck(email)}) — column subquery', async () => {
+        type UserProps = { email: string; role: string };
+        type TodoProps = { userId?: number; title: string; ownerEmail: string };
+        const User: any = class extends (
+          Model({
+            tableName: usersTable,
+            connector,
+            timestamps: false,
+            init: (props: UserProps) => props,
+          })
+        ) {};
+        const Todo: any = class extends (
+          Model({
+            tableName: todosTable,
+            connector,
+            timestamps: false,
+            init: (props: TodoProps) => props,
+          })
+        ) {};
+
+        await User.create({ email: 'admin@x', role: 'admin' });
+        await User.create({ email: 'user@x', role: 'user' });
+        await Todo.create({ title: 'a', ownerEmail: 'admin@x' });
+        await Todo.create({ title: 'b', ownerEmail: 'user@x' });
+        await Todo.create({ title: 'c', ownerEmail: 'ghost@x' });
+
+        const todos = (await Todo.filterBy({
+          ownerEmail: User.filterBy({ role: 'admin' }).pluck('email'),
+        })) as any[];
+        expect(todos.map((t: any) => t.attributes.title)).toEqual(['a']);
+      });
+
+      it('attributes getter on a resolved instance is a JSON-safe POJO', async () => {
+        type UserProps = { email: string };
+        type TodoProps = { userId: number; title: string };
+        let User: any;
+        const Todo: any = class extends (
+          Model({
+            tableName: todosTable,
+            connector,
+            timestamps: false,
+            init: (props: TodoProps) => props,
+          })
+        ) {};
+        User = class extends (
+          Model({
+            tableName: usersTable,
+            connector,
+            timestamps: false,
+            init: (props: UserProps) => props,
+            associations: {
+              todos: { hasMany: () => Todo, foreignKey: 'userId' },
+            },
+          })
+        ) {};
+
+        const user = await User.create({ email: 'a@b' });
+        await Todo.create({ userId: user.id, title: 't1' });
+
+        const fetched = (await User.first()) as any;
+        expect(fetched).toBeDefined();
+        const json = JSON.parse(JSON.stringify(fetched.attributes));
+        // Persistent fields + key — not the `todos` association accessor
+        expect(json.email).toBe('a@b');
+        expect(json.id).toBe(user.id);
+        expect(json.todos).toBeUndefined();
+        // attributes is a getter (not a method)
+        expect(typeof fetched.attributes).toBe('object');
+        expect(fetched.attributes).not.toBeInstanceOf(Function);
+      });
+    });
   });
 }
