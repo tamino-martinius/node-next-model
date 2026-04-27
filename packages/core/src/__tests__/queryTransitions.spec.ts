@@ -35,4 +35,33 @@ describe('CollectionQuery → InstanceQuery transitions', () => {
     const q = CollectionQuery.fromModel(Todo as any).last();
     expect(q.state.order).toEqual([{ key: 'id', dir: SortDirection.Desc }]);
   });
+
+  it('findBy returns InstanceQuery scoped by the filter with terminalKind findBy', () => {
+    const q = CollectionQuery.fromModel(Todo as any).findBy({ id: 1 });
+    expect(q).toBeInstanceOf(InstanceQuery);
+    expect(q.terminalKind).toBe('findBy');
+    expect(q.state.filter).toEqual({ id: 1 });
+    expect(q.state.limit).toBe(1);
+  });
+
+  it('find narrows by primary key with terminalKind find', () => {
+    const q = CollectionQuery.fromModel(Todo as any).find(42);
+    expect(q.terminalKind).toBe('find');
+    expect(q.state.filter).toEqual({ id: 42 });
+  });
+
+  it('findOrFail with terminalKind findOrFail', () => {
+    const q = CollectionQuery.fromModel(Todo as any).findOrFail({ slug: 'abc' });
+    expect(q.terminalKind).toBe('findOrFail');
+    expect(q.state.filter).toEqual({ slug: 'abc' });
+  });
+
+  it('find composes with prior chain ops', () => {
+    const q = CollectionQuery.fromModel(Todo as any)
+      .filterBy({ active: true })
+      .find(7);
+    // Both the active filter and the id filter should be present (AND-merged).
+    // mergeFilters flat-merges disjoint columns.
+    expect(q.state.filter).toEqual({ active: true, id: 7 });
+  });
 });

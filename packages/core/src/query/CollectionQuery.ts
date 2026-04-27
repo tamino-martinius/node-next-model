@@ -247,6 +247,22 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return new InstanceQuery(this.model, 'last', { ...reversed.state, limit: 1 });
   }
 
+  findBy(filter: Filter<any>): InstanceQuery {
+    const narrowed = this.filterBy(filter);
+    return new InstanceQuery(this.model, 'findBy', { ...narrowed.state, limit: 1 });
+  }
+
+  find(id: string | number): InstanceQuery {
+    const pk = Object.keys(this.model.keys)[0] ?? 'id';
+    const narrowed = this.filterBy({ [pk]: id } as Filter<any>);
+    return new InstanceQuery(this.model, 'find', { ...narrowed.state, limit: 1 });
+  }
+
+  findOrFail(filter: Filter<any>): InstanceQuery {
+    const narrowed = this.filterBy(filter);
+    return new InstanceQuery(this.model, 'findOrFail', { ...narrowed.state, limit: 1 });
+  }
+
   merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {
     const otherFilter = other instanceof CollectionQuery ? other.state.filter : other.filter;
     const otherOrder = other instanceof CollectionQuery ? other.state.order : other.order;
