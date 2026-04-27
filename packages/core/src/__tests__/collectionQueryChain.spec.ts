@@ -263,6 +263,18 @@ describe('CollectionQuery chain methods', () => {
     );
   });
 
+  it('includes throws when associations are not declared on the model at all', () => {
+    class Bare extends ModelClass {
+      static tableName = 'bare';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+    }
+    expect(() => CollectionQuery.fromModel(Bare as any).includes('anything')).toThrow(
+      /requires the Model factory to declare 'associations'/,
+    );
+  });
+
   it('withoutIncludes clears selectedIncludes and resets strategy', () => {
     class Post extends ModelClass {
       static tableName = 'posts';
