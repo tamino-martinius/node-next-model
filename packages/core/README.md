@@ -18,6 +18,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
   - [limitBy / skipBy / unlimited / unskipped](#limitby--skipby--unlimited--unskipped)
   - [unfiltered / unscoped](#unfiltered--unscoped)
   - [Filter operators](#filter-operators)
+  - [Subquery filter values](#subquery-filter-values)
 - [Fetching](#fetching)
 - [Aggregates & grouping](#aggregates--grouping)
 - [Pagination](#pagination)
@@ -338,7 +339,22 @@ the correct final count — no lost updates.
 
 ## Querying
 
-Every chainable method returns a new subclass, so scopes are immutable and safe to share.
+Every chainable method returns a new query builder, so scopes are immutable and safe to share. Builders are `PromiseLike`, so `await` resolves them directly — `.all()` is optional when you just want the rows:
+
+```ts
+// These are equivalent — `await` on a CollectionQuery materializes the rows.
+const todos = await Todo.filterBy({ active: true });
+const todos = await Todo.filterBy({ active: true }).all();
+
+// `findBy(...)` / `find(id)` / `first()` / `last()` resolve to a single instance.
+const user = await User.findBy({ email: 'a@b.com' });
+const user = await User.find(1);
+
+// Aggregates resolve to a scalar.
+const total = await User.filterBy({ active: true }).count();
+```
+
+> **Bare-class invariant.** `Todo` itself is not thenable — `await Todo` does not fetch. You always need at least one chainable method (`.all()`, `.first()`, `.find(id)`, `.filterBy(...)`, …) before the chain becomes awaitable.
 
 ### filterBy / orFilterBy
 
@@ -407,31 +423,26 @@ await Post.pluck('id', 'title');                       // [[1, 'A'], [2, 'B'], .
 ### whereMissing
 
 Filter to parents that have no matching child rows — Rails'
-`User.where.missing(:posts)` without requiring SQL JOIN support. Runs a
-child-table subquery (`pluckUnique`) and excludes those primary-key values
-from the parent. Wrapped in `$async` so it composes naturally:
+`User.where.missing(:posts)`. Pass the name of a declared `hasMany` /
+`hasOne` association (see [Associations](#associations) for how to declare
+them):
 
 ```ts
 await User
-  .whereMissing({ hasMany: Post, foreignKey: 'userId' })
-  .filterBy({ active: true })
-  .all();
+  .whereMissing('posts')
+  .filterBy({ active: true });
 
-// hasOne is supported too:
-await User.whereMissing({ hasOne: Profile, foreignKey: 'userId' }).all();
+// hasOne associations work the same way:
+await User.whereMissing('profile');
 ```
 
-Multiple `whereMissing` calls AND together. Custom `primaryKey` is
-respected. Works against any connector that already understands `$async` +
-`$notIn` (every shipped connector does).
-
-> Connectors that implement `Connector.queryWithJoins` (KnexConnector
-> today) skip the subquery and resolve `whereMissing` as a single
-> `WHERE NOT EXISTS (SELECT 1 FROM child WHERE child.fk = parent.pk)` on
-> the same parent query. Memory / Redis / Mongo / native sqlite-pg-mysql-
-> mariadb stay on the subquery path. See
-> [Joins and JOIN-capable connectors](#joins-and-join-capable-connectors)
-> for the full surface.
+Multiple `whereMissing` calls AND together. Connectors that implement
+`Connector.queryWithJoins` (Knex / native pg / sqlite / mysql / mariadb /
+Aurora Data API) emit a single `WHERE NOT EXISTS (...)` on the parent
+query. Memory / Redis / Valkey / Mongo / LocalStorage fall back to a
+`pluckUnique` subquery + `$notIn` filter. See
+[Joins and JOIN-capable connectors](#joins-and-join-capable-connectors)
+for the full surface.
 
 ### Filter operators
 
@@ -447,6 +458,34 @@ All comparison keys start with `$`:
 | `$like` | `filterBy({ $like: { email: '%@example.com' } })` |
 | `$async` | `filterBy({ $async: somePromiseResolvingToAFilter })` |
 | `$raw` | connector-specific raw SQL + bindings |
+
+### Subquery filter values
+
+Any query builder can be passed as a filter value — the parent query
+embeds it as a correlated subquery, with the connector emitting `IN (...)`
+or splicing the resolved value as appropriate. No need to `await` first.
+
+```ts
+// CollectionQuery / InstanceQuery as filter value — correlated subquery
+// on the related table's primary key (or `pluck(...)` column).
+await Todo.filterBy({
+  userId: User.filterBy({ active: true }),
+});
+
+// ColumnQuery (from `.pluck(...)`) — uses the projected column directly.
+const adminIds = User.filterBy({ role: 'admin' }).pluck('id');
+await Todo.filterBy({ userId: { $in: adminIds } });
+
+// ScalarQuery (from `.sum(...)` / `.count()` / `.min(...)` / etc.) —
+// resolved eagerly when used as a top-level value, or spliced inside
+// an operator like `$gt` so `total > SUM(items.amount)` works directly.
+const itemTotal = OrderItem.filterBy({ orderId: 99 }).sum('amount');
+await Order.filterBy({ total: { $gt: itemTotal } });
+```
+
+Subquery values compose inside `$and` / `$or` / `$not` arms too — the
+extraction descends into nested filter trees so the same shapes work
+everywhere a literal would.
 
 ## Fetching
 
@@ -861,69 +900,121 @@ compose on top of the auto-type filter.
 
 ## Associations
 
-Associations are defined as instance methods using the provided helpers. Each returns a scoped related class (for `hasMany` / `hasManyThrough`) or a `Promise<Related | undefined>` (for `belongsTo` / `hasOne`).
+Declare associations on the factory — each one names a `belongsTo`,
+`hasMany`, `hasOne`, or `hasManyThrough` plus the foreign-key column. Use
+`() => Other` thunks for circular imports. Each declared name installs
+a chainable instance accessor and unlocks the JOIN-shaped chainables
+(`joins(...)`, `whereMissing(...)`, `includes(...)`, cross-association
+`filterBy({ <name>: {...} })`).
 
 ```ts
-class User extends Model({ ... }) {
-  posts() { return this.hasMany(Post); }
-  profile() { return this.hasOne(Profile); }
-  roles() { return this.hasManyThrough(Role, UserRole); }
-}
+class User extends Model({
+  tableName: 'users',
+  init: (props: { name: string }) => props,
+  associations: {
+    posts:   { hasMany:   () => Post,    foreignKey: 'userId' },
+    profile: { hasOne:    () => Profile, foreignKey: 'userId' },
+    company: { belongsTo: () => Company, foreignKey: 'companyId' },
+    roles:   { hasManyThrough: () => Role, through: () => UserRole },
+  },
+}) {}
 
-class Post extends Model({ ... }) {
-  author() { return this.belongsTo(User); }
-}
+class Post extends Model({
+  tableName: 'posts',
+  init: (props: { title: string; userId: number }) => props,
+  associations: {
+    author: { belongsTo: () => User, foreignKey: 'userId' },
+  },
+}) {}
+```
 
+Instance accessors return chainable query builders, not eager promises —
+so you can keep refining the chain before resolving:
+
+```ts
 const user = await User.find(1);
-const posts = await user.posts().all();
-const author = await post.author();
+
+// hasMany / hasManyThrough → CollectionQuery (PromiseLike).
+await user.posts;                               // Promise<Post[]>
+await user.posts.filterBy({ status: 'open' }); // chain further
+await user.posts.count();                       // aggregate
+
+// belongsTo / hasOne → InstanceQuery (PromiseLike).
+await user.company;                             // Promise<Company | undefined>
+await user.profile;                             // Promise<Profile | undefined>
 ```
 
-Polymorphic associations use a shared `{name}Id` + `{name}Type` pair:
+Static-side traversal works the same way — `.findBy(...)` returns an
+InstanceQuery, so the parent-scope chain reads naturally end-to-end:
 
 ```ts
-class Comment extends Model({ ... }) {
-  commentable() { return this.belongsTo(Post, { polymorphic: 'commentable' }); }
-}
+// Resolve a user, then filter their open todos — single chain, no await
+// in the middle.
+const openTodos = await User
+  .findBy({ email: 'a@b.com' })
+  .todos
+  .filterBy({ status: 'open' });
 
-class Post extends Model({ ... }) {
-  comments() { return this.hasMany(Comment, { polymorphic: 'commentable' }); }
-}
+// Two-hop belongsTo chain.
+const street = (await Order.first().customer.address)?.street;
 ```
 
-Override the defaults via `foreignKey`, `primaryKey`, `typeKey`, `typeValue` as needed.
+Polymorphic associations share a `{name}Id` + `{name}Type` pair — declare
+the `polymorphic` shorthand on each side:
+
+```ts
+class Comment extends Model({
+  // ...
+  associations: {
+    commentable: { belongsTo: () => Post, polymorphic: 'commentable' },
+  },
+}) {}
+
+class Post extends Model({
+  // ...
+  associations: {
+    comments: { hasMany: () => Comment, polymorphic: 'commentable' },
+  },
+}) {}
+```
+
+Override the defaults via `foreignKey`, `primaryKey`, `typeKey`,
+`typeValue` as needed. Association names that collide with primary-key
+columns, `storeAccessors` sub-keys, enum predicates, or built-in instance
+methods throw at factory construction so problems surface immediately.
 
 ### Eager loading
 
-Instance-level association helpers query lazily, which is fine for a single record but produces N+1 queries when iterating a collection.
+Instance accessors query lazily, which is fine for a single record but
+produces N+1 queries when iterating a collection.
 
-#### `Model.includes({...})`
+#### `Model.includes(...names)`
 
-The high-level chainable: declare which associations to preload alongside the
-main fetch and they're attached to every returned instance. Each entry names
-the property to attach and whether it's a `belongsTo`, `hasMany`, or `hasOne`.
-One batched query per association — no N+1.
+Pass the names of declared associations to preload them alongside the main
+fetch — one batched query per association, no N+1. The resolved values
+overwrite the lazy chainable accessors on every returned instance.
 
 ```ts
-const posts = await Post.includes({
-  user:     { belongsTo: User,    foreignKey: 'userId' },
-  comments: { hasMany:   Comment, foreignKey: 'postId' },
-  cover:    { hasOne:    Image,   foreignKey: 'postId' },
-}).all();
+const posts = await Post.includes('user', 'comments', 'cover');
 
 posts[0].user;      // User instance — pre-loaded, no extra query
 posts[0].comments;  // Comment[]    — pre-loaded
 posts[0].cover;     // Image | undefined
 ```
 
-Without `includes(...)`, instance-level helpers (`this.belongsTo(User)` /
-`this.hasMany(Comment)` / `this.hasOne(Image)`) keep returning a Promise — the
-lazy path. `includes(...)` is the explicit opt-in to eager-load.
+Without `includes(...)`, the instance accessors (`post.user`,
+`post.comments`, `post.cover`) keep returning chainable query builders —
+the lazy path. `includes(...)` is the explicit opt-in to eager-load.
 
-Each entry accepts an optional `primaryKey` for non-`id` parent keys.
-Consecutive `includes({})` calls merge. `Model.withoutIncludes()` clears the
-chain; `unscoped()` clears the includes map alongside everything else it
-already clears.
+`Model.includes('posts', 'profile', { strategy: 'auto' })` accepts a final
+`{ strategy: 'preload' | 'join' | 'auto' }` option — `'preload'` (default)
+runs one batched query per association; `'join'` requires
+`Connector.queryWithJoins`; `'auto'` picks the right one. See
+[Joins and JOIN-capable connectors](#joins-and-join-capable-connectors).
+
+Consecutive `includes(...)` calls merge. `Model.withoutIncludes()` clears
+the chain; `unscoped()` clears the includes map alongside everything else
+it already clears.
 
 #### Lower-level: `preloadBelongsTo` / `preloadHasMany`
 
@@ -949,6 +1040,53 @@ for (const user of users) {
 ```
 
 Both helpers accept an optional `primaryKey` for non-`id` parent keys. `preloadHasMany` pre-seeds empty buckets for every parent, so `.get(parent.id)` always returns an array.
+
+<a id="join-strategy-followup"></a>
+<a id="joins-and-join-capable-connectors"></a>
+
+### Joins and JOIN-capable connectors
+
+`Model.joins(...names)`, `Model.whereMissing(name)`,
+`Model.includes(...names, { strategy })`, and cross-association
+`filterBy({ <assocName>: {...} })` all consume the declared
+associations and collect JOINs in a `pendingJoins` queue on the chain.
+At terminal time:
+
+- Connectors that implement `Connector.queryWithJoins` (Knex / native
+  sqlite / postgres / mysql / mariadb / Aurora Data API) consume the whole
+  queue in one `Connector.queryWithJoins({ parent, joins })` call —
+  `'select'` clauses become `WHERE EXISTS (...)`, `'antiJoin'` becomes
+  `WHERE NOT EXISTS (...)`, and `'includes'` clauses batch-fetch children
+  and attach them under `record.<name>`.
+- Every other connector (Memory / Redis / Valkey / Mongo / LocalStorage)
+  falls back to a subquery: the parent's scope picks up
+  `{ $in | $notIn: { [parentColumn]: [...child keys...] } }` and includes
+  go through the existing `preloadBelongsTo` / `preloadHasMany` primitives.
+  `$async` is fully resolved at the Model layer, so connectors that
+  reject `$async` keep working transparently.
+
+```ts
+// INNER JOIN — keep parents that have at least one matching child.
+await User.joins('posts');
+
+// LEFT JOIN ... WHERE NOT EXISTS — Rails' `where.missing(:posts)`.
+await User.whereMissing('posts').filterBy({ active: true });
+
+// Cross-association filterBy — auto-promotes to INNER JOIN with the
+// child filter applied. Equivalent to Rails'
+// `User.where(posts: { status: 'published' })`.
+await User.filterBy({ posts: { status: 'published' } } as any);
+
+// Eager-load posts (and any other associations).
+await User.includes('posts');
+await User.includes('posts', 'profile', { strategy: 'auto' });
+```
+
+`includes` accepts `{ strategy: 'preload' | 'join' | 'auto' }`:
+`'preload'` (default) is the existing one-batched-query-per-association
+behaviour. `'join'` requires `queryWithJoins` and throws otherwise.
+`'auto'` picks `'join'` when supported, `'preload'` when not — a safe
+default for libraries that don't know which connector they'll run against.
 
 ## Transactions
 
@@ -997,90 +1135,6 @@ original throw propagates intact.
 > correct; concurrent transactions on overlapping async timelines
 > (`Promise.all([Model.transaction(...), Model.transaction(...)])`) can mix
 > contexts. `await` one before starting the next when correctness matters.
-
-<a id="join-strategy-followup"></a>
-<a id="joins-and-join-capable-connectors"></a>
-
-### Associations
-
-Declare associations on the factory — each one names a `belongsTo`,
-`hasMany`, or `hasOne` plus the foreign-key column. Use `() => Other`
-thunks for circular imports. Associations unlock four chainables
-(`joins` / `whereMissing` / `includes` / cross-association `filterBy`)
-and add an auto-defined lazy accessor on every instance.
-
-```ts
-class Post extends Model({
-  tableName: 'posts',
-  init: (props: { title: string; userId: number; status: string }) => props,
-  associations: {
-    user: { belongsTo: () => User, foreignKey: 'userId' },
-  },
-}) {}
-
-class User extends Model({
-  tableName: 'users',
-  init: (props: { name: string }) => props,
-  associations: {
-    posts:   { hasMany:   () => Post,    foreignKey: 'userId' },
-    profile: { hasOne:    () => Profile, foreignKey: 'userId' },
-    company: { belongsTo: () => Company, foreignKey: 'companyId' },
-  },
-}) {}
-
-const user = await User.find(1);
-await user.posts;     // Promise<Post[]>          (lazy)
-await user.profile;   // Promise<Profile | undefined>
-await user.company;   // Promise<Company | undefined>
-```
-
-Association names that collide with a primary key, a `storeAccessors`
-sub-key, an enum predicate, or a built-in instance method throw at
-factory construction so problems surface immediately.
-
-### Joins and JOIN-capable connectors
-
-`Model.joins(...names)`, `Model.whereMissing(name)`,
-`Model.includes(...names, { strategy })`, and cross-association
-`filterBy({ <assocName>: {...} })` all consume the declared
-associations and collect JOINs in a `pendingJoins` queue on the chain.
-At terminal time:
-
-- Connectors that implement `Connector.queryWithJoins` (Knex / native
-  sqlite / postgres / mysql / mariadb / Aurora Data API) consume the whole
-  queue in one `Connector.queryWithJoins({ parent, joins })` call —
-  `'select'` clauses become `WHERE EXISTS (...)`, `'antiJoin'` becomes
-  `WHERE NOT EXISTS (...)`, and `'includes'` clauses batch-fetch children
-  and attach them under `record.<name>`.
-- Every other connector (Memory / Redis / Valkey / Mongo / LocalStorage)
-  falls back to a subquery: the parent's scope picks up
-  `{ $in | $notIn: { [parentColumn]: [...child keys...] } }` and includes
-  go through the existing `preloadBelongsTo` / `preloadHasMany` primitives.
-  `$async` is fully resolved at the Model layer, so connectors that
-  reject `$async` keep working transparently.
-
-```ts
-// INNER JOIN — keep parents that have at least one matching child.
-await User.joins('posts').all();
-
-// LEFT JOIN ... WHERE NOT EXISTS — Rails' `where.missing(:posts)`.
-await User.whereMissing('posts').filterBy({ active: true }).all();
-
-// Cross-association filterBy — auto-promotes to INNER JOIN with the
-// child filter applied. Equivalent to Rails'
-// `User.where(posts: { status: 'published' })`.
-await User.filterBy({ posts: { status: 'published' } } as any).all();
-
-// Eager-load posts (and any other associations).
-await User.includes('posts').all();
-await User.includes('posts', 'profile', { strategy: 'auto' }).all();
-```
-
-`includes` accepts `{ strategy: 'preload' | 'join' | 'auto' }`:
-`'preload'` (default) is the existing one-batched-query-per-association
-behaviour. `'join'` requires `queryWithJoins` and throws otherwise.
-`'auto'` picks `'join'` when supported, `'preload'` when not — a safe
-default for libraries that don't know which connector they'll run against.
 
 ## Connectors
 
