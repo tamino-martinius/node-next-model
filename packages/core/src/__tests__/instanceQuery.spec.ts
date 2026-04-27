@@ -19,4 +19,14 @@ describe('InstanceQuery', () => {
     const q = new InstanceQuery(FakeModel as any, 'findOrFail', async () => undefined);
     await expect(q).rejects.toThrow(NotFoundError);
   });
+
+  it('find terminal throws NotFoundError on undefined', async () => {
+    const q = new InstanceQuery(FakeModel as any, 'find', async () => undefined);
+    await expect(q).rejects.toThrow(NotFoundError);
+  });
+
+  it('findBy terminal resolves to undefined on miss (does not throw)', async () => {
+    const q = new InstanceQuery(FakeModel as any, 'findBy', async () => undefined);
+    expect(await q).toBeUndefined();
+  });
 });
