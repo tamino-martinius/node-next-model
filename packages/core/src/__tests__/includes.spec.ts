@@ -210,20 +210,16 @@ describe('Model.includes — eager loading', () => {
     expect(comments.map((c) => (c.attributes as CommentRow).body)).toEqual(['C1', 'C2']);
   });
 
-  it('instance-level .belongsTo / .hasMany still return a Promise (lazy)', async () => {
+  it('instance-level .belongsTo / .hasMany return a chainable query (PromiseLike)', async () => {
     const connector = freshConnector();
     const models = buildModels(connector);
     await seed(models);
     const { User, Post } = models;
 
-    const post = (await Post.find(1)) as unknown as {
-      belongsTo: (
-        M: typeof User,
-        opts?: { foreignKey?: string },
-      ) => Promise<InstanceType<typeof User> | undefined>;
-    };
+    const post = (await Post.find(1)) as Awaited<ReturnType<typeof Post.find>>;
     const lazy = post.belongsTo(User, { foreignKey: 'userId' });
-    expect(lazy).toBeInstanceOf(Promise);
+    // Awaiting the InstanceQuery resolves the lookup; the builder is
+    // PromiseLike so existing `await this.belongsTo(...)` keeps working.
     const resolved = await lazy;
     expect((resolved?.attributes as UserRow).name).toBe('Ada');
   });

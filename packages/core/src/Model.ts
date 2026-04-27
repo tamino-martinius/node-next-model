@@ -1683,34 +1683,49 @@ export class ModelClass {
     };
   }
 
+  /**
+   * Manual belongsTo association — for user code that explicitly defines an
+   * accessor like `author() { return this.belongsTo(User); }`. Returns a
+   * chainable InstanceQuery (PromiseLike) so `await this.belongsTo(...)` works
+   * but the result also supports further chaining (`.pluck(...)` etc.). When
+   * the foreign-key value is null/undefined or polymorphic-type mismatches,
+   * returns a `none()`-scoped InstanceQuery that resolves to `undefined`.
+   */
   belongsTo<Related extends typeof ModelClass>(
     this: ModelClass,
     Related: Related,
     options: AssociationOptions = {},
-  ): Promise<InstanceType<Related> | undefined> {
+  ): InstanceQuery<InstanceType<Related> | undefined> {
     const poly = options.polymorphic;
     const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(Related.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(Related.keys)[0] ?? 'id';
     const attrs = this.attributes as Dict<any>;
     const fkValue = attrs[fk];
     if (fkValue === undefined || fkValue === null) {
-      return Promise.resolve(undefined);
+      return Related.none().findBy({ [pk]: null } as Filter<any>) as unknown as InstanceQuery<
+        InstanceType<Related> | undefined
+      >;
     }
     if (poly) {
       const typeKey = options.typeKey ?? `${poly}Type`;
       const expectedType = options.typeValue ?? Related.tableName;
       if (attrs[typeKey] !== expectedType) {
-        return Promise.resolve(undefined);
+        return Related.none().findBy({ [pk]: null } as Filter<any>) as unknown as InstanceQuery<
+          InstanceType<Related> | undefined
+        >;
       }
     }
-    // Wrap in a real Promise so callers asserting `instanceof Promise`
-    // (lazy-load contract) still pass after the static `findBy` migrated
-    // to return an InstanceQuery builder.
-    return Promise.resolve(
-      Related.findBy({ [pk]: fkValue }) as unknown as Promise<InstanceType<Related> | undefined>,
-    );
+    return Related.findBy({ [pk]: fkValue }) as unknown as InstanceQuery<
+      InstanceType<Related> | undefined
+    >;
   }
 
+  /**
+   * Manual hasMany association — for user code that explicitly defines an
+   * accessor like `posts() { return this.hasMany(Post); }`. Returns a
+   * chainable scope so `(await this.posts()).map(...)` works and further
+   * chaining (`.where(...)`, `.pluck(...)`) is available.
+   */
   hasMany<Related extends typeof ModelClass>(
     this: ModelClass,
     Related: Related,
@@ -1729,29 +1744,35 @@ export class ModelClass {
     return Related.filterBy(filter) as Related;
   }
 
+  /**
+   * Manual hasOne association — for user code that explicitly defines an
+   * accessor like `profile() { return this.hasOne(Profile); }`. Returns a
+   * chainable InstanceQuery (PromiseLike); resolves to `undefined` when no
+   * matching row exists or when the parent record is unsaved.
+   */
   hasOne<Related extends typeof ModelClass>(
     this: ModelClass,
     Related: Related,
     options: AssociationOptions = {},
-  ): Promise<InstanceType<Related> | undefined> {
+  ): InstanceQuery<InstanceType<Related> | undefined> {
     const selfModel = this.constructor as typeof ModelClass;
     const poly = options.polymorphic;
     const fk = options.foreignKey ?? (poly ? `${poly}Id` : `${singularize(selfModel.tableName)}Id`);
     const pk = options.primaryKey ?? Object.keys(selfModel.keys)[0] ?? 'id';
     const pkValue = (this as any)[pk];
     if (pkValue === undefined || pkValue === null) {
-      return Promise.resolve(undefined);
+      return Related.none().findBy({ [fk]: null } as Filter<any>) as unknown as InstanceQuery<
+        InstanceType<Related> | undefined
+      >;
     }
     const filter: Dict<any> = { [fk]: pkValue };
     if (poly) {
       const typeKey = options.typeKey ?? `${poly}Type`;
       filter[typeKey] = options.typeValue ?? selfModel.tableName;
     }
-    // Wrap to satisfy the lazy-load `instanceof Promise` contract — same
-    // rationale as instance.belongsTo.
-    return Promise.resolve(
-      Related.findBy(filter) as unknown as Promise<InstanceType<Related> | undefined>,
-    );
+    return Related.findBy(filter) as unknown as InstanceQuery<
+      InstanceType<Related> | undefined
+    >;
   }
 
   hasManyThrough<Target extends typeof ModelClass, Through extends typeof ModelClass>(
