@@ -1,4 +1,5 @@
-import type { Dict, KeyType } from '../types.js';
+import type { Dict, KeyType, Projection } from '../types.js';
+import type { QueryState } from './QueryState.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -8,11 +9,13 @@ export class ColumnQuery<Shape = unknown> implements PromiseLike<Shape> {
   constructor(
     public readonly model: ModelLike,
     public readonly column: string,
-    private readonly execute: () => Promise<Shape>,
+    public readonly state: QueryState,
+    public readonly projection: Projection,
   ) {}
 
-  protected materialize() {
-    if (!this.memo) this.memo = this.execute();
+  // STUB until Task 25 wires materialize to connector.queryScoped.
+  protected materialize(): Promise<Shape> {
+    if (!this.memo) this.memo = Promise.resolve([] as unknown as Shape);
     return this.memo;
   }
 

@@ -1,6 +1,7 @@
 import { NotFoundError } from '../errors.js';
 import type { Dict, KeyType } from '../types.js';
 import type { QueryState, TerminalKind } from './QueryState.js';
+import { ScalarQuery } from './ScalarQuery.js';
 
 export type { TerminalKind };
 
@@ -33,6 +34,10 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
       });
     }
     return this.memo;
+  }
+
+  pluck<T = unknown>(column: string): ScalarQuery<T | undefined> {
+    return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'column', column });
   }
 
   then<R1 = Result, R2 = never>(

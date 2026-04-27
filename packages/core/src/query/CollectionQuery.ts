@@ -12,6 +12,7 @@ import type { Dict, KeyType } from '../types.js';
 import { mergeFilters, mergeOrders, type QueryState } from './QueryState.js';
 import { InstanceQuery } from './InstanceQuery.js';
 import { ScalarQuery } from './ScalarQuery.js';
+import { ColumnQuery } from './ColumnQuery.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -282,6 +283,10 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   maximum<T = unknown>(column: string): ScalarQuery<T | undefined> {
     return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'aggregate', op: 'max', column });
+  }
+
+  pluck(column: string): ColumnQuery<unknown[]> {
+    return new ColumnQuery<unknown[]>(this.model, column, this.state, { kind: 'column', column });
   }
 
   merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {
