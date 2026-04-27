@@ -57,15 +57,14 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
         }
         const resolvedFilter = await resolveSubqueryFilters(stateForLower.filter);
         const scopedFilter = this.applyImplicitScopes(resolvedFilter);
-        // ORDER BY is irrelevant for a `count` aggregate and breaks SQL strict
-        // mode (e.g. PostgreSQL): `SELECT COUNT(*) … ORDER BY age` errors out
-        // because `age` is non-aggregate without a GROUP BY. `paginate(...)`
-        // hits this naturally — its inherited chain carries an `orderBy`.
-        const isCountAggregate =
-          typeof this.projection === 'object' &&
-          this.projection.kind === 'aggregate' &&
-          this.projection.op === 'count';
-        const stateForSpec = isCountAggregate
+        // ORDER BY is irrelevant for any aggregate (count/sum/avg/min/max)
+        // and breaks SQL strict mode (e.g. PostgreSQL): `SELECT COUNT(*) …
+        // ORDER BY age` errors with "age must appear in the GROUP BY clause".
+        // `paginate(...)` hits this naturally — its inherited chain carries
+        // an `orderBy`. Strip it for every aggregate projection.
+        const isAggregate =
+          typeof this.projection === 'object' && this.projection.kind === 'aggregate';
+        const stateForSpec = isAggregate
           ? { ...stateForLower, filter: scopedFilter, order: [] }
           : { ...stateForLower, filter: scopedFilter };
         const builderForLower = new (this.constructor as any)(
