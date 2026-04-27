@@ -1,4 +1,5 @@
-import type { Dict, KeyType } from '../types.js';
+import type { Dict, KeyType, Projection } from '../types.js';
+import type { QueryState } from './QueryState.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -7,12 +8,25 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
 
   constructor(
     public readonly model: ModelLike,
-    private readonly execute: () => Promise<T>,
+    public readonly state: QueryState,
+    public readonly projection: Projection,
   ) {}
 
-  protected materialize() {
-    if (!this.memo) this.memo = this.execute();
+  // STUB until Task 25 wires materialize to connector.queryScoped.
+  protected materialize(): Promise<T> {
+    if (!this.memo) {
+      const result = this.isCountAggregate() ? (0 as T) : (undefined as T);
+      this.memo = Promise.resolve(result);
+    }
     return this.memo;
+  }
+
+  private isCountAggregate(): boolean {
+    return (
+      typeof this.projection === 'object' &&
+      this.projection.kind === 'aggregate' &&
+      this.projection.op === 'count'
+    );
   }
 
   then<R1 = T, R2 = never>(

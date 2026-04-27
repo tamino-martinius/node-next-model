@@ -11,6 +11,7 @@ import { type Filter, type JoinClause, type Order, SortDirection } from '../type
 import type { Dict, KeyType } from '../types.js';
 import { mergeFilters, mergeOrders, type QueryState } from './QueryState.js';
 import { InstanceQuery } from './InstanceQuery.js';
+import { ScalarQuery } from './ScalarQuery.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -261,6 +262,10 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
   findOrFail(filter: Filter<any>): InstanceQuery {
     const narrowed = this.filterBy(filter);
     return new InstanceQuery(this.model, 'findOrFail', { ...narrowed.state, limit: 1 });
+  }
+
+  count(): ScalarQuery<number> {
+    return new ScalarQuery<number>(this.model, this.state, { kind: 'aggregate', op: 'count' });
   }
 
   merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {

@@ -12,8 +12,31 @@ describe('ColumnQuery', () => {
 });
 
 describe('ScalarQuery', () => {
-  it('resolves to a single scalar', async () => {
-    const q = new ScalarQuery(FakeModel as any, async () => 42);
-    expect(await q).toBe(42);
+  it('resolves to 0 for count aggregate (stub)', async () => {
+    const state = {
+      Model: FakeModel,
+      filter: undefined,
+      order: [],
+      selectedIncludes: [],
+      includeStrategy: 'preload' as const,
+      pendingJoins: [],
+      softDelete: false as const,
+    };
+    const q = new ScalarQuery(FakeModel as any, state as any, { kind: 'aggregate', op: 'count' });
+    expect(await q).toBe(0);
+  });
+
+  it('resolves to undefined for non-count aggregate (stub)', async () => {
+    const state = {
+      Model: FakeModel,
+      filter: undefined,
+      order: [],
+      selectedIncludes: [],
+      includeStrategy: 'preload' as const,
+      pendingJoins: [],
+      softDelete: false as const,
+    };
+    const q = new ScalarQuery(FakeModel as any, state as any, { kind: 'aggregate', op: 'sum', column: 'amount' });
+    expect(await q).toBeUndefined();
   });
 });
