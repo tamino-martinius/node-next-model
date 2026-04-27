@@ -114,6 +114,10 @@ Both use `RETURNING *` so the affected rows are returned in one round-trip. `LIM
 
 `{ default: 'currentTimestamp' }` becomes `DEFAULT CURRENT_TIMESTAMP`. `t.index([col], { unique })` issues a follow-up `CREATE [UNIQUE] INDEX … ON tbl (col)` after the table create. `dropTable` uses `DROP TABLE IF EXISTS`. `hasTable` calls `to_regclass`.
 
+### Schema reflection (`reflectSchema`)
+
+Returns a `TableDefinition[]` for every table in `current_schema()`. Reads `information_schema.tables` / `information_schema.columns` / `information_schema.table_constraints` for column metadata + primary key + UNIQUE constraints, and `pg_index` / `pg_class` for explicit `CREATE INDEX` entries (skipping the auto-created PK / UNIQUE constraint indexes). `nextval(...)` defaults map back to `autoIncrement: true`; `CURRENT_TIMESTAMP` / `now()` to `'currentTimestamp'`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
+
 ## Testing matrix
 
 CI runs the shared `runModelConformance` suite (every Model feature) against a real PostgreSQL 17 service container.
