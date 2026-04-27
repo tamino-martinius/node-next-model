@@ -364,6 +364,11 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
         const spec = lower(this, 'rows');
         const M = this.model as any;
         const connector = M.connector;
+        if (!connector || typeof connector.queryScoped !== 'function') {
+          throw new PersistenceError(
+            `${M.name || M.tableName || 'Model'}.connector does not implement queryScoped(spec).`,
+          );
+        }
         const rows = (await connector.queryScoped(spec)) as Dict<any>[];
         return this.hydrate(rows) as unknown as Items;
       })();
@@ -371,6 +376,10 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return this.memo;
   }
 
+  // TODO(Task 13/26): align hydrate with Model.all's full materializer:
+  // afterFind callbacks, includes attachment / preload, STI dispatch via
+  // inheritColumn → inheritRegistry. Until then, models with those features
+  // should keep using Model.all's legacy path.
   protected hydrate(rows: Dict<any>[]): unknown[] {
     const M = this.model as any;
     return rows.map((row) => {
