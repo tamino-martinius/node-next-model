@@ -429,6 +429,14 @@ export type ScopesToMethods<Self, S extends ScopeMap> = {
 export class ModelClass {
   static tableName: string;
   static filter: Filter<any> | undefined;
+  /**
+   * Sticky filter applied to every chained read on the Model. Unlike
+   * `filter` (which seeds the chain's initial state and is cleared by
+   * `unfiltered()`), `defaultScope` is merged in at lower-time on every read
+   * regardless of what the chain did with `filter`. Suppress per-key via
+   * `unscope(key)` / `unscope(...keys)`; suppress entirely via `unscoped()`.
+   */
+  static defaultScope: Filter<any> | undefined = undefined;
   static limit: number | undefined;
   static skip: number | undefined;
   static order: OrderColumn<any>[];
@@ -634,6 +642,18 @@ export class ModelClass {
 
   static unscoped<M extends typeof ModelClass>(this: M) {
     return CollectionQuery.fromModel(this as any).unscoped() as unknown as M;
+  }
+
+  /**
+   * Drop the listed columns from the Model's `defaultScope` for this scope
+   * only. Leaves the rest of the chain's filter / order / limit intact —
+   * unlike `unscoped()`, which clears everything alongside the default scope.
+   * Pass one or more column names: `Post.unscope('archivedAt')` returns the
+   * `defaultScope` minus the `archivedAt` clause. No-op when the Model has no
+   * `defaultScope` declared.
+   */
+  static unscope<M extends typeof ModelClass>(this: M, ...keys: string[]) {
+    return CollectionQuery.fromModel(this as any).unscope(...keys) as unknown as M;
   }
 
   /**
@@ -2104,6 +2124,16 @@ export function Model<
   filter?: Filter<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
+  /**
+   * Sticky filter applied to every chained read on the Model. Unlike
+   * `filter`, which seeds the initial chain state and is cleared by
+   * `unfiltered()`, `defaultScope` is merged in at materialise-time
+   * regardless of what the chain did with `filter`. Suppress per-key via
+   * `Model.unscope('column', ...)`; suppress entirely via `Model.unscoped()`.
+   */
+  defaultScope?: Filter<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
   limit?: number;
   skip?: number;
   order?: Order<
@@ -2264,6 +2294,7 @@ export function Model<
   const ModelSubclass = class Model extends ModelClass {
     static tableName = props.tableName;
     static filter = props.filter;
+    static defaultScope = props.defaultScope;
     static limit = props.limit;
     static skip = props.skip;
     static order = order;

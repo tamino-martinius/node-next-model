@@ -23,6 +23,10 @@ export interface QueryState {
   softDelete: 'active' | 'only' | false;
   nullScoped?: boolean;
   parent?: ParentRef;
+  /** Column names whose `defaultScope` clauses are suppressed for this builder. */
+  unscopedKeys?: string[];
+  /** When true, `defaultScope` is suppressed entirely for this builder. */
+  unscopedAll?: boolean;
 }
 
 const hasSpecial = (f: Filter<any> | undefined): boolean =>

@@ -528,7 +528,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
       return (async () => {
         if (this.state.nullScoped) return [];
         const M = this.model as any;
-        const scope = await resolvePendingJoinsToScope(M, this.state);
+        const scope = await this.resolvedScope();
         const rows = await M.connector.select(scope, ...keys);
         return rows.map((row: Dict<any>) => keys.map((k) => row[k]));
       })();
@@ -900,6 +900,21 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
       pendingJoins: [],
       havingPredicate: undefined,
       softDelete: false,
+      unscopedAll: true,
+    });
+  }
+
+  /**
+   * Drop the listed columns from the Model's `defaultScope` for this builder
+   * only — leaves the rest of the scope (and the chain's regular `filter`)
+   * intact. Compose multiple `unscope(...)` calls or pass several keys at once
+   * to remove more than one. Use `unscoped()` to suppress the entire default
+   * scope (and clear every other chain bit).
+   */
+  unscope(...keys: string[]): this {
+    if (keys.length === 0) return this;
+    return this.with({
+      unscopedKeys: [...(this.state.unscopedKeys ?? []), ...keys],
     });
   }
 

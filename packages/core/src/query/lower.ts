@@ -2,7 +2,7 @@ import type { Dict, Filter, ParentScope, Projection, QueryScopedSpec } from '../
 import { CollectionQuery } from './CollectionQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
 import { InstanceQuery } from './InstanceQuery.js';
-import type { QueryState } from './QueryState.js';
+import { mergeFilters, type QueryState } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 
 // Operator keys where the value is directly comparable (scalar operators).
@@ -149,10 +149,17 @@ function builderToParentScope(childColumn: string, builder: SubqueryBuilder): Pa
     builder instanceof InstanceQuery ? 'belongsTo' : 'hasMany';
   const parentLimit =
     builder instanceof InstanceQuery ? (targetState.limit ?? 1) : targetState.limit;
+  const targetDefaultScope = (targetState.Model as { defaultScope?: Filter<any> }).defaultScope;
+  const parentFilter = applyDefaultScope(
+    targetState.filter,
+    targetDefaultScope,
+    targetState.unscopedKeys,
+    targetState.unscopedAll,
+  );
   return {
     parentTable: targetState.Model.tableName,
     parentKeys: targetState.Model.keys,
-    parentFilter: targetState.filter,
+    parentFilter,
     parentOrder: targetState.order.length > 0 ? targetState.order : undefined,
     parentLimit,
     link: { childColumn, parentColumn, direction },
@@ -204,10 +211,17 @@ function flattenParents(state: QueryState): QueryScopedSpec['parentScopes'] {
   let current = state.parent;
   while (current) {
     const upstream = current.upstream.state;
+    const upstreamDefaultScope = (upstream.Model as { defaultScope?: Filter<any> }).defaultScope;
+    const parentFilter = applyDefaultScope(
+      upstream.filter,
+      upstreamDefaultScope,
+      upstream.unscopedKeys,
+      upstream.unscopedAll,
+    );
     scopes.unshift({
       parentTable: upstream.Model.tableName,
       parentKeys: upstream.Model.keys,
-      parentFilter: upstream.filter,
+      parentFilter,
       parentOrder: upstream.order.length > 0 ? upstream.order : undefined,
       parentLimit: upstream.limit,
       link: current.via,
@@ -217,13 +231,130 @@ function flattenParents(state: QueryState): QueryScopedSpec['parentScopes'] {
   return scopes;
 }
 
+// Operator keys whose value is a column-keyed map (entries dropped when the
+// column is unscoped; the operator is dropped entirely when no entries remain).
+const COLUMN_MAP_OPS = new Set([
+  '$gt',
+  '$gte',
+  '$lt',
+  '$lte',
+  '$eq',
+  '$in',
+  '$notIn',
+  '$between',
+  '$notBetween',
+  '$like',
+]);
+
+/**
+ * Walk a `defaultScope` filter and drop every clause whose column appears in
+ * `unscopedKeys`. Returns `undefined` when nothing is left after pruning.
+ *
+ * The walk handles:
+ *  - column-keyed equality ({ active: true }) — drop the entry when the column
+ *    is unscoped.
+ *  - `$null` / `$notNull` — value is the column name as a string; drop when
+ *    that column is unscoped.
+ *  - column-value-map operators (`$gt: { age: 18 }`, `$in: { status: [...] }`,
+ *    `$between: { age: { from, to } }`, `$like: { email: ... }`) — drop entries
+ *    whose key is unscoped; drop the operator entirely if no entries remain.
+ *  - boolean operators (`$and`, `$or`) — recurse into each child; drop empties.
+ *  - `$not` — recurse; drop when the inner child is empty.
+ *  - Other special keys (`$raw`, `$async`) — pass through unchanged.
+ */
+function pruneDefaultScope(
+  node: Filter<any>,
+  unscopedKeys: ReadonlySet<string>,
+): Filter<any> | undefined {
+  if (!node || typeof node !== 'object') return node;
+  const out: Dict<any> = {};
+  for (const key of Object.keys(node as Dict<any>)) {
+    const value = (node as Dict<any>)[key];
+    if (key === '$and' || key === '$or') {
+      const pruned: Filter<any>[] = [];
+      for (const child of value as Filter<any>[]) {
+        const cleaned = pruneDefaultScope(child, unscopedKeys);
+        if (cleaned !== undefined) pruned.push(cleaned);
+      }
+      if (pruned.length === 0) continue;
+      out[key] = pruned;
+      continue;
+    }
+    if (key === '$not') {
+      const cleaned = pruneDefaultScope(value as Filter<any>, unscopedKeys);
+      if (cleaned === undefined) continue;
+      out[key] = cleaned;
+      continue;
+    }
+    if (key === '$null' || key === '$notNull') {
+      // Value is the column name as a string.
+      if (typeof value === 'string' && unscopedKeys.has(value)) continue;
+      out[key] = value;
+      continue;
+    }
+    if (COLUMN_MAP_OPS.has(key)) {
+      const map = value as Dict<unknown>;
+      const filtered: Dict<unknown> = {};
+      let kept = 0;
+      for (const col of Object.keys(map)) {
+        if (unscopedKeys.has(col)) continue;
+        filtered[col] = map[col];
+        kept += 1;
+      }
+      if (kept === 0) continue;
+      out[key] = filtered;
+      continue;
+    }
+    if (key === '$raw' || key === '$async') {
+      // Opaque values — pass through unchanged.
+      out[key] = value;
+      continue;
+    }
+    if (key.startsWith('$')) {
+      // Unknown operator — preserve it verbatim.
+      out[key] = value;
+      continue;
+    }
+    // Plain column-keyed equality.
+    if (unscopedKeys.has(key)) continue;
+    out[key] = value;
+  }
+  return Object.keys(out).length === 0 ? undefined : (out as Filter<any>);
+}
+
+/**
+ * Merge a Model's `defaultScope` (a sticky, factory-declared filter) into the
+ * builder's `cleanFilter` after key-based / all suppression via the chain's
+ * `unscope(...keys)` and `unscoped()` flags. Public so it can be unit-tested
+ * independently of `lower()`.
+ */
+export function applyDefaultScope(
+  filter: Filter<any> | undefined,
+  defaultScope: Filter<any> | undefined,
+  unscopedKeys: readonly string[] | undefined,
+  unscopedAll: boolean | undefined,
+): Filter<any> | undefined {
+  if (!defaultScope || unscopedAll) return filter;
+  const keys = new Set(unscopedKeys ?? []);
+  const pruned = keys.size === 0 ? defaultScope : pruneDefaultScope(defaultScope, keys);
+  if (!pruned) return filter;
+  return mergeFilters(filter, pruned);
+}
+
 export function lower(builder: AnyBuilder, projection: Projection): QueryScopedSpec {
   const state = builder.state;
   const { cleanFilter, subqueryScopes } = extractSubqueryScopes(state.filter);
   const parentScopes = [...flattenParents(state), ...subqueryScopes];
+  const defaultScope = (state.Model as { defaultScope?: Filter<any> }).defaultScope;
+  const finalFilter = applyDefaultScope(
+    cleanFilter,
+    defaultScope,
+    state.unscopedKeys,
+    state.unscopedAll,
+  );
   return {
     target: { tableName: state.Model.tableName, keys: state.Model.keys },
-    filter: cleanFilter,
+    filter: finalFilter,
     order: state.order.length > 0 ? state.order : undefined,
     limit: state.limit,
     skip: state.skip,
