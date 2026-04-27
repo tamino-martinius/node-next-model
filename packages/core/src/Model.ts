@@ -7,6 +7,13 @@ import { InstanceQuery } from './query/InstanceQuery.js';
 import type { QueryState } from './query/QueryState.js';
 import type { ScalarQuery } from './query/ScalarQuery.js';
 import {
+  deriveKeysFromSchema,
+  type SchemaKeys,
+  type SchemaProps,
+  type TypedColumn,
+  type TypedSchema,
+} from './typedSchema.js';
+import {
   type AggregateKind,
   type AroundCallback,
   type Callback,
@@ -2113,6 +2120,63 @@ export class ModelClass {
   }
 }
 
+/**
+ * Schema-driven overload — pass a `TypedSchema<C>` and TypeScript infers the
+ * Model's prop shape from the column map. `tableName`, `init`, and `keys`
+ * default to values derived from the schema; pass any of them to override.
+ */
+export function Model<
+  C extends Record<string, TypedColumn>,
+  Keys extends Dict<KeyType> = SchemaKeys<C>,
+  Scopes extends ScopeMap = {},
+>(props: {
+  schema: TypedSchema<C>;
+  /** Override the schema's table name. Defaults to `schema.tableName`. */
+  tableName?: string;
+  /**
+   * Optional row-shape transformer. Defaults to identity — the props passed
+   * to `create` / `build` flow straight through to the connector.
+   */
+  init?: (props: SchemaProps<C>) => Schema;
+  filter?: Filter<
+    SchemaProps<C> & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  defaultScope?: Filter<
+    SchemaProps<C> & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  limit?: number;
+  skip?: number;
+  order?: Order<
+    SchemaProps<C> & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  connector?: Connector;
+  /** Override the keys map derived from the schema's primary columns. */
+  keys?: Keys;
+  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+  softDelete?: boolean | string | { column?: string };
+  lockVersion?: boolean | string;
+  validators?: Validator<
+    SchemaProps<C> & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >[];
+  callbacks?: Callbacks<
+    SchemaProps<C> & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  scopes?: Scopes;
+  enums?: Dict<readonly string[]>;
+  inheritColumn?: string;
+  storeAccessors?: Dict<readonly string[]>;
+  cascade?: CascadeMap;
+  normalizes?: Dict<(value: any) => any>;
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  counterCaches?: CounterCacheSpec[];
+  associations?: AssociationsMap;
+}): ReturnType<typeof modelFactoryImpl<SchemaProps<C>, SchemaProps<C>, Keys, Scopes>>;
+
+/**
+ * Legacy overload — pass an explicit `init` callback whose parameter type
+ * defines the row's prop shape. `tableName` and `init` are required;
+ * `keys` defaults to `{ id: KeyType.number }`.
+ */
 export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
@@ -2219,6 +2283,63 @@ export function Model<
    * `user.profile`, `user.company`). Use `() => Other` thunks for circular
    * imports — same shape as `cascade` and `counterCaches`.
    */
+  associations?: AssociationsMap;
+}): ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>>;
+
+export function Model(props: any): any {
+  // Schema-driven path: derive tableName/init/keys defaults before falling
+  // through to the legacy implementation. The legacy implementation is the
+  // single source of truth for all behaviour — schema mode is purely a
+  // sugar / TypeScript-inference layer on top.
+  if (props.schema) {
+    const schema = props.schema as TypedSchema;
+    const tableName = props.tableName ?? schema.tableName;
+    const keys: Dict<KeyType> = props.keys ?? deriveKeysFromSchema(schema);
+    const init = props.init ?? ((p: any) => p);
+    const { schema: _schema, ...rest } = props;
+    return modelFactoryImpl({ ...rest, tableName, keys, init });
+  }
+  return modelFactoryImpl(props);
+}
+
+function modelFactoryImpl<
+  CreateProps = {},
+  PersistentProps extends Schema = {},
+  Keys extends Dict<KeyType> = { id: KeyType.number },
+  Scopes extends ScopeMap = {},
+>(props: {
+  tableName: string;
+  init: (props: CreateProps) => PersistentProps;
+  filter?: Filter<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  defaultScope?: Filter<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  limit?: number;
+  skip?: number;
+  order?: Order<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  connector?: Connector;
+  keys?: Keys;
+  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+  softDelete?: boolean | string | { column?: string };
+  lockVersion?: boolean | string;
+  validators?: Validator<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >[];
+  callbacks?: Callbacks<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  scopes?: Scopes;
+  enums?: Dict<readonly string[]>;
+  inheritColumn?: string;
+  storeAccessors?: Dict<readonly string[]>;
+  cascade?: CascadeMap;
+  normalizes?: Dict<(value: any) => any>;
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  counterCaches?: CounterCacheSpec[];
   associations?: AssociationsMap;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();

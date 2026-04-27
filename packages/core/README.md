@@ -6,6 +6,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 
 - [Installation](#installation)
 - [Defining a model](#defining-a-model)
+  - [Schema-driven props](#schema-driven-props)
   - [Factory options](#factory-options)
   - [Keys (primary key type)](#keys-primary-key-type)
   - [Named scopes](#named-scopes)
@@ -69,6 +70,62 @@ user.name;   // 'John Doe'
 ```
 
 `init` is the one required callback. It defines the shape of the props accepted by `create`/`build` and returns the row that actually gets persisted — so you can coerce, default, or derive fields before they hit the connector.
+
+### Schema-driven props
+
+Instead of writing an `init` callback to give TypeScript the row shape, you can declare a typed schema with `defineSchema(...)` and pass it via `schema:`. TypeScript infers the prop shape from the column map; `tableName`, `keys`, and `init` are derived from the schema and become optional.
+
+```ts
+import { Model, defineSchema } from '@next-model/core';
+
+const usersSchema = defineSchema({
+  tableName: 'users',
+  columns: {
+    id: { type: 'integer', primary: true, autoIncrement: true },
+    email: { type: 'string' },
+    name: { type: 'string' },
+    age: { type: 'integer' },
+    archivedAt: { type: 'timestamp', null: true },
+  },
+});
+
+class User extends Model({
+  schema: usersSchema,
+  // tableName, init, keys all derived from the schema.
+}) {}
+
+const u = await User.create({
+  email: 'a@b',
+  name: 'Ada',
+  age: 30,
+  archivedAt: null,
+});
+// TypeScript knows: u.email is string, u.age is number, u.archivedAt is Date | null.
+```
+
+Column-kind → prop-type mapping:
+
+- `'string'` / `'text'` → `string`
+- `'integer'` / `'bigint'` / `'float'` / `'decimal'` → `number`
+- `'boolean'` → `boolean`
+- `'date'` / `'datetime'` / `'timestamp'` → `Date`
+- `'json'` → `unknown`
+
+Adding `null: true` widens any of the above to `T | null`. Primary columns drive the `keys` map: string / text primaries become `KeyType.uuid`, numeric primaries become `KeyType.number`. The fallback when no primary is declared is `{ id: KeyType.number }` — same as the legacy form.
+
+The schema's `tableDefinition` is also a runtime [`TableDefinition`](#schema-dsl) — the same shape `defineTable(...)` produces for `@next-model/migrations`. Tooling that consumes `TableDefinition` (schema snapshots, GraphQL / OpenAPI generators, admin UIs) can read the schema directly so there's a single source of truth for the table.
+
+You can still pass an explicit `init` to coerce or derive fields, plus override `tableName` or `keys` when needed:
+
+```ts
+class User extends Model({
+  schema: usersSchema,
+  tableName: 'staff',                              // override
+  init: (p) => ({ ...p, email: p.email.toLowerCase() }),  // optional transformer
+}) {}
+```
+
+The legacy `init`-driven form stays available for cases where the row shape doesn't map to a single declared schema (e.g. when validators from a third-party library — `@next-model/zod`, `@next-model/typebox`, `@next-model/arktype` — provide both `init` and the column list).
 
 ### Factory options
 
