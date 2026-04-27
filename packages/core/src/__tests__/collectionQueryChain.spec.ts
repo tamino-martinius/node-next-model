@@ -82,4 +82,96 @@ describe('CollectionQuery chain methods', () => {
     expect(a.state.filter).toBeUndefined();
     expect(b.state.filter).toEqual({ x: 1 });
   });
+
+  it('joins(name) appends a select-mode JoinClause', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any).joins('user');
+    expect(q.state.pendingJoins).toHaveLength(1);
+    expect(q.state.pendingJoins[0].mode).toBe('select');
+  });
+
+  it('whereMissing(name) appends an antiJoin LEFT JOIN', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        comments: { hasMany: Todo, foreignKey: 'postId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any).whereMissing('comments');
+    expect(q.state.pendingJoins).toHaveLength(1);
+    expect(q.state.pendingJoins[0].kind).toBe('left');
+    expect(q.state.pendingJoins[0].mode).toBe('antiJoin');
+  });
+
+  it('whereMissing rejects belongsTo associations', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    expect(() => CollectionQuery.fromModel(Post as any).whereMissing('user')).toThrow(
+      /only supports hasMany/,
+    );
+  });
+
+  it('joins/whereMissing throw when association is unknown', () => {
+    class Bare extends ModelClass {
+      static tableName = 'bare';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+    }
+    expect(() => CollectionQuery.fromModel(Bare as any).joins('missing')).toThrow(
+      /requires the Model factory to declare 'associations'/,
+    );
+  });
+
+  it('filterBy with an association-named key promotes to a JOIN', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any).filterBy({ user: { active: true } });
+    expect(q.state.pendingJoins).toHaveLength(1);
+    expect(q.state.pendingJoins[0].mode).toBe('select');
+    expect(q.state.pendingJoins[0].filter).toEqual({ active: true });
+  });
+
+  it('filterBy with mixed association-key and column-key splits correctly', () => {
+    class Post extends ModelClass {
+      static tableName = 'posts';
+      static keys = { id: 1 } as any;
+      static order = [] as any;
+      static connector = {} as any;
+      static associations = {
+        user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+      };
+    }
+    const q = CollectionQuery.fromModel(Post as any).filterBy({
+      user: { active: true },
+      status: 'published',
+    });
+    expect(q.state.pendingJoins).toHaveLength(1);
+    expect(q.state.filter).toEqual({ status: 'published' });
+  });
 });

@@ -124,7 +124,7 @@ export type AssociationDefinition =
 
 export type AssociationsMap = Record<string, AssociationDefinition>;
 
-function resolveAssociationTarget(spec: AssociationDefinition): {
+export function resolveAssociationTarget(spec: AssociationDefinition): {
   target: typeof ModelClass;
   parentColumn: string;
   childColumn: string;

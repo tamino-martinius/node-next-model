@@ -1,5 +1,10 @@
 import { normalizeFilterShape } from '../FilterEngine.js';
-import { type Filter, type Order, SortDirection } from '../types.js';
+import { PersistenceError } from '../errors.js';
+import {
+  type AssociationDefinition,
+  resolveAssociationTarget,
+} from '../Model.js';
+import { type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
 import type { Dict, KeyType } from '../types.js';
 import { mergeFilters, mergeOrders, type QueryState } from './QueryState.js';
 
@@ -18,8 +23,132 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
   }
 
   filterBy(input: Filter<any>): this {
-    const f = normalizeFilterShape(input);
-    return this.with({ filter: mergeFilters(this.state.filter, f) });
+    const andFilter = normalizeFilterShape(input);
+    const associations = (this.model as any).associations as
+      | Record<string, AssociationDefinition>
+      | undefined;
+    const associationJoins: JoinClause[] = [];
+    let columnFilter: Dict<any> = andFilter as Dict<any>;
+    if (associations) {
+      const keys = Object.keys(andFilter);
+      const matched: string[] = [];
+      for (const key of keys) {
+        if (key.startsWith('$')) continue;
+        if (associations[key]) matched.push(key);
+      }
+      if (matched.length > 0) {
+        const filtered: Dict<any> = {};
+        for (const key of keys) {
+          if (matched.includes(key)) continue;
+          filtered[key] = (andFilter as any)[key];
+        }
+        columnFilter = filtered;
+        for (const name of matched) {
+          const assoc = associations[name];
+          const resolved = resolveAssociationTarget(assoc);
+          const childFilterInput = (andFilter as any)[name];
+          const childFilter =
+            childFilterInput && typeof childFilterInput === 'object'
+              ? normalizeFilterShape(childFilterInput as Filter<any>)
+              : (childFilterInput as Filter<any>);
+          associationJoins.push({
+            kind: 'inner',
+            childTableName: resolved.target.tableName,
+            on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
+            filter: childFilter,
+            mode: 'select',
+            childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
+            target: resolved.target,
+          });
+        }
+      }
+    }
+    const merged = mergeFilters(this.state.filter, columnFilter as Filter<any>);
+    const nextJoins =
+      associationJoins.length > 0
+        ? [...this.state.pendingJoins, ...associationJoins]
+        : this.state.pendingJoins;
+    return this.with({ filter: merged, pendingJoins: nextJoins });
+  }
+
+  joins(...names: string[]): this {
+    const associations = (this.model as any).associations as
+      | Record<string, AssociationDefinition>
+      | undefined;
+    if (!associations) {
+      throw new PersistenceError(
+        `CollectionQuery.joins(...) requires the Model factory to declare 'associations'.`,
+      );
+    }
+    if (names.length === 0) {
+      throw new PersistenceError(`CollectionQuery.joins(...) requires at least one association name.`);
+    }
+    const parentDefaultPk = Object.keys(this.model.keys)[0] ?? 'id';
+    const newJoins: JoinClause[] = [];
+    for (const name of names) {
+      const spec = associations[name];
+      if (!spec) {
+        throw new PersistenceError(
+          `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
+        );
+      }
+      const normalized: AssociationDefinition =
+        'belongsTo' in spec
+          ? { belongsTo: spec.belongsTo, foreignKey: spec.foreignKey, primaryKey: spec.primaryKey }
+          : 'hasMany' in spec
+            ? {
+                hasMany: spec.hasMany,
+                foreignKey: spec.foreignKey,
+                primaryKey: spec.primaryKey ?? parentDefaultPk,
+              }
+            : {
+                hasOne: spec.hasOne,
+                foreignKey: spec.foreignKey,
+                primaryKey: spec.primaryKey ?? parentDefaultPk,
+              };
+      const resolved = resolveAssociationTarget(normalized);
+      newJoins.push({
+        kind: 'inner',
+        childTableName: resolved.target.tableName,
+        on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
+        mode: 'select',
+        childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
+        target: resolved.target,
+      });
+    }
+    return this.with({ pendingJoins: [...this.state.pendingJoins, ...newJoins] });
+  }
+
+  whereMissing(name: string): this {
+    const associations = (this.model as any).associations as
+      | Record<string, AssociationDefinition>
+      | undefined;
+    if (!associations) {
+      throw new PersistenceError(
+        `CollectionQuery.whereMissing(...) requires the Model factory to declare 'associations'.`,
+      );
+    }
+    const spec = associations[name];
+    if (!spec) {
+      throw new PersistenceError(
+        `Unknown association '${name}'. Declared associations: [${Object.keys(associations).join(', ')}]`,
+      );
+    }
+    if ('belongsTo' in spec) {
+      throw new PersistenceError(
+        `CollectionQuery.whereMissing(...) only supports hasMany / hasOne associations; '${name}' is belongsTo. Use filterBy({ $null: '${spec.foreignKey}' }) instead.`,
+      );
+    }
+    const resolved = resolveAssociationTarget(spec);
+    const join: JoinClause = {
+      kind: 'left',
+      childTableName: resolved.target.tableName,
+      on: { parentColumn: resolved.parentColumn, childColumn: resolved.childColumn },
+      mode: 'antiJoin',
+      childPrimaryKey: Object.keys(resolved.target.keys)[0] ?? 'id',
+      target: resolved.target,
+    };
+    return this.with({ pendingJoins: [...this.state.pendingJoins, join] });
   }
 
   orFilterBy(input: Filter<any>): this {
