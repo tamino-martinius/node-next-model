@@ -303,16 +303,26 @@ type FilterValue<T> =
 
 Named scopes and enum predicates are mirrored onto `CollectionQuery<M>` via a Model-specific subclass type produced by the factory, so chain-IntelliSense (`Todo.open().filterBy(…).published()`) keeps working.
 
-User-defined named scopes today take a `typeof Model`-class and return one. With the new design their signature changes to operate on a `CollectionQuery<M>` instead:
+Named scopes are declarative filter literals, not callbacks. The factory's `scopes: {…}` option accepts a dict where each value is a `Filter` (the same shape `filterBy(...)` accepts):
 
 ```ts
-// before
-Model({ scopes: { active: (M) => M.filterBy({ active: true }) } });
-// after
-Model({ scopes: { active: (q) => q.filterBy({ active: true }) } });
+class User extends Model({
+  tableName: 'users',
+  scopes: {
+    active:      { lastSignInAt: { $gt: cutoffDate } },
+    withoutMail: { $null: 'email' },
+  },
+}) {
+  // complex / multi-clause scopes go in static methods on the user's class
+  static admins() {
+    return this.filterBy({ role: 'admin' });
+  }
+}
 ```
 
-The factory wires them up so they're available both on the base class (`Todo.active()`, returns a `CollectionQuery`) and as a chain method on any `CollectionQuery<typeof Todo>` (`Todo.filterBy(…).active()`).
+Each declared scope becomes a no-arg method available both on the base class (`User.active()` → `CollectionQuery<typeof User>`) and as a chain method on any `CollectionQuery<typeof User>` (`User.filterBy(…).active()`). Internally each scope-method just merges its filter literal into the current builder via the same `filterBy(...)` accumulation path — so scopes compose with everything else without special cases.
+
+For anything that doesn't fit a single filter literal — multi-clause logic, ordering, joins, subqueries — write a static method on the user's class. Static methods naturally return whatever query builder they construct (`this.filterBy(...)` is `CollectionQuery<typeof User>`), and they continue to chain because the returned builder has the full method surface.
 
 ## `attributes` getter
 
