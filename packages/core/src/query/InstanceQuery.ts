@@ -75,8 +75,8 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
 
   // Lightweight row → record hydrate kept for test fixtures that subclass
   // InstanceQuery and override materialize. The production path delegates
-  // to CollectionQuery.runMaterialize → Model.runQueryRecords (afterFind
-  // callbacks, includes attach/preload, STI dispatch).
+  // to CollectionQuery.materialize, which handles afterFind callbacks,
+  // includes attach/preload, and STI dispatch.
   protected hydrate(row: Dict<any>): unknown {
     const M = this.model as any;
     const keys: Dict<any> = {};

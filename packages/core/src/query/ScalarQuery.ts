@@ -16,10 +16,9 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
   ) {}
 
   /**
-   * Mix the soft-delete and STI filters into the state.filter so the
-   * connector-side queryScoped path applies them too. (Model.modelScope
-   * does this for the legacy path; without folding it in here, scoped
-   * aggregates / pluck would ignore `softDelete: 'only'` etc.)
+   * Fold the chain's soft-delete and STI filters into state.filter so the
+   * connector-side queryScoped path applies them too. Without folding here,
+   * scoped aggregates / pluck would ignore `softDelete: 'only'` etc.
    */
   private applyImplicitScopes(filter: Filter<any> | undefined): Filter<any> | undefined {
     let out = filter;

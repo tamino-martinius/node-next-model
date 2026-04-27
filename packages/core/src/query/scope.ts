@@ -4,9 +4,11 @@ import type { ParentScope } from '../types.js';
 
 /**
  * Compute the connector-facing `Scope` for a chained read WITHOUT folding
- * `pendingJoins` into the filter — mirrors `Model.modelScopeBase()`. The fast
- * path (`Connector.queryWithJoins`) consumes this base scope and the
- * `pendingJoins` array separately.
+ * `pendingJoins` into the filter — applies soft-delete and STI implicit
+ * filters on top of `state.filter`. The fast path
+ * (`Connector.queryWithJoins`) consumes this base scope and the
+ * `pendingJoins` array separately; aggregate / column projections never use
+ * the fast path so they go through `resolvePendingJoinsToScope` instead.
  */
 export function builderScopeBase(model: any, state: QueryState) {
   let filter = state.filter;
@@ -37,10 +39,9 @@ export function builderScopeBase(model: any, state: QueryState) {
 
 /**
  * Resolve the chained scope's `pendingJoins` into concrete `$in` / `$notIn`
- * filters by issuing each child query upfront. Mirrors `Model.modelScope()`.
- * Connectors that implement `queryWithJoins` skip this via the fast path; the
- * aggregate / scalar paths always go through this resolution because they
- * project a non-row column out of the leaf table.
+ * filters by issuing each child query upfront. Native SQL connectors reject
+ * `$async` at the boundary; aggregate / column projections always go through
+ * this resolution because they don't use the `queryWithJoins` fast path.
  */
 export async function resolvePendingJoinsToScope(
   model: any,
@@ -135,7 +136,7 @@ export async function resolveParentScopesToFilter(
 }
 
 /** AND-merge two filter fragments — undefined-safe. */
-export function mergeFiltersForLegacy(
+export function andMergeFilters(
   current: Filter<any> | undefined,
   next: Filter<any>,
 ): Filter<any> {

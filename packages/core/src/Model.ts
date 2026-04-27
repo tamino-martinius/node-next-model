@@ -20,7 +20,6 @@ import {
   type OrderColumn,
   type Schema,
   type Scope,
-  SortDirection,
   type Validator,
 } from './types.js';
 import { camelize, pascalize, singularize } from './util.js';
@@ -565,72 +564,6 @@ export class ModelClass {
     });
   }
 
-  /**
-   * Build the connector-facing scope WITHOUT folding `pendingJoins` into the
-   * filter. The fast path (`Connector.queryWithJoins`) consumes this base
-   * scope and the `pendingJoins` array separately.
-   */
-  static modelScopeBase(): Scope {
-    let filter = this.filter;
-    const softColumn = this.softDeleteColumn;
-    if (this.softDelete === 'active') {
-      filter = filter ? { $and: [{ $null: softColumn }, filter] } : { $null: softColumn };
-    } else if (this.softDelete === 'only') {
-      filter = filter ? { $and: [{ $notNull: softColumn }, filter] } : { $notNull: softColumn };
-    }
-    if (this.inheritColumn && this.inheritType !== undefined) {
-      const typeFilter = { [this.inheritColumn]: this.inheritType };
-      filter = filter ? { $and: [typeFilter, filter] } : typeFilter;
-    }
-    return {
-      tableName: this.tableName,
-      filter,
-      limit: this.limit,
-      skip: this.skip,
-      order: this.order,
-    } as Scope;
-  }
-
-  static async modelScope(): Promise<Scope> {
-    const base = this.modelScopeBase();
-    if (this.pendingJoins.length === 0) return base;
-    // Resolve each `select` / `antiJoin` clause into a concrete `$in` /
-    // `$notIn` filter by issuing the child query right now. Resolving on
-    // the Model side keeps native connectors (sqlite/pg/mysql/mariadb,
-    // which reject `$async` at the connector boundary) working, while
-    // connectors that implement `queryWithJoins` skip this entirely via
-    // the fast path in `all()`.
-    const joinFilters: Filter<any>[] = [];
-    const fallbackConnector = this.connector;
-    for (const join of this.pendingJoins) {
-      if (join.mode !== 'select' && join.mode !== 'antiJoin') continue;
-      const targetModel = join.target as typeof ModelClass | undefined;
-      const childConnector = targetModel?.connector ?? fallbackConnector;
-      const rows = await childConnector.select(
-        { tableName: join.childTableName, filter: join.filter },
-        join.on.childColumn,
-      );
-      const seen = new Set<unknown>();
-      const values: unknown[] = [];
-      for (const row of rows) {
-        const v = (row as Dict<any>)[join.on.childColumn];
-        if (v == null || seen.has(v)) continue;
-        seen.add(v);
-        values.push(v);
-      }
-      const op = join.mode === 'antiJoin' ? '$notIn' : '$in';
-      joinFilters.push({ [op]: { [join.on.parentColumn]: values } } as Filter<any>);
-    }
-    if (joinFilters.length === 0) return base;
-    const combined: Filter<any> =
-      joinFilters.length === 1
-        ? (joinFilters[0] as Filter<any>)
-        : ({ $and: joinFilters } as Filter<any>);
-    const merged: Filter<any> = base.filter
-      ? ({ $and: [base.filter, combined] } as Filter<any>)
-      : combined;
-    return { ...base, filter: merged } as Scope;
-  }
 
   // ---------------------------------------------------------------------------
   // Chain methods — forward to CollectionQuery.<method>(...).
@@ -1176,16 +1109,21 @@ export class ModelClass {
   }
 
   /**
-   * Run a single aggregate (sum / min / max / avg) against the current scope
-   * via the connector's `aggregate` primitive. Most callers prefer
-   * `Model.sum(...)` / `Model.min(...)` etc. for the chainable form.
+   * Run a single aggregate (sum / min / max / avg) against the current scope.
+   * Most callers prefer `Model.sum(...)` / `Model.min(...)` etc. for the
+   * chainable form. Returns `undefined` for empty result sets (except sum,
+   * which returns 0 to match the `Model.sum` contract).
    */
   static async aggregate<M extends typeof ModelClass>(
     this: M,
     kind: AggregateKind,
     key: string,
   ): Promise<number | undefined> {
-    return await this.connector.aggregate(await this.modelScope(), kind, key);
+    const q = CollectionQuery.fromModel(this as any);
+    if (kind === 'sum') return (await q.sum(key)) ?? 0;
+    if (kind === 'min') return q.minimum<number>(key);
+    if (kind === 'max') return q.maximum<number>(key);
+    return q.average(key);
   }
 
   /**

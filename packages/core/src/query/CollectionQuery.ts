@@ -28,7 +28,7 @@ import { applyIncludes, attachIncludesPayload } from './includes.js';
 import { decodeCompositeCursor, encodeCompositeCursor, encodeCursor } from './cursor.js';
 import {
   builderScopeBase,
-  mergeFiltersForLegacy,
+  andMergeFilters,
   resolveParentScopesToFilter,
   resolvePendingJoinsToScope,
 } from './scope.js';
@@ -78,8 +78,6 @@ const STATIC_BLACKLIST = new Set<string>([
   'callbacks',
   'associations',
   'transaction',
-  'modelScope',
-  'modelScopeBase',
   'on',
   'skipCallbacks',
   'inherit',
@@ -101,11 +99,12 @@ const STATIC_BLACKLIST = new Set<string>([
 ]);
 
 /**
- * Attach Model-class extras (named scopes, enum scopes, factory-time
- * scopes, find/findBy/find/findOrFail/all/first/last shapes) onto a
- * CollectionQuery instance so existing chain forms keep dispatching to
- * the legacy Model machinery on a state-projected subclass. Idempotent —
- * skips entries already defined on the prototype.
+ * Attach user-defined Model-class extras (named scopes, enum scopes, factory
+ * scopes) onto a CollectionQuery instance so chain forms like
+ * `User.adminScope().filterBy({...})` keep working. The user-defined static
+ * is invoked against a state-projected subclass, so its `this.<x>` reads
+ * see the chained scope. Idempotent — skips entries already defined on the
+ * prototype (CollectionQuery's own filterBy, all, etc. always win).
  */
 function attachModelExtras(q: CollectionQuery, M: any): void {
   if (!M) return;
@@ -146,11 +145,10 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     public readonly state: QueryState,
   ) {}
 
-  // Backward-compat getters: legacy chain methods produced Model subclasses
-  // that exposed `static filter`, `static order` etc. After migration the
-  // chain methods return a CollectionQuery whose state lives in `.state`,
-  // but plenty of existing call sites (and tests) read these as direct
-  // properties. Surface them as read-only getters that defer to state.
+  // Static-property accessors: chain methods cast their CollectionQuery
+  // return value back to `typeof Model`, so callers (and tests) read fields
+  // like `.filter`, `.order`, `.connector` directly. Surface them as
+  // read-only getters that defer to state / the underlying ModelLike.
   get filter(): Filter<any> | undefined {
     return this.state.filter;
   }
@@ -665,7 +663,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     const skip = (safePage - 1) * safePerPage;
     const scoped = this.limitBy(safePerPage).skipBy(skip);
     const [items, total] = await Promise.all([
-      scoped.materialize() as unknown as Promise<unknown[]>,
+      scoped.all() as Promise<unknown[]>,
       this.unlimited().unskipped().count(),
     ]);
     const totalPages = total === 0 ? 0 : Math.ceil(total / safePerPage);
@@ -828,7 +826,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     let cleanFilter: Filter<any> | undefined = spec.filter;
     if (spec.parentScopes && spec.parentScopes.length > 0) {
       const fragmentFilter = await resolveParentScopesToFilter(M.connector, spec.parentScopes);
-      cleanFilter = mergeFiltersForLegacy(cleanFilter, fragmentFilter);
+      cleanFilter = andMergeFilters(cleanFilter, fragmentFilter);
     }
     return resolvePendingJoinsToScope(M, { ...this.state, filter: cleanFilter });
   }
@@ -940,7 +938,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     let cleanFilter: Filter<any> | undefined = spec.filter;
     if (spec.parentScopes && spec.parentScopes.length > 0) {
       const fragmentFilter = await resolveParentScopesToFilter(M.connector, spec.parentScopes);
-      cleanFilter = mergeFiltersForLegacy(cleanFilter, fragmentFilter);
+      cleanFilter = andMergeFilters(cleanFilter, fragmentFilter);
     }
     const stateForRead: QueryState = { ...this.state, filter: cleanFilter };
 
