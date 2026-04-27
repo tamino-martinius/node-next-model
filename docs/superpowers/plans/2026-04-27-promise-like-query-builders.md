@@ -986,7 +986,7 @@ git commit -m "core(query): CollectionQuery chain methods (filter/order/limit/sk
 
 ---
 
-### Task 10: `joins` / `whereMissing` on `CollectionQuery`
+### Task 10: `joins` / `whereMissing` + association-key support in `filterBy` on `CollectionQuery`
 
 **Files:**
 - Modify: `packages/core/src/query/CollectionQuery.ts`
@@ -1011,13 +1011,31 @@ it('joins(name) appends a select-mode JoinClause', () => {
   expect(q.state.pendingJoins).toHaveLength(1);
   expect(q.state.pendingJoins[0].mode).toBe('select');
 });
+
+it('filterBy with an association-named key promotes to a JOIN', () => {
+  class Post extends ModelClass {
+    static tableName = 'posts';
+    static keys = { id: 1 } as any;
+    static order = [] as any;
+    static connector = {} as any;
+    static associations = {
+      user: { belongsTo: Todo, foreignKey: 'userId' } as any,
+    };
+  }
+  const q = CollectionQuery.fromModel(Post as any).filterBy({ user: { active: true } });
+  expect(q.state.pendingJoins).toHaveLength(1);
+  expect(q.state.pendingJoins[0].mode).toBe('select');
+  expect(q.state.pendingJoins[0].filter).toEqual({ active: true });
+});
 ```
 
 - [ ] **Step 2: Run — fail**
 
-- [ ] **Step 3: Lift `joins(...)` and `whereMissing(...)` from `Model.ts` (lines 1040–1115) into `CollectionQuery` methods**
+- [ ] **Step 3: Lift `joins(...)` and `whereMissing(...)` from `Model.ts` (lines 1040–1115) into `CollectionQuery` methods, AND extend `filterBy(...)` with association-key support**
 
 Copy the existing logic verbatim, but operate on `this.state.pendingJoins` instead of `this.pendingJoins`, and return `this.with(...)`. Keep the `PersistenceError` thrown when `associations` is undefined or the name is unknown.
+
+Additionally, replace the existing simple `filterBy` body on `CollectionQuery` with the association-aware variant lifted from `Model.filterBy()` at lines 701–765: extract keys that match `model.associations` and convert them into INNER JOIN `pendingJoins` entries (`mode: 'select'`, `filter: <child-filter>`); the column-keyed remainder flows through the existing `mergeFilters` path. Read `model.associations` off `this.model` (which is the Model class). When the model has no associations declared, the filter passes through unchanged (no behavior change from Task 9).
 
 - [ ] **Step 4: Run — pass**
 

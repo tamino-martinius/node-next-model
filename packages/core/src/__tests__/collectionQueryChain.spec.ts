@@ -48,6 +48,16 @@ describe('CollectionQuery chain methods', () => {
     expect(q.state.order[0].dir).toBe(SortDirection.Desc);
   });
 
+  it('reverse without an explicit order sorts by primary key descending', () => {
+    const q = CollectionQuery.fromModel(Todo as any).reverse();
+    expect(q.state.order).toEqual([{ key: 'id', dir: SortDirection.Desc }]);
+  });
+
+  it('orFilterBy with no prior filter sets the new filter directly (no $or wrap)', () => {
+    const q = CollectionQuery.fromModel(Todo as any).orFilterBy({ x: 1 });
+    expect(q.state.filter).toEqual({ x: 1 });
+  });
+
   it('orFilterBy ORs the new filter against the current scope', () => {
     const q = CollectionQuery.fromModel(Todo as any)
       .filterBy({ active: true })
