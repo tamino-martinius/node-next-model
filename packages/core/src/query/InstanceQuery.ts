@@ -1,6 +1,6 @@
 import { NotFoundError } from '../errors.js';
-import type { Dict, KeyType } from '../types.js';
-import type { QueryState, TerminalKind } from './QueryState.js';
+import type { AssociationLink, Dict, KeyType } from '../types.js';
+import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 
 export type { TerminalKind };
@@ -34,6 +34,20 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
       });
     }
     return this.memo;
+  }
+
+  withParent(upstream: import('./CollectionQuery.js').CollectionQuery | InstanceQuery, link: AssociationLink): this {
+    const parentRef: ParentRef = {
+      upstream: {
+        state: upstream.state,
+        terminalKind: 'terminalKind' in upstream ? upstream.terminalKind : undefined,
+      },
+      via: link,
+    };
+    return new (this.constructor as any)(this.model, this.terminalKind, {
+      ...this.state,
+      parent: parentRef,
+    });
   }
 
   pluck<T = unknown>(column: string): ScalarQuery<T | undefined> {

@@ -7,9 +7,9 @@ import {
   type HavingPredicate,
   resolveAssociationTarget,
 } from '../Model.js';
-import { type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
+import { type AssociationLink, type Filter, type JoinClause, type Order, SortDirection } from '../types.js';
 import type { Dict, KeyType } from '../types.js';
-import { mergeFilters, mergeOrders, type QueryState } from './QueryState.js';
+import { mergeFilters, mergeOrders, type ParentRef, type QueryState } from './QueryState.js';
 import { InstanceQuery } from './InstanceQuery.js';
 import { ScalarQuery } from './ScalarQuery.js';
 import { ColumnQuery } from './ColumnQuery.js';
@@ -327,6 +327,17 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
       havingPredicate: undefined,
       softDelete: false,
     });
+  }
+
+  withParent(upstream: CollectionQuery | InstanceQuery, link: AssociationLink): this {
+    const parentRef: ParentRef = {
+      upstream: {
+        state: upstream.state,
+        terminalKind: 'terminalKind' in upstream ? upstream.terminalKind : undefined,
+      },
+      via: link,
+    };
+    return this.with({ parent: parentRef });
   }
 
   static fromModel(M: typeof import('../Model.js').ModelClass): CollectionQuery {
