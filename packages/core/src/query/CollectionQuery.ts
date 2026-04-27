@@ -268,6 +268,22 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return new ScalarQuery<number>(this.model, this.state, { kind: 'aggregate', op: 'count' });
   }
 
+  sum(column: string): ScalarQuery<number> {
+    return new ScalarQuery<number>(this.model, this.state, { kind: 'aggregate', op: 'sum', column });
+  }
+
+  average(column: string): ScalarQuery<number> {
+    return new ScalarQuery<number>(this.model, this.state, { kind: 'aggregate', op: 'avg', column });
+  }
+
+  minimum<T = unknown>(column: string): ScalarQuery<T | undefined> {
+    return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'aggregate', op: 'min', column });
+  }
+
+  maximum<T = unknown>(column: string): ScalarQuery<T | undefined> {
+    return new ScalarQuery<T | undefined>(this.model, this.state, { kind: 'aggregate', op: 'max', column });
+  }
+
   merge(other: typeof import('../Model.js').ModelClass | CollectionQuery): this {
     const otherFilter = other instanceof CollectionQuery ? other.state.filter : other.filter;
     const otherOrder = other instanceof CollectionQuery ? other.state.order : other.order;

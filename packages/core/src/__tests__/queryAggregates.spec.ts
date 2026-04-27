@@ -23,3 +23,27 @@ describe('count', () => {
     expect(q.projection).toEqual({ kind: 'aggregate', op: 'count' });
   });
 });
+
+describe('aggregates', () => {
+  it('sum returns ScalarQuery with op sum and column', () => {
+    const q = CollectionQuery.fromModel(Todo as any).filterBy({ active: true }).sum('total');
+    expect(q).toBeInstanceOf(ScalarQuery);
+    expect(q.projection).toEqual({ kind: 'aggregate', op: 'sum', column: 'total' });
+    expect(q.state.filter).toEqual({ active: true });
+  });
+
+  it('average returns ScalarQuery with op avg', () => {
+    const q = CollectionQuery.fromModel(Todo as any).average('priority');
+    expect(q.projection).toEqual({ kind: 'aggregate', op: 'avg', column: 'priority' });
+  });
+
+  it('minimum returns ScalarQuery with op min', () => {
+    const q = CollectionQuery.fromModel(Todo as any).minimum('createdAt');
+    expect(q.projection).toEqual({ kind: 'aggregate', op: 'min', column: 'createdAt' });
+  });
+
+  it('maximum returns ScalarQuery with op max', () => {
+    const q = CollectionQuery.fromModel(Todo as any).maximum('priority');
+    expect(q.projection).toEqual({ kind: 'aggregate', op: 'max', column: 'priority' });
+  });
+});
