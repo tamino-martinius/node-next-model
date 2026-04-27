@@ -30,7 +30,8 @@ async function selectColumn(
 function emptyResult(projection: Projection): unknown {
   if (projection === 'rows') return [];
   if (typeof projection === 'object' && projection.kind === 'aggregate') {
-    return projection.op === 'count' ? 0 : undefined;
+    // count/sum of an empty set are 0; avg/min/max are undefined (no rows).
+    return projection.op === 'count' || projection.op === 'sum' ? 0 : undefined;
   }
   return [];
 }

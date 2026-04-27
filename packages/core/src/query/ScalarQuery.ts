@@ -17,9 +17,7 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
   protected async materialize(): Promise<T> {
     if (!this.memo) {
       this.memo = (async () => {
-        if (this.state.nullScoped) {
-          return this.isCountAggregate() ? (0 as T) : (undefined as T);
-        }
+        if (this.state.nullScoped) return this.emptyResult();
         const spec = lower(this, this.projection);
         const M = this.model as any;
         const connector = M.connector;
@@ -39,12 +37,14 @@ export class ScalarQuery<T = unknown> implements PromiseLike<T> {
     return this.memo;
   }
 
-  private isCountAggregate(): boolean {
-    return (
-      typeof this.projection === 'object' &&
-      this.projection.kind === 'aggregate' &&
-      this.projection.op === 'count'
-    );
+  // Empty-set semantics for the nullScoped short-circuit:
+  //   count → 0,  sum → 0,  avg/min/max → undefined,  column → undefined.
+  private emptyResult(): T {
+    if (typeof this.projection === 'object' && this.projection.kind === 'aggregate') {
+      const { op } = this.projection;
+      if (op === 'count' || op === 'sum') return 0 as T;
+    }
+    return undefined as T;
   }
 
   then<R1 = T, R2 = never>(

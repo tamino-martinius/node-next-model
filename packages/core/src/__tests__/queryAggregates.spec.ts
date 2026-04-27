@@ -102,4 +102,19 @@ describe('aggregates materialize', () => {
     const n = await CollectionQuery.fromModel(Order as any).none().count();
     expect(n).toBe(0);
   });
+
+  it('sum nullScoped returns 0 (empty-set sum)', async () => {
+    const total = await CollectionQuery.fromModel(Order as any).none().sum('total');
+    expect(total).toBe(0);
+  });
+
+  it('average nullScoped returns undefined (no rows)', async () => {
+    const avg = await CollectionQuery.fromModel(Order as any).none().average('total');
+    expect(avg).toBeUndefined();
+  });
+
+  it('minimum nullScoped returns undefined (no rows)', async () => {
+    const m = await CollectionQuery.fromModel(Order as any).none().minimum('total');
+    expect(m).toBeUndefined();
+  });
 });
