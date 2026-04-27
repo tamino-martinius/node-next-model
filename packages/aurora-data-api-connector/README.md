@@ -97,6 +97,10 @@ Both build a SELECT for the affected rows first (so the methods can return them)
 
 Set `{ autoIncrement: true }` on an integer column to get a Postgres `SERIAL` (knex `table.increments(name)`). Required when you use `KeyType.number` (the default) — otherwise insert SQL provides no value for the PK column.
 
+### Schema reflection (`reflectSchema`)
+
+Set `dialect: 'postgres'` (default) or `dialect: 'mysql'` on the constructor options to pick which `information_schema` flavour the reflection queries target. The Postgres path queries `information_schema.tables` / `information_schema.columns` / `information_schema.table_constraints` plus `pg_index`; the MySQL path queries `information_schema.TABLES` / `information_schema.COLUMNS` / `information_schema.STATISTICS`. Other dialects throw `PersistenceError`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
+
 ## Aurora MySQL Data API
 
 The compiled SQL targets PostgreSQL syntax. If you point the connector at a MySQL Aurora cluster you'll need to verify quoting/keywords match your queries — this path is not part of CI.

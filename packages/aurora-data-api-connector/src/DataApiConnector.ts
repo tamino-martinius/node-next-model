@@ -3,6 +3,7 @@ import {
   type AlterTableOp,
   type AlterTableSpec,
   type BaseType,
+  type ColumnDefault,
   type ColumnDefinition,
   type ColumnKind,
   type ColumnOptions,
@@ -28,6 +29,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type TableDefinition,
   type UpsertSpec,
 } from '@next-model/core';
 import knexPkg, { type Knex } from 'knex';
@@ -50,12 +52,21 @@ export interface DataApiClient {
   rollbackTransaction?(id: unknown): Promise<void>;
 }
 
+export type DataApiDialect = 'postgres' | 'mysql';
+
 export interface DataApiConfig {
   secretArn?: string;
   resourceArn?: string;
   database?: string;
   debug?: boolean;
   client?: DataApiClient;
+  /**
+   * Underlying engine for the Data API. Aurora Serverless v1 / v2 supports
+   * both Postgres and MySQL. When omitted, the connector defaults to
+   * `'postgres'` (the more common Aurora setup) and `reflectSchema()`
+   * dispatches to the Postgres `information_schema` queries.
+   */
+  dialect?: DataApiDialect;
 }
 
 function requireSingleKey(filter: Dict<any>, operator: string): string {
@@ -70,6 +81,7 @@ export class DataApiConnector implements Connector {
   dataApi: DataApiClient;
   knex: Knex = createKnex({ client: 'pg' });
   debug: boolean;
+  dialect: DataApiDialect;
   private activeTransactionId: unknown;
 
   constructor(options: DataApiConfig) {
@@ -79,6 +91,7 @@ export class DataApiConnector implements Connector {
       this.dataApi = require('data-api-client')(options);
     }
     this.debug = options.debug ?? false;
+    this.dialect = options.dialect ?? 'postgres';
   }
 
   private currentMilliseconds(): number {
@@ -630,6 +643,262 @@ export class DataApiConnector implements Connector {
     }
   }
 
+  /**
+   * Reflect the live schema by querying `information_schema` (the same view
+   * shape Postgres and MySQL both expose). The dispatch is decided at
+   * construction time via `options.dialect` (defaults to `'postgres'`).
+   * Returns one `TableDefinition` per user table with column kinds, primary
+   * key, indexes, and `auto_increment` / `nextval(...)` flags mapped back
+   * through the dialect-specific type tables. Throws `PersistenceError`
+   * when the dialect is anything other than `'postgres'` / `'mysql'`.
+   */
+  async reflectSchema(): Promise<TableDefinition[]> {
+    if (this.dialect === 'postgres') return this.reflectSchemaPostgres();
+    if (this.dialect === 'mysql') return this.reflectSchemaMysql();
+    throw new PersistenceError(
+      `DataApiConnector.reflectSchema does not support dialect ${String(this.dialect)}`,
+    );
+  }
+
+  /** Postgres `information_schema` reflection — see `PostgresConnector.reflectSchema`. */
+  private async reflectSchemaPostgres(): Promise<TableDefinition[]> {
+    const tablesRes = await this.dataApi.query(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'
+       ORDER BY table_name`,
+    );
+    const tables = (tablesRes.records ?? []) as Array<{ table_name: string }>;
+    const result: TableDefinition[] = [];
+    for (const row of tables) {
+      const tableName = row.table_name;
+      const colsRes = await this.dataApi.query(
+        `SELECT column_name, data_type, udt_name, is_nullable, column_default,
+                character_maximum_length, numeric_precision, numeric_scale,
+                ordinal_position
+         FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = :tableName
+         ORDER BY ordinal_position`,
+        { tableName },
+      );
+      const pkRes = await this.dataApi.query(
+        `SELECT kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+         WHERE tc.table_schema = current_schema()
+           AND tc.table_name = :tableName
+           AND tc.constraint_type = 'PRIMARY KEY'`,
+        { tableName },
+      );
+      const pkColumns = new Set(
+        ((pkRes.records ?? []) as Array<{ column_name: string }>).map((r) => r.column_name),
+      );
+      const uniqueRes = await this.dataApi.query(
+        `SELECT kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+         WHERE tc.table_schema = current_schema()
+           AND tc.table_name = :tableName
+           AND tc.constraint_type = 'UNIQUE'
+         GROUP BY kcu.constraint_name, kcu.column_name
+         HAVING COUNT(*) = 1`,
+        { tableName },
+      );
+      const uniqueColumns = new Set(
+        ((uniqueRes.records ?? []) as Array<{ column_name: string }>).map((r) => r.column_name),
+      );
+
+      const idxRes = await this.dataApi.query(
+        `SELECT i.relname AS index_name,
+                ix.indisunique AS is_unique,
+                ix.indisprimary AS is_primary,
+                a.attname AS column_name,
+                array_position(ix.indkey, a.attnum) AS ord,
+                COALESCE(con.contype, '') AS contype
+         FROM pg_class t
+         JOIN pg_index ix ON t.oid = ix.indrelid
+         JOIN pg_class i ON i.oid = ix.indexrelid
+         JOIN pg_namespace n ON n.oid = t.relnamespace
+         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+         LEFT JOIN pg_constraint con ON con.conindid = i.oid
+         WHERE n.nspname = current_schema() AND t.relname = :tableName
+         ORDER BY i.relname, ord`,
+        { tableName },
+      );
+      const indexMap = new Map<
+        string,
+        {
+          columns: { column: string; ord: number }[];
+          unique: boolean;
+          primary: boolean;
+          isConstraint: boolean;
+        }
+      >();
+      for (const ir of (idxRes.records ?? []) as Array<{
+        index_name: string;
+        is_unique: boolean;
+        is_primary: boolean;
+        column_name: string;
+        ord: number;
+        contype: string;
+      }>) {
+        let entry = indexMap.get(ir.index_name);
+        if (!entry) {
+          entry = {
+            columns: [],
+            unique: ir.is_unique,
+            primary: ir.is_primary,
+            isConstraint: ir.contype === 'p' || ir.contype === 'u',
+          };
+          indexMap.set(ir.index_name, entry);
+        }
+        entry.columns.push({ column: ir.column_name, ord: Number(ir.ord) });
+      }
+      const indexes: IndexDefinition[] = [];
+      for (const [name, entry] of indexMap) {
+        if (entry.primary || entry.isConstraint) continue;
+        entry.columns.sort((a, b) => a.ord - b.ord);
+        indexes.push({
+          columns: entry.columns.map((c) => c.column),
+          unique: entry.unique,
+          name,
+        });
+      }
+
+      const columns: ColumnDefinition[] = (
+        (colsRes.records ?? []) as Array<{
+          column_name: string;
+          data_type: string;
+          udt_name: string;
+          is_nullable: 'YES' | 'NO';
+          column_default: string | null;
+          character_maximum_length: number | null;
+          numeric_precision: number | null;
+          numeric_scale: number | null;
+        }>
+      ).map((c) => {
+        const isPrimary = pkColumns.has(c.column_name);
+        const isUnique = uniqueColumns.has(c.column_name);
+        const kind = pgTypeToColumnKind(c.data_type, c.udt_name);
+        const defaultRaw = c.column_default;
+        const autoIncrement =
+          isPrimary &&
+          (kind === 'integer' || kind === 'bigint') &&
+          typeof defaultRaw === 'string' &&
+          /^nextval\(/i.test(defaultRaw);
+        return {
+          name: c.column_name,
+          type: kind,
+          nullable: c.is_nullable === 'YES' && !isPrimary,
+          default: autoIncrement ? undefined : parsePgDefault(defaultRaw, kind),
+          limit: kind === 'string' ? (c.character_maximum_length ?? undefined) : undefined,
+          primary: isPrimary,
+          unique: isUnique && !isPrimary,
+          precision:
+            kind === 'decimal' && c.numeric_precision !== null ? c.numeric_precision : undefined,
+          scale: kind === 'decimal' && c.numeric_scale !== null ? c.numeric_scale : undefined,
+          autoIncrement,
+        };
+      });
+
+      const primaryKey = columns.find((c) => c.primary)?.name;
+      result.push({ name: tableName, columns, indexes, primaryKey });
+    }
+    return result;
+  }
+
+  /** MySQL `information_schema` reflection — see `MysqlConnector.reflectSchema`. */
+  private async reflectSchemaMysql(): Promise<TableDefinition[]> {
+    const tablesRes = await this.dataApi.query(
+      `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+       ORDER BY TABLE_NAME`,
+    );
+    const tables = (tablesRes.records ?? []) as Array<{ TABLE_NAME: string }>;
+    const result: TableDefinition[] = [];
+    for (const row of tables) {
+      const tableName = row.TABLE_NAME;
+      const colsRes = await this.dataApi.query(
+        `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY,
+                CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, EXTRA
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :tableName
+         ORDER BY ORDINAL_POSITION`,
+        { tableName },
+      );
+      const idxRes = await this.dataApi.query(
+        `SELECT INDEX_NAME, NON_UNIQUE, COLUMN_NAME, SEQ_IN_INDEX
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :tableName
+         ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
+        { tableName },
+      );
+      const indexMap = new Map<string, { columns: string[]; unique: boolean }>();
+      for (const ir of (idxRes.records ?? []) as Array<{
+        INDEX_NAME: string;
+        NON_UNIQUE: number;
+        COLUMN_NAME: string;
+        SEQ_IN_INDEX: number;
+      }>) {
+        let entry = indexMap.get(ir.INDEX_NAME);
+        if (!entry) {
+          entry = { columns: [], unique: ir.NON_UNIQUE === 0 };
+          indexMap.set(ir.INDEX_NAME, entry);
+        }
+        entry.columns.push(ir.COLUMN_NAME);
+      }
+      const singleUniqueColumns = new Set<string>();
+      const indexes: IndexDefinition[] = [];
+      for (const [name, entry] of indexMap) {
+        if (name === 'PRIMARY') continue;
+        if (entry.unique && entry.columns.length === 1) {
+          singleUniqueColumns.add(entry.columns[0]);
+          continue;
+        }
+        indexes.push({ columns: entry.columns, unique: entry.unique, name });
+      }
+
+      const columns: ColumnDefinition[] = (
+        (colsRes.records ?? []) as Array<{
+          COLUMN_NAME: string;
+          DATA_TYPE: string;
+          COLUMN_TYPE: string;
+          IS_NULLABLE: 'YES' | 'NO';
+          COLUMN_DEFAULT: string | null;
+          COLUMN_KEY: string;
+          CHARACTER_MAXIMUM_LENGTH: number | null;
+          NUMERIC_PRECISION: number | null;
+          NUMERIC_SCALE: number | null;
+          EXTRA: string;
+        }>
+      ).map((c) => {
+        const isPrimary = c.COLUMN_KEY === 'PRI';
+        const kind = mysqlTypeToColumnKind(c.DATA_TYPE, c.COLUMN_TYPE);
+        const autoIncrement = /auto_increment/i.test(c.EXTRA);
+        return {
+          name: c.COLUMN_NAME,
+          type: kind,
+          nullable: c.IS_NULLABLE === 'YES' && !isPrimary,
+          default: autoIncrement ? undefined : parseMysqlDefault(c.COLUMN_DEFAULT, c.EXTRA, kind),
+          limit: kind === 'string' ? (c.CHARACTER_MAXIMUM_LENGTH ?? undefined) : undefined,
+          primary: isPrimary,
+          unique: singleUniqueColumns.has(c.COLUMN_NAME) && !isPrimary,
+          precision:
+            kind === 'decimal' && c.NUMERIC_PRECISION !== null ? c.NUMERIC_PRECISION : undefined,
+          scale: kind === 'decimal' && c.NUMERIC_SCALE !== null ? c.NUMERIC_SCALE : undefined,
+          autoIncrement,
+        };
+      });
+
+      const primaryKey = columns.find((c) => c.primary)?.name;
+      result.push({ name: tableName, columns, indexes, primaryKey });
+    }
+    return result;
+  }
+
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     validateIdentifier(tableName);
     const def = defineTable(tableName, blueprint);
@@ -830,6 +1099,173 @@ function dataApiAction(action: ForeignKeyAction): string {
     case 'noAction':
       return 'NO ACTION';
   }
+}
+
+/** Postgres type → ColumnKind mapping; mirrors `PostgresConnector`'s helper. */
+function pgTypeToColumnKind(dataType: string, udtName: string): ColumnKind {
+  const t = (dataType ?? '').toLowerCase();
+  const u = (udtName ?? '').toLowerCase();
+  switch (t) {
+    case 'character varying':
+    case 'varchar':
+    case 'character':
+    case 'char':
+      return 'string';
+    case 'text':
+      return 'text';
+    case 'integer':
+    case 'smallint':
+      return 'integer';
+    case 'bigint':
+      return 'bigint';
+    case 'boolean':
+      return 'boolean';
+    case 'real':
+    case 'double precision':
+      return 'float';
+    case 'numeric':
+    case 'decimal':
+      return 'decimal';
+    case 'date':
+      return 'date';
+    case 'time':
+    case 'time without time zone':
+    case 'time with time zone':
+      return 'datetime';
+    case 'timestamp':
+    case 'timestamp without time zone':
+    case 'timestamp with time zone':
+      return 'timestamp';
+    case 'json':
+    case 'jsonb':
+      return 'json';
+    default:
+      switch (u) {
+        case 'int2':
+        case 'int4':
+          return 'integer';
+        case 'int8':
+          return 'bigint';
+        case 'float4':
+        case 'float8':
+          return 'float';
+        case 'numeric':
+          return 'decimal';
+        case 'bool':
+          return 'boolean';
+        case 'json':
+        case 'jsonb':
+          return 'json';
+        case 'varchar':
+        case 'bpchar':
+          return 'string';
+        case 'text':
+          return 'text';
+        case 'date':
+          return 'date';
+        case 'timestamp':
+        case 'timestamptz':
+          return 'timestamp';
+        case 'time':
+        case 'timetz':
+          return 'datetime';
+      }
+      return 'text';
+  }
+}
+
+function parsePgDefault(raw: string | null, kind: ColumnKind): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed.toUpperCase() === 'NULL') return undefined;
+  const stripped = trimmed.replace(/::[A-Za-z0-9_ "]+(\([^)]*\))?$/g, '').trim();
+  const upper = stripped.toUpperCase();
+  if (upper === 'CURRENT_TIMESTAMP' || upper === 'NOW()') return 'currentTimestamp';
+  if (upper === 'TRUE') return true;
+  if (upper === 'FALSE') return false;
+  if (stripped.startsWith("'") && stripped.endsWith("'") && stripped.length >= 2) {
+    return stripped.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (stripped === '1') return true;
+    if (stripped === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(stripped);
+    if (Number.isFinite(num)) return num;
+  }
+  return stripped;
+}
+
+/** MySQL type → ColumnKind mapping; mirrors `MysqlConnector`'s helper. */
+function mysqlTypeToColumnKind(dataType: string, columnType: string): ColumnKind {
+  const t = (dataType ?? '').toLowerCase();
+  const ct = (columnType ?? '').toLowerCase();
+  switch (t) {
+    case 'tinyint':
+      return /^tinyint\(1\)/i.test(ct) ? 'boolean' : 'integer';
+    case 'smallint':
+    case 'mediumint':
+    case 'int':
+    case 'integer':
+      return 'integer';
+    case 'bigint':
+      return 'bigint';
+    case 'float':
+    case 'double':
+    case 'real':
+      return 'float';
+    case 'decimal':
+    case 'numeric':
+      return 'decimal';
+    case 'char':
+    case 'varchar':
+      return 'string';
+    case 'tinytext':
+    case 'text':
+    case 'mediumtext':
+    case 'longtext':
+      return 'text';
+    case 'date':
+      return 'date';
+    case 'datetime':
+      return 'datetime';
+    case 'timestamp':
+      return 'timestamp';
+    case 'time':
+    case 'year':
+      return 'datetime';
+    case 'json':
+      return 'json';
+    default:
+      return 'text';
+  }
+}
+
+function parseMysqlDefault(
+  raw: string | null,
+  extra: string,
+  kind: ColumnKind,
+): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' && /default_generated/i.test(extra)) return undefined;
+  const upper = trimmed.toUpperCase();
+  if (upper === 'CURRENT_TIMESTAMP' || upper === 'NOW()') return 'currentTimestamp';
+  if (upper === 'NULL') return null;
+  let s = trimmed;
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+    s = s.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (s === '1') return true;
+    if (s === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(s);
+    if (Number.isFinite(num)) return num;
+  }
+  return s;
 }
 
 export default DataApiConnector;
