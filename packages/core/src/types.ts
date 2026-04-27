@@ -1,4 +1,4 @@
-import type { AlterTableSpec, TableBuilder } from './schema.js';
+import type { AlterTableSpec, TableBuilder, TableDefinition } from './schema.js';
 
 export interface Dict<T> {
   [key: string]: T;
@@ -164,6 +164,17 @@ export interface Connector {
    * `$in: [...]` filters).
    */
   queryScoped?(spec: QueryScopedSpec): Promise<unknown>;
+
+  /**
+   * Reflect the connector's current schema. Optional — connectors that don't
+   * enforce a schema (KV stores, document DBs) leave this undefined.
+   *
+   * Returns one `TableDefinition` per known table. Implementations should
+   * mirror what `Connector.createTable` would produce for the same shape so
+   * the result can be passed straight into `generateSchemaSource(...)` for
+   * typed-schema emission.
+   */
+  reflectSchema?(): Promise<TableDefinition[]>;
 }
 
 export interface UpsertSpec {
