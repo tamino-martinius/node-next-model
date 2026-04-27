@@ -1,4 +1,5 @@
 import type { Dict, KeyType } from '../types.js';
+import type { QueryState } from './QueryState.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -7,11 +8,28 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
 
   constructor(
     public readonly model: ModelLike,
-    private readonly execute: () => Promise<Items>,
+    public readonly state: QueryState,
   ) {}
 
+  static fromModel(M: typeof import('../Model.js').ModelClass): CollectionQuery {
+    return new CollectionQuery(M, {
+      Model: M,
+      filter: M.filter,
+      order: [...M.order],
+      limit: M.limit,
+      skip: M.skip,
+      selectedFields: M.selectedFields,
+      selectedIncludes: [...M.selectedIncludes],
+      includeStrategy: M.includeStrategy,
+      pendingJoins: [...M.pendingJoins],
+      havingPredicate: M.havingPredicate,
+      softDelete: M.softDelete,
+    });
+  }
+
+  // STUB until Task 23 wires materialize to connector.queryScoped.
   protected materialize(): Promise<Items> {
-    if (!this.memo) this.memo = this.execute();
+    if (!this.memo) this.memo = Promise.resolve([] as unknown as Items);
     return this.memo;
   }
 
