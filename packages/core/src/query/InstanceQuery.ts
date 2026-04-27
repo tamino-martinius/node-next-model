@@ -22,7 +22,7 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     if (!this.memo) {
       this.memo = (async () => {
         if (this.state.nullScoped) {
-          return this.applyMissingPolicy(undefined);
+          return this.missingResult();
         }
         const spec = lower(this, 'rows');
         const M = this.model as any;
@@ -35,7 +35,7 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
         const rows = (await connector.queryScoped(spec)) as Dict<any>[];
         const row = rows[0];
         if (row === undefined) {
-          return this.applyMissingPolicy(undefined);
+          return this.missingResult();
         }
         return this.hydrate(row) as Result;
       })();
@@ -43,14 +43,17 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     return this.memo;
   }
 
-  private applyMissingPolicy(result: undefined): Result {
+  private missingResult(): Result {
     if (this.terminalKind === 'find' || this.terminalKind === 'findOrFail') {
       const label = this.model.name || this.model.tableName || 'Record';
       throw new NotFoundError(`${label} not found`);
     }
-    return result as Result;
+    return undefined as unknown as Result;
   }
 
+  // TODO(Task 13/26): align hydrate with Model.find/findBy's full materializer:
+  // afterFind callbacks, eager-loaded includes attachment, STI dispatch via
+  // inheritColumn → inheritRegistry. Mirrors the same gap on CollectionQuery.
   protected hydrate(row: Dict<any>): unknown {
     const M = this.model as any;
     const keys: Dict<any> = {};
