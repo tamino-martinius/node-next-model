@@ -94,12 +94,26 @@ importers:
       '@next-model/local-storage-connector':
         specifier: workspace:*
         version: link:../../../../packages/local-storage-connector
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/client/memory:
     dependencies:
       '@next-model/core':
         specifier: workspace:*
         version: link:../../../../packages/core
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/aurora-data-api:
     dependencies:
@@ -115,6 +129,13 @@ importers:
       sqlite3:
         specifier: ^6.0.1
         version: 6.0.1
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/express-rest-api:
     dependencies:
@@ -195,6 +216,16 @@ importers:
       sqlite3:
         specifier: ^6.0.1
         version: 6.0.1
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/mariadb:
     dependencies:
@@ -210,6 +241,13 @@ importers:
       mysql2:
         specifier: ^3.11.5
         version: 3.22.2(@types/node@25.6.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/mongodb:
     dependencies:
@@ -222,6 +260,13 @@ importers:
       mongodb:
         specifier: ^6.10.0
         version: 6.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/mysql:
     dependencies:
@@ -234,6 +279,13 @@ importers:
       mysql2:
         specifier: ^3.11.5
         version: 3.22.2(@types/node@25.6.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/postgres:
     dependencies:
@@ -246,6 +298,16 @@ importers:
       pg:
         specifier: ^8.13.1
         version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/redis:
     dependencies:
@@ -258,6 +320,13 @@ importers:
       redis:
         specifier: ^4.7.0
         version: 4.7.1
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/sqlite:
     dependencies:
@@ -270,6 +339,16 @@ importers:
       better-sqlite3:
         specifier: ^11.6.0
         version: 11.10.0
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.12
+        version: 7.6.13
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/node/server/valkey:
     dependencies:
@@ -285,6 +364,13 @@ importers:
       redis:
         specifier: ^4.7.0
         version: 4.7.1
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   demos/react/todo:
     dependencies:

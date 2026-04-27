@@ -11,7 +11,7 @@ import {
   type TaskRow,
   toggleTask,
   type UserRow,
-} from './db.ts';
+} from './db';
 
 type Banner = { kind: 'error'; text: string } | { kind: 'info'; text: string } | null;
 

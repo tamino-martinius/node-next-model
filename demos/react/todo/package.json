@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --workspace-root run build:packages",
     "dev": "vite",
+    "prebuild": "pnpm --workspace-root run build:packages",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@next-model/core": "workspace:*",
