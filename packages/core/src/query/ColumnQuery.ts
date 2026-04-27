@@ -2,6 +2,7 @@ import type { Dict, Filter, KeyType, Projection } from '../types.js';
 import type { QueryState } from './QueryState.js';
 import { lower, resolveSubqueryFilters } from './lower.js';
 import { PersistenceError } from '../errors.js';
+import { resolvePendingJoinsToScope } from './scope.js';
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
@@ -38,17 +39,27 @@ export class ColumnQuery<Shape = unknown> implements PromiseLike<Shape> {
     if (!this.memo) {
       this.memo = (async () => {
         if (this.state.nullScoped) return [] as unknown as Shape;
-        const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
+        // Resolve `pendingJoins` to flat `$in` / `$notIn` filters before
+        // lowering — column projection on a chain with joins would otherwise
+        // hit `queryWithJoins`, which always returns rows and discards the
+        // projection.
+        let stateForLower = this.state;
+        if (this.state.pendingJoins.length > 0) {
+          const resolvedScope = await resolvePendingJoinsToScope(this.model as any, this.state);
+          stateForLower = {
+            ...this.state,
+            filter: resolvedScope.filter,
+            pendingJoins: [],
+          };
+        }
+        const resolvedFilter = await resolveSubqueryFilters(stateForLower.filter);
         const scopedFilter = this.applyImplicitScopes(resolvedFilter);
-        const builderForLower =
-          scopedFilter !== this.state.filter
-            ? new (this.constructor as any)(
-                this.model,
-                this.column,
-                { ...this.state, filter: scopedFilter },
-                this.projection,
-              )
-            : this;
+        const builderForLower = new (this.constructor as any)(
+          this.model,
+          this.column,
+          { ...stateForLower, filter: scopedFilter },
+          this.projection,
+        );
         const spec = lower(builderForLower, this.projection);
         const M = this.model as any;
         const connector = M.connector;

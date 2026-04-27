@@ -277,26 +277,15 @@ export class SqliteConnector implements Connector {
    * Emits ONE SQL statement using nested `WHERE col IN (SELECT … FROM …)`
    * subqueries — one per `parentScope`. The leaf SELECT runs against the
    * target table; each parent scope projects its `link.parentColumn` and
-   * gates the leaf via that scope's `link.childColumn`. Falls back to
-   * `queryWithJoins` when `pendingJoins` are present.
+   * gates the leaf via that scope's `link.childColumn`. Builders resolve
+   * `pendingJoins` to `$in` / `$notIn` filters before calling this method,
+   * so the connector only sees a flat scope.
    */
   async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
-    // pendingJoins → defer to queryWithJoins (which already merges parent-scope
-    // IN filters into the parent filter at the Model layer when present).
-    // TODO: queryWithJoins always returns rows; if a non-'rows' projection is
-    // requested alongside pendingJoins, projection is dropped. Combining joins
-    // with count/sum/pluck isn't yet exercised; revisit when needed.
     if (spec.pendingJoins.length > 0) {
-      return this.queryWithJoins({
-        parent: {
-          tableName: spec.target.tableName,
-          filter: spec.filter,
-          order: spec.order,
-          limit: spec.limit,
-          skip: spec.skip,
-        },
-        joins: spec.pendingJoins,
-      });
+      throw new PersistenceError(
+        `SqliteConnector.queryScoped expects pendingJoins to be resolved upstream; received ${spec.pendingJoins.length} unresolved join(s). Use the CollectionQuery / ScalarQuery / ColumnQuery builders to materialise scopes with joins.`,
+      );
     }
 
     const params: BaseType[] = [];
