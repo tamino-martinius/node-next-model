@@ -99,22 +99,27 @@ Composite keys are allowed — any key in the `keys` dict is populated on insert
 
 ### Named scopes
 
-Scopes defined in the factory are installed as typed class methods:
+`scopes` are declarative `Filter<any>` literals — the preferred shorthand for predeclared filters. Each entry installs a no-arg static method that applies the filter via `filterBy(...)`. For complex / parameterized cases, declare a static method on your subclass that composes the chain yourself:
 
 ```ts
 class User extends Model({
   tableName: 'users',
   init: (props: { firstName: string; gender: string; age: number }) => props,
   scopes: {
-    males: (self) => self.filterBy({ gender: 'male' }),
-    olderThan: (self, age: number) => self.filterBy({ $gt: { age } }),
+    males: { gender: 'male' },
+    adults: { $gte: { age: 18 } },
   },
-}) {}
+}) {
+  static olderThan(age: number) {
+    return this.filterBy({ $gt: { age } });
+  }
+}
 
+await User.males().adults().all();
 await User.males().olderThan(18).all();
 ```
 
-Scopes are pure functions of `(self, ...args)`; they compose naturally with any other chainable method.
+Scope methods produce a `CollectionQuery`, so they compose naturally with `filterBy` / `orderBy` / `limitBy` / etc.
 
 ## Creating records
 

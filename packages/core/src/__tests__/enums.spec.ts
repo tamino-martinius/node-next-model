@@ -1,4 +1,5 @@
 import { KeyType, MemoryConnector, Model, type Storage, ValidationError } from '../index.js';
+import { CollectionQuery } from '../query/CollectionQuery.js';
 
 describe('enums', () => {
   let storage: Storage = {};
@@ -49,6 +50,13 @@ describe('enums', () => {
     expect(drafts.map((p: any) => p.id)).toEqual([1]);
     const published = await Post.published().all();
     expect(published.map((p: any) => p.id)).toEqual([2, 4]);
+  });
+
+  it('enum class scope returns a CollectionQuery exposing the filter', () => {
+    const Post = makePost() as any;
+    const q = Post.draft();
+    expect(q).toBeInstanceOf(CollectionQuery);
+    expect(q.state.filter).toEqual({ status: 'draft' });
   });
 
   it('class scopes compose with other chainables', async () => {

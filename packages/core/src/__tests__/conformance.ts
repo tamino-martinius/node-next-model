@@ -654,10 +654,13 @@ export function runModelConformance(opts: ConformanceOptions): void {
           timestamps: false,
           init: (props: CatProps) => props,
           scopes: {
-            adults: (self: any) => self.filterBy({ $gte: { age: 3 } }),
-            named: (self: any, name: string) => self.filterBy({ name }),
+            adults: { $gte: { age: 3 } },
           },
-        }) {}
+        }) {
+          static named(name: string) {
+            return this.filterBy({ name });
+          }
+        }
         await Scoped.create({ name: 'kit', age: 1 });
         await Scoped.create({ name: 'mature', age: 5 });
         await Scoped.create({ name: 'mature', age: 7 });

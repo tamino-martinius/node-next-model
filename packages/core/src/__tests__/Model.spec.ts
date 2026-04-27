@@ -2272,13 +2272,13 @@ describe('Model', () => {
       scopeStorage = {};
     });
 
-    it('registers scope as static method returning scoped class', async () => {
+    it('registers scope as static method that applies the filter literal', async () => {
       const Klass = Model({
         tableName: 'posts',
         init: (props: { title: string; published: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
-          published: (self) => self.filterBy({ published: true }),
+          published: { published: true } as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', published: true });
@@ -2288,16 +2288,30 @@ describe('Model', () => {
       expect(results[0].attributes.title).toBe('A');
     });
 
-    it('supports parameterized scopes', async () => {
+    it('filter-literal scope produces a CollectionQuery exposing the filter', async () => {
       const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: { published: true } as Filter<any>,
+        },
+      });
+      const q = (Klass as any).published();
+      expect(q).toBeInstanceOf(CollectionQuery);
+      expect(q.state.filter).toEqual({ published: true });
+    });
+
+    it('parameterized cases use a static method on the user subclass', async () => {
+      class Klass extends Model({
         tableName: 'posts',
         init: (props: { title: string; views: number }) => props,
         connector: scopeConnector(),
-        scopes: {
-          minViews: (self, threshold: number) =>
-            self.filterBy({ $gte: { views: threshold } } as Filter<any>),
-        },
-      });
+      }) {
+        static minViews(threshold: number) {
+          return this.filterBy({ $gte: { views: threshold } } as Filter<any>);
+        }
+      }
       await Klass.create({ title: 'A', views: 5 });
       await Klass.create({ title: 'B', views: 50 });
       await Klass.create({ title: 'C', views: 100 });
@@ -2311,13 +2325,14 @@ describe('Model', () => {
         init: (props: { title: string; published: boolean; views: number }) => props,
         connector: scopeConnector(),
         scopes: {
-          published: (self) => self.filterBy({ published: true }),
+          published: { published: true } as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', published: true, views: 10 });
       await Klass.create({ title: 'B', published: true, views: 5 });
       await Klass.create({ title: 'C', published: false, views: 100 });
-      const hits = await Klass.published()
+      const hits = await (Klass as any)
+        .published()
         .filterBy({ $gte: { views: 10 } } as Filter<any>)
         .all();
       expect(hits).toHaveLength(1);
@@ -2330,14 +2345,33 @@ describe('Model', () => {
         init: (props: { title: string; published: boolean; featured: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
-          published: (self) => self.filterBy({ published: true }),
-          featured: (self) => self.filterBy({ featured: true }),
+          published: { published: true } as Filter<any>,
+          featured: { featured: true } as Filter<any>,
         },
       });
       await Klass.create({ title: 'A', published: true, featured: true });
       await Klass.create({ title: 'B', published: true, featured: false });
       await Klass.create({ title: 'C', published: false, featured: true });
-      const results = await Klass.published().featured().all();
+      const results = await (Klass as any).published().featured().all();
+      expect(results).toHaveLength(1);
+      expect(results[0].attributes.title).toBe('A');
+    });
+
+    it('filter-literal scope chains on top of another query', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; published: boolean; authorId: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          published: { published: true } as Filter<any>,
+        },
+      });
+      await Klass.create({ title: 'A', published: true, authorId: 1 });
+      await Klass.create({ title: 'B', published: false, authorId: 1 });
+      await Klass.create({ title: 'C', published: true, authorId: 2 });
+      const q = (Klass.filterBy({ authorId: 1 }) as any).published();
+      expect(q).toBeInstanceOf(CollectionQuery);
+      const results = await q.all();
       expect(results).toHaveLength(1);
       expect(results[0].attributes.title).toBe('A');
     });

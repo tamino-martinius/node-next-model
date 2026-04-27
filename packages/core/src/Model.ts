@@ -495,12 +495,17 @@ export function compileHaving(predicate: HavingPredicate): (count: number) => bo
   };
 }
 
-export type ScopeFn<Self> = (self: Self, ...args: any[]) => Self;
+/**
+ * Per-Model scope map. Each scope is a `Filter<any>` literal that's applied
+ * via `Model.filterBy(filter)` when the auto-generated no-arg static is
+ * invoked. Scopes are the preferred shorthand for predeclared filters; for
+ * complex / parameterized cases declare a static method on your subclass that
+ * composes `filterBy` / `orFilterBy` / etc. yourself.
+ */
+export type ScopeMap = Dict<Filter<any>>;
 
-export type ScopeMap<Self> = Dict<ScopeFn<Self>>;
-
-export type ScopesToMethods<Self, S extends ScopeMap<Self>> = {
-  [K in keyof S]: (...args: S[K] extends (self: any, ...rest: infer R) => any ? R : never) => Self;
+export type ScopesToMethods<Self, S extends ScopeMap> = {
+  [K in keyof S]: () => Self;
 };
 
 export class ModelClass {
@@ -2392,7 +2397,7 @@ export function Model<
   CreateProps = {},
   PersistentProps extends Schema = {},
   Keys extends Dict<KeyType> = { id: KeyType.number },
-  Scopes extends ScopeMap<any> = {},
+  Scopes extends ScopeMap = {},
 >(props: {
   tableName: string;
   init: (props: CreateProps) => PersistentProps;
@@ -2989,9 +2994,13 @@ export function Model<
     }
   };
 
+  // Named scopes are declarative `Filter<any>` literals — each becomes a
+  // no-arg static method that calls `this.filterBy(filter)`. For complex /
+  // parameterized cases declare a static method on the user's subclass.
   for (const name in scopeDefs) {
-    (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
-      return scopeDefs[name](this, ...args);
+    const filter = scopeDefs[name];
+    (ModelSubclass as any)[name] = function (this: typeof ModelSubclass) {
+      return this.filterBy(filter as any);
     };
   }
 
