@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { CollectionQuery } from '../query/CollectionQuery.js';
 import { InstanceQuery } from '../query/InstanceQuery.js';
 import { ModelClass } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
 
 class Todo extends ModelClass {
   static tableName = 'todos';

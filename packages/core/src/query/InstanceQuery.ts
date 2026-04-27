@@ -26,6 +26,10 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
       for (const name in associations) {
         if (Object.getOwnPropertyDescriptor(this, name)) continue;
         const spec = associations[name];
+        // enumerable:false — query builders are not data records; we don't
+        // want association getters to surface via Object.keys / spread / JSON.
+        // (ModelClass instance accessors use enumerable:true precisely
+        // because those are the data records.)
         Object.defineProperty(this, name, {
           get: () => createAssociationQuery(this, spec),
           enumerable: false,
