@@ -410,10 +410,24 @@ export function compileHaving(predicate: HavingPredicate): (count: number) => bo
  * complex / parameterized cases declare a static method on your subclass that
  * composes `filterBy` / `orFilterBy` / etc. yourself.
  */
-export type ScopeMap = Dict<Filter<any>>;
+/**
+ * Each scope value is either:
+ * - A `Filter<any>` literal — the no-arg static method calls `this.filterBy(filter)`.
+ * - A function `(...args) => Filter<any>` — the generated static method
+ *   forwards its arguments to the function and calls `this.filterBy(...)`.
+ *
+ * Functions cover the "one-line parameterised filter" case
+ * (`olderThan: (age: number) => ({ age: { $gt: age } })`). For multi-line /
+ * multi-clause logic declare a static method on your subclass instead.
+ */
+export type ScopeDef = Filter<any> | ((...args: any[]) => Filter<any>);
+
+export type ScopeMap = Dict<ScopeDef>;
 
 export type ScopesToMethods<Self, S extends ScopeMap> = {
-  [K in keyof S]: () => Self;
+  [K in keyof S]: S[K] extends (...args: infer A) => Filter<any>
+    ? (...args: A) => Self
+    : () => Self;
 };
 
 export class ModelClass {
@@ -2719,14 +2733,21 @@ export function Model<
     }
   };
 
-  // Named scopes are declarative `Filter<any>` literals — each becomes a
-  // no-arg static method that calls `this.filterBy(filter)`. For complex /
-  // parameterized cases declare a static method on the user's subclass.
+  // Named scopes are either `Filter<any>` literals (no-arg method) or
+  // `(...args) => Filter<any>` factories (args-forwarding method). Both
+  // call `this.filterBy(...)`. For multi-clause logic declare a static
+  // method on the user's subclass instead.
   for (const name in scopeDefs) {
-    const filter = scopeDefs[name];
-    (ModelSubclass as any)[name] = function (this: typeof ModelSubclass) {
-      return this.filterBy(filter as any);
-    };
+    const def = scopeDefs[name];
+    if (typeof def === 'function') {
+      (ModelSubclass as any)[name] = function (this: typeof ModelSubclass, ...args: any[]) {
+        return this.filterBy((def as (...args: any[]) => Filter<any>)(...args) as any);
+      };
+    } else {
+      (ModelSubclass as any)[name] = function (this: typeof ModelSubclass) {
+        return this.filterBy(def as any);
+      };
+    }
   }
 
   for (const column in enumDefs) {

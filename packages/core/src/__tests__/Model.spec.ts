@@ -2375,6 +2375,54 @@ describe('Model', () => {
       expect(results).toHaveLength(1);
       expect(results[0].attributes.title).toBe('A');
     });
+
+    it('function-form scope receives args and applies the returned filter', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; views: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          minViews: (threshold: number) =>
+            ({ $gte: { views: threshold } } as Filter<any>),
+        },
+      });
+      await Klass.create({ title: 'A', views: 5 });
+      await Klass.create({ title: 'B', views: 50 });
+      await Klass.create({ title: 'C', views: 100 });
+      const popular = await Klass.minViews(50).all();
+      expect(popular.map((p) => p.attributes.title).sort()).toEqual(['B', 'C']);
+    });
+
+    it('function-form scope produces a CollectionQuery with the resolved filter', () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { age: number }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          olderThan: (age: number) => ({ $gt: { age } } as Filter<any>),
+        },
+      });
+      const q = (Klass as any).olderThan(18);
+      expect(q).toBeInstanceOf(CollectionQuery);
+      expect(q.state.filter).toEqual({ $gt: { age: 18 } });
+    });
+
+    it('function-form scope chains with other chain methods', async () => {
+      const Klass = Model({
+        tableName: 'posts',
+        init: (props: { title: string; views: number; published: boolean }) => props,
+        connector: scopeConnector(),
+        scopes: {
+          minViews: (threshold: number) =>
+            ({ $gte: { views: threshold } } as Filter<any>),
+        },
+      });
+      await Klass.create({ title: 'A', views: 50, published: true });
+      await Klass.create({ title: 'B', views: 50, published: false });
+      await Klass.create({ title: 'C', views: 5, published: true });
+      const hits = await (Klass as any).minViews(10).filterBy({ published: true }).all();
+      expect(hits.map((p: any) => p.attributes.title)).toEqual(['A']);
+    });
   });
 
   describe('.createMany', () => {

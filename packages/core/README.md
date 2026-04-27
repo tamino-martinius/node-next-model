@@ -100,7 +100,7 @@ Composite keys are allowed — any key in the `keys` dict is populated on insert
 
 ### Named scopes
 
-`scopes` are declarative `Filter<any>` literals — the preferred shorthand for predeclared filters. Each entry installs a no-arg static method that applies the filter via `filterBy(...)`. For complex / parameterized cases, declare a static method on your subclass that composes the chain yourself:
+`scopes` are the preferred shorthand for predeclared filters. Each entry is either a `Filter<any>` literal (no-arg method) or a `(...args) => Filter<any>` factory (args-forwarding method) — both call `filterBy(...)` under the hood. Use a static method on your subclass for multi-clause logic that doesn't fit a single `filterBy`:
 
 ```ts
 class User extends Model({
@@ -109,15 +109,18 @@ class User extends Model({
   scopes: {
     males: { gender: 'male' },
     adults: { $gte: { age: 18 } },
+    olderThan: (age: number) => ({ $gt: { age } }),
   },
 }) {
-  static olderThan(age: number) {
-    return this.filterBy({ $gt: { age } });
+  // Multi-step / multi-clause: declare a static method instead.
+  static popularAdults(minAge: number) {
+    return this.adults().olderThan(minAge).orderBy({ key: 'createdAt' });
   }
 }
 
 await User.males().adults().all();
-await User.males().olderThan(18).all();
+await User.olderThan(18).all();
+await User.popularAdults(21).all();
 ```
 
 Scope methods produce a `CollectionQuery`, so they compose naturally with `filterBy` / `orderBy` / `limitBy` / etc.
