@@ -22,7 +22,9 @@ import {
   type JoinClause,
   type JoinQuerySpec,
   type KeyType,
+  type ParentScope,
   PersistenceError,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type TableBuilder,
@@ -108,7 +110,7 @@ export class MysqlConnector implements Connector {
     return { sql, params };
   }
 
-  private compileFilter(filter: Filter<any>, params: BaseType[]): string {
+  protected compileFilter(filter: Filter<any>, params: BaseType[]): string {
     const f = filter as FilterSpecial<Dict<any>> & Partial<Dict<any>>;
     if (f.$and !== undefined) return this.compileGroup(f.$and as Filter<any>[], 'AND', params);
     if (f.$or !== undefined) return this.compileGroup(f.$or as Filter<any>[], 'OR', params);
@@ -202,7 +204,7 @@ export class MysqlConnector implements Connector {
     return `(${raw.$query})`;
   }
 
-  private buildOrder(order: Scope['order']): string {
+  protected buildOrder(order: Scope['order']): string {
     if (!order || order.length === 0) return '';
     const parts = order.map((col) => {
       const dir = (col.dir ?? SortDirection.Asc) === SortDirection.Asc ? 'ASC' : 'DESC';
@@ -239,6 +241,118 @@ export class MysqlConnector implements Connector {
     if (parent.skip !== undefined) sql += ` OFFSET ${Number(parent.skip)}`;
     const parentRows = (await this.run(sql, params)) as Dict<any>[];
     return this.attachIncludes(parentRows, joins);
+  }
+
+  /**
+   * Emits ONE SQL statement using nested `WHERE col IN (SELECT … FROM …)`
+   * subqueries — one per `parentScope`. The leaf statement runs against
+   * the target table; each parent scope projects its `link.parentColumn`
+   * and gates the leaf via that scope's `link.childColumn`. Falls back to
+   * `queryWithJoins` when `pendingJoins` are present.
+   */
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    // pendingJoins → defer to queryWithJoins. The Model layer already merges
+    // parent-scope IN filters into the parent filter when joins are present.
+    // TODO: queryWithJoins always returns rows; if a non-'rows' projection is
+    // requested alongside pendingJoins, projection is dropped. Combining joins
+    // with count/sum/pluck isn't yet exercised; revisit when needed.
+    if (spec.pendingJoins.length > 0) {
+      return this.queryWithJoins({
+        parent: {
+          tableName: spec.target.tableName,
+          filter: spec.filter,
+          order: spec.order,
+          limit: spec.limit,
+          skip: spec.skip,
+        },
+        joins: spec.pendingJoins,
+      });
+    }
+
+    const params: BaseType[] = [];
+    const whereClauses: string[] = [];
+    for (const parent of spec.parentScopes) {
+      whereClauses.push(this.compileParentScope(parent, params));
+    }
+    if (spec.filter !== undefined) {
+      whereClauses.push(this.compileFilter(spec.filter, params));
+    }
+
+    const projectionSql = this.compileProjection(spec);
+    let sql = `SELECT ${projectionSql} FROM ${quoteIdent(spec.target.tableName)}`;
+    if (whereClauses.length > 0) sql += ` WHERE ${whereClauses.join(' AND ')}`;
+    sql += this.buildOrder(spec.order);
+    if (spec.limit !== undefined) sql += ` LIMIT ${Number(spec.limit)}`;
+    if (spec.skip !== undefined) sql += ` OFFSET ${Number(spec.skip)}`;
+
+    const rows = (await this.run(sql, params)) as Dict<any>[];
+    return this.shapeProjection(spec, rows);
+  }
+
+  /**
+   * Build the inner subquery for one parentScope:
+   * `childCol IN (SELECT parentCol FROM parentTable WHERE … ORDER BY … LIMIT N)`.
+   */
+  private compileParentScope(parent: ParentScope, params: BaseType[]): string {
+    const childCol = quoteIdent(parent.link.childColumn);
+    const parentCol = quoteIdent(parent.link.parentColumn);
+    const parentTbl = quoteIdent(parent.parentTable);
+    let inner = `SELECT ${parentCol} FROM ${parentTbl}`;
+    if (parent.parentFilter !== undefined) {
+      inner += ` WHERE ${this.compileFilter(parent.parentFilter, params)}`;
+    }
+    inner += this.buildOrder(parent.parentOrder);
+    if (parent.parentLimit !== undefined) inner += ` LIMIT ${Number(parent.parentLimit)}`;
+    return `${childCol} IN (${inner})`;
+  }
+
+  /** Build the SELECT-list expression for the requested projection. */
+  private compileProjection(spec: QueryScopedSpec): string {
+    const projection = spec.projection;
+    if (projection === 'rows') return '*';
+    if (projection.kind === 'pk') {
+      const pkName = Object.keys(spec.target.keys)[0] ?? 'id';
+      return quoteIdent(pkName);
+    }
+    if (projection.kind === 'column') return quoteIdent(projection.column);
+    if (projection.kind === 'aggregate') {
+      const fn = projection.op.toUpperCase() as Uppercase<AggregateKind>;
+      if (projection.op === 'count') {
+        const target = projection.column ? quoteIdent(projection.column) : '*';
+        return `${fn}(${target}) AS \`__qs_value\``;
+      }
+      if (!projection.column) {
+        throw new PersistenceError(
+          `Aggregate '${projection.op}' requires a column; received undefined.`,
+        );
+      }
+      return `${fn}(${quoteIdent(projection.column)}) AS \`__qs_value\``;
+    }
+    throw new PersistenceError(`Unknown projection: ${JSON.stringify(projection)}`);
+  }
+
+  /**
+   * Reshape the rows returned by `compileProjection` into the contract each
+   * projection promises: rows → Dict[]; pk/column → flat array; aggregate
+   * count → number; other aggregates → number | undefined.
+   */
+  private shapeProjection(spec: QueryScopedSpec, rows: Dict<any>[]): unknown {
+    const projection = spec.projection;
+    if (projection === 'rows') return rows;
+    if (projection.kind === 'pk') {
+      const pkName = Object.keys(spec.target.keys)[0] ?? 'id';
+      return rows.map((r) => r[pkName]);
+    }
+    if (projection.kind === 'column') {
+      return rows.map((r) => r[projection.column]);
+    }
+    // aggregate
+    if (projection.op === 'count') {
+      const v = rows[0]?.__qs_value;
+      return v == null ? 0 : Number(v);
+    }
+    const v = rows[0]?.__qs_value;
+    return v == null ? undefined : Number(v);
   }
 
   /** See SqliteConnector.compileExistsClause — same shape, backtick quoting. */
