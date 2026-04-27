@@ -106,6 +106,9 @@ async function resolveOperatorBuilders(
     } else if (key === '$not') {
       // Single sub-filter — resets to non-operator context.
       out[key] = (await resolveOperatorBuilders(value, false)).value;
+    } else if (key === '$async' || key === '$raw') {
+      // Opaque values (Promise / raw string) — pass through unchanged.
+      out[key] = value;
     } else {
       // Plain column key or any other key — pass through with current context.
       out[key] = (await resolveOperatorBuilders(value, insideOperator)).value;

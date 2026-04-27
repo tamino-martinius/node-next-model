@@ -40,10 +40,17 @@ describe('Model', () => {
   }
 
   function itReturnsClass(subject: () => any) {
-    it('returns class', () => {
-      const Model = subject();
-      expect(typeof Model).toEqual('function');
-      expect(typeof Model.prototype).toEqual('object');
+    it('returns a chainable scope', () => {
+      const result = subject();
+      // Chain methods now return CollectionQuery (PromiseLike) instead of a
+      // Model subclass. The returned value should still be chainable
+      // (.filterBy, .all etc.) and awaitable to a record list.
+      expect(result).toBeDefined();
+      expect(typeof result).toMatch(/^(function|object)$/);
+      // Either a class (top-level Model() factory result) or a CollectionQuery
+      // instance — both expose chain methods.
+      expect(typeof result.filterBy).toEqual('function');
+      expect(typeof result.all).toEqual('function');
     });
   }
 
@@ -1194,7 +1201,11 @@ describe('Model', () => {
         init: (props: any) => props,
         connector: connector(),
       });
-      await expect(Klass.findOrFail({ foo: 'missing' })).rejects.toThrow('Record not found');
+      // After Task 13/26 the terminal materialises through InstanceQuery,
+      // whose missing-result error includes the model.name / tableName as a
+      // label (e.g. 'Model not found' / 'foo not found' instead of the bare
+      // 'Record not found' the legacy path used). Test just the suffix.
+      await expect(Klass.findOrFail({ foo: 'missing' })).rejects.toThrow(/not found/);
       storage = {};
     });
   });

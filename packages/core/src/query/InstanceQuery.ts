@@ -1,8 +1,7 @@
-import { NotFoundError, PersistenceError } from '../errors.js';
+import { NotFoundError } from '../errors.js';
 import type { AssociationDefinition } from '../Model.js';
 import type { AssociationLink, Dict, KeyType } from '../types.js';
-import type { CollectionQuery } from './CollectionQuery.js';
-import { lower, resolveSubqueryFilters } from './lower.js';
+import { CollectionQuery } from './CollectionQuery.js';
 import type { ParentRef, QueryState, TerminalKind } from './QueryState.js';
 import { ScalarQuery } from './ScalarQuery.js';
 import { createAssociationQuery } from './associationQuery.js';
@@ -41,35 +40,29 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
 
   protected async materialize(): Promise<Result> {
     if (!this.memo) {
-      this.memo = (async () => {
-        if (this.state.nullScoped) {
-          return this.missingResult();
-        }
-        const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
-        const builderForLower =
-          resolvedFilter !== this.state.filter
-            ? new (this.constructor as any)(this.model, this.terminalKind, {
-                ...this.state,
-                filter: resolvedFilter,
-              })
-            : this;
-        const spec = lower(builderForLower, 'rows');
-        const M = this.model as any;
-        const connector = M.connector;
-        if (!connector || typeof connector.queryScoped !== 'function') {
-          throw new PersistenceError(
-            `${M.name || M.tableName || 'Model'}.connector does not implement queryScoped(spec).`,
-          );
-        }
-        const rows = (await connector.queryScoped(spec)) as Dict<any>[];
-        const row = rows[0];
-        if (row === undefined) {
-          return this.missingResult();
-        }
-        return this.hydrate(row) as Result;
-      })();
+      this.memo = this.runMaterialize();
     }
     return this.memo;
+  }
+
+  /**
+   * Materialise via the corresponding CollectionQuery (which itself
+   * delegates to Model.all() via a state-projected temp subclass). Reusing
+   * the CollectionQuery path keeps afterFind callbacks, eager-loaded
+   * includes attachment, STI dispatch and the `queryWithJoins` fast path
+   * consistent across single-record and multi-record reads.
+   */
+  private async runMaterialize(): Promise<Result> {
+    if (this.state.nullScoped) {
+      return this.missingResult();
+    }
+    const collection = new CollectionQuery(this.model, this.state);
+    const rows = (await collection) as unknown as unknown[];
+    const row = rows[0];
+    if (row === undefined) {
+      return this.missingResult();
+    }
+    return row as Result;
   }
 
   private missingResult(): Result {
@@ -80,9 +73,10 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
     return undefined as unknown as Result;
   }
 
-  // TODO(Task 13/26): align hydrate with Model.find/findBy's full materializer:
-  // afterFind callbacks, eager-loaded includes attachment, STI dispatch via
-  // inheritColumn → inheritRegistry. Mirrors the same gap on CollectionQuery.
+  // Lightweight row → record hydrate kept for test fixtures that subclass
+  // InstanceQuery and override materialize. The production path delegates
+  // to CollectionQuery.runMaterialize → Model.runQueryRecords (afterFind
+  // callbacks, includes attach/preload, STI dispatch).
   protected hydrate(row: Dict<any>): unknown {
     const M = this.model as any;
     const keys: Dict<any> = {};

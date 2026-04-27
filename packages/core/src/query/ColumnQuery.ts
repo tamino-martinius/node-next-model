@@ -1,4 +1,4 @@
-import type { Dict, KeyType, Projection } from '../types.js';
+import type { Dict, Filter, KeyType, Projection } from '../types.js';
 import type { QueryState } from './QueryState.js';
 import { lower, resolveSubqueryFilters } from './lower.js';
 import { PersistenceError } from '../errors.js';
@@ -15,17 +15,37 @@ export class ColumnQuery<Shape = unknown> implements PromiseLike<Shape> {
     public readonly projection: Projection,
   ) {}
 
+  /** Mirror ScalarQuery: fold soft-delete + STI filters into state.filter. */
+  private applyImplicitScopes(filter: Filter<any> | undefined): Filter<any> | undefined {
+    let out = filter;
+    const M = this.model as any;
+    const softColumn = M.softDeleteColumn ?? 'discardedAt';
+    if (this.state.softDelete === 'active') {
+      const sf = { $null: softColumn } as Filter<any>;
+      out = out ? ({ $and: [sf, out] } as Filter<any>) : sf;
+    } else if (this.state.softDelete === 'only') {
+      const sf = { $notNull: softColumn } as Filter<any>;
+      out = out ? ({ $and: [sf, out] } as Filter<any>) : sf;
+    }
+    if (M.inheritColumn && M.inheritType !== undefined) {
+      const tf = { [M.inheritColumn]: M.inheritType } as Filter<any>;
+      out = out ? ({ $and: [tf, out] } as Filter<any>) : tf;
+    }
+    return out;
+  }
+
   protected async materialize(): Promise<Shape> {
     if (!this.memo) {
       this.memo = (async () => {
         if (this.state.nullScoped) return [] as unknown as Shape;
         const resolvedFilter = await resolveSubqueryFilters(this.state.filter);
+        const scopedFilter = this.applyImplicitScopes(resolvedFilter);
         const builderForLower =
-          resolvedFilter !== this.state.filter
+          scopedFilter !== this.state.filter
             ? new (this.constructor as any)(
                 this.model,
                 this.column,
-                { ...this.state, filter: resolvedFilter },
+                { ...this.state, filter: scopedFilter },
                 this.projection,
               )
             : this;
