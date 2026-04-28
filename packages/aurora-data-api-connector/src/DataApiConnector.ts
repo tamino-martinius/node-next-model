@@ -734,7 +734,7 @@ export class DataApiConnector implements Connector {
           columns: { column: string; ord: number }[];
           unique: boolean;
           primary: boolean;
-          isConstraint: boolean;
+          contype: string;
         }
       >();
       for (const ir of (idxRes.records ?? []) as Array<{
@@ -751,7 +751,7 @@ export class DataApiConnector implements Connector {
             columns: [],
             unique: ir.is_unique,
             primary: ir.is_primary,
-            isConstraint: ir.contype === 'p' || ir.contype === 'u',
+            contype: ir.contype,
           };
           indexMap.set(ir.index_name, entry);
         }
@@ -759,7 +759,12 @@ export class DataApiConnector implements Connector {
       }
       const indexes: IndexDefinition[] = [];
       for (const [name, entry] of indexMap) {
-        if (entry.primary || entry.isConstraint) continue;
+        // PRIMARY KEY backing index — round-trips via column.primary.
+        if (entry.primary || entry.contype === 'p') continue;
+        // Single-column UNIQUE constraint — round-trips via column.unique.
+        // Multi-column unique constraints stay as IndexDefinitions because
+        // they cannot be expressed on a single column.
+        if (entry.contype === 'u' && entry.columns.length === 1) continue;
         entry.columns.sort((a, b) => a.ord - b.ord);
         indexes.push({
           columns: entry.columns.map((c) => c.column),

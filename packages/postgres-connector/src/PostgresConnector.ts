@@ -719,7 +719,7 @@ export class PostgresConnector implements Connector {
           columns: { column: string; ord: number }[];
           unique: boolean;
           primary: boolean;
-          isConstraint: boolean;
+          contype: string;
         }
       >();
       for (const ir of idxRes.rows as Array<{
@@ -736,7 +736,7 @@ export class PostgresConnector implements Connector {
             columns: [],
             unique: ir.is_unique,
             primary: ir.is_primary,
-            isConstraint: ir.contype === 'p' || ir.contype === 'u',
+            contype: ir.contype,
           };
           indexMap.set(ir.index_name, entry);
         }
@@ -744,9 +744,15 @@ export class PostgresConnector implements Connector {
       }
       const indexes: IndexDefinition[] = [];
       for (const [name, entry] of indexMap) {
-        // Skip the auto-generated index that backs a PRIMARY KEY or single-
-        // column UNIQUE constraint — those round-trip via the column's flags.
-        if (entry.primary || entry.isConstraint) continue;
+        // Skip the auto-generated index that backs a PRIMARY KEY constraint —
+        // it round-trips via the column's `primary` flag.
+        if (entry.primary || entry.contype === 'p') continue;
+        // Single-column UNIQUE constraints round-trip via the column's
+        // `unique` flag; skip their backing indexes so reflection doesn't
+        // emit redundant index definitions. Multi-column unique constraints
+        // (named via `t.unique([...], name)`) carry richer data than a single
+        // column flag can express, so we keep them as IndexDefinitions.
+        if (entry.contype === 'u' && entry.columns.length === 1) continue;
         entry.columns.sort((a, b) => a.ord - b.ord);
         indexes.push({
           columns: entry.columns.map((c) => c.column),
