@@ -1,5 +1,5 @@
 import type { Dict } from '@next-model/core';
-import { emitterFor, linkEmitter } from './instanceState.js';
+import { emitterFor, linkEmitter, storeFor } from './instanceState.js';
 
 const proxies = new WeakMap<object, object>();
 
@@ -20,7 +20,8 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
   const existing = proxies.get(instance);
   if (existing) return existing as T;
 
-  const proxy: T = new Proxy(instance, {
+  let proxy: T;
+  proxy = new Proxy(instance, {
     get(target, prop, receiver) {
       if (options.resettable && prop === 'reset') {
         return (props: Dict<unknown> = {}) => {
@@ -41,7 +42,24 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
           const result = (value as (...a: unknown[]) => unknown).apply(target, args);
           if (result && typeof (result as Promise<unknown>).then === 'function') {
             return (result as Promise<unknown>).then(
-              (r) => { emitterFor(target).emit(); return r; },
+              (r) => {
+                emitterFor(target).emit();
+                const store = storeFor(target);
+                if (store && !store.isDisposed()) {
+                  const keys = (target as { keys?: Record<string, unknown> }).keys;
+                  const tableName = ((target as object).constructor as { tableName?: string }).tableName;
+                  if (keys && tableName) {
+                    if (prop === 'delete') {
+                      store.drop(tableName, keys);
+                    } else {
+                      // save / update / reload / increment / decrement: this row is now canonical.
+                      store.softRegister(tableName, keys, proxy as object);
+                    }
+                    store.publishRow(tableName, keys);
+                  }
+                }
+                return r;
+              },
               (e) => { emitterFor(target).emit(); throw e; },
             );
           }
