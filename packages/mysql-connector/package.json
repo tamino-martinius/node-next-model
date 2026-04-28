@@ -36,7 +36,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "mysql2": "^3.11.5"
+    "mysql2": "^3.22.3"
   },
   "devDependencies": {
     "@next-model/core": "workspace:*",

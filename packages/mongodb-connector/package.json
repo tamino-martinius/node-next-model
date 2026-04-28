@@ -36,7 +36,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "mongodb": "^6.10.0"
+    "mongodb": "^7.2.0"
   },
   "devDependencies": {
     "@next-model/core": "workspace:*",

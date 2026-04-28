@@ -61,8 +61,14 @@ function classifyKind(type: ZodTypeAny): ColumnKind {
     case 'ZodString':
       return 'string';
     case 'ZodNumber': {
-      const checks = ((type as any)._def?.checks ?? []) as Array<{ kind: string }>;
-      return checks.some((c) => c.kind === 'int') ? 'integer' : 'float';
+      // zod 3: checks are `{ kind: 'int' }`. zod 4: checks expose `isInt: true`
+      // (with a `format` of 'safeint' / 'int32' / etc.). Match both shapes.
+      const checks = ((type as any)._def?.checks ?? []) as Array<{
+        kind?: string;
+        isInt?: boolean;
+      }>;
+      const isInt = checks.some((c) => c.kind === 'int' || c.isInt === true);
+      return isInt ? 'integer' : 'float';
     }
     case 'ZodBigInt':
       return 'bigint';

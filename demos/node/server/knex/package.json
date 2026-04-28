@@ -18,13 +18,13 @@
     "@next-model/core": "workspace:*",
     "@next-model/knex-connector": "workspace:*",
     "knex": "^3.2.9",
-    "mysql2": "^3.11.5",
-    "pg": "^8.13.1",
+    "mysql2": "^3.22.3",
+    "pg": "^8.20.0",
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "@types/pg": "^8.11.10",
+    "@types/pg": "^8.20.0",
     "typescript": "^6.0.3"
   },
   "engines": {
