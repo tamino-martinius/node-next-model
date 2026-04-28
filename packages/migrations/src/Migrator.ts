@@ -1,4 +1,7 @@
-import { type Connector, KeyType } from '@next-model/core';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+import { type Connector, generateSchemaSource, KeyType } from '@next-model/core';
 
 import {
   MigrationAlreadyAppliedError,
@@ -8,6 +11,7 @@ import {
   MigrationParentMissingError,
 } from './errors.js';
 import { RecordingConnector, replayDown, replayUp } from './RecordingConnector.js';
+import { SchemaCollector } from './SchemaCollector.js';
 import type { MigrateOptions, Migration, MigrationStatus, MigratorOptions } from './types.js';
 
 function isChangeMigration(
@@ -29,11 +33,13 @@ function validateTableName(name: string): void {
 export class Migrator {
   readonly connector: Connector;
   readonly tableName: string;
+  readonly schemaOutputPath?: string;
   private initialized = false;
 
   constructor(options: MigratorOptions) {
     this.connector = options.connector;
     this.tableName = options.tableName ?? DEFAULT_TABLE_NAME;
+    this.schemaOutputPath = options.schemaOutputPath;
     validateTableName(this.tableName);
   }
 
@@ -112,7 +118,10 @@ export class Migrator {
 
   async migrate(migrations: Migration[], options: MigrateOptions = {}): Promise<Migration[]> {
     const pending = await this.pending(migrations);
-    if (pending.length === 0) return pending;
+    if (pending.length === 0) {
+      if (this.schemaOutputPath) this.emitSchemaSource();
+      return pending;
+    }
 
     if (options.parallel) {
       await this.migrateInWaves(pending);
@@ -121,7 +130,32 @@ export class Migrator {
         await this.runUp(migration);
       }
     }
+
+    if (this.schemaOutputPath) this.emitSchemaSource();
     return pending;
+  }
+
+  /**
+   * Write a typed-schema TS file from the connector's tracked schema. The
+   * connector must be a `SchemaCollector` (or expose a compatible
+   * `snapshot()` method); a plain connector throws because there's no
+   * in-memory mirror to read from.
+   */
+  private emitSchemaSource(): void {
+    if (!this.schemaOutputPath) return;
+    if (!(this.connector instanceof SchemaCollector)) {
+      throw new Error(
+        'Migrator.schemaOutputPath requires the connector to be wrapped in SchemaCollector.',
+      );
+    }
+    const collector = this.connector as SchemaCollector;
+    const snapshot = collector.snapshot();
+    // Skip the migrations tracking table — it isn't part of the user's
+    // schema and adds noise to generated typed schemas.
+    const tables = Object.values(snapshot.tables).filter((t) => t.name !== this.tableName);
+    const source = generateSchemaSource(tables);
+    mkdirSync(dirname(this.schemaOutputPath), { recursive: true });
+    writeFileSync(this.schemaOutputPath, source, 'utf8');
   }
 
   async up(migration: Migration): Promise<void> {

@@ -53,4 +53,15 @@ export interface MigrateOptions {
 export interface MigratorOptions {
   connector: Connector;
   tableName?: string;
+  /**
+   * Path to write the generated typed-schema TS file after every successful
+   * `migrate()` call. The connector must be wrapped in a `SchemaCollector`
+   * (or otherwise expose a `snapshot()` method returning the tracked tables);
+   * the Migrator throws if it isn't. Existing files are overwritten.
+   *
+   * The emitted file contains `defineSchema(...)` declarations re-exported
+   * by camelCase const names (one per table), generated via
+   * `@next-model/core`'s `generateSchemaSource`.
+   */
+  schemaOutputPath?: string;
 }

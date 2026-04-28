@@ -31,7 +31,13 @@ const connector = new ValkeyConnector({
 await connector.connect();
 ```
 
-The constructor signature, runtime API, and storage layout are identical to `RedisConnector`'s — see [its README](../redis-connector/README.md) for the full surface (filter operators, transactions, schema DDL, …).
+Pass an optional `extras: { schema }` second arg to attach a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level — purely for Model inference, since Valkey enforces no DB schema at runtime.
+
+```ts
+const connector = new ValkeyConnector({ client: { url: '...' } }, { schema });
+```
+
+The constructor signature, runtime API, and storage layout are otherwise identical to `RedisConnector`'s — see [its README](../redis-connector/README.md) for the full surface (filter operators, transactions, schema DDL, …).
 
 ## Testing matrix
 

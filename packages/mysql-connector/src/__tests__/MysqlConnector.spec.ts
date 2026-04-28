@@ -213,6 +213,98 @@ describe('MysqlConnector#queryScoped', () => {
   });
 });
 
+describe('MysqlConnector#reflectSchema', () => {
+  const tableName = 'mysql_reflect_basic';
+  const otherTable = 'mysql_reflect_other';
+  const idxTable = 'mysql_reflect_idx';
+
+  afterEach(async () => {
+    if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
+    if (await connector.hasTable(otherTable)) await connector.dropTable(otherTable);
+    if (await connector.hasTable(idxTable)) await connector.dropTable(idxTable);
+  });
+
+  it('round-trips a simple table created via createTable', async () => {
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('email', { limit: 320, null: false, unique: true });
+      t.text('body');
+      t.boolean('active', { default: true, null: false });
+      t.integer('count', { default: 0, null: false });
+      t.decimal('price', { precision: 12, scale: 4 });
+    });
+    const reflected = await connector.reflectSchema!();
+    const table = reflected.find((r) => r.name === tableName);
+    expect(table).toBeDefined();
+    expect(table!.primaryKey).toBe('id');
+
+    const id = table!.columns.find((c) => c.name === 'id')!;
+    expect(id.primary).toBe(true);
+    expect(id.autoIncrement).toBe(true);
+    expect(id.nullable).toBe(false);
+    expect(id.type).toBe('integer');
+
+    const email = table!.columns.find((c) => c.name === 'email')!;
+    expect(email.type).toBe('string');
+    expect(email.limit).toBe(320);
+    expect(email.nullable).toBe(false);
+    expect(email.unique).toBe(true);
+
+    const body = table!.columns.find((c) => c.name === 'body')!;
+    expect(body.type).toBe('text');
+    expect(body.nullable).toBe(true);
+
+    const active = table!.columns.find((c) => c.name === 'active')!;
+    expect(active.type).toBe('boolean');
+    expect(active.default).toBe(true);
+
+    const count = table!.columns.find((c) => c.name === 'count')!;
+    expect(count.type).toBe('integer');
+    expect(count.default).toBe(0);
+
+    const price = table!.columns.find((c) => c.name === 'price')!;
+    expect(price.type).toBe('decimal');
+    expect(price.precision).toBe(12);
+    expect(price.scale).toBe(4);
+  });
+
+  it('reflects composite + unique indexes (excluding constraint-backed indexes)', async () => {
+    await connector.createTable(idxTable, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.integer('userId');
+      t.string('slug', { limit: 64 });
+      t.index(['userId'], { name: 'idx_mysql_reflect_user_id' });
+      t.index(['userId', 'slug'], { unique: true, name: 'idx_mysql_reflect_user_slug' });
+    });
+    const reflected = await connector.reflectSchema!();
+    const table = reflected.find((r) => r.name === idxTable)!;
+    const names = table.indexes.map((i) => i.name).sort();
+    expect(names).toContain('idx_mysql_reflect_user_id');
+    expect(names).toContain('idx_mysql_reflect_user_slug');
+    const single = table.indexes.find((i) => i.name === 'idx_mysql_reflect_user_id')!;
+    expect(single.columns).toEqual(['userId']);
+    expect(single.unique).toBe(false);
+    const compound = table.indexes.find((i) => i.name === 'idx_mysql_reflect_user_slug')!;
+    expect(compound.columns).toEqual(['userId', 'slug']);
+    expect(compound.unique).toBe(true);
+  });
+
+  it('reflects multiple tables', async () => {
+    await connector.createTable(tableName, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('email');
+    });
+    await connector.createTable(otherTable, (t) => {
+      t.integer('id', { primary: true, autoIncrement: true, null: false });
+      t.string('title');
+    });
+    const reflected = await connector.reflectSchema!();
+    const names = reflected.map((r) => r.name);
+    expect(names).toContain(tableName);
+    expect(names).toContain(otherTable);
+  });
+});
+
 runModelConformance({
   name: 'MysqlConnector',
   makeConnector: () => connector,

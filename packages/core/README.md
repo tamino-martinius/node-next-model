@@ -7,6 +7,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Installation](#installation)
 - [Defining a model](#defining-a-model)
   - [Schema-driven props](#schema-driven-props)
+  - [Interface-generic props](#interface-generic-props)
   - [Factory options](#factory-options)
   - [Keys (primary key type)](#keys-primary-key-type)
   - [Named scopes](#named-scopes)
@@ -73,26 +74,35 @@ user.name;   // 'John Doe'
 
 ### Schema-driven props
 
-Instead of writing an `init` callback to give TypeScript the row shape, you can declare a typed schema with `defineSchema(...)` and pass it via `schema:`. TypeScript infers the prop shape from the column map; `tableName`, `keys`, and `init` are derived from the schema and become optional.
+Instead of writing an `init` callback to give TypeScript the row shape, declare a full database schema with `defineSchema(...)` and attach it to the connector. Each Model picks a table off the connector's schema by `tableName` — TypeScript infers the prop shape, `keys`, and `init` from the column map at the call site.
 
 ```ts
 import { Model, defineSchema } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
 
-const usersSchema = defineSchema({
-  tableName: 'users',
-  columns: {
-    id: { type: 'integer', primary: true, autoIncrement: true },
-    email: { type: 'string' },
-    name: { type: 'string' },
-    age: { type: 'integer' },
-    archivedAt: { type: 'timestamp', null: true },
+const dbSchema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      email: { type: 'string' },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      archivedAt: { type: 'timestamp', null: true },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      title: { type: 'string' },
+    },
   },
 });
 
-class User extends Model({
-  schema: usersSchema,
-  // tableName, init, keys all derived from the schema.
-}) {}
+const connector = new SqliteConnector(':memory:', { schema: dbSchema });
+
+class User extends Model({ connector, tableName: 'users' }) {}
+class Post extends Model({ connector, tableName: 'posts' }) {}
 
 const u = await User.create({
   email: 'a@b',
@@ -113,19 +123,126 @@ Column-kind → prop-type mapping:
 
 Adding `null: true` widens any of the above to `T | null`. Primary columns drive the `keys` map: string / text primaries become `KeyType.uuid`, numeric primaries become `KeyType.number`. The fallback when no primary is declared is `{ id: KeyType.number }` — same as the legacy form.
 
-The schema's `tableDefinition` is also a runtime [`TableDefinition`](#schema-dsl) — the same shape `defineTable(...)` produces for `@next-model/migrations`. Tooling that consumes `TableDefinition` (schema snapshots, GraphQL / OpenAPI generators, admin UIs) can read the schema directly so there's a single source of truth for the table.
+`tableName` is statically constrained to keys of `dbSchema.tables`, so a typo like `tableName: 'unknwon'` is a TypeScript error at the Model definition site — and the runtime throws `Model(): tableName 'unknwon' is not declared on the attached schema. Known tables: users, posts` if you bypass the type system.
 
-You can still pass an explicit `init` to coerce or derive fields, plus override `tableName` or `keys` when needed:
+Each schema entry's `tableDefinitions[name]` is a runtime [`TableDefinition`](#schema-dsl) — the same shape `defineTable(...)` produces for `@next-model/migrations`. Tooling that consumes `TableDefinition` (schema snapshots, GraphQL / OpenAPI generators, admin UIs) can read the schema directly so there's a single source of truth for the table.
+
+You can still pass an explicit `init` to coerce or derive fields, or override `keys`:
 
 ```ts
 class User extends Model({
-  schema: usersSchema,
-  tableName: 'staff',                              // override
+  connector,
+  tableName: 'users',
   init: (p) => ({ ...p, email: p.email.toLowerCase() }),  // optional transformer
 }) {}
 ```
 
+#### Passing the schema directly
+
+If your connector isn't statically typed (dynamic connector swapping, runtime injection, etc.) you can pass the schema straight to `Model({ schema, tableName })` instead of attaching it to the connector. The behaviour is identical; the explicit `schema:` prop wins when both forms are present, so you can override the connector's typing at the Model boundary.
+
+```ts
+class User extends Model({
+  schema: dbSchema,
+  tableName: 'users',
+  connector,                            // optional — receives the schema separately
+}) {}
+```
+
 The legacy `init`-driven form stays available for cases where the row shape doesn't map to a single declared schema (e.g. when validators from a third-party library — `@next-model/zod`, `@next-model/typebox`, `@next-model/arktype` — provide both `init` and the column list).
+
+### Interface-generic props
+
+If you already have a TypeScript type for the row shape — generated from an OpenAPI spec, an inferred `z.infer<typeof userSchema>`, a hand-written interface, etc. — you can pass it as the generic argument to `Model<...>({...})` and skip the `init` callback entirely. `init` defaults to identity, so the props passed to `create` / `build` flow straight through to the connector.
+
+```ts
+import { Model } from '@next-model/core';
+
+interface UserProps {
+  email: string;
+  name: string;
+  archivedAt: Date | null;
+}
+
+class User extends Model<UserProps>({
+  tableName: 'users',
+  // No init needed — defaults to identity. Props are typed via the generic.
+}) {}
+
+const u = await User.create({ email: 'a@b', name: 'Ada', archivedAt: null });
+// TypeScript knows: u.email is string, u.archivedAt is Date | null.
+```
+
+Compared to `defineSchema(...)`:
+
+- Lighter weight — no runtime `defineSchema` call, no runtime `TableDefinition`.
+- Less powerful — interfaces carry no runtime info (no default values, no nullability hints beyond `T | null`), so the generated tooling that reads `TableDefinition` (migrations, schema snapshots, etc.) can't see this Model.
+- Best fit when you already have a TS type from elsewhere and don't need the schema's runtime metadata.
+
+You can still pass `init` to transform incoming props — the generic types its parameter for you:
+
+```ts
+class User extends Model<UserProps>({
+  tableName: 'users',
+  init: (p) => ({ ...p, email: p.email.toLowerCase() }),  // p is typed as UserProps
+}) {}
+```
+
+### Schema generation
+
+You don't have to hand-write `defineSchema(...)` calls. Two pipelines emit them for you:
+
+#### From migrations
+
+`@next-model/migrations`' `Migrator` writes a typed-schema TS file after every successful `migrate()` run when the connector is wrapped in `SchemaCollector`:
+
+```ts
+import { Migrator, SchemaCollector } from '@next-model/migrations';
+import { SqliteConnector } from '@next-model/sqlite-connector';
+
+const collector = new SchemaCollector(new SqliteConnector(':memory:'));
+const migrator = new Migrator({
+  connector: collector,
+  schemaOutputPath: './src/generated/schema.ts',
+});
+
+await migrator.migrate(allMigrations);
+// → ./src/generated/schema.ts now contains a single multi-table schema:
+//   export const schema = defineSchema({
+//     users: { columns: {...} },
+//     posts: { columns: {...} },
+//   });
+```
+
+Import the generated `schema` and attach it to your connector — `new SqliteConnector(':memory:', { schema })` — then declare each Model with `Model({ connector, tableName: 'users' })`.
+
+#### From a live database
+
+`@next-model/migrations-generator`'s `schema-from-db` subcommand reflects the schema of any connector that implements `Connector.reflectSchema?()`:
+
+```sh
+npx nm-generate-migration schema-from-db \
+  --connector ./db-connector.js \
+  --output ./src/schema.ts
+```
+
+The connector module exports a default `Connector` instance (or a `connector` named export, or a factory). The CLI calls `connector.reflectSchema()` and writes the same single multi-table `defineSchema(...)` declaration as the migrator. Bundled support: `@next-model/sqlite-connector` (SQLite reflects via `PRAGMA table_info` + `PRAGMA index_list`); native Postgres / MySQL / MariaDB / Aurora ships in follow-up releases. Memory / Redis / Valkey / Mongo connectors do not implement `reflectSchema` (no canonical schema to reflect).
+
+The runtime helper `generateSchemaSource(tables, options?)` is exported alongside `defineSchema` for ad-hoc emission:
+
+```ts
+import { defineTable, generateSchemaSource } from '@next-model/core';
+
+const usersTable = defineTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true, null: false });
+  t.string('email', { null: false });
+});
+const source = generateSchemaSource([usersTable]);
+// `source` is a parseable .ts module with `import { defineSchema } from
+// '@next-model/core'` + `export const schema = defineSchema({ users: {...} });`.
+```
+
+Pass `{ exportName: 'mySchema' }` to override the binding name.
 
 ### Factory options
 
