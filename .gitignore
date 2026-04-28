@@ -7,3 +7,6 @@ dist
 *.tsbuildinfo
 .pnpm-store
 docs/superpowers/
+
+# AI Tools
+.claude
