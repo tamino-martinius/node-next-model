@@ -42,7 +42,7 @@ describe('post-dispose save', () => {
   it('save() on a held instance after Provider unmount does not throw', async () => {
     const all = await Todo.all();
     const id = (all[0] as any).id;
-    const view = renderHook(() => useModel(Todo as any).find(id), {
+    const view = renderHook(() => useModel(Todo as any).find(id).fetch(), {
       wrapper: wrapWithProvider,
     });
     await waitFor(() => expect(view.result.current.isLoading).toBe(false));

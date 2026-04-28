@@ -1,4 +1,6 @@
 import type { Dict } from '@next-model/core';
+import type { AsyncResult } from './useAsyncTerminal.js';
+import type { WatchResult } from './useWatch.js';
 
 export type TerminalKind =
   | 'build'
@@ -12,6 +14,76 @@ interface ChainStep { method: string; args: unknown[] }
 export interface QueryPlan {
   ModelClass: { tableName: string };
   steps: ChainStep[];
+  terminal?: TerminalKind;
+  terminalArgs?: unknown[];
+}
+
+/**
+ * A pending query that has not yet invoked a React hook.
+ * Call `.fetch()` for a one-shot async result or `.watch()` for a live subscription.
+ */
+export interface PendingResult<T> {
+  fetch(): AsyncResult<T>;
+  watch(options?: { keys?: (string | symbol)[] }): WatchResult<T>;
+}
+
+/**
+ * Extract the instance type from a Model class.
+ * Uses `ReturnType<M['build']>` which is typed as
+ * `InstanceType<M> & PersistentProps & Readonly<keyMap>` by core.
+ */
+export type ModelInstanceType<M extends { build: (props?: any) => any }> =
+  ReturnType<M['build']>;
+
+/**
+ * Extract the create-props type from a Model class.
+ */
+export type ModelCreatePropsType<M> =
+  M extends { build(props: infer P): any } ? P : never;
+
+/**
+ * The full reactive query surface returned by `useModel(ModelClass)`.
+ *
+ * Chain methods return the same builder, preserving the surface.
+ * Terminal chain methods (`all`, `find`, etc.) return a `PendingResult<T>` — no hook is
+ * invoked yet. Call `.fetch()` or `.watch()` on the result to invoke a hook.
+ *
+ * Shortcut: `.fetch()` and `.watch()` on the root query default to `'all'`.
+ */
+export interface ReactiveModelQuery<I, P> {
+  // chain methods
+  filterBy(filter: Partial<P> | object): ReactiveModelQuery<I, P>;
+  where(...args: unknown[]): ReactiveModelQuery<I, P>;
+  orderBy(...args: unknown[]): ReactiveModelQuery<I, P>;
+  limit(n: number): ReactiveModelQuery<I, P>;
+  skip(n: number): ReactiveModelQuery<I, P>;
+  joins(...names: string[]): ReactiveModelQuery<I, P>;
+  includes(...args: unknown[]): ReactiveModelQuery<I, P>;
+  withoutIncludes(): ReactiveModelQuery<I, P>;
+  whereMissing(name: string): ReactiveModelQuery<I, P>;
+  none(): ReactiveModelQuery<I, P>;
+
+  // sync terminal — stable shell with .reset(props?)
+  build(props?: Partial<P>): I & { reset(props?: Partial<P>): void };
+
+  // chain terminals (record terminal in plan, return Pending — no hooks)
+  all(): PendingResult<I[]>;
+  find(pk: string | number): PendingResult<I | undefined>;
+  findBy(filter: Partial<P> | object): PendingResult<I | undefined>;
+  first(): PendingResult<I | undefined>;
+  last(): PendingResult<I | undefined>;
+  findOrFail(pk: string | number): PendingResult<I>;
+  count(): PendingResult<number>;
+  sum(col: string): PendingResult<number | undefined>;
+  min(col: string): PendingResult<number | undefined>;
+  max(col: string): PendingResult<number | undefined>;
+  avg(col: string): PendingResult<number | undefined>;
+  pluck(col: string): PendingResult<unknown[]>;
+  exists(): PendingResult<boolean>;
+
+  // shortcut: implicit-all .fetch() / .watch()
+  fetch(): AsyncResult<I[]>;
+  watch(options?: { keys?: (string | symbol)[] }): WatchResult<I[]>;
 }
 
 export class ReactiveQuery<M extends { tableName: string }> {

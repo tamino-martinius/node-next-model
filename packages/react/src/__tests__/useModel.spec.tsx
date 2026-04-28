@@ -51,7 +51,7 @@ describe('useModel().build()', () => {
 describe('useModel async terminals', () => {
   it('.all returns { data, isLoading, error }', async () => {
     await Todo.create({ title: 'A', done: false });
-    const { result } = renderHook(() => useModel(Todo as any).all(), {
+    const { result } = renderHook(() => useModel(Todo as any).all().fetch(), {
       wrapper: wrapWithProvider,
     });
     expect(result.current.isLoading).toBe(true);
@@ -63,7 +63,7 @@ describe('useModel async terminals', () => {
   it('.find returns one record', async () => {
     const created = await Todo.create({ title: 'X', done: false });
     const id = (created as any).id;
-    const { result } = renderHook(() => useModel(Todo as any).find(id), {
+    const { result } = renderHook(() => useModel(Todo as any).find(id).fetch(), {
       wrapper: wrapWithProvider,
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -71,7 +71,7 @@ describe('useModel async terminals', () => {
   });
 
   it('.count returns number', async () => {
-    const { result } = renderHook(() => useModel(Todo as any).count(), {
+    const { result } = renderHook(() => useModel(Todo as any).count().fetch(), {
       wrapper: wrapWithProvider,
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -81,7 +81,7 @@ describe('useModel async terminals', () => {
   it('.filterBy(...).all() works (chain through HookQuery)', async () => {
     await Todo.create({ title: 'M', done: true });
     const { result } = renderHook(
-      () => useModel(Todo as any).filterBy({ done: true }).all(),
+      () => useModel(Todo as any).filterBy({ done: true }).all().fetch(),
       { wrapper: wrapWithProvider },
     );
     await waitFor(() => expect(result.current.isLoading).toBe(false));

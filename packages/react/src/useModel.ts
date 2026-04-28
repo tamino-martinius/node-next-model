@@ -1,17 +1,12 @@
 import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { useStore } from './Provider.js';
-import { ReactiveQuery, type TerminalKind } from './ReactiveQuery.js';
+import { ReactiveQuery, type TerminalKind, type ReactiveModelQuery, type ModelInstanceType, type ModelCreatePropsType } from './ReactiveQuery.js';
 import { wrapInstance } from './ReactiveInstance.js';
 import { emitterFor, tagStore } from './instanceState.js';
-import { useAsyncTerminal, type AsyncResult } from './useAsyncTerminal.js';
-import { useWatch, type WatchResult } from './useWatch.js';
+import { useAsyncTerminal } from './useAsyncTerminal.js';
+import { useWatch } from './useWatch.js';
 
-type ModelStatic<P> = {
-  tableName: string;
-  build(props?: Partial<P>): object;
-};
-
-const TERMINALS: Array<[string, TerminalKind]> = [
+const PENDING_TERMINALS: Array<[string, TerminalKind]> = [
   ['all', 'all'], ['first', 'first'], ['last', 'last'],
   ['find', 'find'], ['findBy', 'findBy'], ['findOrFail', 'findOrFail'],
   ['count', 'count'], ['sum', 'sum'], ['min', 'min'], ['max', 'max'], ['avg', 'avg'],
@@ -27,71 +22,87 @@ class HookQuery<M extends { tableName: string }> extends ReactiveQuery<M> {
   constructor(plan: ConstructorParameters<typeof ReactiveQuery>[0]) { super(plan); }
 }
 
-function attachTerminals(query: HookQuery<{ tableName: string }>) {
-  for (const [name, kind] of TERMINALS) {
-    Object.defineProperty(query, name, {
-      configurable: true,
-      value: (...args: unknown[]) => useAsyncTerminal(query, kind, args),
-    });
-  }
-}
-
-function attachWatch(query: HookQuery<{ tableName: string }>) {
+/**
+ * Attaches `.fetch()` and `.watch()` to a query.
+ * Uses the plan's `terminal`/`terminalArgs` if set, defaulting to `'all'`.
+ */
+function attachFetchAndWatch(query: HookQuery<{ tableName: string }>) {
+  Object.defineProperty(query, 'fetch', {
+    configurable: true,
+    value: () => {
+      const terminal = query.plan.terminal ?? 'all';
+      const terminalArgs = query.plan.terminalArgs ?? [];
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      return useAsyncTerminal(query, terminal, terminalArgs);
+    },
+  });
   Object.defineProperty(query, 'watch', {
     configurable: true,
-    value: (options: { keys?: (string | symbol)[] } = {}) =>
-      useWatch(query, 'all', [], options),
-  });
-  Object.defineProperty(query, 'findWatch', {
-    configurable: true,
-    value: (pk: unknown, options: { keys?: (string | symbol)[] } = {}) =>
-      useWatch(query, 'find', [pk], options),
-  });
-  Object.defineProperty(query, 'findByWatch', {
-    configurable: true,
-    value: (filter: unknown, options: { keys?: (string | symbol)[] } = {}) =>
-      useWatch(query, 'findBy', [filter], options),
-  });
-  Object.defineProperty(query, 'firstWatch', {
-    configurable: true,
-    value: (options: { keys?: (string | symbol)[] } = {}) =>
-      useWatch(query, 'first', [], options),
-  });
-  Object.defineProperty(query, 'lastWatch', {
-    configurable: true,
-    value: (options: { keys?: (string | symbol)[] } = {}) =>
-      useWatch(query, 'last', [], options),
+    value: (options: { keys?: (string | symbol)[] } = {}) => {
+      const terminal = query.plan.terminal ?? 'all';
+      const terminalArgs = query.plan.terminalArgs ?? [];
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      return useWatch(query, terminal, terminalArgs, options);
+    },
   });
 }
 
-function attachChain(query: HookQuery<{ tableName: string }>) {
-  for (const m of CHAIN_METHODS) {
-    const original = (query as any)[m].bind(query);
-    Object.defineProperty(query, m, {
+/**
+ * Attaches terminal chain methods (all, find, findBy, etc.) to a query.
+ * Each terminal method returns a NEW HookQuery with the terminal recorded in the plan,
+ * and with `.fetch()` / `.watch()` attached — no hook is invoked yet.
+ */
+function attachPendingTerminals(query: HookQuery<{ tableName: string }>) {
+  for (const [name, kind] of PENDING_TERMINALS) {
+    Object.defineProperty(query, name, {
       configurable: true,
       value: (...args: unknown[]) => {
-        const next = original(...args) as ReactiveQuery<{ tableName: string }>;
-        // Re-cast as HookQuery and attach the surface so chained calls keep terminals
-        Object.setPrototypeOf(next, HookQuery.prototype);
-        attachTerminals(next as HookQuery<{ tableName: string }>);
-        attachChain(next as HookQuery<{ tableName: string }>);
-        attachWatch(next as HookQuery<{ tableName: string }>);
+        const next = new HookQuery<{ tableName: string }>({
+          ModelClass: query.plan.ModelClass,
+          steps: query.plan.steps,
+          terminal: kind,
+          terminalArgs: args,
+        });
+        attachFetchAndWatch(next);
         return next;
       },
     });
   }
 }
 
-export function useModel<P, M extends ModelStatic<P>>(ModelClass: M) {
+/**
+ * Attaches chain methods (filterBy, where, etc.) to a query.
+ * Each chain method returns a new query with the full surface re-attached.
+ */
+function attachChain(query: HookQuery<{ tableName: string }>) {
+  for (const m of CHAIN_METHODS) {
+    const original = (query as any)[m].bind(query);
+    Object.defineProperty(query, m, {
+      configurable: true,
+      value: (...args: unknown[]) => {
+        const next = original(...args) as HookQuery<{ tableName: string }>;
+        Object.setPrototypeOf(next, HookQuery.prototype);
+        attachPendingTerminals(next);
+        attachChain(next);
+        attachFetchAndWatch(next);
+        return next;
+      },
+    });
+  }
+}
+
+export function useModel<M extends { tableName: string; build: (props?: any) => any }>(
+  ModelClass: M,
+): ReactiveModelQuery<ModelInstanceType<M>, ModelCreatePropsType<M>> {
   const store = useStore();
   const query = useMemo(() => new HookQuery<M>({ ModelClass, steps: [] }), [ModelClass]);
   const buildShellRef = useRef<{ instance: object; shell: object } | null>(null);
 
   Object.defineProperty(query, 'build', {
     configurable: true,
-    value: (props?: Partial<P>) => {
+    value: (props?: ModelCreatePropsType<M>) => {
       if (!buildShellRef.current) {
-        const instance = (ModelClass as ModelStatic<P>).build(props);
+        const instance = (ModelClass as { build: (props?: any) => object }).build(props);
         tagStore(instance, store);
         const shell = wrapInstance(instance, { resettable: true });
         buildShellRef.current = { instance, shell };
@@ -107,29 +118,9 @@ export function useModel<P, M extends ModelStatic<P>>(ModelClass: M) {
     },
   });
 
-  attachTerminals(query);
+  attachPendingTerminals(query);
   attachChain(query);
-  attachWatch(query);
+  attachFetchAndWatch(query);
 
-  return query as HookQuery<M> & {
-    build(props?: Partial<P>): unknown;
-    all(): AsyncResult<unknown[]>;
-    find(pk: unknown): AsyncResult<unknown>;
-    findBy(filter: unknown): AsyncResult<unknown>;
-    findOrFail(pk: unknown): AsyncResult<unknown>;
-    first(): AsyncResult<unknown>;
-    last(): AsyncResult<unknown>;
-    count(): AsyncResult<number>;
-    sum(col: string): AsyncResult<number | undefined>;
-    min(col: string): AsyncResult<number | undefined>;
-    max(col: string): AsyncResult<number | undefined>;
-    avg(col: string): AsyncResult<number | undefined>;
-    pluck(col: string): AsyncResult<unknown[]>;
-    exists(): AsyncResult<boolean>;
-    watch(options?: { keys?: (string | symbol)[] }): WatchResult<unknown[]>;
-    findWatch(pk: unknown, options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
-    findByWatch(filter: unknown, options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
-    firstWatch(options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
-    lastWatch(options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
-  };
+  return query as unknown as ReactiveModelQuery<ModelInstanceType<M>, ModelCreatePropsType<M>>;
 }

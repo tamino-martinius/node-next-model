@@ -380,6 +380,9 @@ importers:
       '@next-model/local-storage-connector':
         specifier: workspace:*
         version: link:../../../packages/local-storage-connector
+      '@next-model/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
       react:
         specifier: ^19.0.0
         version: 19.2.5

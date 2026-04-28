@@ -1,14 +1,16 @@
-import { useInvalidateKeys, useModel } from '@next-model/react';
+import { useInvalidateKeys, useModel, type ModelInstanceType } from '@next-model/react';
 import { useState } from 'react';
 import { Task, User } from './db.js';
+
+type UserInstance = ModelInstanceType<typeof User>;
 
 export function App() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const users = useModel(User).orderBy({ key: 'id' }).watch({ keys: ['users'] });
   if (users.isLoading) return <p>loading users…</p>;
 
-  const userList = users.data as InstanceType<typeof User>[];
-  const activeId = currentUserId ?? (userList[0] as { id?: number } | undefined)?.id ?? null;
+  const userList = users.data;
+  const activeId = currentUserId ?? userList[0]?.id ?? null;
 
   return (
     <>
@@ -24,7 +26,7 @@ function UserList({
   activeId,
   onSelect,
 }: {
-  users: InstanceType<typeof User>[];
+  users: UserInstance[];
   activeId: number | null;
   onSelect: (id: number) => void;
 }) {
@@ -34,24 +36,22 @@ function UserList({
     <section className="users">
       <h2>users</h2>
       <ul className="user-list">
-        {users.map((u) => {
-          const id = (u as unknown as { id: number }).id;
-          const name = (u as unknown as { name: string }).name;
-          return (
-            <li key={id} className={id === activeId ? 'active' : undefined}>
-              <button type="button" className="user-name" onClick={() => onSelect(id)}>{name}</button>
-              <button
-                type="button"
-                onClick={async () => {
-                  await Task.filterBy({ userId: id }).deleteAll();
-                  await u.delete();
-                  invalidate(['users']);
-                }}
-                title="delete user"
-              >×</button>
-            </li>
-          );
-        })}
+        {users.map((u) => (
+          <li key={u.id} className={u.id === activeId ? 'active' : undefined}>
+            <button type="button" className="user-name" onClick={() => onSelect(u.id)}>
+              {u.name}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await Task.filterBy({ userId: u.id }).deleteAll();
+                await u.delete();
+                invalidate(['users']);
+              }}
+              title="delete user"
+            >×</button>
+          </li>
+        ))}
       </ul>
       <form
         onSubmit={async (e) => {
@@ -82,37 +82,28 @@ function Tasks({ userId }: { userId: number }) {
   const newTask = useModel(Task).build({ userId, done: false, text: '' });
   const invalidate = useInvalidateKeys();
   if (tasks.isLoading) return <p>loading tasks…</p>;
-  const taskList = tasks.data as InstanceType<typeof Task>[];
   return (
     <section className="tasks">
       <h2>tasks</h2>
       <ul className="task-list">
-        {taskList.map((t) => {
-          const id = (t as unknown as { id: number }).id;
-          const text = (t as unknown as { text: string }).text;
-          const done = (t as unknown as { done: boolean }).done;
-          return (
-            <li key={id} className={done ? 'done' : undefined}>
-              <input
-                type="checkbox"
-                checked={done}
-                onChange={async () => {
-                  (t as unknown as { done: boolean }).done = !done;
-                  await t.save();
-                }}
-              />
-              <span className="task-text">{text}</span>
-              <button
-                type="button"
-                onClick={async () => {
-                  await t.delete();
-                  invalidate([`tasks-user:${userId}`]);
-                }}
-                title="delete task"
-              >×</button>
-            </li>
-          );
-        })}
+        {tasks.data.map((t) => (
+          <li key={t.id} className={t.done ? 'done' : undefined}>
+            <input
+              type="checkbox"
+              checked={t.done}
+              onChange={async () => { t.done = !t.done; await t.save(); }}
+            />
+            <span className="task-text">{t.text}</span>
+            <button
+              type="button"
+              onClick={async () => {
+                await t.delete();
+                invalidate([`tasks-user:${userId}`]);
+              }}
+              title="delete task"
+            >×</button>
+          </li>
+        ))}
       </ul>
       <form
         onSubmit={async (e) => {
