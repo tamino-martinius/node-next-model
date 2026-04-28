@@ -948,6 +948,550 @@ describe('KnexConnector#reflectSchema dispatch by client', () => {
   });
 });
 
+/**
+ * The pg / mysql / mariadb reflectSchema branches only execute against real
+ * databases in the `test-knex-real-db` matrix — they never run in the
+ * SQLite-only in-process suite. To keep coverage thresholds met without
+ * standing up a real Postgres / MySQL service, we stub `knex.raw` and pin
+ * `client.config.client` to drive the dialect dispatch and exercise every
+ * branch (column kind mapping, default parsing, pk + unique handling,
+ * multi-column indexes, primary-key + constraint skipping, etc).
+ */
+type StubResponse = unknown;
+
+interface StubCall {
+  sql: string;
+  bindings: unknown[];
+}
+
+function makeStubConnector(client: 'pg' | 'mysql2'): {
+  connector: KnexConnector;
+  enqueue: (responses: StubResponse[]) => void;
+  calls: StubCall[];
+  destroy: () => Promise<void>;
+} {
+  // Use a real (sqlite3) Knex instance so the constructor works, then
+  // overwrite `client.config.client` and stub `raw` so reflectSchema can
+  // never reach a real driver.
+  const connector = new KnexConnector({
+    client: 'sqlite3',
+    connection: { filename: ':memory:' },
+    useNullAsDefault: true,
+  });
+  (connector.knex.client.config as { client: string }).client = client;
+  const queue: StubResponse[] = [];
+  const calls: StubCall[] = [];
+  const stub: any = (sql: string, bindings: unknown[] = []) => {
+    calls.push({ sql, bindings });
+    if (queue.length === 0) {
+      throw new Error(
+        `Stub knex.raw exhausted while answering: ${sql.replace(/\s+/g, ' ').trim().slice(0, 80)}`,
+      );
+    }
+    const next = queue.shift();
+    return Promise.resolve(next);
+  };
+  // `knex.raw` is a non-writable property on the knex builder, so we have
+  // to redefine it. executeRaw routes everything through this surface.
+  Object.defineProperty(connector.knex, 'raw', {
+    configurable: true,
+    writable: true,
+    value: stub,
+  });
+  return {
+    connector,
+    enqueue: (responses) => {
+      queue.push(...responses);
+    },
+    calls,
+    destroy: () => connector.knex.destroy(),
+  };
+}
+
+describe('KnexConnector#reflectSchema (pg, stubbed)', () => {
+  it('reflects columns + indexes + primary key with pg-shaped responses', async () => {
+    const { connector, enqueue, destroy, calls } = makeStubConnector('pg');
+    try {
+      enqueue([
+        // tablesRaw
+        { rows: [{ table_name: 'users' }] },
+        // colsRaw — exercise integer/string/text/boolean/decimal/etc.
+        {
+          rows: [
+            {
+              column_name: 'id',
+              data_type: 'integer',
+              udt_name: 'int4',
+              is_nullable: 'NO',
+              column_default: "nextval('users_id_seq'::regclass)",
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 1,
+            },
+            {
+              column_name: 'email',
+              data_type: 'character varying',
+              udt_name: 'varchar',
+              is_nullable: 'NO',
+              column_default: null,
+              character_maximum_length: 320,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 2,
+            },
+            {
+              column_name: 'bio',
+              data_type: 'text',
+              udt_name: 'text',
+              is_nullable: 'YES',
+              column_default: "'hi'::text",
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 3,
+            },
+            {
+              column_name: 'active',
+              data_type: 'boolean',
+              udt_name: 'bool',
+              is_nullable: 'NO',
+              column_default: 'true',
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 4,
+            },
+            {
+              column_name: 'price',
+              data_type: 'numeric',
+              udt_name: 'numeric',
+              is_nullable: 'YES',
+              column_default: '0',
+              character_maximum_length: null,
+              numeric_precision: 10,
+              numeric_scale: 2,
+              ordinal_position: 5,
+            },
+            {
+              column_name: 'createdAt',
+              data_type: 'timestamp without time zone',
+              udt_name: 'timestamp',
+              is_nullable: 'YES',
+              column_default: 'CURRENT_TIMESTAMP',
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 6,
+            },
+          ],
+        },
+        // pkRaw
+        { rows: [{ column_name: 'id' }] },
+        // uniqueRaw — single-column unique on email
+        { rows: [{ column_name: 'email' }] },
+        // idxRaw — primary, unique constraint on email, multi-col user index,
+        // multi-col unique constraint (the bug-fix path)
+        {
+          rows: [
+            {
+              index_name: 'users_pkey',
+              is_unique: true,
+              is_primary: true,
+              column_name: 'id',
+              ord: 1,
+              contype: 'p',
+            },
+            {
+              index_name: 'users_email_key',
+              is_unique: true,
+              is_primary: false,
+              column_name: 'email',
+              ord: 1,
+              contype: 'u',
+            },
+            {
+              index_name: 'idx_users_active_price',
+              is_unique: false,
+              is_primary: false,
+              column_name: 'active',
+              ord: 1,
+              contype: '',
+            },
+            {
+              index_name: 'idx_users_active_price',
+              is_unique: false,
+              is_primary: false,
+              column_name: 'price',
+              ord: 2,
+              contype: '',
+            },
+            {
+              index_name: 'idx_users_email_active',
+              is_unique: true,
+              is_primary: false,
+              column_name: 'email',
+              ord: 1,
+              contype: 'u',
+            },
+            {
+              index_name: 'idx_users_email_active',
+              is_unique: true,
+              is_primary: false,
+              column_name: 'active',
+              ord: 2,
+              contype: 'u',
+            },
+          ],
+        },
+      ]);
+      const reflected = await connector.reflectSchema!();
+      expect(calls.length).toBe(5);
+      expect(reflected).toHaveLength(1);
+      const t = reflected[0];
+      expect(t.name).toBe('users');
+      expect(t.primaryKey).toBe('id');
+      // Columns
+      const id = t.columns.find((c) => c.name === 'id')!;
+      expect(id.primary).toBe(true);
+      expect(id.autoIncrement).toBe(true);
+      expect(id.type).toBe('integer');
+      // autoIncrement columns drop their nextval default
+      expect(id.default).toBeUndefined();
+      const email = t.columns.find((c) => c.name === 'email')!;
+      expect(email.unique).toBe(true);
+      expect(email.limit).toBe(320);
+      const bio = t.columns.find((c) => c.name === 'bio')!;
+      expect(bio.type).toBe('text');
+      expect(bio.default).toBe('hi');
+      const active = t.columns.find((c) => c.name === 'active')!;
+      expect(active.type).toBe('boolean');
+      expect(active.default).toBe(true);
+      const price = t.columns.find((c) => c.name === 'price')!;
+      expect(price.type).toBe('decimal');
+      expect(price.precision).toBe(10);
+      expect(price.scale).toBe(2);
+      expect(price.default).toBe(0);
+      const createdAt = t.columns.find((c) => c.name === 'createdAt')!;
+      expect(createdAt.type).toBe('timestamp');
+      expect(createdAt.default).toBe('currentTimestamp');
+      // Indexes — primary skipped, single-col unique skipped, multi-col
+      // user index kept, multi-col UNIQUE constraint kept (the regression
+      // we just fixed).
+      const idxNames = t.indexes.map((i) => i.name).sort();
+      expect(idxNames).toEqual(['idx_users_active_price', 'idx_users_email_active']);
+      const compoundUnique = t.indexes.find((i) => i.name === 'idx_users_email_active')!;
+      expect(compoundUnique.unique).toBe(true);
+      expect(compoundUnique.columns).toEqual(['email', 'active']);
+      const compoundNonUnique = t.indexes.find((i) => i.name === 'idx_users_active_price')!;
+      expect(compoundNonUnique.unique).toBe(false);
+      expect(compoundNonUnique.columns).toEqual(['active', 'price']);
+    } finally {
+      await destroy();
+    }
+  });
+
+  it('handles tables without indexes or pk metadata', async () => {
+    const { connector, enqueue, destroy } = makeStubConnector('pg');
+    try {
+      enqueue([
+        { rows: [{ table_name: 'logs' }] },
+        {
+          rows: [
+            {
+              column_name: 'data',
+              data_type: 'jsonb',
+              udt_name: 'jsonb',
+              is_nullable: 'YES',
+              column_default: null,
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 1,
+            },
+            {
+              column_name: 'count',
+              data_type: 'bigint',
+              udt_name: 'int8',
+              is_nullable: 'YES',
+              column_default: '42',
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 2,
+            },
+            {
+              column_name: 'kind',
+              data_type: 'USER-DEFINED',
+              udt_name: 'log_kind',
+              is_nullable: 'YES',
+              column_default: null,
+              character_maximum_length: null,
+              numeric_precision: null,
+              numeric_scale: null,
+              ordinal_position: 3,
+            },
+          ],
+        },
+        { rows: [] },
+        { rows: [] },
+        { rows: [] },
+      ]);
+      const reflected = await connector.reflectSchema!();
+      expect(reflected).toHaveLength(1);
+      expect(reflected[0].primaryKey).toBeUndefined();
+      const data = reflected[0].columns.find((c) => c.name === 'data')!;
+      expect(data.type).toBe('json');
+      const count = reflected[0].columns.find((c) => c.name === 'count')!;
+      expect(count.type).toBe('bigint');
+      expect(count.default).toBe(42);
+      // Unknown udt falls through to text
+      const kind = reflected[0].columns.find((c) => c.name === 'kind')!;
+      expect(kind.type).toBe('text');
+    } finally {
+      await destroy();
+    }
+  });
+});
+
+describe('KnexConnector#reflectSchema (mysql, stubbed)', () => {
+  it('reflects columns + indexes with mysql-shaped responses', async () => {
+    const { connector, enqueue, destroy } = makeStubConnector('mysql2');
+    try {
+      // mysql2 returns [rows, fields] — wrap each canned response in `[ rows ]`.
+      enqueue([
+        [[{ TABLE_NAME: 'users' }]],
+        [
+          [
+            {
+              COLUMN_NAME: 'id',
+              DATA_TYPE: 'int',
+              COLUMN_TYPE: 'int(11)',
+              IS_NULLABLE: 'NO',
+              COLUMN_DEFAULT: null,
+              COLUMN_KEY: 'PRI',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: 10,
+              NUMERIC_SCALE: 0,
+              EXTRA: 'auto_increment',
+            },
+            {
+              COLUMN_NAME: 'email',
+              DATA_TYPE: 'varchar',
+              COLUMN_TYPE: 'varchar(320)',
+              IS_NULLABLE: 'NO',
+              COLUMN_DEFAULT: null,
+              COLUMN_KEY: 'UNI',
+              CHARACTER_MAXIMUM_LENGTH: 320,
+              NUMERIC_PRECISION: null,
+              NUMERIC_SCALE: null,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'isAdmin',
+              DATA_TYPE: 'tinyint',
+              COLUMN_TYPE: 'tinyint(1)',
+              IS_NULLABLE: 'NO',
+              COLUMN_DEFAULT: '0',
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: 3,
+              NUMERIC_SCALE: 0,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'bio',
+              DATA_TYPE: 'text',
+              COLUMN_TYPE: 'text',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: "'hi'",
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: 65535,
+              NUMERIC_PRECISION: null,
+              NUMERIC_SCALE: null,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'price',
+              DATA_TYPE: 'decimal',
+              COLUMN_TYPE: 'decimal(10,2)',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: '1.5',
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: 10,
+              NUMERIC_SCALE: 2,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'createdAt',
+              DATA_TYPE: 'timestamp',
+              COLUMN_TYPE: 'timestamp',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: 'CURRENT_TIMESTAMP',
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: null,
+              NUMERIC_SCALE: null,
+              EXTRA: 'DEFAULT_GENERATED',
+            },
+          ],
+        ],
+        [
+          [
+            {
+              INDEX_NAME: 'PRIMARY',
+              NON_UNIQUE: 0,
+              COLUMN_NAME: 'id',
+              SEQ_IN_INDEX: 1,
+            },
+            {
+              INDEX_NAME: 'email_unique',
+              NON_UNIQUE: 0,
+              COLUMN_NAME: 'email',
+              SEQ_IN_INDEX: 1,
+            },
+            {
+              INDEX_NAME: 'idx_email_isAdmin',
+              NON_UNIQUE: 1,
+              COLUMN_NAME: 'email',
+              SEQ_IN_INDEX: 1,
+            },
+            {
+              INDEX_NAME: 'idx_email_isAdmin',
+              NON_UNIQUE: 1,
+              COLUMN_NAME: 'isAdmin',
+              SEQ_IN_INDEX: 2,
+            },
+          ],
+        ],
+      ]);
+      const reflected = await connector.reflectSchema!();
+      expect(reflected).toHaveLength(1);
+      const t = reflected[0];
+      expect(t.name).toBe('users');
+      expect(t.primaryKey).toBe('id');
+      const id = t.columns.find((c) => c.name === 'id')!;
+      expect(id.primary).toBe(true);
+      expect(id.autoIncrement).toBe(true);
+      const email = t.columns.find((c) => c.name === 'email')!;
+      expect(email.unique).toBe(true);
+      expect(email.limit).toBe(320);
+      // tinyint(1) -> boolean
+      const isAdmin = t.columns.find((c) => c.name === 'isAdmin')!;
+      expect(isAdmin.type).toBe('boolean');
+      expect(isAdmin.default).toBe(false);
+      const bio = t.columns.find((c) => c.name === 'bio')!;
+      expect(bio.type).toBe('text');
+      expect(bio.default).toBe('hi');
+      const price = t.columns.find((c) => c.name === 'price')!;
+      expect(price.type).toBe('decimal');
+      expect(price.precision).toBe(10);
+      expect(price.scale).toBe(2);
+      expect(price.default).toBe(1.5);
+      // DEFAULT_GENERATED with empty default → undefined
+      const createdAt = t.columns.find((c) => c.name === 'createdAt')!;
+      expect(createdAt.type).toBe('timestamp');
+      expect(createdAt.default).toBe('currentTimestamp');
+      // Indexes: PRIMARY skipped, single-col unique pulled to column flag,
+      // composite kept.
+      expect(t.indexes).toHaveLength(1);
+      const composite = t.indexes[0];
+      expect(composite.name).toBe('idx_email_isAdmin');
+      expect(composite.columns).toEqual(['email', 'isAdmin']);
+      expect(composite.unique).toBe(false);
+    } finally {
+      await destroy();
+    }
+  });
+
+  it('falls through to text for unknown mysql types', async () => {
+    const { connector, enqueue, destroy } = makeStubConnector('mysql2');
+    try {
+      enqueue([
+        [[{ TABLE_NAME: 'misc' }]],
+        [
+          [
+            {
+              COLUMN_NAME: 'flag',
+              DATA_TYPE: 'enum',
+              COLUMN_TYPE: "enum('a','b')",
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: null,
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: 1,
+              NUMERIC_PRECISION: null,
+              NUMERIC_SCALE: null,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'when',
+              DATA_TYPE: 'date',
+              COLUMN_TYPE: 'date',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: 'NULL',
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: null,
+              NUMERIC_SCALE: null,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'precise',
+              DATA_TYPE: 'double',
+              COLUMN_TYPE: 'double',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: null,
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: 22,
+              NUMERIC_SCALE: null,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'big',
+              DATA_TYPE: 'bigint',
+              COLUMN_TYPE: 'bigint(20)',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: null,
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: 19,
+              NUMERIC_SCALE: 0,
+              EXTRA: '',
+            },
+            {
+              COLUMN_NAME: 'meta',
+              DATA_TYPE: 'json',
+              COLUMN_TYPE: 'json',
+              IS_NULLABLE: 'YES',
+              COLUMN_DEFAULT: null,
+              COLUMN_KEY: '',
+              CHARACTER_MAXIMUM_LENGTH: null,
+              NUMERIC_PRECISION: null,
+              NUMERIC_SCALE: null,
+              EXTRA: '',
+            },
+          ],
+        ],
+        [[]],
+      ]);
+      const reflected = await connector.reflectSchema!();
+      expect(reflected).toHaveLength(1);
+      const cols = reflected[0].columns;
+      expect(cols.find((c) => c.name === 'flag')!.type).toBe('text');
+      expect(cols.find((c) => c.name === 'when')!.type).toBe('date');
+      // 'NULL' default normalises to null
+      expect(cols.find((c) => c.name === 'when')!.default).toBe(null);
+      expect(cols.find((c) => c.name === 'precise')!.type).toBe('float');
+      expect(cols.find((c) => c.name === 'big')!.type).toBe('bigint');
+      expect(cols.find((c) => c.name === 'meta')!.type).toBe('json');
+    } finally {
+      await destroy();
+    }
+  });
+});
+
 runModelConformance({
   name: `KnexConnector (${TEST_CLIENT})`,
   makeConnector: () => connector,
