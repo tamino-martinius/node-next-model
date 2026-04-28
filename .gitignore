@@ -10,3 +10,4 @@ docs/superpowers/
 
 # AI Tools
 .claude
+.playwright-mcp/
