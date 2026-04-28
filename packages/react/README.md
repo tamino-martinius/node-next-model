@@ -35,6 +35,14 @@ The hook return type is `ReactiveModelQuery<I, P>` where `I` is the fully-typed 
 
 `build(props?)` — returns a stable reactive instance. Mutating attributes triggers a rerender. Includes `.reset(props?)` to re-initialise via `Model.init(...)`.
 
+> **`props` are snapshotted on first call.** Like `useState(initial)`, `build()` doesn't track later renders' `props` arguments — that would clobber user input every render. To swap the form's defaults when its context changes (e.g. a per-user form when the active user switches), give the parent component a `key` so React remounts it:
+>
+> ```tsx
+> {activeId != null && <Tasks key={activeId} userId={activeId} />}
+> ```
+>
+> Inside `Tasks`, `useModel(Task).build({ userId, ... })` then re-runs with the new `userId`. Without the `key`, the build shell stays bound to the initial `userId`.
+
 ```tsx
 function NewTaskForm() {
   const todo = useModel(Todo).build({ done: false });

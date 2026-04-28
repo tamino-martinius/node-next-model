@@ -18,7 +18,7 @@ export function App() {
     <>
       <h1>NextModel todo</h1>
       <UserList users={userList} activeId={activeId} onSelect={setCurrentUserId} />
-      {activeId != null && <Tasks userId={activeId} />}
+      {activeId != null && <Tasks key={activeId} userId={activeId} />}
     </>
   );
 }

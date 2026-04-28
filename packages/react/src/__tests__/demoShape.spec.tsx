@@ -117,6 +117,71 @@ describe('demo-shape integration', () => {
     expect(view.getByTestId('list').textContent).toContain('beta');
   });
 
+  it('build() snapshots props on first render — parent must remount with key= to swap context', async () => {
+    // Regression: when <Tasks userId={N}> renders without a `key={N}`, the
+    // build shell created on first mount caches userId=initial, so saves
+    // under a switched user end up persisted with the WRONG userId.
+    const drafts: Record<number, any> = {};
+    function Tasks({ userId }: { userId: number }) {
+      const draft = useModel(Todo as any).build({ userId, done: false, text: '' }) as any;
+      drafts[userId] = draft;
+      return <div data-testid={`form-user-${userId}`} />;
+    }
+
+    function App({ userId }: { userId: number }) {
+      // Without key — same Tasks instance reused, build snapshot persists.
+      return <Tasks userId={userId} />;
+    }
+
+    const { rerender } = render(
+      <NextModelProvider>
+        <App userId={1} />
+      </NextModelProvider>,
+    );
+    expect(drafts[1].attributes.userId).toBe(1);
+
+    rerender(
+      <NextModelProvider>
+        <App userId={2} />
+      </NextModelProvider>,
+    );
+    // Without key, the same shell is reused — userId is still the snapshotted
+    // initial value (1), NOT the new prop (2). This is by-design (build is
+    // stable across renders); demos must use `key={userId}` to opt into a
+    // remount when the form's context changes.
+    expect(drafts[2].attributes.userId).toBe(1);
+  });
+
+  it('build() with parent key= remounts and picks up new userId', async () => {
+    const drafts: Record<number, any> = {};
+    function Tasks({ userId }: { userId: number }) {
+      const draft = useModel(Todo as any).build({ userId, done: false, text: '' }) as any;
+      drafts[userId] = draft;
+      return <div data-testid={`form-user-${userId}`} />;
+    }
+
+    function App({ userId }: { userId: number }) {
+      return <Tasks key={userId} userId={userId} />;
+    }
+
+    const { rerender } = render(
+      <NextModelProvider>
+        <App userId={1} />
+      </NextModelProvider>,
+    );
+    expect(drafts[1].attributes.userId).toBe(1);
+
+    rerender(
+      <NextModelProvider>
+        <App userId={2} />
+      </NextModelProvider>,
+    );
+    // With key= the previous Tasks unmounts, a fresh Tasks mounts, and build
+    // re-runs with userId=2. New shell, fresh userId.
+    expect(drafts[2].attributes.userId).toBe(2);
+    expect(drafts[1]).not.toBe(drafts[2]);
+  });
+
   it('parent watch updates in-place when child toggles + saves', async () => {
     function Parent() {
       const list = useModel(Todo as any)

@@ -1,0 +1,27 @@
+- generic [ref=e2]:
+  - heading "NextModel todo" [level=1] [ref=e3]
+  - generic [ref=e4]:
+    - heading "users" [level=2] [ref=e5]
+    - list [ref=e6]:
+      - listitem [ref=e7]:
+        - button "ada" [ref=e8] [cursor=pointer]
+        - button "×" [ref=e9] [cursor=pointer]
+      - listitem [ref=e10]:
+        - button "linus" [ref=e11] [cursor=pointer]
+        - button "×" [ref=e12] [cursor=pointer]
+      - listitem [ref=e13]:
+        - button "dennis" [ref=e14] [cursor=pointer]
+        - button "×" [ref=e15] [cursor=pointer]
+    - generic [ref=e16]:
+      - textbox "add user" [ref=e17]
+      - button "add" [ref=e18] [cursor=pointer]
+  - generic [ref=e19]:
+    - heading "tasks" [level=2] [ref=e20]
+    - list [ref=e24]:
+      - listitem [ref=e25]:
+        - checkbox [ref=e26]
+        - generic [ref=e27]: ada-task-1
+        - button "×" [ref=e28] [cursor=pointer]
+    - generic [ref=e21]:
+      - textbox "add task" [ref=e22]
+      - button "add" [active] [ref=e23] [cursor=pointer]
