@@ -44,6 +44,22 @@ const connector = new DataApiConnector({
 });
 ```
 
+### Attaching a typed schema
+
+Pass an optional `extras: { schema }` as the second arg so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new DataApiConnector({ secretArn, resourceArn, database }, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts

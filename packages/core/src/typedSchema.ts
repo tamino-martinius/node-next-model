@@ -6,7 +6,6 @@ import type {
   TableDefinition,
 } from './schema.js';
 import { type Dict, KeyType } from './types.js';
-import { camelize } from './util.js';
 
 /**
  * Single-column declaration for a typed schema. Mirrors the option shape used
@@ -25,6 +24,12 @@ export interface TypedColumn<K extends ColumnKind = ColumnKind> {
   autoIncrement?: boolean;
 }
 
+/** A single table entry inside a `DatabaseSchema`. */
+export interface TypedTable<C extends Record<string, TypedColumn> = Record<string, TypedColumn>> {
+  columns: C;
+  indexes?: IndexDefinition[];
+}
+
 /** Maps a `ColumnKind` to its TypeScript prop type. */
 export type ColumnTSType<K extends ColumnKind> = K extends 'string' | 'text'
   ? string
@@ -41,45 +46,49 @@ export type ColumnTSType<K extends ColumnKind> = K extends 'string' | 'text'
 /** Apply nullability: `null: true` widens to `T | null`, otherwise leaves `T`. */
 export type ApplyNull<T, Null> = Null extends true ? T | null : T;
 
-/** Derive a column-name → TS-type record from a `TypedColumns` map. */
-export type SchemaProps<C extends Record<string, TypedColumn>> = {
-  [K in keyof C]: ApplyNull<ColumnTSType<C[K]['type']>, C[K]['null']>;
+/**
+ * Derive a column-name → TS-type record for a specific table inside a
+ * multi-table `DatabaseSchema`. Pass the schema and the table key.
+ */
+export type SchemaProps<S extends DatabaseSchema<any>, K extends keyof S['tables'] & string> = {
+  [P in keyof S['tables'][K]['columns']]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
 };
 
-/** Names of columns whose `primary: true`. */
+/** Names of columns whose `primary: true` for a given table. */
 export type SchemaPrimaryKeys<C extends Record<string, TypedColumn>> = {
   [K in keyof C]: C[K]['primary'] extends true ? K : never;
 }[keyof C];
 
 /**
- * Derive the `keys` map: `{ [pk]: KeyType.uuid | KeyType.number }` from the
- * primary columns and their declared type. String / text columns map to
- * `KeyType.uuid`; everything numeric maps to `KeyType.number`.
- *
- * Falls back to `{ id: KeyType.number }` when no primary column is declared
- * — matches the legacy default in the Model factory.
+ * Derive the `keys` map for a table inside a `DatabaseSchema`. String / text
+ * primaries map to `KeyType.uuid`; all other numeric primaries map to
+ * `KeyType.number`. Falls back to `{ id: KeyType.number }` when no primary
+ * column is declared — matches the legacy default in the Model factory.
  */
-export type SchemaKeys<C extends Record<string, TypedColumn>> = [SchemaPrimaryKeys<C>] extends [
-  never,
-]
+export type SchemaKeys<S extends DatabaseSchema<any>, K extends keyof S['tables'] & string> = [
+  SchemaPrimaryKeys<S['tables'][K]['columns']>,
+] extends [never]
   ? { id: KeyType.number }
   : {
-      [K in SchemaPrimaryKeys<C> & string]: C[K]['type'] extends 'string' | 'text'
+      [P in SchemaPrimaryKeys<S['tables'][K]['columns']> &
+        string]: S['tables'][K]['columns'][P]['type'] extends 'string' | 'text'
         ? KeyType.uuid
         : KeyType.number;
     };
 
 /**
- * The runtime representation of a typed schema. Carries both the original
- * column map (used for type inference at the call site) and a fully-baked
- * `TableDefinition` so the same schema can drive `@next-model/migrations`
- * table emission.
+ * The runtime representation of a multi-table typed schema. Carries the raw
+ * per-table column maps (used for type inference at the call site) plus a
+ * record of fully-baked `TableDefinition`s keyed by table name so the schema
+ * can drive `@next-model/migrations` table emission and tooling.
  */
-export interface TypedSchema<C extends Record<string, TypedColumn> = Record<string, TypedColumn>> {
-  readonly tableName: string;
-  readonly columns: C;
-  /** Runtime `TableDefinition` for migration emission. */
-  readonly tableDefinition: TableDefinition;
+export interface DatabaseSchema<T extends Record<string, TypedTable> = Record<string, TypedTable>> {
+  readonly tables: T;
+  /** Per-table runtime `TableDefinition`s for migration / tooling. */
+  readonly tableDefinitions: { [K in keyof T & string]: TableDefinition };
 }
 
 function buildColumnDefinitionFromTyped(name: string, col: TypedColumn): ColumnDefinition {
@@ -97,46 +106,52 @@ function buildColumnDefinitionFromTyped(name: string, col: TypedColumn): ColumnD
   };
 }
 
-/**
- * Define a typed schema for a Model. Pass with `Model({ schema })` to get
- * automatic prop inference and a default identity `init` — `tableName` and
- * `keys` are derived from the schema.
- *
- * Also produces a runtime `TableDefinition` so the schema can be consumed
- * by `@next-model/migrations` as the source of truth for table emission.
- */
-export function defineSchema<const C extends Record<string, TypedColumn>>(spec: {
-  tableName: string;
-  columns: C;
-  indexes?: IndexDefinition[];
-}): TypedSchema<C> {
-  const columnDefs: ColumnDefinition[] = Object.entries(spec.columns).map(([name, col]) =>
-    buildColumnDefinitionFromTyped(name, col as TypedColumn),
+function buildTableDefinition(name: string, table: TypedTable): TableDefinition {
+  const columnDefs: ColumnDefinition[] = Object.entries(table.columns).map(([colName, col]) =>
+    buildColumnDefinitionFromTyped(colName, col as TypedColumn),
   );
   const primary = columnDefs.find((c) => c.primary);
-  const tableDefinition: TableDefinition = {
-    name: spec.tableName,
+  return {
+    name,
     columns: columnDefs,
-    indexes: spec.indexes ?? [],
+    indexes: table.indexes ?? [],
     primaryKey: primary?.name,
   };
+}
+
+/**
+ * Define a typed multi-table database schema. Pass a record keyed by table
+ * name; each entry holds the column map (and optional indexes). TypeScript
+ * derives a precise per-table prop shape from the column types so callers can
+ * say `Model({ connector, tableName: 'users' })` and get inferred props.
+ *
+ * Also produces a runtime `tableDefinitions` map so the schema can be consumed
+ * by `@next-model/migrations` and other tooling as the source of truth for
+ * table emission.
+ */
+export function defineSchema<const T extends Record<string, TypedTable>>(
+  tables: T,
+): DatabaseSchema<T> {
+  const tableDefinitions = {} as { [K in keyof T & string]: TableDefinition };
+  for (const name of Object.keys(tables) as Array<keyof T & string>) {
+    tableDefinitions[name] = buildTableDefinition(name, tables[name]);
+  }
   return {
-    tableName: spec.tableName,
-    columns: spec.columns,
-    tableDefinition,
+    tables,
+    tableDefinitions,
   };
 }
 
 /**
  * Runtime helper used by the Model factory's schema-driven overload to derive
- * the `keys` dict from a `TypedSchema`. Mirrors `SchemaKeys<C>` at the type
- * level: string / text primary columns map to `KeyType.uuid`, all other
- * numeric primary kinds map to `KeyType.number`. Falls back to the legacy
- * default when no primary column is declared.
+ * the `keys` dict from a per-table `TableDefinition`. Mirrors `SchemaKeys` at
+ * the type level: string / text primary columns map to `KeyType.uuid`; all
+ * other numeric primary kinds map to `KeyType.number`. Falls back to the
+ * legacy default when no primary column is declared.
  */
-export function deriveKeysFromSchema(schema: TypedSchema): Dict<KeyType> {
+export function deriveKeysFromTableDefinition(table: TableDefinition): Dict<KeyType> {
   const out: Dict<KeyType> = {};
-  for (const col of schema.tableDefinition.columns) {
+  for (const col of table.columns) {
     if (col.primary) {
       out[col.name] = col.type === 'string' || col.type === 'text' ? KeyType.uuid : KeyType.number;
     }
@@ -157,6 +172,11 @@ export interface GenerateSchemaSourceOptions {
    * "do not edit by hand" notice. Pass an empty string to suppress.
    */
   header?: string;
+  /**
+   * Name of the exported const that holds the `defineSchema(...)` value.
+   * Defaults to `'schema'` (i.e. `export const schema = defineSchema({...})`).
+   */
+  exportName?: string;
 }
 
 /**
@@ -207,16 +227,18 @@ function quoteKey(name: string): string {
 const DEFAULT_HEADER = '// Generated by @next-model/migrations — do not edit by hand.';
 
 /**
- * Emit TypeScript source for a set of `TableDefinition`s as `defineSchema`
- * declarations. The output is a parseable .ts module that re-exports each
- * schema as a named const.
+ * Emit TypeScript source for a set of `TableDefinition`s as a single
+ * multi-table `defineSchema(...)` call, exported under `options.exportName`
+ * (default `schema`). The output is a parseable .ts module.
  *
  * @example
  * generateSchemaSource([usersTable, postsTable])
  * // → `import { defineSchema } from '@next-model/core';
  * //
- * //    export const usersSchema = defineSchema({ ... });
- * //    export const postsSchema = defineSchema({ ... });`
+ * //    export const schema = defineSchema({
+ * //      users: { ... },
+ * //      posts: { ... },
+ * //    });`
  */
 export function generateSchemaSource(
   tables: TableDefinition[],
@@ -224,24 +246,23 @@ export function generateSchemaSource(
 ): string {
   const importPath = options.importPath ?? '@next-model/core';
   const header = options.header ?? DEFAULT_HEADER;
+  const exportName = options.exportName ?? 'schema';
 
-  const blocks: string[] = [];
+  const tableBlocks: string[] = [];
   for (const table of tables) {
-    const constName = `${camelize(table.name)}Schema`;
-    const colLines = table.columns.map((c) => renderColumnLiteral(c, '    '));
+    const colLines = table.columns.map((c) => renderColumnLiteral(c, '      '));
     const lines: string[] = [];
-    lines.push(`export const ${constName} = defineSchema({`);
-    lines.push(`  tableName: ${JSON.stringify(table.name)},`);
-    lines.push(`  columns: {`);
+    lines.push(`  ${quoteKey(table.name)}: {`);
+    lines.push(`    columns: {`);
     for (const colLine of colLines) lines.push(colLine);
-    lines.push(`  },`);
+    lines.push(`    },`);
     if (table.indexes.length > 0) {
-      lines.push(`  indexes: [`);
-      for (const idx of table.indexes) lines.push(renderIndexLiteral(idx, '    '));
-      lines.push(`  ],`);
+      lines.push(`    indexes: [`);
+      for (const idx of table.indexes) lines.push(renderIndexLiteral(idx, '      '));
+      lines.push(`    ],`);
     }
-    lines.push(`});`);
-    blocks.push(lines.join('\n'));
+    lines.push(`  },`);
+    tableBlocks.push(lines.join('\n'));
   }
 
   const parts: string[] = [];
@@ -249,6 +270,11 @@ export function generateSchemaSource(
   // Single-quoted import path matches the rest of the codebase's style and
   // is what consumers tend to lint for.
   parts.push(`import { defineSchema } from '${importPath.replace(/'/g, "\\'")}';`);
-  if (blocks.length > 0) parts.push(blocks.join('\n\n'));
+
+  if (tableBlocks.length === 0) {
+    parts.push(`export const ${exportName} = defineSchema({});`);
+  } else {
+    parts.push(`export const ${exportName} = defineSchema({\n${tableBlocks.join('\n')}\n});`);
+  }
   return `${parts.join('\n\n')}\n`;
 }

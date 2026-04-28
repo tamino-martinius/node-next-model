@@ -9,6 +9,7 @@ import {
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -84,7 +85,10 @@ interface CheckEntry {
   name?: string;
 }
 
-export class SqliteConnector implements Connector {
+export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   db: DatabaseType;
   private inTransaction = false;
   private jsonColumns = new Map<string, Set<string>>();
@@ -92,13 +96,14 @@ export class SqliteConnector implements Connector {
   private foreignKeys = new Map<string, ForeignKeyEntry[]>();
   private checkConstraints = new Map<string, CheckEntry[]>();
 
-  constructor(config: SqliteConfig = ':memory:') {
+  constructor(config: SqliteConfig = ':memory:', extras?: { schema?: S }) {
     if (typeof config === 'string') {
       this.db = new Database(config);
     } else {
       this.db = new Database(config.filename ?? ':memory:', config.options);
     }
     this.db.pragma('foreign_keys = ON');
+    this.schema = extras?.schema;
   }
 
   private jsonColumnsFor(tableName: string): Set<string> | undefined {
