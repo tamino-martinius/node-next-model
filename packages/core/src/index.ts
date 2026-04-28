@@ -4,6 +4,7 @@ export * from './MemoryConnector.js';
 export * from './Model.js';
 export { baseQueryScoped } from './query/baseQueryScoped.js';
 export * from './schema.js';
+export * from './typedSchema.js';
 export * from './types.js';
 export * from './util.js';
 export * from './validators.js';

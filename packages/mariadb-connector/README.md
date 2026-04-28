@@ -36,7 +36,13 @@ const connector = new MariaDbConnector('mariadb://app:secret@host:3306/myapp');
 await connector.destroy();
 ```
 
-The constructor signature, pool config, and runtime API are identical to `MysqlConnector`'s — see [its README](../mysql-connector/README.md) for the full surface.
+Pass an optional `extras: { schema }` second arg to attach a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+
+```ts
+const connector = new MariaDbConnector(process.env.DATABASE_URL!, { schema });
+```
+
+The constructor signature, pool config, and runtime API are otherwise identical to `MysqlConnector`'s — see [its README](../mysql-connector/README.md) for the full surface.
 
 ## What the override actually does
 
@@ -62,6 +68,10 @@ class MariaDbConnector extends MysqlConnector {
 4. `SELECT * … WHERE id IN (…)` to re-fetch
 
 Now it's just step 1 with `RETURNING *`. Same pattern for `updateAll` / `deleteAll`.
+
+## Schema reflection (`reflectSchema`)
+
+Inherited verbatim from `MysqlConnector` — MariaDB's `information_schema` views (`TABLES`, `COLUMNS`, `STATISTICS`) are wire-compatible with MySQL's, so the parent's introspection path works as-is. Returns a `TableDefinition[]` for every base table in the current `DATABASE()`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
 
 ## Testing matrix
 

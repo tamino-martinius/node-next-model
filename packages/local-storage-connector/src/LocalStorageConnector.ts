@@ -3,6 +3,7 @@ import {
   type AlterTableSpec,
   type BaseType,
   baseQueryScoped,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   type KeyType,
@@ -26,7 +27,9 @@ export interface LocalStorageConnectorOptions {
   suffix?: string;
 }
 
-export class LocalStorageConnector extends MemoryConnector {
+export class LocalStorageConnector<
+  S extends DatabaseSchema<any> | undefined = undefined,
+> extends MemoryConnector<S> {
   private readonly webStorage: WebStorageLike;
   private readonly prefix: string;
   private readonly suffix: string;
@@ -36,10 +39,10 @@ export class LocalStorageConnector extends MemoryConnector {
   private deferPersist = false;
   private pendingPersist = new Set<string>();
 
-  constructor(options: LocalStorageConnectorOptions = {}) {
+  constructor(options: LocalStorageConnectorOptions = {}, extras?: { schema?: S }) {
     const storage: Storage = {};
     const lastIds: Dict<number> = {};
-    super({ storage, lastIds });
+    super({ storage, lastIds }, extras);
     this.storageRef = storage;
     this.lastIdsRef = lastIds;
     const ls =

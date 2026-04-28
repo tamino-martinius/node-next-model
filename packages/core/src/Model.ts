@@ -7,6 +7,12 @@ import { InstanceQuery } from './query/InstanceQuery.js';
 import type { QueryState } from './query/QueryState.js';
 import type { ScalarQuery } from './query/ScalarQuery.js';
 import {
+  type DatabaseSchema,
+  deriveKeysFromTableDefinition,
+  type SchemaKeys,
+  type SchemaProps,
+} from './typedSchema.js';
+import {
   type AggregateKind,
   type AroundCallback,
   type Callback,
@@ -2113,14 +2119,144 @@ export class ModelClass {
   }
 }
 
+/**
+ * Connector-attached schema overload — pass a `Connector<DatabaseSchema>`
+ * (a connector instance constructed with `{ schema }`) and a `tableName`.
+ * TypeScript walks the connector's attached schema's `tables[tableName]` and
+ * derives the Model's prop shape and key types from the column map. `init`
+ * defaults to identity; `keys` is derived from the schema's primary columns.
+ */
+export function Model<
+  Conn extends Connector<DatabaseSchema<any>>,
+  K extends keyof NonNullable<Conn['schema']>['tables'] & string,
+  Keys extends Dict<KeyType> = SchemaKeys<NonNullable<Conn['schema']>, K>,
+  Scopes extends ScopeMap = {},
+>(props: {
+  connector: Conn;
+  tableName: K;
+  /**
+   * Optional row-shape transformer. Defaults to identity — the props passed
+   * to `create` / `build` flow straight through to the connector.
+   */
+  init?: (props: SchemaProps<NonNullable<Conn['schema']>, K>) => Schema;
+  filter?: Filter<
+    SchemaProps<NonNullable<Conn['schema']>, K> & {
+      [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
+    }
+  >;
+  defaultScope?: Filter<
+    SchemaProps<NonNullable<Conn['schema']>, K> & {
+      [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
+    }
+  >;
+  limit?: number;
+  skip?: number;
+  order?: Order<
+    SchemaProps<NonNullable<Conn['schema']>, K> & {
+      [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
+    }
+  >;
+  /** Override the keys map derived from the schema's primary columns. */
+  keys?: Keys;
+  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+  softDelete?: boolean | string | { column?: string };
+  lockVersion?: boolean | string;
+  validators?: Validator<
+    SchemaProps<NonNullable<Conn['schema']>, K> & {
+      [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
+    }
+  >[];
+  callbacks?: Callbacks<
+    SchemaProps<NonNullable<Conn['schema']>, K> & {
+      [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
+    }
+  >;
+  scopes?: Scopes;
+  enums?: Dict<readonly string[]>;
+  inheritColumn?: string;
+  storeAccessors?: Dict<readonly string[]>;
+  cascade?: CascadeMap;
+  normalizes?: Dict<(value: any) => any>;
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  counterCaches?: CounterCacheSpec[];
+  associations?: AssociationsMap;
+}): ReturnType<
+  typeof modelFactoryImpl<
+    SchemaProps<NonNullable<Conn['schema']>, K>,
+    SchemaProps<NonNullable<Conn['schema']>, K>,
+    Keys,
+    Scopes
+  >
+>;
+
+/**
+ * Schema-direct overload — pass a `DatabaseSchema` and a `tableName` directly,
+ * without involving a connector. Useful when the connector isn't statically
+ * typed (e.g. dynamic connector swapping). `init` defaults to identity; `keys`
+ * is derived from the schema's primary columns.
+ */
+export function Model<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+  Keys extends Dict<KeyType> = SchemaKeys<S, K>,
+  Scopes extends ScopeMap = {},
+>(props: {
+  schema: S;
+  tableName: K;
+  /**
+   * Optional row-shape transformer. Defaults to identity — the props passed
+   * to `create` / `build` flow straight through to the connector.
+   */
+  init?: (props: SchemaProps<S, K>) => Schema;
+  filter?: Filter<
+    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+  >;
+  defaultScope?: Filter<
+    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+  >;
+  limit?: number;
+  skip?: number;
+  order?: Order<
+    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+  >;
+  connector?: Connector<any>;
+  /** Override the keys map derived from the schema's primary columns. */
+  keys?: Keys;
+  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+  softDelete?: boolean | string | { column?: string };
+  lockVersion?: boolean | string;
+  validators?: Validator<
+    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+  >[];
+  callbacks?: Callbacks<
+    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
+  >;
+  scopes?: Scopes;
+  enums?: Dict<readonly string[]>;
+  inheritColumn?: string;
+  storeAccessors?: Dict<readonly string[]>;
+  cascade?: CascadeMap;
+  normalizes?: Dict<(value: any) => any>;
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  counterCaches?: CounterCacheSpec[];
+  associations?: AssociationsMap;
+}): ReturnType<typeof modelFactoryImpl<SchemaProps<S, K>, SchemaProps<S, K>, Keys, Scopes>>;
+
+/**
+ * Legacy overload — pass an explicit `init` callback whose parameter type
+ * defines the row's prop shape, OR pass an interface as the generic type
+ * argument (`Model<UserProps>({ tableName: 'x' })`) and let `init` default
+ * to identity. `tableName` is required; `init` is optional; `keys` defaults
+ * to `{ id: KeyType.number }`.
+ */
 export function Model<
   CreateProps = {},
-  PersistentProps extends Schema = {},
+  PersistentProps extends Schema = CreateProps extends Schema ? CreateProps : Schema,
   Keys extends Dict<KeyType> = { id: KeyType.number },
   Scopes extends ScopeMap = {},
 >(props: {
   tableName: string;
-  init: (props: CreateProps) => PersistentProps;
+  init?: (props: CreateProps) => PersistentProps;
   filter?: Filter<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
@@ -2139,7 +2275,7 @@ export function Model<
   order?: Order<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
-  connector?: Connector;
+  connector?: Connector<any>;
   keys?: Keys;
   timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
   softDelete?: boolean | string | { column?: string };
@@ -2219,6 +2355,99 @@ export function Model<
    * `user.profile`, `user.company`). Use `() => Other` thunks for circular
    * imports — same shape as `cascade` and `counterCaches`.
    */
+  associations?: AssociationsMap;
+}): ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>>;
+
+export function Model(props: any): any {
+  // Schema-driven paths derive `keys` and `init` defaults from the
+  // declarative schema before falling through to the legacy implementation.
+  // The legacy implementation is the single source of truth for all
+  // behaviour — schema mode is purely a sugar / TypeScript-inference layer
+  // on top.
+  //
+  // Two schema entry points:
+  //   - `connector: <connectorWithSchema>` + `tableName` — looks up the
+  //     `tables[tableName]` definition on the connector's attached schema.
+  //   - `schema: <DatabaseSchema>` + `tableName` — same lookup but the
+  //     schema is passed directly (for connectors that aren't statically
+  //     typed).
+  //
+  // If both are passed the explicit `schema:` wins so callers can swap the
+  // schema's typing at the Model boundary even when the connector carries
+  // its own.
+  let resolvedSchema: DatabaseSchema | undefined;
+  if (props.schema) {
+    resolvedSchema = props.schema as DatabaseSchema;
+  } else if (
+    props.connector &&
+    typeof props.connector === 'object' &&
+    'schema' in props.connector &&
+    props.connector.schema
+  ) {
+    resolvedSchema = props.connector.schema as DatabaseSchema;
+  }
+
+  if (resolvedSchema && props.tableName) {
+    const tableName = props.tableName as string;
+    const tableDefinition = resolvedSchema.tableDefinitions[tableName];
+    if (!tableDefinition) {
+      throw new Error(
+        `Model(): tableName '${tableName}' is not declared on the attached schema. Known tables: ${Object.keys(
+          resolvedSchema.tableDefinitions,
+        ).join(', ')}`,
+      );
+    }
+    const keys: Dict<KeyType> = props.keys ?? deriveKeysFromTableDefinition(tableDefinition);
+    const init = props.init ?? ((p: any) => p);
+    const { schema: _schema, ...rest } = props;
+    return modelFactoryImpl({ ...rest, tableName, keys, init });
+  }
+  // Legacy / interface-generic path. When `init` is omitted (e.g.
+  // `Model<UserProps>({ tableName: 'x' })`) it defaults to identity so the
+  // factory still has a row-shape transformer. The explicit-init form keeps
+  // working unchanged because we only fill in the default when missing.
+  const init = props.init ?? ((p: any) => p);
+  return modelFactoryImpl({ ...props, init });
+}
+
+function modelFactoryImpl<
+  CreateProps = {},
+  PersistentProps extends Schema = {},
+  Keys extends Dict<KeyType> = { id: KeyType.number },
+  Scopes extends ScopeMap = {},
+>(props: {
+  tableName: string;
+  init: (props: CreateProps) => PersistentProps;
+  filter?: Filter<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  defaultScope?: Filter<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  limit?: number;
+  skip?: number;
+  order?: Order<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  connector?: Connector<any>;
+  keys?: Keys;
+  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
+  softDelete?: boolean | string | { column?: string };
+  lockVersion?: boolean | string;
+  validators?: Validator<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >[];
+  callbacks?: Callbacks<
+    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+  >;
+  scopes?: Scopes;
+  enums?: Dict<readonly string[]>;
+  inheritColumn?: string;
+  storeAccessors?: Dict<readonly string[]>;
+  cascade?: CascadeMap;
+  normalizes?: Dict<(value: any) => any>;
+  secureTokens?: string[] | Dict<{ length?: number }>;
+  counterCaches?: CounterCacheSpec[];
   associations?: AssociationsMap;
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();

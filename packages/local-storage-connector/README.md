@@ -34,6 +34,22 @@ const connector = new LocalStorageConnector({
 
 When neither `localStorage` (option) nor `globalThis.localStorage` is available, the constructor throws — letting you fail fast in environments where the Web Storage API is not present.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new LocalStorageConnector({ prefix: 'app:' }, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts

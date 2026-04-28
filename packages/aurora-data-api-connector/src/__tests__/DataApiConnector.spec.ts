@@ -1,6 +1,7 @@
-import { defineAlter, FilterError, KeyType, Model } from '@next-model/core';
+import { defineAlter, FilterError, KeyType, Model, PersistenceError } from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { DataApiClient, DataApiQueryResult } from '../DataApiConnector.js';
 import { DataApiConnector } from '../index.js';
 import { MockDataApiClient } from '../MockDataApiClient.js';
 
@@ -951,5 +952,421 @@ describe('DataApiConnector', () => {
       })) as string[];
       expect(result).toEqual(['a@b', 'c@d']);
     });
+  });
+});
+
+/**
+ * Stub `DataApiClient` that pattern-matches the queries `reflectSchema`
+ * issues and returns canned `information_schema` rows. The real Data API
+ * is reached via `aws-sdk`; the mock keeps the test in-process.
+ */
+class StubDataApiClient implements DataApiClient {
+  constructor(private readonly responses: Array<(sql: string) => DataApiQueryResult | undefined>) {}
+  async query(sql: string): Promise<DataApiQueryResult> {
+    for (const responder of this.responses) {
+      const result = responder(sql);
+      if (result !== undefined) return result;
+    }
+    return { records: [] };
+  }
+}
+
+describe('DataApiConnector#reflectSchema (postgres dialect)', () => {
+  it('round-trips a simple table from canned information_schema rows', async () => {
+    const stub = new StubDataApiClient([
+      (sql) => {
+        if (/FROM information_schema\.tables/i.test(sql)) {
+          return { records: [{ table_name: 'users' }] };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.columns/i.test(sql)) {
+          return {
+            records: [
+              {
+                column_name: 'id',
+                data_type: 'integer',
+                udt_name: 'int4',
+                is_nullable: 'NO',
+                column_default: "nextval('users_id_seq'::regclass)",
+                character_maximum_length: null,
+                numeric_precision: 32,
+                numeric_scale: 0,
+                ordinal_position: 1,
+              },
+              {
+                column_name: 'email',
+                data_type: 'character varying',
+                udt_name: 'varchar',
+                is_nullable: 'NO',
+                column_default: null,
+                character_maximum_length: 320,
+                numeric_precision: null,
+                numeric_scale: null,
+                ordinal_position: 2,
+              },
+              {
+                column_name: 'active',
+                data_type: 'boolean',
+                udt_name: 'bool',
+                is_nullable: 'NO',
+                column_default: 'true',
+                character_maximum_length: null,
+                numeric_precision: null,
+                numeric_scale: null,
+                ordinal_position: 3,
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/constraint_type = 'PRIMARY KEY'/i.test(sql)) {
+          return { records: [{ column_name: 'id' }] };
+        }
+        if (/constraint_type = 'UNIQUE'/i.test(sql)) {
+          return { records: [{ column_name: 'email' }] };
+        }
+        if (/FROM pg_class/i.test(sql)) {
+          // No explicit (non-constraint) indexes.
+          return { records: [] };
+        }
+        return undefined;
+      },
+    ]);
+    const c = new DataApiConnector({ client: stub, dialect: 'postgres' });
+    const reflected = await c.reflectSchema!();
+    expect(reflected).toHaveLength(1);
+    const table = reflected[0];
+    expect(table.name).toBe('users');
+    expect(table.primaryKey).toBe('id');
+    const id = table.columns.find((c) => c.name === 'id')!;
+    expect(id.type).toBe('integer');
+    expect(id.primary).toBe(true);
+    expect(id.autoIncrement).toBe(true);
+    const email = table.columns.find((c) => c.name === 'email')!;
+    expect(email.type).toBe('string');
+    expect(email.limit).toBe(320);
+    expect(email.unique).toBe(true);
+    const active = table.columns.find((c) => c.name === 'active')!;
+    expect(active.type).toBe('boolean');
+    expect(active.default).toBe(true);
+  });
+
+  it('reflects composite + unique indexes', async () => {
+    const stub = new StubDataApiClient([
+      (sql) => {
+        if (/FROM information_schema\.tables/i.test(sql))
+          return { records: [{ table_name: 'logs' }] };
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.columns/i.test(sql)) {
+          return {
+            records: [
+              {
+                column_name: 'id',
+                data_type: 'integer',
+                udt_name: 'int4',
+                is_nullable: 'NO',
+                column_default: null,
+                character_maximum_length: null,
+                numeric_precision: 32,
+                numeric_scale: 0,
+                ordinal_position: 1,
+              },
+              {
+                column_name: 'userId',
+                data_type: 'integer',
+                udt_name: 'int4',
+                is_nullable: 'YES',
+                column_default: null,
+                character_maximum_length: null,
+                numeric_precision: 32,
+                numeric_scale: 0,
+                ordinal_position: 2,
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/constraint_type = 'PRIMARY KEY'/i.test(sql))
+          return { records: [{ column_name: 'id' }] };
+        if (/constraint_type = 'UNIQUE'/i.test(sql)) return { records: [] };
+        if (/FROM pg_class/i.test(sql)) {
+          return {
+            records: [
+              {
+                index_name: 'idx_logs_user_id',
+                is_unique: false,
+                is_primary: false,
+                column_name: 'userId',
+                ord: 1,
+                contype: '',
+              },
+              {
+                index_name: 'idx_logs_user_id_id',
+                is_unique: true,
+                is_primary: false,
+                column_name: 'userId',
+                ord: 1,
+                contype: '',
+              },
+              {
+                index_name: 'idx_logs_user_id_id',
+                is_unique: true,
+                is_primary: false,
+                column_name: 'id',
+                ord: 2,
+                contype: '',
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    ]);
+    const c = new DataApiConnector({ client: stub, dialect: 'postgres' });
+    const reflected = await c.reflectSchema!();
+    const table = reflected[0];
+    const names = table.indexes.map((i) => i.name).sort();
+    expect(names).toEqual(['idx_logs_user_id', 'idx_logs_user_id_id']);
+    const compound = table.indexes.find((i) => i.name === 'idx_logs_user_id_id')!;
+    expect(compound.columns).toEqual(['userId', 'id']);
+    expect(compound.unique).toBe(true);
+  });
+
+  it('reflects multiple tables', async () => {
+    const stub = new StubDataApiClient([
+      (sql) => {
+        if (/FROM information_schema\.tables/i.test(sql)) {
+          return { records: [{ table_name: 'users' }, { table_name: 'posts' }] };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.columns/i.test(sql)) return { records: [] };
+        if (/constraint_type/i.test(sql)) return { records: [] };
+        if (/FROM pg_class/i.test(sql)) return { records: [] };
+        return undefined;
+      },
+    ]);
+    const c = new DataApiConnector({ client: stub, dialect: 'postgres' });
+    const reflected = await c.reflectSchema!();
+    expect(reflected.map((t) => t.name)).toEqual(['users', 'posts']);
+  });
+});
+
+describe('DataApiConnector#reflectSchema (mysql dialect)', () => {
+  it('round-trips a simple table from canned information_schema rows', async () => {
+    const stub = new StubDataApiClient([
+      (sql) => {
+        if (/FROM information_schema\.TABLES/i.test(sql)) {
+          return { records: [{ TABLE_NAME: 'users' }] };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.COLUMNS/i.test(sql)) {
+          return {
+            records: [
+              {
+                COLUMN_NAME: 'id',
+                DATA_TYPE: 'int',
+                COLUMN_TYPE: 'int(11)',
+                IS_NULLABLE: 'NO',
+                COLUMN_DEFAULT: null,
+                COLUMN_KEY: 'PRI',
+                CHARACTER_MAXIMUM_LENGTH: null,
+                NUMERIC_PRECISION: 10,
+                NUMERIC_SCALE: 0,
+                EXTRA: 'auto_increment',
+              },
+              {
+                COLUMN_NAME: 'email',
+                DATA_TYPE: 'varchar',
+                COLUMN_TYPE: 'varchar(320)',
+                IS_NULLABLE: 'NO',
+                COLUMN_DEFAULT: null,
+                COLUMN_KEY: 'UNI',
+                CHARACTER_MAXIMUM_LENGTH: 320,
+                NUMERIC_PRECISION: null,
+                NUMERIC_SCALE: null,
+                EXTRA: '',
+              },
+              {
+                COLUMN_NAME: 'active',
+                DATA_TYPE: 'tinyint',
+                COLUMN_TYPE: 'tinyint(1)',
+                IS_NULLABLE: 'NO',
+                COLUMN_DEFAULT: '1',
+                COLUMN_KEY: '',
+                CHARACTER_MAXIMUM_LENGTH: null,
+                NUMERIC_PRECISION: 3,
+                NUMERIC_SCALE: 0,
+                EXTRA: '',
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.STATISTICS/i.test(sql)) {
+          return {
+            records: [
+              {
+                INDEX_NAME: 'PRIMARY',
+                NON_UNIQUE: 0,
+                COLUMN_NAME: 'id',
+                SEQ_IN_INDEX: 1,
+              },
+              {
+                INDEX_NAME: 'email',
+                NON_UNIQUE: 0,
+                COLUMN_NAME: 'email',
+                SEQ_IN_INDEX: 1,
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    ]);
+    const c = new DataApiConnector({ client: stub, dialect: 'mysql' });
+    const reflected = await c.reflectSchema!();
+    expect(reflected).toHaveLength(1);
+    const table = reflected[0];
+    expect(table.name).toBe('users');
+    expect(table.primaryKey).toBe('id');
+    const id = table.columns.find((c) => c.name === 'id')!;
+    expect(id.type).toBe('integer');
+    expect(id.primary).toBe(true);
+    expect(id.autoIncrement).toBe(true);
+    const email = table.columns.find((c) => c.name === 'email')!;
+    expect(email.type).toBe('string');
+    expect(email.limit).toBe(320);
+    expect(email.unique).toBe(true);
+    const active = table.columns.find((c) => c.name === 'active')!;
+    expect(active.type).toBe('boolean');
+    expect(active.default).toBe(true);
+  });
+
+  it('reflects composite + unique indexes', async () => {
+    const stub = new StubDataApiClient([
+      (sql) => {
+        if (/FROM information_schema\.TABLES/i.test(sql)) {
+          return { records: [{ TABLE_NAME: 'logs' }] };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.COLUMNS/i.test(sql)) {
+          return {
+            records: [
+              {
+                COLUMN_NAME: 'id',
+                DATA_TYPE: 'int',
+                COLUMN_TYPE: 'int(11)',
+                IS_NULLABLE: 'NO',
+                COLUMN_DEFAULT: null,
+                COLUMN_KEY: 'PRI',
+                CHARACTER_MAXIMUM_LENGTH: null,
+                NUMERIC_PRECISION: 10,
+                NUMERIC_SCALE: 0,
+                EXTRA: 'auto_increment',
+              },
+              {
+                COLUMN_NAME: 'userId',
+                DATA_TYPE: 'int',
+                COLUMN_TYPE: 'int(11)',
+                IS_NULLABLE: 'YES',
+                COLUMN_DEFAULT: null,
+                COLUMN_KEY: 'MUL',
+                CHARACTER_MAXIMUM_LENGTH: null,
+                NUMERIC_PRECISION: 10,
+                NUMERIC_SCALE: 0,
+                EXTRA: '',
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.STATISTICS/i.test(sql)) {
+          return {
+            records: [
+              {
+                INDEX_NAME: 'PRIMARY',
+                NON_UNIQUE: 0,
+                COLUMN_NAME: 'id',
+                SEQ_IN_INDEX: 1,
+              },
+              {
+                INDEX_NAME: 'idx_logs_user_id',
+                NON_UNIQUE: 1,
+                COLUMN_NAME: 'userId',
+                SEQ_IN_INDEX: 1,
+              },
+              {
+                INDEX_NAME: 'idx_logs_user_id_id',
+                NON_UNIQUE: 0,
+                COLUMN_NAME: 'userId',
+                SEQ_IN_INDEX: 1,
+              },
+              {
+                INDEX_NAME: 'idx_logs_user_id_id',
+                NON_UNIQUE: 0,
+                COLUMN_NAME: 'id',
+                SEQ_IN_INDEX: 2,
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    ]);
+    const c = new DataApiConnector({ client: stub, dialect: 'mysql' });
+    const reflected = await c.reflectSchema!();
+    const table = reflected[0];
+    const names = table.indexes.map((i) => i.name).sort();
+    expect(names).toEqual(['idx_logs_user_id', 'idx_logs_user_id_id']);
+    const compound = table.indexes.find((i) => i.name === 'idx_logs_user_id_id')!;
+    expect(compound.columns).toEqual(['userId', 'id']);
+    expect(compound.unique).toBe(true);
+  });
+
+  it('reflects multiple tables', async () => {
+    const stub = new StubDataApiClient([
+      (sql) => {
+        if (/FROM information_schema\.TABLES/i.test(sql)) {
+          return { records: [{ TABLE_NAME: 'users' }, { TABLE_NAME: 'posts' }] };
+        }
+        return undefined;
+      },
+      (sql) => {
+        if (/FROM information_schema\.COLUMNS/i.test(sql)) return { records: [] };
+        if (/FROM information_schema\.STATISTICS/i.test(sql)) return { records: [] };
+        return undefined;
+      },
+    ]);
+    const c = new DataApiConnector({ client: stub, dialect: 'mysql' });
+    const reflected = await c.reflectSchema!();
+    expect(reflected.map((t) => t.name)).toEqual(['users', 'posts']);
+  });
+});
+
+describe('DataApiConnector#reflectSchema (unsupported dialect)', () => {
+  it('throws PersistenceError for unknown dialect', async () => {
+    const stub = new StubDataApiClient([]);
+    const c = new DataApiConnector({ client: stub });
+    // Force an unsupported dialect by overriding the field
+    (c as any).dialect = 'sqlite';
+    await expect(c.reflectSchema!()).rejects.toBeInstanceOf(PersistenceError);
   });
 });

@@ -41,6 +41,22 @@ await c1.destroy();
 
 The pool is exposed as `connector.pool` if you need raw access.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` infers per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new PostgresConnector(process.env.DATABASE_URL!, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts
@@ -113,6 +129,10 @@ Both use `RETURNING *` so the affected rows are returned in one round-trip. `LIM
 | `t.json('payload')`              | `"payload" JSONB`        |
 
 `{ default: 'currentTimestamp' }` becomes `DEFAULT CURRENT_TIMESTAMP`. `t.index([col], { unique })` issues a follow-up `CREATE [UNIQUE] INDEX … ON tbl (col)` after the table create. `dropTable` uses `DROP TABLE IF EXISTS`. `hasTable` calls `to_regclass`.
+
+### Schema reflection (`reflectSchema`)
+
+Returns a `TableDefinition[]` for every table in `current_schema()`. Reads `information_schema.tables` / `information_schema.columns` / `information_schema.table_constraints` for column metadata + primary key + UNIQUE constraints, and `pg_index` / `pg_class` for explicit `CREATE INDEX` entries (skipping the auto-created PK / UNIQUE constraint indexes). `nextval(...)` defaults map back to `autoIncrement: true`; `CURRENT_TIMESTAMP` / `now()` to `'currentTimestamp'`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
 
 ## Testing matrix
 

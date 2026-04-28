@@ -2,6 +2,7 @@ import { UnsupportedOperationError } from './errors.js';
 import { filterList } from './FilterEngine.js';
 import { baseQueryScoped } from './query/baseQueryScoped.js';
 import { type AlterTableSpec, defineTable, type TableBuilder } from './schema.js';
+import type { DatabaseSchema } from './typedSchema.js';
 import {
   type AggregateKind,
   type BaseType,
@@ -22,14 +23,18 @@ export type Storage = Dict<Dict<any>[]>;
 const globalStorage: Storage = {};
 const globalLastIds: Dict<number> = {};
 
-export class MemoryConnector implements Connector {
+export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   private storage: Storage;
   private lastIds: Dict<number>;
   private inTransaction = false;
 
-  constructor(props?: { storage?: Storage; lastIds?: Dict<number> }) {
+  constructor(props?: { storage?: Storage; lastIds?: Dict<number> }, extras?: { schema?: S }) {
     this.storage = props?.storage || globalStorage;
     this.lastIds = props?.lastIds || globalLastIds;
+    this.schema = extras?.schema;
   }
 
   private collection(tableName: string): Dict<any>[] {

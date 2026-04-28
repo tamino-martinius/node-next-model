@@ -5,6 +5,7 @@ import {
   type BaseType,
   baseQueryScoped,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -83,14 +84,17 @@ function applyLimitSkip(rows: Dict<any>[], scope: Scope): Dict<any>[] {
   return rows.slice(start, end);
 }
 
-export class RedisConnector implements Connector {
+export class RedisConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   client: RedisClientType;
   prefix: string;
   private ownsClient: boolean;
   private connected = false;
   private inTransaction = false;
 
-  constructor(config: RedisConfig = {}) {
+  constructor(config: RedisConfig = {}, extras?: { schema?: S }) {
     if (config.redis) {
       this.client = config.redis;
       this.ownsClient = false;
@@ -99,6 +103,7 @@ export class RedisConnector implements Connector {
       this.ownsClient = true;
     }
     this.prefix = config.prefix ?? 'nm:';
+    this.schema = extras?.schema;
   }
 
   async connect(): Promise<void> {

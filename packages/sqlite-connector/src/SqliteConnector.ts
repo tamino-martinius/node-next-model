@@ -4,10 +4,12 @@ import {
   type AlterTableSpec,
   applyAlterOps,
   type BaseType,
+  type ColumnDefault,
   type ColumnDefinition,
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -83,7 +85,10 @@ interface CheckEntry {
   name?: string;
 }
 
-export class SqliteConnector implements Connector {
+export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   db: DatabaseType;
   private inTransaction = false;
   private jsonColumns = new Map<string, Set<string>>();
@@ -91,13 +96,14 @@ export class SqliteConnector implements Connector {
   private foreignKeys = new Map<string, ForeignKeyEntry[]>();
   private checkConstraints = new Map<string, CheckEntry[]>();
 
-  constructor(config: SqliteConfig = ':memory:') {
+  constructor(config: SqliteConfig = ':memory:', extras?: { schema?: S }) {
     if (typeof config === 'string') {
       this.db = new Database(config);
     } else {
       this.db = new Database(config.filename ?? ':memory:', config.options);
     }
     this.db.pragma('foreign_keys = ON');
+    this.schema = extras?.schema;
   }
 
   private jsonColumnsFor(tableName: string): Set<string> | undefined {
@@ -674,6 +680,101 @@ export class SqliteConnector implements Connector {
     return rows.length > 0;
   }
 
+  /**
+   * Reflect the live schema by reading sqlite's `sqlite_master` + `PRAGMA`
+   * introspection tables. Returns one `TableDefinition` per user table
+   * (skipping `sqlite_*` internals) with column kinds mapped from SQLite's
+   * affinity types back to the connector's `ColumnKind` set, primary key
+   * flagged on the appropriate column, and indexes (including the unique
+   * flag) mirrored from `PRAGMA index_list` / `PRAGMA index_info`. The
+   * `sqlite_master.sql` text is parsed for `AUTOINCREMENT` so the result
+   * round-trips back into `createTable` cleanly.
+   */
+  async reflectSchema(): Promise<TableDefinition[]> {
+    const tables = this.all(
+      "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    ) as { name: string; sql: string | null }[];
+    const result: TableDefinition[] = [];
+    for (const t of tables) {
+      const tableName = t.name;
+      const ddl = t.sql ?? '';
+      const cols = this.all(`PRAGMA table_info(${quoteIdent(tableName)})`) as Array<{
+        cid: number;
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: unknown;
+        pk: number;
+      }>;
+      const idxList = this.all(`PRAGMA index_list(${quoteIdent(tableName)})`) as Array<{
+        seq: number;
+        name: string;
+        unique: number;
+        origin: string;
+        partial: number;
+      }>;
+      const indexes: IndexDefinition[] = [];
+      for (const idx of idxList) {
+        // PRAGMA index_list returns auto-indexes for UNIQUE / PRIMARY KEY
+        // constraints with origin === 'pk' / 'u'; we only want explicit
+        // CREATE INDEX entries.
+        if (idx.origin !== 'c') continue;
+        const idxCols = this.all(`PRAGMA index_info(${quoteIdent(idx.name)})`) as Array<{
+          seqno: number;
+          cid: number;
+          name: string;
+        }>;
+        idxCols.sort((a, b) => a.seqno - b.seqno);
+        indexes.push({
+          columns: idxCols.map((c) => c.name),
+          unique: idx.unique === 1,
+          name: idx.name,
+        });
+      }
+
+      const primaryCol = cols.find((c) => c.pk === 1);
+      const columnDefs: ColumnDefinition[] = cols.map((c) => {
+        const kind = sqliteTypeToColumnKind(c.type);
+        const limit = parseLimit(c.type);
+        const { precision, scale } = parsePrecisionScale(c.type);
+        const isPrimary = c.pk === 1;
+        const colDdl = extractColumnDdl(ddl, c.name);
+        const autoIncrement =
+          isPrimary && c.type.toUpperCase() === 'INTEGER' && /AUTOINCREMENT/i.test(colDdl);
+        const isUniqueViaIdx = idxList.some(
+          (idx) =>
+            idx.unique === 1 &&
+            idx.origin === 'u' &&
+            // single-column unique index
+            (this.all(`PRAGMA index_info(${quoteIdent(idx.name)})`) as Array<{ name: string }>)
+              .length === 1 &&
+            (this.all(`PRAGMA index_info(${quoteIdent(idx.name)})`) as Array<{ name: string }>)[0]
+              .name === c.name,
+        );
+        return {
+          name: c.name,
+          type: kind,
+          nullable: c.notnull === 0 && !isPrimary,
+          default: parseDefaultValue(c.dflt_value, kind),
+          limit,
+          primary: isPrimary,
+          unique: isUniqueViaIdx,
+          precision,
+          scale,
+          autoIncrement,
+        };
+      });
+
+      result.push({
+        name: tableName,
+        columns: columnDefs,
+        indexes,
+        primaryKey: primaryCol?.name,
+      });
+    }
+    return result;
+  }
+
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
     this.tableDefinitions.set(tableName, def);
@@ -991,4 +1092,125 @@ function sqliteAction(action: ForeignKeyAction): string {
     case 'noAction':
       return 'NO ACTION';
   }
+}
+
+/**
+ * Map a SQLite affinity / declared-type string back to the connector's
+ * `ColumnKind`. SQLite is forgiving about declared types — most strings work
+ * — so this is a best-effort inverse of `columnType(...)` above.
+ */
+function sqliteTypeToColumnKind(declared: string): ColumnKind {
+  const t = declared.toUpperCase().split('(')[0].trim();
+  switch (t) {
+    case 'INTEGER':
+      return 'integer';
+    case 'BIGINT':
+      return 'bigint';
+    case 'REAL':
+    case 'DOUBLE':
+    case 'FLOAT':
+      return 'float';
+    case 'NUMERIC':
+    case 'DECIMAL':
+      return 'decimal';
+    case 'BOOLEAN':
+      return 'boolean';
+    case 'DATE':
+      return 'date';
+    case 'DATETIME':
+      return 'datetime';
+    case 'TIMESTAMP':
+      return 'timestamp';
+    case 'JSON':
+      return 'json';
+    case 'VARCHAR':
+    case 'CHAR':
+    case 'CHARACTER':
+      return 'string';
+    case 'TEXT':
+    case 'CLOB':
+      return 'text';
+    default:
+      // Fallback: SQLite affinity is dynamic; assume text for unrecognised types.
+      return 'text';
+  }
+}
+
+function parseLimit(declared: string): number | undefined {
+  const match = declared.match(/^\s*(?:VARCHAR|CHAR|CHARACTER)\s*\(\s*(\d+)\s*\)\s*$/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+function parsePrecisionScale(declared: string): { precision?: number; scale?: number } {
+  const match = declared.match(/^\s*(?:NUMERIC|DECIMAL)\s*\(\s*(\d+)\s*(?:,\s*(\d+))?\s*\)\s*$/i);
+  if (!match) return {};
+  const precision = Number(match[1]);
+  const scale = match[2] !== undefined ? Number(match[2]) : undefined;
+  return { precision, scale };
+}
+
+/**
+ * SQLite stores the literal default text from the original DDL (e.g.
+ * `'api'`, `5`, `CURRENT_TIMESTAMP`, `NULL`). Decode those back into the
+ * connector's `ColumnDefault` shape so reflection round-trips through
+ * `defineSchema(...)` without surprises.
+ */
+function parseDefaultValue(raw: unknown, kind: ColumnKind): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const s = String(raw).trim();
+  if (s.toUpperCase() === 'NULL') return null;
+  if (s.toUpperCase() === 'CURRENT_TIMESTAMP') return 'currentTimestamp';
+  // SQLite stores string defaults wrapped in single quotes and escapes inner
+  // quotes by doubling them.
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+    return s.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (s === '1') return true;
+    if (s === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(s);
+    return Number.isFinite(num) ? num : s;
+  }
+  return s;
+}
+
+/**
+ * Pull the declared text for a single column out of a `CREATE TABLE` DDL so
+ * we can detect SQLite-specific markers (currently just `AUTOINCREMENT`)
+ * that aren't surfaced via `PRAGMA table_info`.
+ */
+function extractColumnDdl(ddl: string, columnName: string): string {
+  // Strip the leading `CREATE TABLE "name" (` and matching trailing `)`.
+  const inner = ddl.replace(/^\s*CREATE\s+TABLE\s+[^(]+\(/i, '').replace(/\)\s*$/, '');
+  // Naive split — column / constraint definitions are comma-separated at the
+  // top level. Good enough for autoincrement detection (no nested parens
+  // appear inside a single autoincrement column declaration).
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of inner) {
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth -= 1;
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) parts.push(current);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (
+      trimmed.startsWith(`"${columnName}"`) ||
+      trimmed.startsWith(`\`${columnName}\``) ||
+      trimmed.startsWith(`${columnName} `) ||
+      trimmed === columnName
+    ) {
+      return trimmed;
+    }
+  }
+  return '';
 }

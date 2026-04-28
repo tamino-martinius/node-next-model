@@ -1,6 +1,7 @@
 import type {
   BaseType,
   ColumnDefinition,
+  DatabaseSchema,
   Dict,
   KeyType,
   Scope,
@@ -22,7 +23,9 @@ import { MysqlConnector, quoteIdent } from '@next-model/mysql-connector';
  * so the connector emits `LONGTEXT CHECK (JSON_VALID(...))` to get the
  * same validation guarantee you get from MySQL's native JSON type.
  */
-export class MariaDbConnector extends MysqlConnector {
+export class MariaDbConnector<
+  S extends DatabaseSchema<any> | undefined = undefined,
+> extends MysqlConnector<S> {
   async batchInsert(
     tableName: string,
     _keys: Dict<KeyType>,

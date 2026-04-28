@@ -44,6 +44,22 @@ const connector = new DataApiConnector({
 });
 ```
 
+### Attaching a typed schema
+
+Pass an optional `extras: { schema }` as the second arg so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new DataApiConnector({ secretArn, resourceArn, database }, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts
@@ -96,6 +112,10 @@ Both build a SELECT for the affected rows first (so the methods can return them)
 ### Auto-increment
 
 Set `{ autoIncrement: true }` on an integer column to get a Postgres `SERIAL` (knex `table.increments(name)`). Required when you use `KeyType.number` (the default) — otherwise insert SQL provides no value for the PK column.
+
+### Schema reflection (`reflectSchema`)
+
+Set `dialect: 'postgres'` (default) or `dialect: 'mysql'` on the constructor options to pick which `information_schema` flavour the reflection queries target. The Postgres path queries `information_schema.tables` / `information_schema.columns` / `information_schema.table_constraints` plus `pg_index`; the MySQL path queries `information_schema.TABLES` / `information_schema.COLUMNS` / `information_schema.STATISTICS`. Other dialects throw `PersistenceError`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
 
 ## Aurora MySQL Data API
 

@@ -1,4 +1,5 @@
-import type { AlterTableSpec, TableBuilder } from './schema.js';
+import type { AlterTableSpec, TableBuilder, TableDefinition } from './schema.js';
+import type { DatabaseSchema } from './typedSchema.js';
 
 export interface Dict<T> {
   [key: string]: T;
@@ -94,7 +95,24 @@ export interface DeltaUpdateSpec {
   set?: Dict<any>;
 }
 
-export interface Connector {
+/**
+ * The full `Connector` interface, generic over an optional attached
+ * `DatabaseSchema`. The schema is purely a type-level decoration so
+ * `Model({ connector, tableName: 'x' })` can infer the table's prop shape;
+ * the runtime contract is identical regardless of whether a schema is
+ * attached. Existing untyped callers should write `Connector` (which
+ * defaults to `Connector<DatabaseSchema<any> | undefined>`) and remain
+ * structurally compatible with every concrete connector class.
+ */
+export interface Connector<
+  Schema extends DatabaseSchema<any> | undefined = DatabaseSchema<any> | undefined,
+> {
+  /**
+   * Optional `DatabaseSchema` attached to this connector instance. When
+   * present, `Model({ connector, tableName: 'x' })` infers the table's prop
+   * shape from this schema's `tables[x].columns` map at the type level.
+   */
+  readonly schema?: Schema;
   query(scope: Scope): Promise<Dict<any>[]>;
   count(scope: Scope): Promise<number>;
   select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]>;
@@ -164,6 +182,17 @@ export interface Connector {
    * `$in: [...]` filters).
    */
   queryScoped?(spec: QueryScopedSpec): Promise<unknown>;
+
+  /**
+   * Reflect the connector's current schema. Optional — connectors that don't
+   * enforce a schema (KV stores, document DBs) leave this undefined.
+   *
+   * Returns one `TableDefinition` per known table. Implementations should
+   * mirror what `Connector.createTable` would produce for the same shape so
+   * the result can be passed straight into `generateSchemaSource(...)` for
+   * typed-schema emission.
+   */
+  reflectSchema?(): Promise<TableDefinition[]>;
 }
 
 export interface UpsertSpec {

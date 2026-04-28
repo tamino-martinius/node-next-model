@@ -5,6 +5,7 @@ import {
   type BaseType,
   baseQueryScoped,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -73,13 +74,16 @@ function stripId<T extends Dict<any>>(doc: T | null): T | undefined {
   return rest as T;
 }
 
-export class MongoDbConnector implements Connector {
+export class MongoDbConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   client: MongoClient;
   db: Db;
   private ownsClient: boolean;
   private inTransaction = false;
 
-  constructor(config: MongoDbConfig = {}) {
+  constructor(config: MongoDbConfig = {}, extras?: { schema?: S }) {
     if (config.client) {
       this.client = config.client;
       this.ownsClient = false;
@@ -89,6 +93,7 @@ export class MongoDbConnector implements Connector {
       this.ownsClient = true;
     }
     this.db = this.client.db(config.database ?? 'nextmodel');
+    this.schema = extras?.schema;
   }
 
   async connect(): Promise<void> {

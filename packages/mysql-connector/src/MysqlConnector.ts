@@ -3,10 +3,12 @@ import {
   type AlterTableOp,
   type AlterTableSpec,
   type BaseType,
+  type ColumnDefault,
   type ColumnDefinition,
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -28,6 +30,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type TableDefinition,
   type UpsertSpec,
 } from '@next-model/core';
 import {
@@ -72,12 +75,16 @@ function normaliseValue(value: unknown): unknown {
   return value;
 }
 
-export class MysqlConnector implements Connector {
+export class MysqlConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   pool: Pool;
   private activeConnection: PoolConnection | undefined;
 
-  constructor(config: MysqlConfig) {
+  constructor(config: MysqlConfig, extras?: { schema?: S }) {
     this.pool = createPool(typeof config === 'string' ? { uri: config } : config);
+    this.schema = extras?.schema;
   }
 
   async destroy(): Promise<void> {
@@ -659,6 +666,112 @@ export class MysqlConnector implements Connector {
     return rows.length > 0;
   }
 
+  /**
+   * Reflect the live schema by querying MySQL's `information_schema`
+   * (filtered to the current database via `DATABASE()`). Returns one
+   * `TableDefinition` per user table (`TABLE_TYPE = 'BASE TABLE'`)
+   * with column types mapped from MySQL's declared types back to
+   * `ColumnKind`, primary key flagged on the appropriate column,
+   * single-column unique constraints flagged on the column, and
+   * explicit `CREATE INDEX` definitions returned as
+   * `IndexDefinition[]` (skipping the auto-generated PRIMARY KEY /
+   * single-column UNIQUE indexes that round-trip via column flags).
+   * `EXTRA = 'auto_increment'` flags the column as `autoIncrement: true`
+   * so reflection round-trips back into `createTable` cleanly.
+   */
+  async reflectSchema(): Promise<TableDefinition[]> {
+    const tablesRes = (await this.run(
+      `SELECT TABLE_NAME FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+       ORDER BY TABLE_NAME`,
+    )) as Array<{ TABLE_NAME: string }>;
+    const result: TableDefinition[] = [];
+    for (const row of tablesRes) {
+      const tableName = row.TABLE_NAME;
+      const colsRes = (await this.run(
+        `SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY,
+                CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, EXTRA
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+         ORDER BY ORDINAL_POSITION`,
+        [tableName],
+      )) as Array<{
+        COLUMN_NAME: string;
+        DATA_TYPE: string;
+        COLUMN_TYPE: string;
+        IS_NULLABLE: 'YES' | 'NO';
+        COLUMN_DEFAULT: string | null;
+        COLUMN_KEY: string;
+        CHARACTER_MAXIMUM_LENGTH: number | null;
+        NUMERIC_PRECISION: number | null;
+        NUMERIC_SCALE: number | null;
+        EXTRA: string;
+      }>;
+      // Index info — STATISTICS reports one row per (index, column).
+      const idxRes = (await this.run(
+        `SELECT INDEX_NAME, NON_UNIQUE, COLUMN_NAME, SEQ_IN_INDEX
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+         ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
+        [tableName],
+      )) as Array<{
+        INDEX_NAME: string;
+        NON_UNIQUE: number;
+        COLUMN_NAME: string;
+        SEQ_IN_INDEX: number;
+      }>;
+      const indexMap = new Map<string, { columns: string[]; unique: boolean }>();
+      for (const ir of idxRes) {
+        let entry = indexMap.get(ir.INDEX_NAME);
+        if (!entry) {
+          entry = { columns: [], unique: ir.NON_UNIQUE === 0 };
+          indexMap.set(ir.INDEX_NAME, entry);
+        }
+        entry.columns.push(ir.COLUMN_NAME);
+      }
+      // Skip auto-indexes for PRIMARY and single-column UNIQUE columns; those
+      // round-trip via column-level `primary` / `unique` flags.
+      const singleUniqueColumns = new Set<string>();
+      const indexes: IndexDefinition[] = [];
+      for (const [name, entry] of indexMap) {
+        if (name === 'PRIMARY') continue;
+        if (entry.unique && entry.columns.length === 1) {
+          singleUniqueColumns.add(entry.columns[0]);
+          continue;
+        }
+        indexes.push({ columns: entry.columns, unique: entry.unique, name });
+      }
+
+      const columns: ColumnDefinition[] = colsRes.map((c) => {
+        const isPrimary = c.COLUMN_KEY === 'PRI';
+        const kind = mysqlTypeToColumnKind(c.DATA_TYPE, c.COLUMN_TYPE);
+        const autoIncrement = /auto_increment/i.test(c.EXTRA);
+        return {
+          name: c.COLUMN_NAME,
+          type: kind,
+          nullable: c.IS_NULLABLE === 'YES' && !isPrimary,
+          default: autoIncrement ? undefined : parseMysqlDefault(c.COLUMN_DEFAULT, c.EXTRA, kind),
+          limit: kind === 'string' ? (c.CHARACTER_MAXIMUM_LENGTH ?? undefined) : undefined,
+          primary: isPrimary,
+          unique: singleUniqueColumns.has(c.COLUMN_NAME) && !isPrimary,
+          precision:
+            kind === 'decimal' && c.NUMERIC_PRECISION !== null ? c.NUMERIC_PRECISION : undefined,
+          scale: kind === 'decimal' && c.NUMERIC_SCALE !== null ? c.NUMERIC_SCALE : undefined,
+          autoIncrement,
+        };
+      });
+
+      const primaryKey = columns.find((c) => c.primary)?.name;
+      result.push({
+        name: tableName,
+        columns,
+        indexes,
+        primaryKey,
+      });
+    }
+    return result;
+  }
+
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
     if (await this.hasTable(tableName)) return;
@@ -842,4 +955,89 @@ function mysqlAction(action: ForeignKeyAction): string {
     case 'noAction':
       return 'NO ACTION';
   }
+}
+
+/**
+ * Map MySQL/MariaDB declared `DATA_TYPE` (with the more-specific
+ * `COLUMN_TYPE` for tinyint(1)-vs-tinyint(N) disambiguation) back to
+ * the connector's `ColumnKind`. Inverse of `columnType(...)` above.
+ */
+export function mysqlTypeToColumnKind(dataType: string, columnType: string): ColumnKind {
+  const t = (dataType ?? '').toLowerCase();
+  const ct = (columnType ?? '').toLowerCase();
+  switch (t) {
+    case 'tinyint':
+      // tinyint(1) is MySQL's BOOLEAN. Other widths are integers.
+      return /^tinyint\(1\)/i.test(ct) ? 'boolean' : 'integer';
+    case 'smallint':
+    case 'mediumint':
+    case 'int':
+    case 'integer':
+      return 'integer';
+    case 'bigint':
+      return 'bigint';
+    case 'float':
+    case 'double':
+    case 'real':
+      return 'float';
+    case 'decimal':
+    case 'numeric':
+      return 'decimal';
+    case 'char':
+    case 'varchar':
+      return 'string';
+    case 'tinytext':
+    case 'text':
+    case 'mediumtext':
+    case 'longtext':
+      return 'text';
+    case 'date':
+      return 'date';
+    case 'datetime':
+      return 'datetime';
+    case 'timestamp':
+      return 'timestamp';
+    case 'time':
+    case 'year':
+      return 'datetime';
+    case 'json':
+      return 'json';
+    default:
+      return 'text';
+  }
+}
+
+/**
+ * MySQL's `information_schema.COLUMNS.COLUMN_DEFAULT` is mostly the literal
+ * value (`5`, `api`, `1`, `0`, …) — not a serialised SQL fragment. Special
+ * cases: `CURRENT_TIMESTAMP` surfaces literally (and `EXTRA` may carry
+ * `DEFAULT_GENERATED on update CURRENT_TIMESTAMP`), and on MySQL 8 string
+ * defaults are escaped `\'…\'` style. Decode the common cases back into the
+ * connector's `ColumnDefault` shape.
+ */
+function parseMysqlDefault(
+  raw: string | null,
+  extra: string,
+  kind: ColumnKind,
+): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' && /default_generated/i.test(extra)) return undefined;
+  const upper = trimmed.toUpperCase();
+  if (upper === 'CURRENT_TIMESTAMP' || upper === 'NOW()') return 'currentTimestamp';
+  if (upper === 'NULL') return null;
+  // Some MySQL clients return defaults wrapped in single quotes; unwrap.
+  let s = trimmed;
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+    s = s.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (s === '1') return true;
+    if (s === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(s);
+    if (Number.isFinite(num)) return num;
+  }
+  return s;
 }

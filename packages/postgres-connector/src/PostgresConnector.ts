@@ -3,10 +3,12 @@ import {
   type AlterTableOp,
   type AlterTableSpec,
   type BaseType,
+  type ColumnDefault,
   type ColumnDefinition,
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -29,6 +31,7 @@ import {
   type Scope,
   SortDirection,
   type TableBuilder,
+  type TableDefinition,
   type UpsertSpec,
 } from '@next-model/core';
 import { Pool, type PoolClient, type PoolConfig, type QueryResult } from 'pg';
@@ -61,11 +64,14 @@ function requireNonEmpty(filter: Dict<any>, operator: string): void {
   }
 }
 
-export class PostgresConnector implements Connector {
+export class PostgresConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   pool: Pool;
   private activeClient: PoolClient | undefined;
 
-  constructor(config: PostgresConfig) {
+  constructor(config: PostgresConfig, extras?: { schema?: S }) {
     if (typeof config === 'string') {
       this.pool = new Pool({ connectionString: config });
     } else if ('connectionString' in (config as object)) {
@@ -75,6 +81,7 @@ export class PostgresConnector implements Connector {
     } else {
       this.pool = new Pool(config as PoolConfig);
     }
+    this.schema = extras?.schema;
   }
 
   async destroy(): Promise<void> {
@@ -628,6 +635,184 @@ export class PostgresConnector implements Connector {
     return result.rows[0]?.reg !== null;
   }
 
+  /**
+   * Reflect the live schema by querying `information_schema.tables` /
+   * `information_schema.columns` / `information_schema.table_constraints`
+   * (for primary keys) and `pg_indexes` (for explicit indexes). Returns
+   * one `TableDefinition` per user table in the connection's
+   * `current_schema()`. Postgres types map back to the connector's
+   * `ColumnKind` set, default values are decoded from their serialised
+   * Postgres form (`'currentTimestamp'` for `now()` / `CURRENT_TIMESTAMP`,
+   * quoted literals for strings, bare for numbers), and `nextval(...)`
+   * defaults flag the column as `autoIncrement: true` so reflection
+   * round-trips back into `createTable` cleanly.
+   */
+  async reflectSchema(): Promise<TableDefinition[]> {
+    const tablesRes = await this.run(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'
+       ORDER BY table_name`,
+    );
+    const result: TableDefinition[] = [];
+    for (const row of tablesRes.rows as Array<{ table_name: string }>) {
+      const tableName = row.table_name;
+      const colsRes = await this.run(
+        `SELECT column_name, data_type, udt_name, is_nullable, column_default,
+                character_maximum_length, numeric_precision, numeric_scale,
+                ordinal_position
+         FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = $1
+         ORDER BY ordinal_position`,
+        [tableName],
+      );
+      const pkRes = await this.run(
+        `SELECT kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+         WHERE tc.table_schema = current_schema()
+           AND tc.table_name = $1
+           AND tc.constraint_type = 'PRIMARY KEY'
+         ORDER BY kcu.ordinal_position`,
+        [tableName],
+      );
+      const pkColumns = new Set(
+        (pkRes.rows as Array<{ column_name: string }>).map((r) => r.column_name),
+      );
+      // Single-column UNIQUE constraints surface on the column directly.
+      const uniqueRes = await this.run(
+        `SELECT kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+         WHERE tc.table_schema = current_schema()
+           AND tc.table_name = $1
+           AND tc.constraint_type = 'UNIQUE'
+         GROUP BY kcu.constraint_name, kcu.column_name
+         HAVING COUNT(*) = 1`,
+        [tableName],
+      );
+      const uniqueColumns = new Set(
+        (uniqueRes.rows as Array<{ column_name: string }>).map((r) => r.column_name),
+      );
+
+      // Explicit indexes (skipping the auto-created primary key / unique
+      // constraint indexes).
+      const idxRes = await this.run(
+        `SELECT i.relname AS index_name,
+                ix.indisunique AS is_unique,
+                ix.indisprimary AS is_primary,
+                a.attname AS column_name,
+                a.attnum,
+                array_position(ix.indkey, a.attnum) AS ord,
+                COALESCE(con.contype, '') AS contype
+         FROM pg_class t
+         JOIN pg_index ix ON t.oid = ix.indrelid
+         JOIN pg_class i ON i.oid = ix.indexrelid
+         JOIN pg_namespace n ON n.oid = t.relnamespace
+         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+         LEFT JOIN pg_constraint con ON con.conindid = i.oid
+         WHERE n.nspname = current_schema() AND t.relname = $1
+         ORDER BY i.relname, ord`,
+        [tableName],
+      );
+      const indexMap = new Map<
+        string,
+        {
+          columns: { column: string; ord: number }[];
+          unique: boolean;
+          primary: boolean;
+          contype: string;
+        }
+      >();
+      for (const ir of idxRes.rows as Array<{
+        index_name: string;
+        is_unique: boolean;
+        is_primary: boolean;
+        column_name: string;
+        ord: number;
+        contype: string;
+      }>) {
+        let entry = indexMap.get(ir.index_name);
+        if (!entry) {
+          entry = {
+            columns: [],
+            unique: ir.is_unique,
+            primary: ir.is_primary,
+            contype: ir.contype,
+          };
+          indexMap.set(ir.index_name, entry);
+        }
+        entry.columns.push({ column: ir.column_name, ord: Number(ir.ord) });
+      }
+      const indexes: IndexDefinition[] = [];
+      for (const [name, entry] of indexMap) {
+        // Skip the auto-generated index that backs a PRIMARY KEY constraint —
+        // it round-trips via the column's `primary` flag.
+        if (entry.primary || entry.contype === 'p') continue;
+        // Single-column UNIQUE constraints round-trip via the column's
+        // `unique` flag; skip their backing indexes so reflection doesn't
+        // emit redundant index definitions. Multi-column unique constraints
+        // (named via `t.unique([...], name)`) carry richer data than a single
+        // column flag can express, so we keep them as IndexDefinitions.
+        if (entry.contype === 'u' && entry.columns.length === 1) continue;
+        entry.columns.sort((a, b) => a.ord - b.ord);
+        indexes.push({
+          columns: entry.columns.map((c) => c.column),
+          unique: entry.unique,
+          name,
+        });
+      }
+
+      const columns: ColumnDefinition[] = (
+        colsRes.rows as Array<{
+          column_name: string;
+          data_type: string;
+          udt_name: string;
+          is_nullable: 'YES' | 'NO';
+          column_default: string | null;
+          character_maximum_length: number | null;
+          numeric_precision: number | null;
+          numeric_scale: number | null;
+        }>
+      ).map((c) => {
+        const isPrimary = pkColumns.has(c.column_name);
+        const isUnique = uniqueColumns.has(c.column_name);
+        const kind = pgTypeToColumnKind(c.data_type, c.udt_name);
+        const defaultRaw = c.column_default;
+        const autoIncrement =
+          isPrimary &&
+          (kind === 'integer' || kind === 'bigint') &&
+          typeof defaultRaw === 'string' &&
+          /^nextval\(/i.test(defaultRaw);
+        return {
+          name: c.column_name,
+          type: kind,
+          nullable: c.is_nullable === 'YES' && !isPrimary,
+          default: autoIncrement ? undefined : parsePgDefault(defaultRaw, kind),
+          limit: kind === 'string' ? (c.character_maximum_length ?? undefined) : undefined,
+          primary: isPrimary,
+          unique: isUnique && !isPrimary,
+          precision:
+            kind === 'decimal' && c.numeric_precision !== null ? c.numeric_precision : undefined,
+          scale: kind === 'decimal' && c.numeric_scale !== null ? c.numeric_scale : undefined,
+          autoIncrement,
+        };
+      });
+
+      const primaryKey = columns.find((c) => c.primary)?.name;
+      result.push({
+        name: tableName,
+        columns,
+        indexes,
+        primaryKey,
+      });
+    }
+    return result;
+  }
+
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
     if (await this.hasTable(tableName)) return;
@@ -840,4 +1025,117 @@ function pgAction(action: ForeignKeyAction): string {
     case 'noAction':
       return 'NO ACTION';
   }
+}
+
+/**
+ * Map a Postgres `information_schema.columns.data_type` (plus its `udt_name`
+ * when the data_type is generic, e.g. for `varchar` vs `text`) back to the
+ * connector's `ColumnKind`. Inverse of `columnType(...)` above.
+ */
+function pgTypeToColumnKind(dataType: string, udtName: string): ColumnKind {
+  const t = dataType.toLowerCase();
+  const u = (udtName ?? '').toLowerCase();
+  switch (t) {
+    case 'character varying':
+    case 'varchar':
+      return 'string';
+    case 'character':
+    case 'char':
+      return 'string';
+    case 'text':
+      return 'text';
+    case 'integer':
+      return 'integer';
+    case 'smallint':
+      return 'integer';
+    case 'bigint':
+      return 'bigint';
+    case 'boolean':
+      return 'boolean';
+    case 'real':
+    case 'double precision':
+      return 'float';
+    case 'numeric':
+    case 'decimal':
+      return 'decimal';
+    case 'date':
+      return 'date';
+    case 'time':
+    case 'time without time zone':
+    case 'time with time zone':
+      return 'datetime';
+    case 'timestamp':
+    case 'timestamp without time zone':
+    case 'timestamp with time zone':
+      return 'timestamp';
+    case 'json':
+    case 'jsonb':
+      return 'json';
+    default: {
+      // Sometimes data_type is generic (e.g. "USER-DEFINED") and udt_name
+      // is the actual type. Try the udt_name as a secondary hint.
+      switch (u) {
+        case 'int2':
+        case 'int4':
+          return 'integer';
+        case 'int8':
+          return 'bigint';
+        case 'float4':
+        case 'float8':
+          return 'float';
+        case 'numeric':
+          return 'decimal';
+        case 'bool':
+          return 'boolean';
+        case 'json':
+        case 'jsonb':
+          return 'json';
+        case 'varchar':
+        case 'bpchar':
+          return 'string';
+        case 'text':
+          return 'text';
+        case 'date':
+          return 'date';
+        case 'timestamp':
+        case 'timestamptz':
+          return 'timestamp';
+        case 'time':
+        case 'timetz':
+          return 'datetime';
+      }
+      return 'text';
+    }
+  }
+}
+
+/**
+ * Postgres `information_schema.columns.column_default` is a serialised SQL
+ * fragment — `'api'::character varying`, `5`, `now()`, `nextval('seq')`, …
+ * Decode the common cases back into the connector's `ColumnDefault` shape so
+ * reflection round-trips through `defineSchema(...)` cleanly.
+ */
+function parsePgDefault(raw: string | null, kind: ColumnKind): ColumnDefault | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed.toUpperCase() === 'NULL') return undefined;
+  // Strip the explicit cast suffix: `'api'::character varying` -> `'api'`,
+  // `5::integer` -> `5`. Multiple casts are possible; remove all trailing.
+  const stripped = trimmed.replace(/::[A-Za-z0-9_ "]+(\([^)]*\))?$/g, '').trim();
+  const upper = stripped.toUpperCase();
+  if (upper === 'CURRENT_TIMESTAMP' || upper === 'NOW()') return 'currentTimestamp';
+  if (upper === 'TRUE') return true;
+  if (upper === 'FALSE') return false;
+  if (stripped.startsWith("'") && stripped.endsWith("'") && stripped.length >= 2) {
+    return stripped.slice(1, -1).replace(/''/g, "'");
+  }
+  if (kind === 'boolean') {
+    if (stripped === '1') return true;
+    if (stripped === '0') return false;
+  }
+  if (kind === 'integer' || kind === 'bigint' || kind === 'float' || kind === 'decimal') {
+    const num = Number(stripped);
+    if (Number.isFinite(num)) return num;
+  }
+  return stripped;
 }

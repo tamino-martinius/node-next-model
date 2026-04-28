@@ -40,6 +40,22 @@ await c1.destroy();
 
 The pool is exposed as `connector.pool` if you need raw access.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` infers per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new MysqlConnector(process.env.DATABASE_URL!, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts
@@ -116,6 +132,10 @@ MySQL also has no `RETURNING` on `UPDATE` / `DELETE`. The connector captures the
 | `t.json('payload')`              | `` `payload` JSON ``                     |
 
 `{ default: 'currentTimestamp' }` becomes `DEFAULT CURRENT_TIMESTAMP`. New tables are created with `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`. `t.index(...)` issues a follow-up `CREATE [UNIQUE] INDEX`. `dropTable` uses `DROP TABLE IF EXISTS`.
+
+### Schema reflection (`reflectSchema`)
+
+Returns a `TableDefinition[]` for every base table in the current `DATABASE()`. Reads `information_schema.TABLES` / `information_schema.COLUMNS` for column types / defaults / nullability / `VARCHAR(N)` limits / `DECIMAL(p,s)` precision and scale, and `information_schema.STATISTICS` for primary key + index definitions. `tinyint(1)` round-trips as `boolean`; `EXTRA = 'auto_increment'` flags `autoIncrement: true`; `CURRENT_TIMESTAMP` defaults map back to `'currentTimestamp'`. The result feeds straight into `generateSchemaSource(...)` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
 
 ## Testing matrix
 
