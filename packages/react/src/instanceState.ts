@@ -10,6 +10,10 @@ export function emitterFor(instance: object): Emitter {
   return e;
 }
 
+export function linkEmitter(alias: object, original: object): void {
+  emitters.set(alias, emitterFor(original));
+}
+
 export function storeFor(instance: object): Store | undefined {
   return stores.get(instance);
 }
