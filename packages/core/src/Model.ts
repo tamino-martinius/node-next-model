@@ -2174,17 +2174,19 @@ export function Model<
 
 /**
  * Legacy overload — pass an explicit `init` callback whose parameter type
- * defines the row's prop shape. `tableName` and `init` are required;
- * `keys` defaults to `{ id: KeyType.number }`.
+ * defines the row's prop shape, OR pass an interface as the generic type
+ * argument (`Model<UserProps>({ tableName: 'x' })`) and let `init` default
+ * to identity. `tableName` is required; `init` is optional; `keys` defaults
+ * to `{ id: KeyType.number }`.
  */
 export function Model<
   CreateProps = {},
-  PersistentProps extends Schema = {},
+  PersistentProps extends Schema = CreateProps extends Schema ? CreateProps : Schema,
   Keys extends Dict<KeyType> = { id: KeyType.number },
   Scopes extends ScopeMap = {},
 >(props: {
   tableName: string;
-  init: (props: CreateProps) => PersistentProps;
+  init?: (props: CreateProps) => PersistentProps;
   filter?: Filter<
     PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
   >;
@@ -2299,7 +2301,12 @@ export function Model(props: any): any {
     const { schema: _schema, ...rest } = props;
     return modelFactoryImpl({ ...rest, tableName, keys, init });
   }
-  return modelFactoryImpl(props);
+  // Legacy / interface-generic path. When `init` is omitted (e.g.
+  // `Model<UserProps>({ tableName: 'x' })`) it defaults to identity so the
+  // factory still has a row-shape transformer. The explicit-init form keeps
+  // working unchanged because we only fill in the default when missing.
+  const init = props.init ?? ((p: any) => p);
+  return modelFactoryImpl({ ...props, init });
 }
 
 function modelFactoryImpl<

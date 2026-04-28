@@ -7,6 +7,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Installation](#installation)
 - [Defining a model](#defining-a-model)
   - [Schema-driven props](#schema-driven-props)
+  - [Interface-generic props](#interface-generic-props)
   - [Factory options](#factory-options)
   - [Keys (primary key type)](#keys-primary-key-type)
   - [Named scopes](#named-scopes)
@@ -126,6 +127,43 @@ class User extends Model({
 ```
 
 The legacy `init`-driven form stays available for cases where the row shape doesn't map to a single declared schema (e.g. when validators from a third-party library — `@next-model/zod`, `@next-model/typebox`, `@next-model/arktype` — provide both `init` and the column list).
+
+### Interface-generic props
+
+If you already have a TypeScript type for the row shape — generated from an OpenAPI spec, an inferred `z.infer<typeof userSchema>`, a hand-written interface, etc. — you can pass it as the generic argument to `Model<...>({...})` and skip the `init` callback entirely. `init` defaults to identity, so the props passed to `create` / `build` flow straight through to the connector.
+
+```ts
+import { Model } from '@next-model/core';
+
+interface UserProps {
+  email: string;
+  name: string;
+  archivedAt: Date | null;
+}
+
+class User extends Model<UserProps>({
+  tableName: 'users',
+  // No init needed — defaults to identity. Props are typed via the generic.
+}) {}
+
+const u = await User.create({ email: 'a@b', name: 'Ada', archivedAt: null });
+// TypeScript knows: u.email is string, u.archivedAt is Date | null.
+```
+
+Compared to `defineSchema(...)`:
+
+- Lighter weight — no runtime `defineSchema` call, no runtime `TableDefinition`.
+- Less powerful — interfaces carry no runtime info (no default values, no nullability hints beyond `T | null`), so the generated tooling that reads `TableDefinition` (migrations, schema snapshots, etc.) can't see this Model.
+- Best fit when you already have a TS type from elsewhere and don't need the schema's runtime metadata.
+
+You can still pass `init` to transform incoming props — the generic types its parameter for you:
+
+```ts
+class User extends Model<UserProps>({
+  tableName: 'users',
+  init: (p) => ({ ...p, email: p.email.toLowerCase() }),  // p is typed as UserProps
+}) {}
+```
 
 ### Schema generation
 
