@@ -2,6 +2,14 @@ import type { Dict } from '@next-model/core';
 import { emitterFor, linkEmitter, storeFor } from './instanceState.js';
 
 const proxies = new WeakMap<object, object>();
+/**
+ * Tracks resettable shells (form drafts created via `useModel(M).build(...)`).
+ * They must not be inserted into the Store's identity map on save —
+ * doing so would let watch refetches return the draft shell, and the next
+ * `reset()` would wipe the row's data in every watcher. Build shells are
+ * always transient form state, never canonical row representatives.
+ */
+const buildShells = new WeakSet<object>();
 
 export const BROADCAST_METHODS = new Set([
   'assign',
@@ -67,8 +75,10 @@ export function wrapInstance<T extends object>(
                   if (keys && tableName) {
                     if (prop === 'delete') {
                       store.drop(tableName, keys);
-                    } else {
-                      // save / update / reload / increment / decrement: this row is now canonical.
+                    } else if (!buildShells.has(proxy as object)) {
+                      // save / update / reload / increment / decrement on a fetched
+                      // shell: this row is now canonical. Build shells stay out of
+                      // the identity map so reset() can't wipe row data in watchers.
                       store.softRegister(tableName, keys, proxy as object);
                     }
                     store.publishRow(tableName, keys);
@@ -106,5 +116,10 @@ export function wrapInstance<T extends object>(
 
   proxies.set(instance, proxy);
   linkEmitter(proxy as object, instance);
+  if (options.resettable) buildShells.add(proxy as object);
   return proxy as T;
+}
+
+export function isBuildShell(proxy: object): boolean {
+  return buildShells.has(proxy);
 }
