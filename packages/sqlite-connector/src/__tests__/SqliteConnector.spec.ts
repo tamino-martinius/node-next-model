@@ -542,7 +542,8 @@ describe('SqliteConnector#reflectSchema', () => {
       });
       const reflected = await local.reflectSchema!();
       const source = generateSchemaSource(reflected);
-      expect(source).toContain('export const usersSchema = defineSchema({');
+      expect(source).toContain('export const schema = defineSchema({');
+      expect(source).toContain('users: {');
       expect(source).toContain('email: { type: "string"');
       expect(source).toContain('id: { type: "integer", primary: true, autoIncrement: true');
     } finally {

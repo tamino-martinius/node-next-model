@@ -8,6 +8,7 @@ import {
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -74,12 +75,16 @@ function normaliseValue(value: unknown): unknown {
   return value;
 }
 
-export class MysqlConnector implements Connector {
+export class MysqlConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   pool: Pool;
   private activeConnection: PoolConnection | undefined;
 
-  constructor(config: MysqlConfig) {
+  constructor(config: MysqlConfig, extras?: { schema?: S }) {
     this.pool = createPool(typeof config === 'string' ? { uri: config } : config);
+    this.schema = extras?.schema;
   }
 
   async destroy(): Promise<void> {

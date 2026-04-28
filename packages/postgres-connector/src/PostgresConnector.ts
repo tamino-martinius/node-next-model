@@ -8,6 +8,7 @@ import {
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -63,11 +64,14 @@ function requireNonEmpty(filter: Dict<any>, operator: string): void {
   }
 }
 
-export class PostgresConnector implements Connector {
+export class PostgresConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   pool: Pool;
   private activeClient: PoolClient | undefined;
 
-  constructor(config: PostgresConfig) {
+  constructor(config: PostgresConfig, extras?: { schema?: S }) {
     if (typeof config === 'string') {
       this.pool = new Pool({ connectionString: config });
     } else if ('connectionString' in (config as object)) {
@@ -77,6 +81,7 @@ export class PostgresConnector implements Connector {
     } else {
       this.pool = new Pool(config as PoolConfig);
     }
+    this.schema = extras?.schema;
   }
 
   async destroy(): Promise<void> {

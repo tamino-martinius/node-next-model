@@ -51,6 +51,22 @@ const mysql = new KnexConnector({
 
 The underlying knex instance is exposed as `connector.knex` if you need to drop down to raw query-building or call `connector.knex.destroy()` on shutdown.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new KnexConnector({ client: 'pg', connection: '...' }, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts

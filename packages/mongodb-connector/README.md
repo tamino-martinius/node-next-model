@@ -39,6 +39,22 @@ await c1.destroy();
 
 The underlying client and database handle are exposed as `connector.client` and `connector.db`.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` can infer per-collection props at the type level — purely for Model inference, since MongoDB enforces no document schema at runtime.
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new MongoDbConnector({ url: process.env.MONGODB_URL }, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts

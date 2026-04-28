@@ -8,6 +8,7 @@ import {
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -77,14 +78,17 @@ function requireSingleKey(filter: Dict<any>, operator: string): string {
   return keys[0];
 }
 
-export class DataApiConnector implements Connector {
+export class DataApiConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   dataApi: DataApiClient;
   knex: Knex = createKnex({ client: 'pg' });
   debug: boolean;
   dialect: DataApiDialect;
   private activeTransactionId: unknown;
 
-  constructor(options: DataApiConfig) {
+  constructor(options: DataApiConfig, extras?: { schema?: S }) {
     if (options.client) {
       this.dataApi = options.client;
     } else {
@@ -92,6 +96,7 @@ export class DataApiConnector implements Connector {
     }
     this.debug = options.debug ?? false;
     this.dialect = options.dialect ?? 'postgres';
+    this.schema = extras?.schema;
   }
 
   private currentMilliseconds(): number {

@@ -40,6 +40,22 @@ await c1.destroy();
 
 The pool is exposed as `connector.pool` if you need raw access.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` infers per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
+});
+
+const connector = new MysqlConnector(process.env.DATABASE_URL!, { schema });
+```
+
+Existing call sites without `{ schema }` keep working unchanged.
+
 ## Wiring a Model
 
 ```ts
