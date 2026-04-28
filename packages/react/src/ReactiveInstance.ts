@@ -39,6 +39,9 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
       const value = Reflect.get(target, prop, receiver);
       if (typeof prop === 'string' && BROADCAST_METHODS.has(prop) && typeof value === 'function') {
         return function (this: unknown, ...args: unknown[]) {
+          // Capture keys before calling the method — delete() clears target.keys to undefined.
+          const keysBefore = (target as { keys?: Record<string, unknown> }).keys;
+          const tableName = ((target as object).constructor as { tableName?: string }).tableName;
           const result = (value as (...a: unknown[]) => unknown).apply(target, args);
           if (result && typeof (result as Promise<unknown>).then === 'function') {
             return (result as Promise<unknown>).then(
@@ -46,8 +49,7 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
                 emitterFor(target).emit();
                 const store = storeFor(target);
                 if (store && !store.isDisposed()) {
-                  const keys = (target as { keys?: Record<string, unknown> }).keys;
-                  const tableName = ((target as object).constructor as { tableName?: string }).tableName;
+                  const keys = prop === 'delete' ? keysBefore : (target as { keys?: Record<string, unknown> }).keys;
                   if (keys && tableName) {
                     if (prop === 'delete') {
                       store.drop(tableName, keys);

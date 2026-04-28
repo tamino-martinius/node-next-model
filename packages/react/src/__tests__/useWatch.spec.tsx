@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useModel } from '../useModel.js';
 import { makeFixtures, wrapWithProvider } from './helpers.js';
@@ -78,5 +78,29 @@ describe('useWatch lifecycle', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     unmount();
     // No assertion failure = clean teardown.
+  });
+});
+
+describe('delete propagation', () => {
+  it('collection: deleted row drops from data', async () => {
+    const { result } = renderHook(() => useModel(Todo as any).watch(), {
+      wrapper: wrapWithProvider,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const before = (result.current.data as any[]).length;
+    const first = (result.current.data as any[])[0];
+    await act(async () => { await first.delete(); });
+    await waitFor(() => expect((result.current.data as any[]).length).toBe(before - 1));
+  });
+
+  it('single-instance: deleted row sets data to undefined', async () => {
+    const created = await Todo.create({ title: 'gone', done: false });
+    const id = (created as any).id;
+    const { result } = renderHook(() => useModel(Todo as any).findWatch(id), {
+      wrapper: wrapWithProvider,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await act(async () => { await (result.current.data as any).delete(); });
+    await waitFor(() => expect(result.current.data).toBeUndefined());
   });
 });

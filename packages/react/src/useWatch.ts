@@ -83,8 +83,6 @@ export function useWatch<T>(
     rowSubsRef.current = [];
   };
 
-  const rerender = () => setState((s) => ({ ...s }));
-
   const bindRows = (decorated: unknown) => {
     releaseAll();
     const rows: object[] = Array.isArray(decorated)
@@ -94,7 +92,22 @@ export function useWatch<T>(
       const keys = keysOf(row);
       if (Object.keys(keys).length === 0) continue;
       store.retain(tableName, keys);
-      const off = store.subscribe(rowKey(tableName, keys), rerender);
+      const handler = () => {
+        setState((s) => {
+          const stillAlive = !!store.acquire(tableName, keys);
+          if (Array.isArray(s.data)) {
+            if (stillAlive) {
+              // shallow rerender — row's attributes already updated through the shell
+              return { ...s };
+            }
+            return { ...s, data: (s.data as object[]).filter((r) => r !== row) as typeof s.data };
+          }
+          // single-instance branch
+          if (!stillAlive) return { ...s, data: undefined as typeof s.data };
+          return { ...s };
+        });
+      };
+      const off = store.subscribe(rowKey(tableName, keys), handler);
       heldRowsRef.current.push({ tableName, keys });
       rowSubsRef.current.push(off);
     }
