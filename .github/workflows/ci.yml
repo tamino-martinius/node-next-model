@@ -32,6 +32,7 @@ jobs:
       zod: ${{ steps.filter.outputs.zod }}
       typebox: ${{ steps.filter.outputs.typebox }}
       arktype: ${{ steps.filter.outputs.arktype }}
+      react: ${{ steps.filter.outputs.react }}
       ci: ${{ steps.filter.outputs.ci }}
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -114,6 +115,9 @@ jobs:
             arktype:
               - 'packages/arktype/**'
               - '!packages/arktype/**/*.md'
+            react:
+              - 'packages/react/**'
+              - '!packages/react/**/*.md'
             ci:
               - '.github/**'
             code:
@@ -366,6 +370,26 @@ jobs:
         with:
           name: coverage-arktype
           path: packages/arktype/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-react:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.react == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/react -r build
+      - run: pnpm --filter @next-model/react coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-react
+          path: packages/react/coverage/coverage-summary.json
           if-no-files-found: ignore
 
   test-migrations-generator:
@@ -709,6 +733,7 @@ jobs:
       - test-zod
       - test-typebox
       - test-arktype
+      - test-react
       - test-migrations
       - test-postgres-connector
       - test-mysql-connector
