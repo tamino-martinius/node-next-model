@@ -103,6 +103,8 @@ jobs:
             migrations-generator:
               - 'packages/migrations-generator/**'
               - '!packages/migrations-generator/**/*.md'
+              - 'packages/core/**'
+              - '!packages/core/**/*.md'
             zod:
               - 'packages/zod/**'
               - '!packages/zod/**/*.md'
@@ -368,7 +370,7 @@ jobs:
 
   test-migrations-generator:
     needs: changes
-    if: needs.changes.outputs.migrations-generator == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.migrations-generator == 'true' || needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -378,7 +380,7 @@ jobs:
           node-version: 22.x
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @next-model/migrations-generator build
+      - run: pnpm --filter @next-model/core --filter @next-model/migrations-generator -r build
       - run: pnpm --filter @next-model/migrations-generator coverage
       - uses: actions/upload-artifact@v7
         with:
