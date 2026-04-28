@@ -25,7 +25,7 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
     get(target, prop, receiver) {
       if (options.resettable && prop === 'reset') {
         return (props: Dict<unknown> = {}) => {
-          const ModelCtor = (target as object).constructor as { init: (p: Dict<unknown>) => Dict<unknown> };
+          const ModelCtor = (target as object).constructor as unknown as { init: (p: Dict<unknown>) => Dict<unknown> };
           const fresh = ModelCtor.init(props);
           (target as { persistentProps: Dict<unknown> }).persistentProps = fresh;
           (target as { changedProps: Dict<unknown> }).changedProps = {};
