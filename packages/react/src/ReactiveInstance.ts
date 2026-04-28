@@ -1,3 +1,4 @@
+import type { Dict } from '@next-model/core';
 import { emitterFor, linkEmitter } from './instanceState.js';
 
 const proxies = new WeakMap<object, object>();
@@ -11,16 +12,29 @@ export const BROADCAST_METHODS = new Set([
 export type ReactiveInstance<T> = T;
 
 export interface WrapOptions {
-  /** Expose `.reset(props?)` — only true for `.build()` shells. (Task 7 wires the behaviour.) */
+  /** Expose `.reset(props?)` — only true for `.build()` shells. */
   resettable?: boolean;
 }
 
-export function wrapInstance<T extends object>(instance: T, _options: WrapOptions = {}): ReactiveInstance<T> {
+export function wrapInstance<T extends object>(instance: T, options: WrapOptions = {}): ReactiveInstance<T> {
   const existing = proxies.get(instance);
   if (existing) return existing as T;
 
-  const proxy = new Proxy(instance, {
+  const proxy: T = new Proxy(instance, {
     get(target, prop, receiver) {
+      if (options.resettable && prop === 'reset') {
+        return (props: Dict<unknown> = {}) => {
+          const ModelCtor = (target as object).constructor as { init: (p: Dict<unknown>) => Dict<unknown> };
+          const fresh = ModelCtor.init(props);
+          (target as { persistentProps: Dict<unknown> }).persistentProps = fresh;
+          (target as { changedProps: Dict<unknown> }).changedProps = {};
+          (target as { keys: Dict<unknown> | undefined }).keys = undefined;
+          (target as { lastSavedChanges: Dict<unknown> }).lastSavedChanges = {};
+          const errors = (target as { _errors?: { clear(): void } })._errors;
+          if (errors) errors.clear();
+          emitterFor(target).emit();
+        };
+      }
       const value = Reflect.get(target, prop, receiver);
       if (typeof prop === 'string' && BROADCAST_METHODS.has(prop) && typeof value === 'function') {
         return function (this: unknown, ...args: unknown[]) {
@@ -51,9 +65,9 @@ export function wrapInstance<T extends object>(instance: T, _options: WrapOption
     ownKeys(target) {
       return Reflect.ownKeys(target);
     },
-  });
+  }) as T;
 
   proxies.set(instance, proxy);
-  linkEmitter(proxy, instance);
+  linkEmitter(proxy as object, instance);
   return proxy as T;
 }

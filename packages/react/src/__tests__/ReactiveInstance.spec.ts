@@ -91,4 +91,39 @@ describe('wrapInstance', () => {
     await reactive.save().catch(() => undefined);
     expect(cb).toHaveBeenCalled();
   });
+
+  it('reset(props?) reinitialises the underlying instance via Model.init', () => {
+    const todo = Todo.build({ title: 'a', done: false });
+    const reactive = wrapInstance(todo, { resettable: true }) as any;
+    reactive.title = 'b';
+    expect(todo.isChanged()).toBe(true);
+
+    reactive.reset({ title: 'fresh', done: true });
+
+    expect(todo.attributes).toEqual({ title: 'fresh', done: true });
+    expect(todo.isChanged()).toBe(false);
+    expect(todo.errors.count()).toBe(0);
+  });
+
+  it('reset emits a change for subscribers', () => {
+    const todo = Todo.build({ title: 'a', done: false });
+    const reactive = wrapInstance(todo, { resettable: true }) as any;
+    const cb = vi.fn();
+    emitterFor(todo).subscribe(cb);
+    reactive.reset({ title: 'b', done: false });
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('reset() without args calls Model.init({})', () => {
+    const todo = Todo.build({ title: 'a', done: false });
+    const reactive = wrapInstance(todo, { resettable: true }) as any;
+    reactive.reset();
+    expect(todo.attributes).toEqual({});
+  });
+
+  it('non-resettable shell does not expose reset', () => {
+    const todo = Todo.build({ title: 'a', done: false });
+    const reactive = wrapInstance(todo) as any;
+    expect(reactive.reset).toBeUndefined();
+  });
 });
