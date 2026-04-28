@@ -10,6 +10,7 @@ packages:
   - "packages/mongodb-connector"
   - "packages/aurora-data-api-connector"
   - "packages/local-storage-connector"
+  - "packages/react"
   - "packages/migrations"
   - "packages/express-rest-api"
   - "packages/graphql-api"
