@@ -4,6 +4,7 @@ import { ReactiveQuery, type TerminalKind } from './ReactiveQuery.js';
 import { wrapInstance } from './ReactiveInstance.js';
 import { emitterFor, tagStore } from './instanceState.js';
 import { useAsyncTerminal, type AsyncResult } from './useAsyncTerminal.js';
+import { useWatch, type WatchResult } from './useWatch.js';
 
 type ModelStatic<P> = {
   tableName: string;
@@ -35,6 +36,34 @@ function attachTerminals(query: HookQuery<{ tableName: string }>) {
   }
 }
 
+function attachWatch(query: HookQuery<{ tableName: string }>) {
+  Object.defineProperty(query, 'watch', {
+    configurable: true,
+    value: (options: { keys?: (string | symbol)[] } = {}) =>
+      useWatch(query, 'all', [], options),
+  });
+  Object.defineProperty(query, 'findWatch', {
+    configurable: true,
+    value: (pk: unknown, options: { keys?: (string | symbol)[] } = {}) =>
+      useWatch(query, 'find', [pk], options),
+  });
+  Object.defineProperty(query, 'findByWatch', {
+    configurable: true,
+    value: (filter: unknown, options: { keys?: (string | symbol)[] } = {}) =>
+      useWatch(query, 'findBy', [filter], options),
+  });
+  Object.defineProperty(query, 'firstWatch', {
+    configurable: true,
+    value: (options: { keys?: (string | symbol)[] } = {}) =>
+      useWatch(query, 'first', [], options),
+  });
+  Object.defineProperty(query, 'lastWatch', {
+    configurable: true,
+    value: (options: { keys?: (string | symbol)[] } = {}) =>
+      useWatch(query, 'last', [], options),
+  });
+}
+
 function attachChain(query: HookQuery<{ tableName: string }>) {
   for (const m of CHAIN_METHODS) {
     const original = (query as any)[m].bind(query);
@@ -46,6 +75,7 @@ function attachChain(query: HookQuery<{ tableName: string }>) {
         Object.setPrototypeOf(next, HookQuery.prototype);
         attachTerminals(next as HookQuery<{ tableName: string }>);
         attachChain(next as HookQuery<{ tableName: string }>);
+        attachWatch(next as HookQuery<{ tableName: string }>);
         return next;
       },
     });
@@ -79,6 +109,7 @@ export function useModel<P, M extends ModelStatic<P>>(ModelClass: M) {
 
   attachTerminals(query);
   attachChain(query);
+  attachWatch(query);
 
   return query as HookQuery<M> & {
     build(props?: Partial<P>): unknown;
@@ -95,5 +126,10 @@ export function useModel<P, M extends ModelStatic<P>>(ModelClass: M) {
     avg(col: string): AsyncResult<number | undefined>;
     pluck(col: string): AsyncResult<unknown[]>;
     exists(): AsyncResult<boolean>;
+    watch(options?: { keys?: (string | symbol)[] }): WatchResult<unknown[]>;
+    findWatch(pk: unknown, options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
+    findByWatch(filter: unknown, options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
+    firstWatch(options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
+    lastWatch(options?: { keys?: (string | symbol)[] }): WatchResult<unknown>;
   };
 }
