@@ -41,6 +41,28 @@ c1.destroy();
 
 The underlying handle is exposed as `connector.db` if you need raw access.
 
+### Attaching a typed schema
+
+Pass a `DatabaseSchema` (from `defineSchema(...)`) as the optional second argument so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+
+```ts
+import { defineSchema } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      email: { type: 'string' },
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
+```
+
+The `extras: { schema }` arg is purely a type-level decoration — the runtime contract is unchanged, and existing constructor call sites without a schema keep working.
+
 ## Wiring a Model
 
 ```ts

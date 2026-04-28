@@ -13,6 +13,7 @@ import {
   type ColumnKind,
   type ColumnOptions,
   type Connector,
+  type DatabaseSchema,
   type DeltaUpdateSpec,
   type Dict,
   defineTable,
@@ -52,12 +53,16 @@ function requireSingleKey(filter: Dict<any>, operator: string): string {
   return keys[0];
 }
 
-export class KnexConnector implements Connector {
+export class KnexConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
   knex: Knex;
   private activeTransaction: Knex.Transaction | undefined;
 
-  constructor(options: Knex.Config) {
+  constructor(options: Knex.Config, extras?: { schema?: S }) {
     this.knex = createKnex(options);
+    this.schema = extras?.schema;
   }
 
   private table(tableName: string): Knex.QueryBuilder {
