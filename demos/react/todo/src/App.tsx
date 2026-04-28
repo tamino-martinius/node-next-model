@@ -1,4 +1,4 @@
-import { useInvalidateKeys, useModel, type ModelInstanceType } from '@next-model/react';
+import { type ModelInstanceType, useInvalidateKeys, useModel } from '@next-model/react';
 import { useState } from 'react';
 import { Task, User } from './db.js';
 
@@ -6,7 +6,9 @@ type UserInstance = ModelInstanceType<typeof User>;
 
 export function App() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
-  const users = useModel(User).orderBy({ key: 'id' }).watch({ keys: ['users'] });
+  const users = useModel(User)
+    .orderBy({ key: 'id' })
+    .watch({ keys: ['users'] });
   if (users.isLoading) return <p>loading users…</p>;
 
   const userList = users.data;
@@ -49,7 +51,9 @@ function UserList({
                 invalidate(['users']);
               }}
               title="delete user"
-            >×</button>
+            >
+              ×
+            </button>
           </li>
         ))}
       </ul>
@@ -67,7 +71,9 @@ function UserList({
           type="text"
           placeholder="add user"
           value={newUser.name ?? ''}
-          onChange={(e) => { newUser.name = e.target.value; }}
+          onChange={(e) => {
+            newUser.name = e.target.value;
+          }}
         />
         <button type="submit">add</button>
       </form>
@@ -76,9 +82,12 @@ function UserList({
 }
 
 function Tasks({ userId }: { userId: number }) {
-  const tasks = useModel(Task).filterBy({ userId }).orderBy({ key: 'id' }).watch({
-    keys: [`tasks-user:${userId}`],
-  });
+  const tasks = useModel(Task)
+    .filterBy({ userId })
+    .orderBy({ key: 'id' })
+    .watch({
+      keys: [`tasks-user:${userId}`],
+    });
   const newTask = useModel(Task).build({ userId, done: false, text: '' });
   const invalidate = useInvalidateKeys();
   if (tasks.isLoading) return <p>loading tasks…</p>;
@@ -91,7 +100,10 @@ function Tasks({ userId }: { userId: number }) {
             <input
               type="checkbox"
               checked={t.done}
-              onChange={async () => { t.done = !t.done; await t.save(); }}
+              onChange={async () => {
+                t.done = !t.done;
+                await t.save();
+              }}
             />
             <span className="task-text">{t.text}</span>
             <button
@@ -101,7 +113,9 @@ function Tasks({ userId }: { userId: number }) {
                 invalidate([`tasks-user:${userId}`]);
               }}
               title="delete task"
-            >×</button>
+            >
+              ×
+            </button>
           </li>
         ))}
       </ul>
@@ -119,7 +133,9 @@ function Tasks({ userId }: { userId: number }) {
           type="text"
           placeholder="add task"
           value={newTask.text ?? ''}
-          onChange={(e) => { newTask.text = e.target.value; }}
+          onChange={(e) => {
+            newTask.text = e.target.value;
+          }}
         />
         <button type="submit">add</button>
       </form>

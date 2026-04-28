@@ -24,7 +24,9 @@ describe('Emitter', () => {
 
   it('tolerates a callback that throws — others still run', () => {
     const e = new Emitter();
-    const a = vi.fn(() => { throw new Error('boom'); });
+    const a = vi.fn(() => {
+      throw new Error('boom');
+    });
     const b = vi.fn();
     e.subscribe(a);
     e.subscribe(b);

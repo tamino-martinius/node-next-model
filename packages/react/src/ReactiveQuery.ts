@@ -4,12 +4,24 @@ import type { WatchResult } from './useWatch.js';
 
 export type TerminalKind =
   | 'build'
-  | 'find' | 'findBy' | 'findOrFail' | 'first' | 'last'
+  | 'find'
+  | 'findBy'
+  | 'findOrFail'
+  | 'first'
+  | 'last'
   | 'all'
-  | 'count' | 'sum' | 'min' | 'max' | 'avg'
-  | 'pluck' | 'exists';
+  | 'count'
+  | 'sum'
+  | 'min'
+  | 'max'
+  | 'avg'
+  | 'pluck'
+  | 'exists';
 
-interface ChainStep { method: string; args: unknown[] }
+interface ChainStep {
+  method: string;
+  args: unknown[];
+}
 
 export interface QueryPlan {
   ModelClass: { tableName: string };
@@ -32,14 +44,12 @@ export interface PendingResult<T> {
  * Uses `ReturnType<M['build']>` which is typed as
  * `InstanceType<M> & PersistentProps & Readonly<keyMap>` by core.
  */
-export type ModelInstanceType<M extends { build: (props?: any) => any }> =
-  ReturnType<M['build']>;
+export type ModelInstanceType<M extends { build: (props?: any) => any }> = ReturnType<M['build']>;
 
 /**
  * Extract the create-props type from a Model class.
  */
-export type ModelCreatePropsType<M> =
-  M extends { build(props: infer P): any } ? P : never;
+export type ModelCreatePropsType<M> = M extends { build(props: infer P): any } ? P : never;
 
 /**
  * The full reactive query surface returned by `useModel(ModelClass)`.
@@ -100,27 +110,49 @@ export class ReactiveQuery<M extends { tableName: string }> {
     });
   }
 
-  filterBy(filter: Dict<unknown>): ReactiveQuery<M> { return this.chain('filterBy', [filter]); }
-  where(...a: unknown[]): ReactiveQuery<M> { return this.chain('where', a); }
-  orderBy(...a: unknown[]): ReactiveQuery<M> { return this.chain('orderBy', a); }
-  limit(n: number): ReactiveQuery<M> { return this.chain('limit', [n]); }
-  skip(n: number): ReactiveQuery<M> { return this.chain('skip', [n]); }
-  joins(...names: string[]): ReactiveQuery<M> { return this.chain('joins', names); }
-  includes(...args: unknown[]): ReactiveQuery<M> { return this.chain('includes', args); }
-  withoutIncludes(): ReactiveQuery<M> { return this.chain('withoutIncludes', []); }
-  whereMissing(name: string): ReactiveQuery<M> { return this.chain('whereMissing', [name]); }
-  none(): ReactiveQuery<M> { return this.chain('none', []); }
+  filterBy(filter: Dict<unknown>): ReactiveQuery<M> {
+    return this.chain('filterBy', [filter]);
+  }
+  where(...a: unknown[]): ReactiveQuery<M> {
+    return this.chain('where', a);
+  }
+  orderBy(...a: unknown[]): ReactiveQuery<M> {
+    return this.chain('orderBy', a);
+  }
+  limit(n: number): ReactiveQuery<M> {
+    return this.chain('limit', [n]);
+  }
+  skip(n: number): ReactiveQuery<M> {
+    return this.chain('skip', [n]);
+  }
+  joins(...names: string[]): ReactiveQuery<M> {
+    return this.chain('joins', names);
+  }
+  includes(...args: unknown[]): ReactiveQuery<M> {
+    return this.chain('includes', args);
+  }
+  withoutIncludes(): ReactiveQuery<M> {
+    return this.chain('withoutIncludes', []);
+  }
+  whereMissing(name: string): ReactiveQuery<M> {
+    return this.chain('whereMissing', [name]);
+  }
+  none(): ReactiveQuery<M> {
+    return this.chain('none', []);
+  }
 
-  hash(terminal: TerminalKind, terminalArgs: unknown[] = [], options: { watchKeys?: (string | symbol)[] } = {}): string {
+  hash(
+    terminal: TerminalKind,
+    terminalArgs: unknown[] = [],
+    options: { watchKeys?: (string | symbol)[] } = {},
+  ): string {
     return JSON.stringify({
       table: this.plan.ModelClass.tableName,
       steps: this.plan.steps.map((s) => [s.method, s.args]),
       terminal,
       terminalArgs,
       watchKeys: options.watchKeys?.map((k) =>
-        typeof k === 'symbol'
-          ? `sym:${k.description ?? ''}@${k.toString()}`
-          : k,
+        typeof k === 'symbol' ? `sym:${k.description ?? ''}@${k.toString()}` : k,
       ),
     });
   }

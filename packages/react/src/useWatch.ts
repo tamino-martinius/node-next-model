@@ -1,10 +1,10 @@
 import type { Dict } from '@next-model/core';
 import { useEffect, useRef, useState } from 'react';
-import { useStore } from './Provider.js';
 import { tagStore } from './instanceState.js';
+import { useStore } from './Provider.js';
+import { rowKey } from './pkKey.js';
 import { wrapInstance } from './ReactiveInstance.js';
 import type { ReactiveQuery, TerminalKind } from './ReactiveQuery.js';
-import { rowKey } from './pkKey.js';
 import { runQuery } from './runQuery.js';
 import type { Store } from './Store.js';
 
@@ -17,14 +17,17 @@ export interface WatchResult<T> {
 
 const COLLECTION_TERMINALS = new Set<TerminalKind>(['all']);
 
-interface HeldRow { tableName: string; keys: Dict<unknown> }
+interface HeldRow {
+  tableName: string;
+  keys: Dict<unknown>;
+}
 
 function tableNameOf(query: ReactiveQuery<{ tableName: string }>): string {
   return query.plan.ModelClass.tableName;
 }
 
 function keysOf(instance: object): Dict<unknown> {
-  return ((instance as { keys?: Dict<unknown> }).keys) ?? {};
+  return (instance as { keys?: Dict<unknown> }).keys ?? {};
 }
 
 function isModelInstance(x: unknown): x is object {
@@ -35,13 +38,14 @@ function adopt(instance: object, tableName: string, store: Store): object {
   tagStore(instance, store);
   const shell = wrapInstance(instance);
   const keys = keysOf(instance);
-  if (Object.keys(keys).length === 0) return shell;   // unsaved — should not happen for watch results
+  if (Object.keys(keys).length === 0) return shell; // unsaved — should not happen for watch results
   const cached = store.acquire(tableName, keys);
   if (cached) {
     // Sync persistent attributes from the freshly-fetched instance into the
     // canonical shell so that saves performed through any proxy are reflected here.
     const freshAttrs = (instance as { persistentProps?: Record<string, unknown> }).persistentProps;
-    if (freshAttrs) (cached as { persistentProps: Record<string, unknown> }).persistentProps = freshAttrs;
+    if (freshAttrs)
+      (cached as { persistentProps: Record<string, unknown> }).persistentProps = freshAttrs;
     return cached;
   }
   store.softRegister(tableName, keys, shell);
@@ -93,7 +97,9 @@ export function useWatch<T>(
     releaseAll();
     const rows: object[] = Array.isArray(decorated)
       ? (decorated as object[])
-      : decorated && isModelInstance(decorated) ? [decorated as object] : [];
+      : decorated && isModelInstance(decorated)
+        ? [decorated as object]
+        : [];
     for (const row of rows) {
       const keys = keysOf(row);
       if (Object.keys(keys).length === 0) continue;
@@ -151,21 +157,23 @@ export function useWatch<T>(
   };
 
   // Effect 1: initial fetch + refetch on dep change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey is the canonical identity hash
   useEffect(() => {
     fetch('initial');
     return () => {
       inflightRef.current++;
       releaseAll();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryKey]);
 
   // Effect 2: subscribe to user-supplied keys.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey already encodes options.keys
   useEffect(() => {
     if (!options.keys?.length) return;
     const offs = options.keys.map((k) => store.subscribe(k, () => fetch('refetch')));
-    return () => offs.forEach((off) => off());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      for (const off of offs) off();
+    };
   }, [queryKey]);
 
   return state;

@@ -6,7 +6,10 @@ const stores = new WeakMap<object, Store>();
 
 export function emitterFor(instance: object): Emitter {
   let e = emitters.get(instance);
-  if (!e) { e = new Emitter(); emitters.set(instance, e); }
+  if (!e) {
+    e = new Emitter();
+    emitters.set(instance, e);
+  }
   return e;
 }
 

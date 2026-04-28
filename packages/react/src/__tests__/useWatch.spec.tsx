@@ -32,7 +32,10 @@ describe('useModel().watch()', () => {
 
   it('chains: filterBy(...).watch()', async () => {
     const { result } = renderHook(
-      () => useModel(Todo as any).filterBy({ done: false }).watch(),
+      () =>
+        useModel(Todo as any)
+          .filterBy({ done: false })
+          .watch(),
       { wrapper: wrapWithProvider },
     );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -45,9 +48,15 @@ describe('useModel().find(id).watch()', () => {
   it('resolves to a single instance', async () => {
     const created = await Todo.create({ title: 'x', done: false });
     const id = (created as any).id;
-    const { result } = renderHook(() => useModel(Todo as any).find(id).watch(), {
-      wrapper: wrapWithProvider,
-    });
+    const { result } = renderHook(
+      () =>
+        useModel(Todo as any)
+          .find(id)
+          .watch(),
+      {
+        wrapper: wrapWithProvider,
+      },
+    );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect((result.current.data as any)?.title).toBe('x');
   });
@@ -55,17 +64,29 @@ describe('useModel().find(id).watch()', () => {
 
 describe('useModel().first().watch() / .last().watch() / .findBy().watch()', () => {
   it('first().watch() resolves to the first row', async () => {
-    const { result } = renderHook(() => useModel(Todo as any).first().watch(), {
-      wrapper: wrapWithProvider,
-    });
+    const { result } = renderHook(
+      () =>
+        useModel(Todo as any)
+          .first()
+          .watch(),
+      {
+        wrapper: wrapWithProvider,
+      },
+    );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data).toBeDefined();
   });
 
   it('findBy().watch() resolves with the matching row', async () => {
-    const { result } = renderHook(() => useModel(Todo as any).findBy({ title: 'a' }).watch(), {
-      wrapper: wrapWithProvider,
-    });
+    const { result } = renderHook(
+      () =>
+        useModel(Todo as any)
+          .findBy({ title: 'a' })
+          .watch(),
+      {
+        wrapper: wrapWithProvider,
+      },
+    );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect((result.current.data as any)?.title).toBe('a');
   });
@@ -90,18 +111,28 @@ describe('delete propagation', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     const before = (result.current.data as any[]).length;
     const first = (result.current.data as any[])[0];
-    await act(async () => { await first.delete(); });
+    await act(async () => {
+      await first.delete();
+    });
     await waitFor(() => expect((result.current.data as any[]).length).toBe(before - 1));
   });
 
   it('single-instance: deleted row sets data to undefined', async () => {
     const created = await Todo.create({ title: 'gone', done: false });
     const id = (created as any).id;
-    const { result } = renderHook(() => useModel(Todo as any).find(id).watch(), {
-      wrapper: wrapWithProvider,
-    });
+    const { result } = renderHook(
+      () =>
+        useModel(Todo as any)
+          .find(id)
+          .watch(),
+      {
+        wrapper: wrapWithProvider,
+      },
+    );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    await act(async () => { await (result.current.data as any).delete(); });
+    await act(async () => {
+      await (result.current.data as any).delete();
+    });
     await waitFor(() => expect(result.current.data).toBeUndefined());
   });
 });
@@ -112,8 +143,12 @@ describe('cross-component update propagation', () => {
     const id = (created as any).id;
 
     function Pair() {
-      const watch = useModel(Todo as any).find(id).watch();
-      const editor = useModel(Todo as any).find(id).fetch();
+      const watch = useModel(Todo as any)
+        .find(id)
+        .watch();
+      const editor = useModel(Todo as any)
+        .find(id)
+        .fetch();
       const todo = (editor.data as any) ?? null;
       return (
         <div>
@@ -126,18 +161,24 @@ describe('cross-component update propagation', () => {
               todo.title = 'after';
               await todo.save();
             }}
-          >rename</button>
+          >
+            rename
+          </button>
         </div>
       );
     }
 
     const view = render(
-      <NextModelProvider><Pair /></NextModelProvider>,
+      <NextModelProvider>
+        <Pair />
+      </NextModelProvider>,
     );
 
     await waitFor(() => expect(view.getByTestId('watched').textContent).toBe('before'));
 
-    await act(async () => { view.getByTestId('rename').click(); });
+    await act(async () => {
+      view.getByTestId('rename').click();
+    });
     await waitFor(() => expect(view.getByTestId('watched').textContent).toBe('after'));
   });
 
@@ -146,18 +187,20 @@ describe('cross-component update propagation', () => {
     const id = (created as any).id;
 
     function Pair() {
-      const a = useModel(Todo as any).filterBy({ id }).watch();
-      const b = useModel(Todo as any).find(id).watch();
+      const a = useModel(Todo as any)
+        .filterBy({ id })
+        .watch();
+      const b = useModel(Todo as any)
+        .find(id)
+        .watch();
       if (a.isLoading || b.isLoading) return <span data-testid="status">loading</span>;
-      return (
-        <span data-testid="status">
-          {((a.data as any[])[0] === b.data) ? 'same' : 'diff'}
-        </span>
-      );
+      return <span data-testid="status">{(a.data as any[])[0] === b.data ? 'same' : 'diff'}</span>;
     }
 
     const view = render(
-      <NextModelProvider><Pair /></NextModelProvider>,
+      <NextModelProvider>
+        <Pair />
+      </NextModelProvider>,
     );
 
     await waitFor(() => expect(view.getByTestId('status').textContent).toBe('same'));

@@ -106,7 +106,9 @@ describe('Store pub/sub', () => {
 
   it('callbacks that throw do not block siblings', () => {
     const s = new Store();
-    const a = vi.fn(() => { throw new Error('boom'); });
+    const a = vi.fn(() => {
+      throw new Error('boom');
+    });
     const b = vi.fn();
     s.subscribe('k', a);
     s.subscribe('k', b);

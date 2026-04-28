@@ -4,9 +4,15 @@ import { emitterFor, linkEmitter, storeFor } from './instanceState.js';
 const proxies = new WeakMap<object, object>();
 
 export const BROADCAST_METHODS = new Set([
-  'assign', 'save', 'delete', 'update',
-  'revertChange', 'revertChanges',
-  'reload', 'increment', 'decrement',
+  'assign',
+  'save',
+  'delete',
+  'update',
+  'revertChange',
+  'revertChanges',
+  'reload',
+  'increment',
+  'decrement',
 ]);
 
 export type ReactiveInstance<T> = T;
@@ -16,7 +22,10 @@ export interface WrapOptions {
   resettable?: boolean;
 }
 
-export function wrapInstance<T extends object>(instance: T, options: WrapOptions = {}): ReactiveInstance<T> {
+export function wrapInstance<T extends object>(
+  instance: T,
+  options: WrapOptions = {},
+): ReactiveInstance<T> {
   const existing = proxies.get(instance);
   if (existing) return existing as T;
 
@@ -25,7 +34,9 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
     get(target, prop, receiver) {
       if (options.resettable && prop === 'reset') {
         return (props: Dict<unknown> = {}) => {
-          const ModelCtor = (target as object).constructor as unknown as { init: (p: Dict<unknown>) => Dict<unknown> };
+          const ModelCtor = (target as object).constructor as unknown as {
+            init: (p: Dict<unknown>) => Dict<unknown>;
+          };
           const fresh = ModelCtor.init(props);
           (target as { persistentProps: Dict<unknown> }).persistentProps = fresh;
           (target as { changedProps: Dict<unknown> }).changedProps = {};
@@ -49,7 +60,10 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
                 emitterFor(target).emit();
                 const store = storeFor(target);
                 if (store && !store.isDisposed()) {
-                  const keys = prop === 'delete' ? keysBefore : (target as { keys?: Record<string, unknown> }).keys;
+                  const keys =
+                    prop === 'delete'
+                      ? keysBefore
+                      : (target as { keys?: Record<string, unknown> }).keys;
                   if (keys && tableName) {
                     if (prop === 'delete') {
                       store.drop(tableName, keys);
@@ -62,7 +76,10 @@ export function wrapInstance<T extends object>(instance: T, options: WrapOptions
                 }
                 return r;
               },
-              (e) => { emitterFor(target).emit(); throw e; },
+              (e) => {
+                emitterFor(target).emit();
+                throw e;
+              },
             );
           }
           emitterFor(target).emit();

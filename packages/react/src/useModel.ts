@@ -1,26 +1,47 @@
 import { useMemo, useRef, useSyncExternalStore } from 'react';
-import { useStore } from './Provider.js';
-import { ReactiveQuery, type TerminalKind, type ReactiveModelQuery, type ModelInstanceType, type ModelCreatePropsType } from './ReactiveQuery.js';
-import { wrapInstance } from './ReactiveInstance.js';
 import { emitterFor, tagStore } from './instanceState.js';
+import { useStore } from './Provider.js';
+import { wrapInstance } from './ReactiveInstance.js';
+import {
+  type ModelCreatePropsType,
+  type ModelInstanceType,
+  type ReactiveModelQuery,
+  ReactiveQuery,
+  type TerminalKind,
+} from './ReactiveQuery.js';
 import { useAsyncTerminal } from './useAsyncTerminal.js';
 import { useWatch } from './useWatch.js';
 
 const PENDING_TERMINALS: Array<[string, TerminalKind]> = [
-  ['all', 'all'], ['first', 'first'], ['last', 'last'],
-  ['find', 'find'], ['findBy', 'findBy'], ['findOrFail', 'findOrFail'],
-  ['count', 'count'], ['sum', 'sum'], ['min', 'min'], ['max', 'max'], ['avg', 'avg'],
-  ['pluck', 'pluck'], ['exists', 'exists'],
+  ['all', 'all'],
+  ['first', 'first'],
+  ['last', 'last'],
+  ['find', 'find'],
+  ['findBy', 'findBy'],
+  ['findOrFail', 'findOrFail'],
+  ['count', 'count'],
+  ['sum', 'sum'],
+  ['min', 'min'],
+  ['max', 'max'],
+  ['avg', 'avg'],
+  ['pluck', 'pluck'],
+  ['exists', 'exists'],
 ];
 
 const CHAIN_METHODS = [
-  'filterBy', 'where', 'orderBy', 'limit', 'skip',
-  'joins', 'includes', 'withoutIncludes', 'whereMissing', 'none',
+  'filterBy',
+  'where',
+  'orderBy',
+  'limit',
+  'skip',
+  'joins',
+  'includes',
+  'withoutIncludes',
+  'whereMissing',
+  'none',
 ];
 
-class HookQuery<M extends { tableName: string }> extends ReactiveQuery<M> {
-  constructor(plan: ConstructorParameters<typeof ReactiveQuery>[0]) { super(plan); }
-}
+class HookQuery<M extends { tableName: string }> extends ReactiveQuery<M> {}
 
 /**
  * Attaches `.fetch()` and `.watch()` to a query.
@@ -108,11 +129,11 @@ export function useModel<M extends { tableName: string; build: (props?: any) => 
         buildShellRef.current = { instance, shell };
       }
       const { instance, shell } = buildShellRef.current;
-      // eslint-disable-next-line react-hooks/rules-of-hooks
+      // biome-ignore lint/correctness/useHookAtTopLevel: .build() runs inside render; hook order is stable per component
       useSyncExternalStore(
         (cb) => emitterFor(instance).subscribe(cb),
-        () => emitterFor(instance),
-        () => emitterFor(instance),
+        () => emitterFor(instance).getVersion(),
+        () => emitterFor(instance).getVersion(),
       );
       return shell;
     },

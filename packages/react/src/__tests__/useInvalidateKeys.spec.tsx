@@ -22,10 +22,14 @@ describe('useInvalidateKeys', () => {
     await waitFor(() => expect(result.current.watch.isLoading).toBe(false));
     const stale = result.current.watch.data;
 
-    await act(async () => { await Todo.create({ title: 'b', done: false }); });
+    await act(async () => {
+      await Todo.create({ title: 'b', done: false });
+    });
     expect(result.current.watch.data).toBe(stale); // unchanged until invalidate
 
-    await act(async () => { result.current.invalidate(['todos']); });
+    await act(async () => {
+      result.current.invalidate(['todos']);
+    });
     await waitFor(() => expect((result.current.watch.data as any[]).length).toBe(2));
   });
 

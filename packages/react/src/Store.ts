@@ -1,7 +1,10 @@
 import type { Dict } from '@next-model/core';
 import { pkKey, rowKey } from './pkKey.js';
 
-interface Entry { instance: object; refcount: number }
+interface Entry {
+  instance: object;
+  refcount: number;
+}
 
 export class Store {
   private rows = new Map<string, Map<string, Entry>>();
@@ -58,7 +61,10 @@ export class Store {
 
   subscribe(key: string | symbol, cb: () => void): () => void {
     let set = this.subs.get(key);
-    if (!set) { set = new Set(); this.subs.set(key, set); }
+    if (!set) {
+      set = new Set();
+      this.subs.set(key, set);
+    }
     set.add(cb);
     return () => {
       const s = this.subs.get(key);
@@ -73,7 +79,11 @@ export class Store {
     const set = this.subs.get(key);
     if (!set) return;
     for (const cb of [...set]) {
-      try { cb(); } catch { /* ignore */ }
+      try {
+        cb();
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -97,7 +107,10 @@ export class Store {
 
   private tableMap(tableName: string): Map<string, Entry> {
     let t = this.rows.get(tableName);
-    if (!t) { t = new Map(); this.rows.set(tableName, t); }
+    if (!t) {
+      t = new Map();
+      this.rows.set(tableName, t);
+    }
     return t;
   }
 }

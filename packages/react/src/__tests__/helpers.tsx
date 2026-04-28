@@ -1,5 +1,5 @@
 import { MemoryConnector, Model } from '@next-model/core';
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { NextModelProvider } from '../Provider.js';
 
 export function makeFixtures() {

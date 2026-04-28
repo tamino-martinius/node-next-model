@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { tagStore } from './instanceState.js';
 import { useStore } from './Provider.js';
 import { wrapInstance } from './ReactiveInstance.js';
-import { tagStore } from './instanceState.js';
-import { ReactiveQuery, type TerminalKind } from './ReactiveQuery.js';
+import type { ReactiveQuery, TerminalKind } from './ReactiveQuery.js';
 import { runQuery } from './runQuery.js';
 import type { Store } from './Store.js';
 
@@ -24,7 +24,11 @@ function isModelInstance(x: unknown): x is object {
 
 function adopt(raw: unknown, store: Store): unknown {
   if (Array.isArray(raw)) {
-    return raw.map((row) => isModelInstance(row) ? (tagStore(row, store), wrapInstance(row)) : row);
+    return raw.map((row) => {
+      if (!isModelInstance(row)) return row;
+      tagStore(row, store);
+      return wrapInstance(row);
+    });
   }
   if (isModelInstance(raw)) {
     tagStore(raw, store);
@@ -49,6 +53,7 @@ export function useAsyncTerminal<T>(
   const inflightRef = useRef(0);
   const hasFetchedRef = useRef(false);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey hashes query+terminal+args
   useEffect(() => {
     const id = ++inflightRef.current;
     setState((s) => ({ data: s.data, isLoading: !hasFetchedRef.current, error: undefined }));
@@ -66,8 +71,9 @@ export function useAsyncTerminal<T>(
       },
     );
 
-    return () => { inflightRef.current++; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      inflightRef.current++;
+    };
   }, [queryKey]);
 
   return state;

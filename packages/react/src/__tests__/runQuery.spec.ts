@@ -31,7 +31,7 @@ describe('runQuery', () => {
 
   it('findBy applies filter', async () => {
     const q = ReactiveQuery.fromModel(Todo as any);
-    const found = await runQuery(q, 'findBy', [{ title: 'a' }]) as { title: string } | undefined;
+    const found = (await runQuery(q, 'findBy', [{ title: 'a' }])) as { title: string } | undefined;
     expect(found?.title).toBe('a');
   });
 

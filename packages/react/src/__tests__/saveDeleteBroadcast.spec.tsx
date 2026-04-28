@@ -32,7 +32,9 @@ describe('save/delete broadcast', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const todo = (result.current.data as any[])[0];
-    await act(async () => { await todo.delete(); });
+    await act(async () => {
+      await todo.delete();
+    });
     // Store row entry is gone — useWatch's row-key subscriber fires; behaviour
     // (filtering data) lands in Task 21. Here we just verify the broadcast did
     // not throw and the underlying instance is gone from the connector.
