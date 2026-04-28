@@ -37,7 +37,13 @@ function adopt(instance: object, tableName: string, store: Store): object {
   const keys = keysOf(instance);
   if (Object.keys(keys).length === 0) return shell;   // unsaved — should not happen for watch results
   const cached = store.acquire(tableName, keys);
-  if (cached) return cached;
+  if (cached) {
+    // Sync persistent attributes from the freshly-fetched instance into the
+    // canonical shell so that saves performed through any proxy are reflected here.
+    const freshAttrs = (instance as { persistentProps?: Record<string, unknown> }).persistentProps;
+    if (freshAttrs) (cached as { persistentProps: Record<string, unknown> }).persistentProps = freshAttrs;
+    return cached;
+  }
   store.softRegister(tableName, keys, shell);
   return shell;
 }
@@ -93,8 +99,8 @@ export function useWatch<T>(
       if (Object.keys(keys).length === 0) continue;
       store.retain(tableName, keys);
       const handler = () => {
+        const stillAlive = !!store.acquire(tableName, keys);
         setState((s) => {
-          const stillAlive = !!store.acquire(tableName, keys);
           if (Array.isArray(s.data)) {
             if (stillAlive) {
               // shallow rerender — row's attributes already updated through the shell
@@ -102,10 +108,17 @@ export function useWatch<T>(
             }
             return { ...s, data: (s.data as object[]).filter((r) => r !== row) as typeof s.data };
           }
-          // single-instance branch
+          // single-instance branch: delete case
           if (!stillAlive) return { ...s, data: undefined as typeof s.data };
-          return { ...s };
+          // Row still alive — re-fetch is triggered below; no state change here
+          return s;
         });
+        // For single-instance watches, re-fetch when the row is still alive so that
+        // attribute changes made through any shell (e.g. a sibling find() component)
+        // are reflected in this watch's data.
+        if (!COLLECTION_TERMINALS.has(terminal) && stillAlive) {
+          fetch('refetch');
+        }
       };
       const off = store.subscribe(rowKey(tableName, keys), handler);
       heldRowsRef.current.push({ tableName, keys });

@@ -1,5 +1,6 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { NextModelProvider } from '../Provider.js';
 import { useModel } from '../useModel.js';
 import { makeFixtures, wrapWithProvider } from './helpers.js';
 
@@ -102,5 +103,63 @@ describe('delete propagation', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     await act(async () => { await (result.current.data as any).delete(); });
     await waitFor(() => expect(result.current.data).toBeUndefined());
+  });
+});
+
+describe('cross-component update propagation', () => {
+  it('a save in one component live-updates a watch in another (single-instance)', async () => {
+    const created = await Todo.create({ title: 'before', done: false });
+    const id = (created as any).id;
+
+    function Pair() {
+      const watch = useModel(Todo as any).findWatch(id);
+      const editor = useModel(Todo as any).find(id);
+      const todo = (editor.data as any) ?? null;
+      return (
+        <div>
+          <span data-testid="watched">{(watch.data as any)?.title ?? 'loading'}</span>
+          <button
+            type="button"
+            data-testid="rename"
+            onClick={async () => {
+              if (!todo) return;
+              todo.title = 'after';
+              await todo.save();
+            }}
+          >rename</button>
+        </div>
+      );
+    }
+
+    const view = render(
+      <NextModelProvider><Pair /></NextModelProvider>,
+    );
+
+    await waitFor(() => expect(view.getByTestId('watched').textContent).toBe('before'));
+
+    await act(async () => { view.getByTestId('rename').click(); });
+    await waitFor(() => expect(view.getByTestId('watched').textContent).toBe('after'));
+  });
+
+  it('two watches that resolve the same row share the same shell', async () => {
+    const created = await Todo.create({ title: 'shared', done: false });
+    const id = (created as any).id;
+
+    function Pair() {
+      const a = useModel(Todo as any).filterBy({ id }).watch();
+      const b = useModel(Todo as any).findWatch(id);
+      if (a.isLoading || b.isLoading) return <span data-testid="status">loading</span>;
+      return (
+        <span data-testid="status">
+          {((a.data as any[])[0] === b.data) ? 'same' : 'diff'}
+        </span>
+      );
+    }
+
+    const view = render(
+      <NextModelProvider><Pair /></NextModelProvider>,
+    );
+
+    await waitFor(() => expect(view.getByTestId('status').textContent).toBe('same'));
   });
 });
