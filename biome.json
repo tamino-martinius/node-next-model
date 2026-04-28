@@ -14,7 +14,8 @@
       "!**/*.js",
       "!**/*.mjs",
       "!**/packages/api-router",
-      "!**/packages/api-server-express"
+      "!**/packages/api-server-express",
+      "!demos/nextjs/*/tsconfig.json"
     ]
   },
   "formatter": {
