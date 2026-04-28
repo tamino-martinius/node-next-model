@@ -5,7 +5,13 @@ const StoreContext = createContext<Store | null>(null);
 
 export function NextModelProvider({ children }: { children: ReactNode }) {
   const [store] = useState(() => new Store());
-  useEffect(() => () => store.dispose(), [store]);
+  useEffect(() => {
+    // revive() recovers from React StrictMode's intermediate cleanup, which
+    // would otherwise leave the Store permanently disposed before mount-2
+    // commits.
+    store.revive();
+    return () => store.dispose();
+  }, [store]);
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
 

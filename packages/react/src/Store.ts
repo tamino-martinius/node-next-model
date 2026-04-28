@@ -101,6 +101,16 @@ export class Store {
     this.subs.clear();
   }
 
+  /**
+   * Re-arm a previously-disposed Store. The Provider's effect calls this on
+   * setup so React StrictMode's mount → cleanup → mount cycle in dev doesn't
+   * leave a permanently-disposed Store. State (rows / subs) is cleared by
+   * `dispose()`; watches re-register subscribers on the next mount.
+   */
+  revive(): void {
+    this.disposed = false;
+  }
+
   isDisposed(): boolean {
     return this.disposed;
   }
