@@ -41,11 +41,11 @@
     "graphql": "^16.9.0"
   },
   "devDependencies": {
-    "@graphql-tools/schema": "^10.0.6",
+    "@graphql-tools/schema": "^10.0.33",
     "@next-model/core": "workspace:*",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.5",
-    "graphql": "^16.9.0",
+    "graphql": "^16.13.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   }

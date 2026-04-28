@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@next-model/redis-connector": "workspace:*",
-    "redis": "^4.7.0"
+    "redis": "^4.7.1"
   },
   "devDependencies": {
     "@next-model/core": "workspace:*",

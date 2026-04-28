@@ -9,16 +9,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@graphql-tools/schema": "^10.0.6",
+    "@graphql-tools/schema": "^10.0.33",
     "@next-model/core": "workspace:*",
     "@next-model/graphql-api": "workspace:*",
     "@next-model/sqlite-connector": "workspace:*",
-    "express": "^5.0.0",
-    "graphql": "^16.9.0",
-    "graphql-http": "^1.22.3"
+    "express": "^5.2.1",
+    "graphql": "^16.13.2",
+    "graphql-http": "^1.22.4"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
     "typescript": "^6.0.3"
   },

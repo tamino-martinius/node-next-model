@@ -13,11 +13,11 @@
   "dependencies": {
     "@next-model/core": "workspace:*",
     "@next-model/postgres-connector": "workspace:*",
-    "pg": "^8.13.1"
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "@types/pg": "^8.11.10",
+    "@types/pg": "^8.20.0",
     "typescript": "^6.0.3"
   },
   "engines": {
