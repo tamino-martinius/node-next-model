@@ -35,7 +35,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tamino-martinius/node-data-api-model.git"
+    "url": "https://github.com/tamino-martinius/node-next-model.git",
+    "directory": "packages/core"
   },
   "engines": {
     "node": ">=22"

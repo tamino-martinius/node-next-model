@@ -19,7 +19,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tamino-martinius/node-next-model-knex-connector.git"
+    "url": "https://github.com/tamino-martinius/node-next-model.git",
+    "directory": "packages/knex-connector"
   },
   "engines": {
     "node": ">=22"

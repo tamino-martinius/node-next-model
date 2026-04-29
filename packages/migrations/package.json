@@ -19,7 +19,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tamino-martinius/node-next-model.git"
+    "url": "https://github.com/tamino-martinius/node-next-model.git",
+    "directory": "packages/migrations"
   },
   "engines": {
     "node": ">=22"
