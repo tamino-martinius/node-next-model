@@ -1,6 +1,6 @@
 {
   "name": "@next-model/express-rest-api",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Express 5 REST adapter for next-model. Turns any Model into a conventional REST resource with per-action authorization + response mapping hooks.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@next-model/sqlite-connector",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Native SQLite connector for next-model. Uses better-sqlite3 directly — no Knex.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
