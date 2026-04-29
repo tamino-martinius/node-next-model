@@ -1,6 +1,6 @@
 {
   "name": "@next-model/zod",
-  "version": "1.0.0-rc.0",
+  "version": "1.0.0-rc.1",
   "description": "Bridge between zod schemas and next-model — derive init(), validators, and schema-DSL columns from a single zod object schema.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
