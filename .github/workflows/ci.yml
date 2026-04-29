@@ -151,6 +151,7 @@ jobs:
       - run: pnpm -r --filter './packages/*' build
       - run: pnpm typecheck
       - run: pnpm typecheck:demos
+      - run: pnpm test:release
 
   test-core:
     needs: changes
