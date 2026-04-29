@@ -2,6 +2,81 @@
 
 A typed, promise-based ORM for TypeScript. Define models with a factory, chain immutable scopes, plug in any storage via the `Connector` interface, and run schema migrations against the same connector.
 
+## At a glance
+
+### Define a model
+
+```ts
+import { Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
+
+const connector = new SqliteConnector(':memory:');
+
+class User extends Model({
+  tableName: 'users',
+  connector,
+  init: (props: { firstName: string; lastName: string; age: number }) => props,
+}) {
+  get name() {
+    return `${this.firstName} ${this.lastName}`;
+  }
+}
+
+await User.createTable();
+const ada = await User.create({ firstName: 'Ada', lastName: 'Lovelace', age: 36 });
+ada.name; // 'Ada Lovelace'
+```
+
+Models are TypeScript classes — add getters, methods, and computed properties just like normal. Swap `SqliteConnector` for any other connector ([Postgres](./packages/postgres-connector), [MySQL](./packages/mysql-connector), [MongoDB](./packages/mongodb-connector), [Redis](./packages/redis-connector), `MemoryConnector` for tests, …) and every Model feature keeps working through the same `Connector` interface.
+
+### Query with chainable, immutable scopes
+
+```ts
+// Each chain step returns a new query — the source class is untouched.
+const adults = User.filterBy({ $gte: { age: 18 } });
+
+await adults.count();                                                  // number of adults
+await adults.orderBy({ key: 'age', dir: 'desc' }).first();             // oldest adult
+await adults.filterBy({ $like: { lastName: 'Love%' } }).all();         // intersected filters
+
+await User.filterBy({ $in: { age: [25, 30, 36] } })
+          .orderBy({ key: 'lastName' })
+          .limitBy(10)
+          .all();
+```
+
+Operators available on every connector: `$eq` · `$gt` · `$gte` · `$lt` · `$lte` · `$in` · `$notIn` · `$null` · `$notNull` · `$like` · `$ilike` · `$between`. Compose them with `filterBy` / `orFilterBy` / `unfiltered` / `unscoped`. Predeclare reusable filters via `scopes` on the `Model({...})` definition.
+
+### Use it from React
+
+```tsx
+import { NextModelProvider, useModel } from '@next-model/react';
+
+export function Root() {
+  return <NextModelProvider><AdultUsers /></NextModelProvider>;
+}
+
+function AdultUsers() {
+  const { data, isLoading } = useModel(User)
+    .filterBy({ $gte: { age: 18 } })
+    .orderBy({ key: 'lastName' })
+    .watch({ keys: ['users:adults'] });
+
+  if (isLoading) return <p>Loading…</p>;
+  return (
+    <ul>
+      {data.map((u) => (
+        <li key={u.id}>{u.name} · {u.age}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+`useModel(User)` returns the same chainable query builder you'd use server-side; `.watch()` subscribes the component so saves and deletes broadcast back into the live result set. For a one-shot read use `.fetch()` instead.
+
+## Packages
+
 This repository is a pnpm workspace; each published package lives under `packages/`.
 
 | Package | Purpose |
@@ -50,25 +125,6 @@ End-to-end runnable projects live under [`demos/`](./demos), grouped by runtime.
 | [`nextjs/api`](./demos/nextjs/api) | Next.js 15 + `@next-model/nextjs-api` — REST route handlers | none |
 
 The [`demos/README.md`](./demos/README.md) covers the running convention in detail.
-
-## Quick start
-
-```ts
-import { Model, MemoryConnector } from '@next-model/core';
-
-const connector = new MemoryConnector({ storage: {} });
-
-class User extends Model({
-  tableName: 'users',
-  connector,
-  init: (props: { name: string; age: number }) => props,
-}) {}
-
-await User.create({ name: 'Ada', age: 36 });
-await User.filterBy({ $gt: { age: 30 } }).count();   // 1
-```
-
-Swap the connector to switch backends — every Model feature (filters, transactions, aggregates, soft deletes, associations, schema DSL) goes through the same `Connector` interface.
 
 ## Schema mutations
 
@@ -135,6 +191,34 @@ Inversion table:
 | `addCheckConstraint(expr, { name })` | `removeCheckConstraint(name)` |
 
 Operations that lose information when applied (`dropTable`, `removeColumn`, `removeIndex`, `removeForeignKey`, `removeCheckConstraint`, `changeColumn` without a `previous` snapshot, `addCheckConstraint` without an explicit `name`) raise `IrreversibleMigrationError` on `down()`. Write explicit `up()` / `down()` for those — both styles can coexist in the same migration list. Inside a `change()` block you can only call schema-mutating methods (`createTable` / `dropTable` / `alterTable`); use `up()` / `down()` for any data-touching work.
+
+## Agent skills
+
+This repo ships **agent skills** under [`skills/`](./skills) — one SKILL.md per package plus an overview that helps an AI agent pick the right adapter for a use case. They follow the [open agent skills spec](https://agentskills.io) and are installable with the [`skills` CLI](https://github.com/vercel-labs/skills) for Claude Code, Cursor, OpenCode, Codex, and 50+ other coding agents.
+
+```sh
+# install every skill from this repo (Claude Code, Cursor, OpenCode, …)
+npx skills add tamino-martinius/node-next-model
+
+# list before installing
+npx skills add tamino-martinius/node-next-model --list
+
+# pick just the ones you need
+npx skills add tamino-martinius/node-next-model \
+  --skill next-model \
+  --skill next-model-core \
+  --skill next-model-postgres-connector
+
+# install globally (~/.claude/skills/, ~/.cursor/skills/, …)
+npx skills add tamino-martinius/node-next-model -g
+
+# target one agent
+npx skills add tamino-martinius/node-next-model -a claude-code -y
+```
+
+Available skills (`next-model` is the index; the rest map 1:1 to the packages above):
+
+`next-model` · `next-model-core` · `next-model-knex-connector` · `next-model-postgres-connector` · `next-model-sqlite-connector` · `next-model-mysql-connector` · `next-model-mariadb-connector` · `next-model-redis-connector` · `next-model-valkey-connector` · `next-model-mongodb-connector` · `next-model-aurora-data-api-connector` · `next-model-local-storage-connector` · `next-model-migrations` · `next-model-migrations-generator` · `next-model-express-rest-api` · `next-model-graphql-api` · `next-model-nextjs-api` · `next-model-zod` · `next-model-typebox` · `next-model-arktype` · `next-model-react`
 
 ## Supported runtime
 
