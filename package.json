@@ -21,6 +21,7 @@
     "typecheck": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' --filter './packages/express-rest-api' --filter './packages/graphql-api' --filter './packages/nextjs-api' --filter './packages/migrations-generator' --filter './packages/zod' --filter './packages/typebox' --filter './packages/arktype' --filter './packages/react' run typecheck",
     "typecheck:demos": "pnpm -r --filter '@next-model-demos/*' run typecheck",
     "lint": "biome check .",
+    "test:release": "node --test .github/scripts/*.test.mjs",
     "format": "biome format --write .",
     "ci": "pnpm lint && pnpm typecheck && pnpm test"
   },
