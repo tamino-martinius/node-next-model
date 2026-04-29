@@ -1,6 +1,6 @@
 {
   "name": "@next-model/postgres-connector",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "description": "Native PostgreSQL connector for next-model. Uses node-postgres directly — no Knex.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
