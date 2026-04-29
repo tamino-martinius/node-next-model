@@ -25,22 +25,6 @@ export function bumpVersionsInDir(rootDir, version) {
     pkg.version = version;
     writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
     updated.push(pkg.name);
-
-    const lockPath = join(packagesDir, entry, 'package-lock.json');
-    let lockRaw;
-    try {
-      lockRaw = readFileSync(lockPath, 'utf8');
-    } catch (_err) {
-      lockRaw = null;
-    }
-    if (lockRaw !== null) {
-      const lock = JSON.parse(lockRaw);
-      lock.version = version;
-      if (lock.packages && lock.packages['']) {
-        lock.packages[''].version = version;
-      }
-      writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
-    }
   }
   return updated;
 }
