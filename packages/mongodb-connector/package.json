@@ -33,7 +33,7 @@
     "watch": "tsc -w",
     "clean": "rm -rf dist",
     "build": "pnpm clean && tsc",
-    "prepublishOnly": "pnpm build"
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "mongodb": "^7.2.0"
