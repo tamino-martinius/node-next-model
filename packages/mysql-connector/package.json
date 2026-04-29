@@ -1,6 +1,6 @@
 {
   "name": "@next-model/mysql-connector",
-  "version": "1.0.0-alpha.0",
+  "version": "1.0.0-rc.0",
   "description": "Native MySQL connector for next-model. Uses mysql2 directly — no Knex.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
