@@ -7,11 +7,11 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const VNEXT_HEADING = /^## vNext$/m;
+const VNEXT_HEADING_LINE = /^## vNext\s*$/m;
 
 export function rollHistoryMarkdown(markdown, version) {
-  if (!VNEXT_HEADING.test(markdown)) return markdown;
-  return markdown.replace(VNEXT_HEADING, `## vNext\n\n## v${version}`);
+  if (!VNEXT_HEADING_LINE.test(markdown)) return markdown;
+  return markdown.replace(VNEXT_HEADING_LINE, `## vNext\n\n## v${version}\n`);
 }
 
 export function rollHistoriesInDir(rootDir, version) {

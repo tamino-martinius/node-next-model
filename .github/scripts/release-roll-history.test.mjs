@@ -38,6 +38,12 @@ test('rollHistoryMarkdown handles vNext as the last section', () => {
   strictEqual(after, '# History\n\n## vNext\n\n## v1.0.0\n\n- Only\n');
 });
 
+test('rollHistoryMarkdown matches vNext heading with trailing whitespace', () => {
+  const before = '# History\n\n## vNext   \n\n- Entry\n';
+  const after = rollHistoryMarkdown(before, '1.0.0');
+  strictEqual(after, '# History\n\n## vNext\n\n## v1.0.0\n\n- Entry\n');
+});
+
 test('rollHistoriesInDir applies the roll to every public package', () => {
   const root = mkdtempSync(join(tmpdir(), 'next-model-roll-'));
   try {
