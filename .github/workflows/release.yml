@@ -93,7 +93,14 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Use latest npm (for Trusted Publishing support)
-        run: npm install -g npm@latest
+        # Workaround: Node 22.22.2's bundled npm 10.9.7 has a broken dep tree
+        # (missing promise-retry), so `npm install -g npm@latest` fails. Corepack
+        # fetches the npm binary directly and skips the broken arborist rebuild.
+        # See actions/runner-images#13883, npm/cli#9151.
+        run: |
+          corepack enable
+          corepack prepare npm@latest --activate
+          npm --version
 
       - run: pnpm install --frozen-lockfile
 
