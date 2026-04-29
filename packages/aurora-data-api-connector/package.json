@@ -23,7 +23,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tamino-martinius/node-next-model-aurora-data-api-connector.git"
+    "url": "https://github.com/tamino-martinius/node-next-model.git",
+    "directory": "packages/aurora-data-api-connector"
   },
   "engines": {
     "node": ">=22"
