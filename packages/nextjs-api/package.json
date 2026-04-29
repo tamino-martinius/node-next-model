@@ -1,6 +1,6 @@
 {
   "name": "@next-model/nextjs-api",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "description": "Next.js App Router REST adapter for next-model. Emits route-handler exports (GET/POST/PATCH/DELETE) with per-action authorization + response mapping.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
