@@ -168,7 +168,7 @@ jobs:
               echo "skipping private package $pkg_dir"
               continue
             fi
-            pnpm --filter "./${pkg_dir}" pack --pack-destination "$ARTIFACTS"
+            (cd "$pkg_dir" && pnpm pack --pack-destination "$ARTIFACTS")
           done
           ls -la "$ARTIFACTS"
 
