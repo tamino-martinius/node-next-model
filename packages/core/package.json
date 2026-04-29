@@ -48,7 +48,7 @@
     "watch": "tsc -w",
     "clean": "rm -rf dist",
     "build": "pnpm clean && tsc",
-    "prepublishOnly": "pnpm build"
+    "prepack": "pnpm build"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

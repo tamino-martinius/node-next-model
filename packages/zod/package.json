@@ -33,7 +33,7 @@
     "watch": "tsc -w",
     "clean": "rm -rf dist",
     "build": "pnpm clean && tsc",
-    "prepublishOnly": "pnpm build"
+    "prepack": "pnpm build"
   },
   "peerDependencies": {
     "@next-model/core": "workspace:*",
