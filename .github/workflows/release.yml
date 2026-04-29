@@ -88,24 +88,19 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          # Node 24 (current LTS) ships npm 11.x, which supports OIDC trusted
+          # publishing. Node 22 ships npm 10.9.7, which does not - and the
+          # in-place self-upgrade path is broken in the runner toolcache
+          # (actions/runner-images#13883, npm/cli#9151).
+          node-version: 24.x
           cache: pnpm
-          # Intentionally omit registry-url: it makes setup-node write an .npmrc with
-          # _authToken=${NODE_AUTH_TOKEN} AND export a placeholder NODE_AUTH_TOKEN of
-          # XXXXX-XXXXX-XXXXX-XXXXX when no token is provided. npm publish then sends
-          # the bogus placeholder, the registry returns 404, and OIDC trusted
-          # publishing is never attempted. Without registry-url npm defaults to
-          # registry.npmjs.org and uses GitHub OIDC env vars automatically.
-
-      - name: Use latest npm (for Trusted Publishing support)
-        # Workaround: Node 22.22.2's bundled npm 10.9.7 has a broken dep tree
-        # (missing promise-retry), so `npm install -g npm@latest` fails. Corepack
-        # fetches the npm binary directly and skips the broken arborist rebuild.
-        # See actions/runner-images#13883, npm/cli#9151.
-        run: |
-          corepack enable
-          corepack prepare npm@latest --activate
-          npm --version
+          # Intentionally omit registry-url: it makes setup-node write an .npmrc
+          # with _authToken=${NODE_AUTH_TOKEN} AND export a placeholder
+          # NODE_AUTH_TOKEN=XXXXX-XXXXX-XXXXX-XXXXX when no real token is set.
+          # npm publish would then send the placeholder, the registry would
+          # reject it, and OIDC trusted publishing would never be attempted.
+          # Without registry-url npm defaults to registry.npmjs.org and uses
+          # the GitHub Actions OIDC env vars automatically.
 
       - run: pnpm install --frozen-lockfile
 
