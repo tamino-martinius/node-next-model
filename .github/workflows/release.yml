@@ -90,7 +90,12 @@ jobs:
         with:
           node-version: 22.x
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          # Intentionally omit registry-url: it makes setup-node write an .npmrc with
+          # _authToken=${NODE_AUTH_TOKEN} AND export a placeholder NODE_AUTH_TOKEN of
+          # XXXXX-XXXXX-XXXXX-XXXXX when no token is provided. npm publish then sends
+          # the bogus placeholder, the registry returns 404, and OIDC trusted
+          # publishing is never attempted. Without registry-url npm defaults to
+          # registry.npmjs.org and uses GitHub OIDC env vars automatically.
 
       - name: Use latest npm (for Trusted Publishing support)
         # Workaround: Node 22.22.2's bundled npm 10.9.7 has a broken dep tree
