@@ -7,6 +7,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Installation](#installation)
 - [Defining a model](#defining-a-model)
   - [Schema-driven props](#schema-driven-props)
+  - [Schema-first associations (recommended)](#schema-first-associations-recommended)
   - [Interface-generic props](#interface-generic-props)
   - [Factory options](#factory-options)
   - [Keys (primary key type)](#keys-primary-key-type)
@@ -150,6 +151,112 @@ class User extends Model({
 ```
 
 The legacy `init`-driven form stays available for cases where the row shape doesn't map to a single declared schema (e.g. when validators from a third-party library — `@next-model/zod`, `@next-model/typebox`, `@next-model/arktype` — provide both `init` and the column list).
+
+### Schema-first associations (recommended)
+
+Declare associations on the schema — strings reference sibling tables, so there's no circular import and no `() =>` thunk boilerplate. Pass the schema to your connector once; every Model bound to that connector picks it up. Accessors on the instance are fully typed against the target row shape.
+
+```ts
+// schema.ts — single source of truth
+import { defineSchema } from '@next-model/core';
+
+export const schema = defineSchema({
+  users: {
+    columns: {
+      id:   { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+    associations: {
+      tasks: { hasMany: 'tasks', foreignKey: 'userId' },
+    },
+  },
+  tasks: {
+    columns: {
+      id:     { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      title:  { type: 'string' },
+      done:   { type: 'boolean', default: false },
+    },
+    associations: {
+      user: { belongsTo: 'users', foreignKey: 'userId' },
+    },
+  },
+});
+
+// connector.ts — the connector carries the schema; every Model bound to it inherits the typing.
+import { MemoryConnector } from '@next-model/core';
+import { schema } from './schema';
+export const connector = new MemoryConnector({ storage: {} }, { schema });
+
+// user.ts
+import { Model } from '@next-model/core';
+import { connector } from './connector';
+export class User extends Model({ connector, tableName: 'users' }) {
+  greet() { return `Hi, ${this.name}`; }
+}
+
+// task.ts
+import { Model } from '@next-model/core';
+import { connector } from './connector';
+export class Task extends Model({ connector, tableName: 'tasks' }) {
+  isOpen() { return !this.done; }
+}
+
+const ada = await User.create({ name: 'Ada' });    // `done` defaulted by schema on inserts
+const t   = await Task.create({ userId: ada.id, title: 'walk' });
+
+// Typed accessors — no thunks, no class refs in the schema:
+const tasks = await ada.tasks.all();   // CollectionQuery<{ id, userId, title, done }[]>
+const owner = await t.user;            // { id, name } | undefined
+
+// Static-side helpers typed against association names — typos caught at compile time:
+await User.includes('tasks').all();
+await User.joins('tasks').filterBy({ tasks: { done: true } }).all();
+```
+
+#### `init` is optional
+
+When you don't pass `init`, the Model derives one from the schema: each column's `default` is applied at `build()` / `create()` time, and `'currentTimestamp'` defaults become a fresh `Date`. Auto-incremented primary keys are left for the connector to assign. Pass an explicit `init` when you need a transformation:
+
+```ts
+class User extends Model({
+  connector,
+  tableName: 'users',
+  init: (p) => ({ ...p, email: p.email.toLowerCase() }),
+}) {}
+```
+
+#### Class instances on associations — `ModelRegistry`
+
+By default `ada.tasks` returns `CollectionQuery<TaskRow[]>` — the row shape from the schema. To get `CollectionQuery<Task[]>` (your class with custom methods like `isOpen()`), augment the registry once. `import('...')` is type-only and erased at runtime, so this is cycle-free even when `user.ts` and `task.ts` reference each other:
+
+```ts
+// models/registry.ts (or any file imported once at app startup)
+declare module '@next-model/core' {
+  interface ModelRegistry {
+    users: import('./user').User;
+    tasks: import('./task').Task;
+  }
+}
+```
+
+After this block, `ada.tasks` is `CollectionQuery<Task[]>` and you can call `tasks[0].isOpen()`. Tables you don't register fall back to row shapes — register only what you need.
+
+#### Per-association overrides (no registry)
+
+If you want one association to return class instances without setting up the global registry, override that accessor on the class body. The class getter shadows the auto-accessor:
+
+```ts
+import { Task } from './task';
+
+class User extends Model({ connector, tableName: 'users' }) {
+  get tasks() {
+    return this.hasMany(Task, { foreignKey: 'userId' });
+  }
+}
+```
+
+> **Migration note:** The Model-level `associations: { … }` field and the `Model({ keys, init })` legacy overload still work in this release for backwards compatibility but will be removed. New code should pass the schema through the connector and declare associations there.
 
 ### Interface-generic props
 
