@@ -8,6 +8,8 @@ import {
 } from '../typedSchema.js';
 import type { CollectionQuery } from '../query/CollectionQuery.js';
 import type { InstanceQuery } from '../query/InstanceQuery.js';
+import { Model } from '../Model.js';
+import { MemoryConnector } from '../MemoryConnector.js';
 
 describe('TypedAssociation — schema can carry associations', () => {
   it('compiles when a table declares associations', () => {
@@ -122,9 +124,6 @@ describe('ModelRegistry — augmentation upgrades accessors to class instance ty
   });
 });
 
-import { Model } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
-
 describe('Model({ connector, tableName }) — instance accessors are typed', () => {
   it('user.tasks is typed as CollectionQuery<TaskRow[]> (no registry)', async () => {
     const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
@@ -138,14 +137,24 @@ describe('Model({ connector, tableName }) — instance accessors are typed', () 
     expectTypeOf(task.user).toEqualTypeOf<InstanceQuery<UserRow | undefined>>();
   });
 
-  it('rejects unknown association names at .includes() / .joins()', () => {
-    const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
-    class User extends Model({ connector, tableName: 'users' }) {}
-    User.includes('tasks');
-    User.joins('tasks');
-    // @ts-expect-error 'orders' is not declared on users.associations
-    User.includes('orders');
-    // @ts-expect-error 'orders' is not declared on users.associations
-    User.joins('orders');
+  it('rejects unknown association names at .includes() / .joins() / .whereMissing()', () => {
+    // Type-only test. The body is intentionally never invoked — TypeScript still
+    // type-checks it, and `@ts-expect-error` annotations are still validated.
+    // We don't run it at runtime because Task 4 wires the runtime auto-accessor;
+    // until then `User.includes('tasks')` throws PersistenceError.
+    const _typeAssertions = () => {
+      const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
+      class User extends Model({ connector, tableName: 'users' }) {}
+      User.includes('tasks');
+      User.joins('tasks');
+      User.whereMissing('tasks');
+      // @ts-expect-error 'orders' is not declared on users.associations
+      User.includes('orders');
+      // @ts-expect-error 'orders' is not declared on users.associations
+      User.joins('orders');
+      // @ts-expect-error 'orders' is not declared on users.associations
+      User.whereMissing('orders');
+    };
+    void _typeAssertions;
   });
 });
