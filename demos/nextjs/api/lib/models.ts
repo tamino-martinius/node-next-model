@@ -3,7 +3,7 @@ import 'server-only';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
 declare global {
@@ -13,10 +13,23 @@ declare global {
 
 const DB_PATH = './.data/nextjs-api.sqlite';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      role: { type: 'string' },
+      active: { type: 'boolean', default: true },
+      createdAt: { type: 'datetime' },
+      updatedAt: { type: 'datetime' },
+    },
+  },
+});
+
 function bootstrap(): { connector: SqliteConnector; ready: Promise<void> } {
   if (globalThis.__nm_nextjs_api_db) return globalThis.__nm_nextjs_api_db;
   mkdirSync(dirname(DB_PATH), { recursive: true });
-  const connector = new SqliteConnector(DB_PATH);
+  const connector = new SqliteConnector(DB_PATH, { schema });
   const ready = (async () => {
     if (!(await connector.hasTable('users'))) {
       await connector.createTable('users', (t) => {
@@ -46,5 +59,4 @@ export class User extends Model({
   tableName: 'users',
   connector,
   timestamps: true,
-  init: (props: { name: string; role: 'admin' | 'member'; active: boolean }) => props,
 }) {}

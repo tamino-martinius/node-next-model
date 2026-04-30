@@ -1,17 +1,27 @@
 import { makeExecutableSchema } from '@graphql-tools/schema';
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 import { buildModelResource, composeSchema } from '@next-model/graphql-api';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 import express from 'express';
 import { createHandler } from 'graphql-http/lib/use/express';
 
-const connector = new SqliteConnector(':memory:');
+const nmSchema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      role: { type: 'string' },
+      active: { type: 'boolean', default: true },
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema: nmSchema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; role: 'admin' | 'member'; active: boolean }) => props,
 }) {}
 
 await connector.createTable('users', (t) => {

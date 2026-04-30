@@ -1,12 +1,25 @@
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 import { ValkeyConnector } from '@next-model/valkey-connector';
 
 const VALKEY_URL = process.env.VALKEY_URL ?? 'redis://127.0.0.1:6379';
 
-const connector = new ValkeyConnector({
-  client: { url: VALKEY_URL },
-  prefix: 'nm-vk-demo:',
+const schema = defineSchema({
+  cats: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      lives: { type: 'integer' },
+    },
+  },
 });
+
+const connector = new ValkeyConnector(
+  {
+    client: { url: VALKEY_URL },
+    prefix: 'nm-vk-demo:',
+  },
+  { schema },
+);
 
 await connector.connect();
 
@@ -14,7 +27,6 @@ class Cat extends Model({
   tableName: 'cats',
   connector,
   timestamps: false,
-  init: (props: { name: string; lives: number }) => props,
 }) {}
 
 let cursor = 0;

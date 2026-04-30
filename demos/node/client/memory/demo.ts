@@ -1,11 +1,27 @@
-import { MemoryConnector, Model } from '@next-model/core';
+import { MemoryConnector, Model, defineSchema } from '@next-model/core';
 
-const connector = new MemoryConnector({ storage: {} });
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+    },
+  },
+});
+
+const connector = new MemoryConnector({ storage: {} }, { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
-  init: (props: { name: string; age: number }) => props,
   scopes: {
     adults: { $gte: { age: 18 } },
   },
@@ -14,7 +30,6 @@ class User extends Model({
 class Post extends Model({
   tableName: 'posts',
   connector,
-  init: (props: { title: string; userId: number }) => props,
 }) {}
 
 await connector.createTable('users', (t) => {

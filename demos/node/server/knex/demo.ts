@@ -1,27 +1,46 @@
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 import { KnexConnector } from '@next-model/knex-connector';
 
 const CLIENT = process.env.KNEX_DEMO_CLIENT ?? 'sqlite3';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+    },
+  },
+});
+
 function buildConnector(): KnexConnector {
   switch (CLIENT) {
     case 'sqlite3':
-      return new KnexConnector({
-        client: 'sqlite3',
-        connection: { filename: ':memory:' },
-        useNullAsDefault: true,
-      });
+      return new KnexConnector(
+        {
+          client: 'sqlite3',
+          connection: { filename: ':memory:' },
+          useNullAsDefault: true,
+        },
+        { schema },
+      );
     case 'pg':
-      return new KnexConnector({
-        client: 'pg',
-        connection:
-          process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/nextmodel_demo',
-      });
+      return new KnexConnector(
+        {
+          client: 'pg',
+          connection:
+            process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/nextmodel_demo',
+        },
+        { schema },
+      );
     case 'mysql2':
-      return new KnexConnector({
-        client: 'mysql2',
-        connection: process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/nextmodel_demo',
-      });
+      return new KnexConnector(
+        {
+          client: 'mysql2',
+          connection: process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/nextmodel_demo',
+        },
+        { schema },
+      );
     default:
       throw new Error(`Unknown KNEX_DEMO_CLIENT: ${CLIENT}`);
   }
@@ -33,7 +52,6 @@ class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; age: number }) => props,
 }) {}
 
 console.log(`>> using knex-connector with client=${CLIENT}`);

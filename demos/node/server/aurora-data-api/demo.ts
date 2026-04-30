@@ -1,6 +1,6 @@
 import { DataApiConnector } from '@next-model/aurora-data-api-connector';
 import { MockDataApiClient } from '@next-model/aurora-data-api-connector/mock-client';
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 
 // In production you'd hand `DataApiConnector` your AWS Aurora Serverless v1
 // secret/cluster ARNs. For local development the package ships
@@ -8,13 +8,23 @@ import { Model } from '@next-model/core';
 // same DataApiClient interface but executes the SQL against an in-memory
 // sqlite database via knex. Drop-in replacement, no AWS bill.
 const client = new MockDataApiClient();
-const connector = new DataApiConnector({ client });
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+    },
+  },
+});
+
+const connector = new DataApiConnector({ client }, { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; age: number }) => props,
 }) {}
 
 await connector.dropTable('users');

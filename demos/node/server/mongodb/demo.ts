@@ -1,9 +1,20 @@
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 import { MongoDbConnector } from '@next-model/mongodb-connector';
 
 const URL = process.env.MONGODB_URL ?? 'mongodb://127.0.0.1:27017';
 
-const connector = new MongoDbConnector({ url: URL, database: 'nm_demo' });
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      tags: { type: 'json' },
+    },
+  },
+});
+
+const connector = new MongoDbConnector({ url: URL, database: 'nm_demo' }, { schema });
 
 await connector.connect();
 
@@ -11,7 +22,6 @@ class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; age: number; tags: string[] }) => props,
 }) {}
 
 // Wipe every collection so the demo is idempotent.

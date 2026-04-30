@@ -1,14 +1,24 @@
-import { Model } from '@next-model/core';
+import { Model, defineSchema } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      active: { type: 'boolean', default: true },
+    },
+  },
+});
+
 // In-memory sqlite — wipe by exit. For a file-backed DB pass a path instead.
-const connector = new SqliteConnector(':memory:');
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; age: number; active: boolean }) => props,
 }) {}
 
 await connector.createTable('users', (t) => {
