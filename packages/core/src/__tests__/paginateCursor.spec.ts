@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { MemoryConnector, Model } from '../index.js';
+import { defineSchema, MemoryConnector, Model } from '../index.js';
 
 interface Row {
   id?: number;
@@ -9,8 +9,19 @@ interface Row {
   createdAt: string;
 }
 
+const schema = defineSchema({
+  leaderboard: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      score: { type: 'integer' },
+      createdAt: { type: 'string' },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 function buildModel(connector: MemoryConnector) {
@@ -18,7 +29,6 @@ function buildModel(connector: MemoryConnector) {
     tableName: 'leaderboard',
     connector,
     timestamps: false,
-    init: (props: Row) => props,
   }) {};
 }
 

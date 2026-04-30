@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MemoryConnector, Model, normalizeFilterShape } from '../index.js';
+import { defineSchema, MemoryConnector, Model, normalizeFilterShape } from '../index.js';
 
 interface Row {
   id?: number;
@@ -10,8 +10,20 @@ interface Row {
   metadata: { source: string };
 }
 
+const schema = defineSchema({
+  tickets: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      status: { type: 'string' },
+      metadata: { type: 'string' },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 function buildModel(connector: MemoryConnector) {
@@ -19,7 +31,6 @@ function buildModel(connector: MemoryConnector) {
     tableName: 'tickets',
     connector,
     timestamps: false,
-    init: (props: Row) => props,
   }) {};
 }
 

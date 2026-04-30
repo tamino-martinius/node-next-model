@@ -1,14 +1,22 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string', default: '' },
+    },
+  },
+});
 
 describe('transactional callbacks (afterCommit / afterRollback)', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost() {
     return Model({
       tableName: 'posts',
       connector: connector(),
-      keys: { id: KeyType.number },
       init: (p: { title?: string }) => ({ title: p.title ?? '' }),
     });
   }
