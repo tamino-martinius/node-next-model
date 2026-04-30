@@ -1498,6 +1498,12 @@ export class ModelClass {
 
     const model = this.constructor as typeof ModelClass;
 
+    // Keys are configurable so they can re-define a same-named property
+    // installed by the persistentProps loop above (e.g. when the caller
+    // passes an explicit primary value through `init`). The descriptor is
+    // intentionally setter-less — assignments to a key field flow through
+    // `assign({...})` via the persistentProps getter chain, not by
+    // overwriting the descriptor here.
     for (const key in model.keys) {
       Object.defineProperty(this, key, {
         get: () => (this.keys ? this.keys[key] : undefined),
