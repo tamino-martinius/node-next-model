@@ -6,12 +6,14 @@ import type { ColumnQuery } from './query/ColumnQuery.js';
 import { InstanceQuery } from './query/InstanceQuery.js';
 import type { QueryState } from './query/QueryState.js';
 import type { ScalarQuery } from './query/ScalarQuery.js';
+import type { TableDefinition } from './schema.js';
 import {
   type DatabaseSchema,
   deriveKeysFromTableDefinition,
   type SchemaAssociations,
   type SchemaKeys,
   type SchemaProps,
+  type TypedAssociation,
 } from './typedSchema.js';
 import {
   type AggregateKind,
@@ -534,6 +536,13 @@ export class ModelClass {
    * shape; `() => Model` thunks are supported for circular imports.
    */
   static associations: AssociationsMap | undefined = undefined;
+  /**
+   * Registry of `tableName → Model class`, populated when each Model is
+   * constructed via the schema-mode entry point. Used by schema-driven
+   * association resolution so the target Model class is reachable by name even
+   * when the file declaring it imports another file in a cycle.
+   */
+  static tableRegistry: Map<string, typeof ModelClass> = new Map();
   /**
    * Pending JOIN clauses accumulated by `joins(...)`, `whereMissing(...)`, and
    * cross-association `filterBy(...)` calls. Resolved at terminal time:
@@ -2149,6 +2158,110 @@ export class ModelClass {
 }
 
 /**
+ * Translate a schema-level `tableDefinition.associations` map (target-table
+ * strings) into the runtime `AssociationsMap` shape (target-class refs) the
+ * factory consumes. The runtime stores the *table* metadata, not the Model
+ * class — `resolveAssociationTarget` reads `target.tableName` and
+ * `target.keys` only, so we hand it a minimal table-shaped shim until the
+ * user's Model class registers itself.
+ *
+ * Each call site is invoked lazily by `resolveAssociationTarget` via a
+ * `() => target` thunk, so the user's Model classes for sibling tables
+ * don't have to be defined yet when `Model({ schema, tableName })` runs
+ * for any single table.
+ */
+function schemaAssociationsToRuntime(
+  selfDef: TableDefinition,
+  allDefs: { [name: string]: TableDefinition },
+): AssociationsMap | undefined {
+  const raw = selfDef.associations as Record<string, TypedAssociation> | undefined;
+  if (!raw) return undefined;
+  const result: AssociationsMap = {};
+  for (const name in raw) {
+    const spec = raw[name];
+    const targetTable =
+      'belongsTo' in spec
+        ? spec.belongsTo
+        : 'hasMany' in spec
+          ? spec.hasMany
+          : 'hasOne' in spec
+            ? spec.hasOne
+            : spec.hasManyThrough;
+    const targetDef = allDefs[targetTable];
+    if (!targetDef) {
+      throw new Error(
+        `Model(): association '${name}' on '${selfDef.name}' references unknown table '${targetTable}'. Known: ${Object.keys(
+          allDefs,
+        ).join(', ')}`,
+      );
+    }
+    const targetThunk = () => tableDefinitionAsModelShim(targetDef);
+    if ('belongsTo' in spec) {
+      result[name] = {
+        belongsTo: targetThunk as any,
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+        polymorphic: spec.polymorphic,
+        typeKey: spec.typeKey,
+        typeValue: spec.typeValue,
+      };
+    } else if ('hasMany' in spec) {
+      result[name] = {
+        hasMany: targetThunk as any,
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+        polymorphic: spec.polymorphic,
+        typeKey: spec.typeKey,
+        typeValue: spec.typeValue,
+      };
+    } else if ('hasOne' in spec) {
+      result[name] = {
+        hasOne: targetThunk as any,
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+        polymorphic: spec.polymorphic,
+        typeKey: spec.typeKey,
+        typeValue: spec.typeValue,
+      };
+    } else {
+      const throughTable = spec.through;
+      const throughDef = allDefs[throughTable];
+      if (!throughDef) {
+        throw new Error(
+          `Model(): hasManyThrough association '${name}' on '${selfDef.name}' references unknown through table '${throughTable}'`,
+        );
+      }
+      result[name] = {
+        hasManyThrough: targetThunk as any,
+        through: (() => tableDefinitionAsModelShim(throughDef)) as any,
+        throughForeignKey: spec.throughForeignKey,
+        targetForeignKey: spec.targetForeignKey,
+        selfPrimaryKey: spec.selfPrimaryKey,
+        targetPrimaryKey: spec.targetPrimaryKey,
+      };
+    }
+  }
+  return result;
+}
+
+/**
+ * Build a minimal Model-shaped object from a `TableDefinition`. The runtime
+ * association resolver (`resolveAssociationTarget`) reads only `tableName`
+ * and `keys` from the target. After the user's Model class registers itself
+ * via `ModelClass.tableRegistry`, every lookup returns that class. Until
+ * registration, the fallback shim provides just enough surface for the
+ * resolver to compute query keys.
+ */
+function tableDefinitionAsModelShim(def: TableDefinition): typeof ModelClass {
+  const registered = ModelClass.tableRegistry.get(def.name);
+  if (registered) return registered;
+  return {
+    tableName: def.name,
+    keys: deriveKeysFromTableDefinition(def),
+  } as unknown as typeof ModelClass;
+}
+
+/**
  * Connector-attached schema overload — pass a `Connector<DatabaseSchema>`
  * (a connector instance constructed with `{ schema }`) and a `tableName`.
  * TypeScript walks the connector's attached schema's `tables[tableName]` and
@@ -2426,8 +2539,11 @@ export function Model(props: any): any {
     }
     const keys: Dict<KeyType> = props.keys ?? deriveKeysFromTableDefinition(tableDefinition);
     const init = props.init ?? ((p: any) => p);
+    const associations =
+      props.associations ??
+      schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
     const { schema: _schema, ...rest } = props;
-    return modelFactoryImpl({ ...rest, tableName, keys, init });
+    return modelFactoryImpl({ ...rest, tableName, keys, init, associations });
   }
   // Legacy / interface-generic path. When `init` is omitted (e.g.
   // `Model<UserProps>({ tableName: 'x' })`) it defaults to identity so the
@@ -3064,6 +3180,7 @@ function modelFactoryImpl<
     }
   }
 
+  ModelClass.tableRegistry.set(props.tableName, ModelSubclass as unknown as typeof ModelClass);
   return ModelSubclass as typeof ModelSubclass & ScopesToMethods<typeof ModelSubclass, Scopes>;
 }
 

@@ -158,3 +158,30 @@ describe('Model({ connector, tableName }) — instance accessors are typed', () 
     void _typeAssertions;
   });
 });
+
+describe('Model({ connector, tableName }) — runtime end-to-end', () => {
+  it('user.tasks resolves to a CollectionQuery and loads the rows', async () => {
+    const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
+    class User extends Model({ connector, tableName: 'users' }) {}
+    class Task extends Model({ connector, tableName: 'tasks' }) {}
+
+    const ada = await User.create({ name: 'Ada' });
+    await Task.create({ userId: ada.id, title: 'walk' });
+    await Task.create({ userId: ada.id, title: 'run' });
+
+    const tasks = await ada.tasks.all();
+    expect(tasks.map((t) => t.title).sort()).toEqual(['run', 'walk']);
+  });
+
+  it('task.user resolves to the parent User row', async () => {
+    const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
+    class User extends Model({ connector, tableName: 'users' }) {}
+    class Task extends Model({ connector, tableName: 'tasks' }) {}
+
+    const ada = await User.create({ name: 'Ada' });
+    const t = await Task.create({ userId: ada.id, title: 'walk' });
+
+    const owner = await t.user;
+    expect(owner?.name).toBe('Ada');
+  });
+});
