@@ -21,6 +21,22 @@ const fooSchema = defineSchema({
   },
 });
 
+// Minimal schema for the associations describe-block. MemoryConnector does
+// not validate columns, so we only need to declare the table names.
+const assocSchema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  authorships: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  profiles: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  photos: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  comments: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
+// Minimal schema for the scopes describe-block.
+const scopeSchema = defineSchema({
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
 describe('Model', () => {
   let storage: Storage = {};
 
@@ -1460,7 +1476,7 @@ describe('Model', () => {
 
   describe('associations', () => {
     let assocStorage: Storage = {};
-    const assocConnector = () => new MemoryConnector({ storage: assocStorage });
+    const assocConnector = () => new MemoryConnector({ storage: assocStorage }, { schema: assocSchema });
 
     beforeEach(() => {
       assocStorage = {};
@@ -2051,7 +2067,7 @@ describe('Model', () => {
 
   describe('scopes', () => {
     let scopeStorage: Storage = {};
-    const scopeConnector = () => new MemoryConnector({ storage: scopeStorage });
+    const scopeConnector = () => new MemoryConnector({ storage: scopeStorage }, { schema: scopeSchema });
 
     beforeEach(() => {
       scopeStorage = {};
@@ -2662,7 +2678,7 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),
@@ -2741,7 +2757,7 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),
@@ -3004,7 +3020,7 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),

@@ -4,7 +4,6 @@ import {
   defineSchema,
   defineTable,
   generateSchemaSource,
-  KeyType,
   MemoryConnector,
   Model,
 } from '../index.js';
@@ -141,91 +140,6 @@ describe('Model with connector-attached schema', () => {
     }).toThrow(/tableName 'unknown' is not declared/);
   });
 
-});
-
-// LEGACY: removed in Plan 3
-describe('Legacy form still works', () => {
-  it('Model with explicit init/tableName works unchanged', async () => {
-    class Post extends Model({
-      tableName: 'posts',
-      init: (p: { title: string; views: number }) => p,
-      connector: new MemoryConnector({ storage: {} }),
-      timestamps: false,
-    }) {}
-    const p = await Post.create({ title: 'Hi', views: 5 });
-    expect(p.title).toBe('Hi');
-    expect(p.views).toBe(5);
-  });
-
-  it('legacy form still infers types from init parameter', async () => {
-    class Post extends Model({
-      tableName: 'posts',
-      init: (p: { title: string; views: number }) => p,
-      connector: new MemoryConnector({ storage: {} }),
-      timestamps: false,
-    }) {}
-    const p = await Post.create({ title: 'Hi', views: 5 });
-    expectTypeOf(p.title).toBeString();
-    expectTypeOf(p.views).toBeNumber();
-  });
-});
-
-// LEGACY: removed in Plan 3
-describe('Interface-generic form (Model<Props>({...}) without init)', () => {
-  interface UserProps {
-    email: string;
-    name: string;
-    archivedAt: Date | null;
-  }
-
-  it('typechecks and round-trips create/update without an init callback', async () => {
-    class User extends Model<UserProps>({
-      tableName: 'users',
-      connector: new MemoryConnector({ storage: {} }),
-      timestamps: false,
-    }) {}
-
-    const u = await User.create({ email: 'a@b', name: 'Ada', archivedAt: null });
-    expect(u.email).toBe('a@b');
-    expect(u.name).toBe('Ada');
-    expect(u.archivedAt).toBeNull();
-    expect(typeof u.id).toBe('number');
-
-    await u.update({ name: 'Ada Lovelace' });
-    expect(u.name).toBe('Ada Lovelace');
-    const reloaded = await User.find(u.id);
-    expect(reloaded.name).toBe('Ada Lovelace');
-  });
-
-  it('infers prop types from the generic argument', async () => {
-    class User extends Model<UserProps>({
-      tableName: 'users',
-      connector: new MemoryConnector({ storage: {} }),
-      timestamps: false,
-    }) {}
-
-    const u = await User.create({ email: 'a@b', name: 'Ada', archivedAt: null });
-    expectTypeOf(u.email).toBeString();
-    expectTypeOf(u.name).toBeString();
-    expectTypeOf(u.archivedAt).toEqualTypeOf<Date | null>();
-  });
-
-  it('still accepts a custom init that transforms — generic types its parameter', async () => {
-    class User extends Model<UserProps>({
-      tableName: 'users',
-      connector: new MemoryConnector({ storage: {} }),
-      timestamps: false,
-      init: (p) => {
-        // The generic types `p` as UserProps without per-field annotations.
-        expectTypeOf(p).toEqualTypeOf<UserProps>();
-        return { ...p, email: p.email.toLowerCase() };
-      },
-    }) {}
-
-    const u = await User.create({ email: 'A@B', name: 'A', archivedAt: null });
-    expect(u.email).toBe('a@b');
-    expectTypeOf(u.email).toBeString();
-  });
 });
 
 /**

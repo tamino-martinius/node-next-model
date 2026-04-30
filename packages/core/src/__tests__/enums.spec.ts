@@ -118,10 +118,18 @@ describe('enums', () => {
   });
 
   it('throws at factory construction when an enum value collides with an existing static method', () => {
+    const collidingSchema = defineSchema({
+      posts: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          status: { type: 'string' },
+        },
+      },
+    });
     expect(() =>
       Model({
-        tableName: 'x',
-        init: () => ({ status: '' as string }),
+        tableName: 'posts',
+        connector: new MemoryConnector({ storage: {} }, { schema: collidingSchema }),
         enums: { status: ['all'] as const },
       }),
     ).toThrowError(/collides with existing static method 'all'/);
