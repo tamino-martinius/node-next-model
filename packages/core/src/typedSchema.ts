@@ -24,10 +24,61 @@ export interface TypedColumn<K extends ColumnKind = ColumnKind> {
   autoIncrement?: boolean;
 }
 
+/**
+ * Schema-level association declaration. Cycle-free because the target table is
+ * a string, not a class reference. Four forms:
+ *
+ *  - `belongsTo: 'parents'` — child holds the foreign key (`parentId`).
+ *  - `hasMany: 'children'` — parent owns 0..n children whose FK references it.
+ *  - `hasOne: 'child'`     — parent owns exactly one child whose FK references it.
+ *  - `hasManyThrough: 'targets', through: 'join'` — many-to-many via a join table.
+ *
+ * `polymorphic` mirrors the legacy Model-level shape for `Comment`-like models.
+ */
+export type TypedAssociation =
+  | {
+      belongsTo: string;
+      foreignKey: string;
+      primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasMany: string;
+      foreignKey: string;
+      primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasOne: string;
+      foreignKey: string;
+      primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasManyThrough: string;
+      through: string;
+      throughForeignKey?: string;
+      targetForeignKey?: string;
+      selfPrimaryKey?: string;
+      targetPrimaryKey?: string;
+    };
+
+export type TypedAssociations = Record<string, TypedAssociation>;
+
 /** A single table entry inside a `DatabaseSchema`. */
-export interface TypedTable<C extends Record<string, TypedColumn> = Record<string, TypedColumn>> {
+export interface TypedTable<
+  C extends Record<string, TypedColumn> = Record<string, TypedColumn>,
+  A extends TypedAssociations = TypedAssociations,
+> {
   columns: C;
   indexes?: IndexDefinition[];
+  associations?: A;
 }
 
 /** Maps a `ColumnKind` to its TypeScript prop type. */
@@ -116,6 +167,7 @@ function buildTableDefinition(name: string, table: TypedTable): TableDefinition 
     columns: columnDefs,
     indexes: table.indexes ?? [],
     primaryKey: primary?.name,
+    associations: table.associations,
   };
 }
 
