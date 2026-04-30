@@ -103,6 +103,11 @@ function formatIssue(path: (string | number)[], message: string): string {
   return path.length === 0 ? message : `${path.join('.')}: ${message}`;
 }
 
+// `metaToTypedColumn` is intentionally per-bridge (zod / typebox / arktype
+// each carry their own copy) so adding a new bridge package never requires
+// touching `@next-model/core`. The fields mapped here are stable subset of
+// the ColumnOptions / TypedColumn intersection — keep all three bridges'
+// copies in sync when adding new fields to either type.
 function metaToTypedColumn(meta: { kind: ColumnKind; options: ColumnOptions }): TypedColumn {
   const { kind, options } = meta;
   const out: TypedColumn = { type: kind };
