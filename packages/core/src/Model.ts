@@ -2390,7 +2390,6 @@ export function Model<
   normalizes?: Dict<(value: any) => any>;
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
-  associations?: AssociationsMap;
 }): SchemaModelClass<
   SchemaProps<NonNullable<Conn['schema']>, K>,
   Keys,
@@ -2448,7 +2447,6 @@ export function Model<
   normalizes?: Dict<(value: any) => any>;
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
-  associations?: AssociationsMap;
 }): SchemaModelClass<SchemaProps<S, K>, Keys, Scopes, SchemaAssociations<S, K>>;
 
 /**
@@ -2555,16 +2553,6 @@ export function Model<
    * afterDelete / afterUpdate hooks (the latter handles parent reassignment).
    */
   counterCaches?: CounterCacheSpec[];
-  /**
-   * Declared associations on this Model. Each entry names one of `belongsTo`
-   * / `hasMany` / `hasOne` plus the foreign-key column. Required for
-   * `Model.joins(...names)` / `Model.includes(...names)` /
-   * `Model.whereMissing(name)` / cross-association `filterBy({ name: ... })`,
-   * and for the auto-defined lazy accessors on each instance (`user.posts`,
-   * `user.profile`, `user.company`). Use `() => Other` thunks for circular
-   * imports — same shape as `cascade` and `counterCaches`.
-   */
-  associations?: AssociationsMap;
 }): ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>>;
 
 export function Model(props: any): any {
@@ -2611,9 +2599,7 @@ export function Model(props: any): any {
     // is no composition. If schema defaults need to apply alongside a custom
     // transform, the caller should re-derive them inside their `init`.
     const init = props.init ?? buildSchemaInit(tableDefinition);
-    const associations =
-      props.associations ??
-      schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
+    const associations = schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
     const { schema: _schema, ...rest } = props;
     const result = modelFactoryImpl({ ...rest, tableName, keys, init, associations });
     ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
