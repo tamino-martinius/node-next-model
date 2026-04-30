@@ -1,4 +1,4 @@
-import { MemoryConnector, Model, ValidationError } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model, ValidationError } from '@next-model/core';
 import { Type } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 
@@ -111,5 +111,63 @@ describe('fromTypeBox — end-to-end with Model', () => {
     await expect(User.create({ name: 'A', age: -1 } as any)).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+});
+
+describe('fromTypeBox — toTypedColumns', () => {
+  it('produces a column map that defineSchema accepts', () => {
+    const UserSchema = Type.Object({
+      id: Type.Integer(),
+      email: Type.String(),
+      name: Type.String(),
+      age: Type.Optional(Type.Integer()),
+    });
+    const bridge = fromTypeBox(UserSchema);
+
+    const cols = bridge.toTypedColumns();
+    expect(cols).toEqual({
+      id: { type: 'integer', null: false },
+      email: { type: 'string', null: false },
+      name: { type: 'string', null: false },
+      age: { type: 'integer', null: true },
+    });
+  });
+
+  it('the column map round-trips through defineSchema + Model end-to-end', async () => {
+    const UserSchema = Type.Object({
+      id: Type.Integer(),
+      email: Type.String(),
+      name: Type.String(),
+    });
+    const bridge = fromTypeBox(UserSchema);
+
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema });
+    class User extends Model({
+      connector,
+      tableName: 'users',
+      init: bridge.init,
+      validators: bridge.validators,
+      timestamps: false,
+    }) {}
+
+    const u = await User.create({ id: 1, email: 'a@b', name: 'Ada' });
+    expect(u.email).toBe('a@b');
+    expect(u.name).toBe('Ada');
+  });
+
+  it('preserves default values from TypeBox into the typed column', () => {
+    // TypeBox's default goes via the schema's `default` keyword.
+    const Schema = Type.Object({
+      published: Type.Optional(Type.Boolean({ default: false })),
+      count: Type.Optional(Type.Integer({ default: 0 })),
+    });
+    const cols = fromTypeBox(Schema).toTypedColumns();
+    expect(cols.published.default).toBe(false);
+    expect(cols.count.default).toBe(0);
+    expect(cols.published.null).toBe(true);
+    expect(cols.count.null).toBe(true);
   });
 });
