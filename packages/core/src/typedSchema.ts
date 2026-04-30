@@ -109,7 +109,50 @@ export type ApplyNull<T, Null> = Null extends true ? T | null : T;
  * multi-table `DatabaseSchema`. Pass the schema and the table key.
  */
 export type SchemaProps<S extends DatabaseSchema<any>, K extends keyof S['tables'] & string> = {
-  [P in keyof S['tables'][K]['columns']]: ApplyNull<
+  -readonly [P in keyof S['tables'][K]['columns']]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
+};
+
+/**
+ * Whether a column can be omitted from `create()` / `build()` input. True when:
+ *  - The column is auto-incremented (DB assigns the value)
+ *  - The column has a static `default`
+ *  - The column is nullable
+ */
+type IsOptionalCreateColumn<C> = C extends { autoIncrement: true }
+  ? true
+  : C extends { default: any }
+    ? true
+    : C extends { null: true }
+      ? true
+      : false;
+
+/**
+ * Derive the `create()` / `build()` input shape for a table. Required for
+ * non-default, non-nullable, non-autoIncrement columns; optional for the rest.
+ * The runtime-derived default init applies column defaults, the connector
+ * assigns auto-increment primary keys, and nullable columns can be omitted.
+ */
+export type SchemaCreateProps<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+> = {
+  -readonly [P in keyof S['tables'][K]['columns'] as IsOptionalCreateColumn<
+    S['tables'][K]['columns'][P]
+  > extends true
+    ? never
+    : P]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
+} & {
+  -readonly [P in keyof S['tables'][K]['columns'] as IsOptionalCreateColumn<
+    S['tables'][K]['columns'][P]
+  > extends true
+    ? P
+    : never]?: ApplyNull<
     ColumnTSType<S['tables'][K]['columns'][P]['type']>,
     S['tables'][K]['columns'][P]['null']
   >;

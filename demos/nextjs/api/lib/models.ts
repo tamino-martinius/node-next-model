@@ -8,7 +8,9 @@ import { SqliteConnector } from '@next-model/sqlite-connector';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __nm_nextjs_api_db: { connector: SqliteConnector; ready: Promise<void> } | undefined;
+  var __nm_nextjs_api_db:
+    | { connector: SqliteConnector<typeof schema>; ready: Promise<void> }
+    | undefined;
 }
 
 const DB_PATH = './.data/nextjs-api.sqlite';
@@ -20,13 +22,13 @@ const schema = defineSchema({
       name: { type: 'string' },
       role: { type: 'string' },
       active: { type: 'boolean', default: true },
-      createdAt: { type: 'datetime' },
-      updatedAt: { type: 'datetime' },
+      createdAt: { type: 'datetime', null: true },
+      updatedAt: { type: 'datetime', null: true },
     },
   },
 });
 
-function bootstrap(): { connector: SqliteConnector; ready: Promise<void> } {
+function bootstrap(): { connector: SqliteConnector<typeof schema>; ready: Promise<void> } {
   if (globalThis.__nm_nextjs_api_db) return globalThis.__nm_nextjs_api_db;
   mkdirSync(dirname(DB_PATH), { recursive: true });
   const connector = new SqliteConnector(DB_PATH, { schema });

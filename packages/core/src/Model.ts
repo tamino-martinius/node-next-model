@@ -11,6 +11,7 @@ import {
   type DatabaseSchema,
   deriveKeysFromTableDefinition,
   type SchemaAssociations,
+  type SchemaCreateProps,
   type SchemaKeys,
   type SchemaProps,
   type TypedAssociation,
@@ -125,12 +126,13 @@ type AssocNames<Assoc> = keyof Assoc & string;
  *    association names so unknown strings fail at compile time.
  */
 type SchemaModelClass<
-  Props extends Schema,
+  CreateProps,
+  PersistentProps extends Schema,
   Keys extends Dict<KeyType>,
   Scopes extends ScopeMap,
   Assoc,
 > =
-  ReturnType<typeof modelFactoryImpl<Props, Props, Keys, Scopes>> extends infer R
+  ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>> extends infer R
     ? R extends new (
         ...args: infer A
       ) => infer Inst
@@ -2352,7 +2354,7 @@ export function Model<
    * Optional row-shape transformer. Defaults to identity — the props passed
    * to `create` / `build` flow straight through to the connector.
    */
-  init?: (props: SchemaProps<NonNullable<Conn['schema']>, K>) => Schema;
+  init?: (props: SchemaCreateProps<NonNullable<Conn['schema']>, K>) => Schema;
   filter?: Filter<
     SchemaProps<NonNullable<Conn['schema']>, K> & {
       [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
@@ -2394,6 +2396,7 @@ export function Model<
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
 }): SchemaModelClass<
+  SchemaCreateProps<NonNullable<Conn['schema']>, K>,
   SchemaProps<NonNullable<Conn['schema']>, K>,
   Keys,
   Scopes,

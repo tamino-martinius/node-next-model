@@ -13,7 +13,7 @@ const schema = defineSchema({
   },
 });
 
-function buildConnector(): KnexConnector {
+function buildConnector(): KnexConnector<typeof schema> {
   switch (CLIENT) {
     case 'sqlite3':
       return new KnexConnector(

@@ -10,7 +10,7 @@ import { SqliteConnector } from '@next-model/sqlite-connector';
 // HMR via a globalThis cache so we don't re-open the file on every reload.
 declare global {
   // eslint-disable-next-line no-var
-  var __nm_demo_db: { connector: SqliteConnector; ready: Promise<void> } | undefined;
+  var __nm_demo_db: { connector: SqliteConnector<typeof schema>; ready: Promise<void> } | undefined;
 }
 
 const DB_PATH = './.data/nextjs-todo.sqlite';
@@ -32,7 +32,7 @@ const schema = defineSchema({
   },
 });
 
-function bootstrap(): { connector: SqliteConnector; ready: Promise<void> } {
+function bootstrap(): { connector: SqliteConnector<typeof schema>; ready: Promise<void> } {
   if (globalThis.__nm_demo_db) return globalThis.__nm_demo_db;
   mkdirSync(dirname(DB_PATH), { recursive: true });
   const connector = new SqliteConnector(DB_PATH, { schema });

@@ -1,4 +1,10 @@
-import { defineSchema, MemoryConnector, Model, ValidationError } from '@next-model/core';
+import {
+  defineSchema,
+  defineTable,
+  MemoryConnector,
+  Model,
+  ValidationError,
+} from '@next-model/core';
 import { Type } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 
@@ -172,5 +178,34 @@ describe('fromTypeBox — toTypedColumns', () => {
     expect(cols.count.default).toBe(0);
     expect(cols.published.null).toBe(true);
     expect(cols.count.null).toBe(true);
+  });
+});
+
+describe('fromTypeBox — applyColumns', () => {
+  it('applies columns to a defineTable builder', () => {
+    const UserSchema = Type.Object({
+      id: Type.Integer(),
+      email: Type.String(),
+      role: Type.Union([Type.Literal('admin'), Type.Literal('member')]),
+      tags: Type.Array(Type.String()),
+    });
+    const bridge = fromTypeBox(UserSchema);
+    const table = defineTable('users', (t) => bridge.applyColumns(t));
+    const colByName = Object.fromEntries(table.columns.map((c) => [c.name, c]));
+    expect(colByName.id.type).toBe('integer');
+    expect(colByName.email.type).toBe('string');
+    // Union of string literals → 'string' kind (not 'text')
+    expect(colByName.role.type).toBe('string');
+    // Array → 'json' kind
+    expect(colByName.tags.type).toBe('json');
+  });
+
+  it('classifies a nullable union into the non-null inner type', () => {
+    const Schema = Type.Object({
+      // anyOf with a `type: 'null'` branch — nullable string
+      maybe: Type.Union([Type.String(), Type.Null()]),
+    });
+    const cols = fromTypeBox(Schema).describeColumns();
+    expect(cols.find((c) => c.name === 'maybe')?.kind).toBe('string');
   });
 });
