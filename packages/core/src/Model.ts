@@ -1535,6 +1535,11 @@ export class ModelClass {
     if (model.associations) {
       for (const name in model.associations) {
         if (Object.getOwnPropertyDescriptor(this, name)) continue;
+        // Class-defined getters live on the prototype, not on `this`. Skip
+        // auto-defining the property when the prototype chain already exposes
+        // a descriptor for this name — the class author opted into custom
+        // accessor logic and the auto-accessor would otherwise shadow it.
+        if (hasPrototypeProperty(this, name)) continue;
         const spec = model.associations[name];
         let cached: unknown;
         let hasCached = false;
@@ -2162,6 +2167,21 @@ export class ModelClass {
     (this as ModelClass).assign({ [model.softDeleteColumn]: null } as Dict<any>);
     return (this as ModelClass).save() as Promise<M>;
   }
+}
+
+/**
+ * Returns true when any prototype in `obj`'s chain (excluding Object.prototype
+ * itself) owns a property descriptor for `name`. Used to detect class-defined
+ * getters so the constructor's auto-association installer can skip them and let
+ * the user's custom accessor run instead.
+ */
+function hasPrototypeProperty(obj: object, name: string): boolean {
+  let proto: object | null = Object.getPrototypeOf(obj);
+  while (proto && proto !== Object.prototype) {
+    if (Object.getOwnPropertyDescriptor(proto, name)) return true;
+    proto = Object.getPrototypeOf(proto);
+  }
+  return false;
 }
 
 /**
