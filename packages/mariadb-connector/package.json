@@ -1,6 +1,6 @@
 {
   "name": "@next-model/mariadb-connector",
-  "version": "1.0.0-rc.4",
+  "version": "1.0.0-rc.5",
   "description": "Native MariaDB connector for next-model. Extends @next-model/mysql-connector and uses MariaDB's RETURNING clause.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
