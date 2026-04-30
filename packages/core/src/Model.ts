@@ -2251,6 +2251,33 @@ function schemaAssociationsToRuntime(
 }
 
 /**
+ * Build an `init` function from a schema's `TableDefinition`. The returned
+ * function applies each column's static `default` to the in-memory record
+ * when the caller did not supply that key, leaving caller-supplied values
+ * untouched. `'currentTimestamp'` defaults are evaluated at call time —
+ * each `build()` gets a fresh `Date`. Auto-increment primary keys are
+ * skipped (the connector assigns them).
+ */
+function buildSchemaInit(
+  tableDef: TableDefinition,
+): (props: Record<string, unknown>) => Record<string, unknown> {
+  return (props) => {
+    const out: Record<string, unknown> = { ...props };
+    for (const col of tableDef.columns) {
+      if (col.primary && col.autoIncrement) continue;
+      if (out[col.name] !== undefined) continue;
+      if (col.default === undefined) continue;
+      if (col.default === 'currentTimestamp') {
+        out[col.name] = new Date();
+      } else {
+        out[col.name] = col.default;
+      }
+    }
+    return out;
+  };
+}
+
+/**
  * Build a minimal Model-shaped object from a `TableDefinition`. The runtime
  * association resolver (`resolveAssociationTarget`) reads only `tableName`
  * and `keys` from the target. After the user's Model class registers itself
@@ -2552,7 +2579,7 @@ export function Model(props: any): any {
       );
     }
     const keys: Dict<KeyType> = props.keys ?? deriveKeysFromTableDefinition(tableDefinition);
-    const init = props.init ?? ((p: any) => p);
+    const init = props.init ?? buildSchemaInit(tableDefinition);
     const associations =
       props.associations ??
       schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
