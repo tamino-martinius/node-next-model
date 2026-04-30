@@ -6,6 +6,8 @@ import type {
   TableDefinition,
 } from './schema.js';
 import { type Dict, KeyType } from './types.js';
+import type { CollectionQuery } from './query/CollectionQuery.js';
+import type { InstanceQuery } from './query/InstanceQuery.js';
 
 /**
  * Single-column declaration for a typed schema. Mirrors the option shape used
@@ -134,6 +136,91 @@ export type SchemaKeys<S extends DatabaseSchema<any>, K extends keyof S['tables'
         ? KeyType.uuid
         : KeyType.number;
     };
+
+/**
+ * Open registry mapping schema table names → user-defined Model classes.
+ * Augment via declaration merging from your application code so that
+ * association accessors return class-instance types (with custom methods)
+ * rather than the bare row shape:
+ *
+ * ```ts
+ * declare module '@next-model/core' {
+ *   interface ModelRegistry {
+ *     users: import('./user').User;
+ *     tasks: import('./task').Task;
+ *   }
+ * }
+ * ```
+ *
+ * The augmentation is type-only — `import('./x').X` is erased at runtime, so
+ * adding entries here cannot introduce a circular runtime import. Tables not
+ * present in the registry fall back to `SchemaProps<S, tableName>` (the row
+ * shape derived from the schema's column map), which is still useful but
+ * lacks any methods declared on the class body.
+ */
+export interface ModelRegistry {}
+
+/**
+ * Resolve a schema table name to a target type for accessor return values.
+ * Looks up `Reg[T]` first (the user's class instance via `ModelRegistry`
+ * augmentation); falls back to `SchemaProps<S, T>` when the table isn't in
+ * the registry.
+ */
+export type ResolveAssociationTarget<
+  S extends DatabaseSchema<any>,
+  T extends string,
+  Reg = ModelRegistry,
+> = T extends keyof Reg
+  ? Reg[T]
+  : T extends keyof S['tables'] & string
+    ? SchemaProps<S, T>
+    : never;
+
+/**
+ * Map a single association entry to its accessor query type. `hasMany` and
+ * `hasManyThrough` produce a `CollectionQuery<Target[]>`. `hasOne` and
+ * `belongsTo` produce an `InstanceQuery<Target | undefined>`. `Target` is
+ * `ModelRegistry[targetTable]` when the user has augmented the registry with
+ * their Model class; otherwise it's `SchemaProps<S, targetTable>`.
+ */
+export type SchemaAssociationProp<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+  Name extends keyof NonNullable<S['tables'][K]['associations']> & string,
+  Reg = ModelRegistry,
+> = NonNullable<S['tables'][K]['associations']>[Name] extends { hasMany: infer T }
+  ? T extends string
+    ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
+    : never
+  : NonNullable<S['tables'][K]['associations']>[Name] extends { hasManyThrough: infer T }
+    ? T extends string
+      ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
+      : never
+    : NonNullable<S['tables'][K]['associations']>[Name] extends { belongsTo: infer T }
+      ? T extends string
+        ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
+        : never
+      : NonNullable<S['tables'][K]['associations']>[Name] extends { hasOne: infer T }
+        ? T extends string
+          ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
+          : never
+        : never;
+
+/**
+ * Map every association declared on `S['tables'][K]` to its accessor type.
+ * Used by the `Model({ connector, tableName })` and `Model({ schema, tableName })`
+ * overloads' return types to attach typed accessor properties to the instance
+ * type.
+ */
+export type SchemaAssociations<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+  Reg = ModelRegistry,
+> = S['tables'][K]['associations'] extends Record<string, TypedAssociation>
+  ? {
+      [N in keyof S['tables'][K]['associations'] & string]: SchemaAssociationProp<S, K, N, Reg>;
+    }
+  : {};
 
 /**
  * The runtime representation of a multi-table typed schema. Carries the raw
