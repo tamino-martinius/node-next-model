@@ -121,3 +121,31 @@ describe('ModelRegistry — augmentation upgrades accessors to class instance ty
     expectTypeOf<Mapped>().toEqualTypeOf<CollectionQuery<TaskRow[]>>();
   });
 });
+
+import { Model } from '../Model.js';
+import { MemoryConnector } from '../MemoryConnector.js';
+
+describe('Model({ connector, tableName }) — instance accessors are typed', () => {
+  it('user.tasks is typed as CollectionQuery<TaskRow[]> (no registry)', async () => {
+    const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
+    class User extends Model({ connector, tableName: 'users' }) {}
+    class Task extends Model({ connector, tableName: 'tasks' }) {}
+
+    const user = await User.create({ name: 'Ada' });
+    expectTypeOf(user.tasks).toEqualTypeOf<CollectionQuery<TaskRow[]>>();
+
+    const task = await Task.create({ userId: 1, title: 't' });
+    expectTypeOf(task.user).toEqualTypeOf<InstanceQuery<UserRow | undefined>>();
+  });
+
+  it('rejects unknown association names at .includes() / .joins()', () => {
+    const connector = new MemoryConnector({ storage: {} }, { schema: userTaskSchema });
+    class User extends Model({ connector, tableName: 'users' }) {}
+    User.includes('tasks');
+    User.joins('tasks');
+    // @ts-expect-error 'orders' is not declared on users.associations
+    User.includes('orders');
+    // @ts-expect-error 'orders' is not declared on users.associations
+    User.joins('orders');
+  });
+});

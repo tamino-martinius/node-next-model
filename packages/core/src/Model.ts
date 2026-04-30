@@ -9,6 +9,7 @@ import type { ScalarQuery } from './query/ScalarQuery.js';
 import {
   type DatabaseSchema,
   deriveKeysFromTableDefinition,
+  type SchemaAssociations,
   type SchemaKeys,
   type SchemaProps,
 } from './typedSchema.js';
@@ -109,6 +110,34 @@ export type IncludeOptions = {
    */
   strategy?: IncludeStrategy;
 };
+
+type AssocNames<Assoc> = keyof Assoc & string;
+
+/**
+ * The class returned from `Model({ connector, tableName })` (or the schema-direct
+ * variant). Identical static API to `modelFactoryImpl`'s class except:
+ *
+ *  - The instance type intersects with the typed association accessors
+ *    derived from `S['tables'][K].associations`.
+ *  - `includes` / `joins` / `whereMissing` are constrained to declared
+ *    association names so unknown strings fail at compile time.
+ */
+type SchemaModelClass<
+  Props extends Schema,
+  Keys extends Dict<KeyType>,
+  Scopes extends ScopeMap,
+  Assoc,
+> = ReturnType<typeof modelFactoryImpl<Props, Props, Keys, Scopes>> extends infer R
+  ? R extends new (...args: infer A) => infer Inst
+    ? Omit<R, 'prototype' | 'includes' | 'joins' | 'whereMissing'> & {
+        new (...args: A): Inst & Assoc;
+        prototype: Inst & Assoc;
+        includes<M>(this: M, ...names: Array<AssocNames<Assoc> | IncludeOptions>): M;
+        joins<M>(this: M, ...names: AssocNames<Assoc>[]): M;
+        whereMissing<M>(this: M, name: AssocNames<Assoc>): M;
+      }
+    : R
+  : never;
 
 /**
  * An association entry on `Model.associations`. `belongsTo` / `hasMany` /
@@ -2180,13 +2209,11 @@ export function Model<
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
   associations?: AssociationsMap;
-}): ReturnType<
-  typeof modelFactoryImpl<
-    SchemaProps<NonNullable<Conn['schema']>, K>,
-    SchemaProps<NonNullable<Conn['schema']>, K>,
-    Keys,
-    Scopes
-  >
+}): SchemaModelClass<
+  SchemaProps<NonNullable<Conn['schema']>, K>,
+  Keys,
+  Scopes,
+  SchemaAssociations<NonNullable<Conn['schema']>, K>
 >;
 
 /**
@@ -2240,7 +2267,7 @@ export function Model<
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
   associations?: AssociationsMap;
-}): ReturnType<typeof modelFactoryImpl<SchemaProps<S, K>, SchemaProps<S, K>, Keys, Scopes>>;
+}): SchemaModelClass<SchemaProps<S, K>, Keys, Scopes, SchemaAssociations<S, K>>;
 
 /**
  * Legacy overload — pass an explicit `init` callback whose parameter type
