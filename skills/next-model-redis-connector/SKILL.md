@@ -54,16 +54,25 @@ The underlying client is exposed as `connector.client`. Pass a `DatabaseSchema` 
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { RedisConnector } from '@next-model/redis-connector';
 
-const connector = new RedisConnector({ client: { url: process.env.REDIS_URL } });
+const schema = defineSchema({
+  notes: {
+    columns: {
+      id:    { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      body:  { type: 'string' },
+    },
+  },
+});
+
+const connector = new RedisConnector({ client: { url: process.env.REDIS_URL } }, { schema });
 await connector.connect();
 
 class Note extends Model({
-  tableName: 'notes',
   connector,
-  init: (props: { title: string; body: string }) => props,
+  tableName: 'notes',
 }) {}
 
 await Note.create({ title: 'Hello', body: 'world' });

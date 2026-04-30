@@ -35,34 +35,51 @@ Peer dependency: `@sinclair/typebox` `^0.34.0` (needs `Value.Default` and stable
 ## Quick start
 
 ```ts
-import { Model, SqliteConnector } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
 import { fromTypeBox } from '@next-model/typebox';
 import { Type } from '@sinclair/typebox';
 
 const UserSchema = Type.Object({
-  name: Type.String({ minLength: 2 }),
-  age: Type.Integer({ minimum: 0 }),
-  active: Type.Boolean({ default: true }),
+  name:     Type.String({ minLength: 2 }),
+  age:      Type.Integer({ minimum: 0 }),
+  active:   Type.Boolean({ default: true }),
   metadata: Type.Optional(Type.Object({ source: Type.String() })),
 });
 
-const user = fromTypeBox(UserSchema);
-const connector = new SqliteConnector(':memory:');
+const bridge = fromTypeBox(UserSchema);
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      ...bridge.toTypedColumns(),   // name, age, active, metadata columns
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: user.init,
-  validators: user.validators,
+  tableName: 'users',
+  init:       bridge.init,
+  validators: bridge.validators,
 }) {}
-
-await connector.createTable('users', (t) => {
-  t.integer('id', { primary: true, autoIncrement: true, null: false });
-  user.applyColumns(t);
-});
 ```
 
-`fromTypeBox(schema)` returns `{ init, validators, applyColumns }`. Pass `init` and `validators` straight into `Model({...})`, and call `applyColumns(t)` inside the `createTable` callback to register every TypeBox property as a column.
+`fromTypeBox(schema)` returns `{ init, validators, applyColumns, toTypedColumns }`. Use `toTypedColumns()` to plug into `defineSchema`, and wire `init` + `validators` into `Model({...})`.
+
+### Using `applyColumns` for migrations
+
+`applyColumns(t)` is still useful inside `connector.createTable(...)` migration callbacks — the `defineTable` builder is imperative and operates independently from `defineSchema`:
+
+```ts
+await connector.createTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true, null: false });
+  bridge.applyColumns(t);
+});
+```
 
 ## Type mapping
 

@@ -47,18 +47,27 @@ const connector = new ValkeyConnector({ client: { url: '...' } }, { schema });
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { ValkeyConnector } from '@next-model/valkey-connector';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:   { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+});
 
 const connector = new ValkeyConnector({
   client: { url: 'valkey://127.0.0.1:6379' },
-});
+}, { schema });
 await connector.connect();
 
-const User = Model({ connector, tableName: 'users' });
+class User extends Model({ connector, tableName: 'users' }) {}
 
-await User.create({ id: '1', name: 'Ada' });
-const ada = await User.find({ id: '1' });
+const ada = await User.create({ name: 'Ada' });
+await User.find(ada.id);
 ```
 
 ## Differences from RedisConnector

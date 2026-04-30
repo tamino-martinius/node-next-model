@@ -22,7 +22,7 @@ metadata:
 
 - You author schemas with [TypeBox](https://github.com/sinclairzx81/typebox) — use the `next-model-typebox` bridge.
 - You author schemas with [arktype](https://arktype.io) — use the `next-model-arktype` bridge.
-- You only have a plain TypeScript `interface` / type and don't need run-time checking — pass it directly via `Model<Interface>({...})` from `@next-model/core` (see `next-model-core`).
+- You only have a plain TypeScript `interface` / type and don't need run-time checking — use `defineSchema({ table: { columns: {...} } })` from `@next-model/core` directly (see `next-model-core`).
 
 ## Install
 
@@ -36,36 +36,51 @@ pnpm add @next-model/zod zod
 ## Quick start
 
 ```ts
-import { Model, SqliteConnector } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
 import { fromZod } from '@next-model/zod';
 import { z } from 'zod';
 
 const UserSchema = z.object({
-  name: z.string().min(2),
-  age: z.number().int().nonnegative(),
-  active: z.boolean().default(true),
+  name:     z.string().min(2),
+  age:      z.number().int().nonnegative(),
+  active:   z.boolean().default(true),
   metadata: z.object({ source: z.string() }).optional(),
 });
 
-const user = fromZod(UserSchema);
-const connector = new SqliteConnector(':memory:');
+const bridge = fromZod(UserSchema);
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      ...bridge.toTypedColumns(),   // name, age, active, metadata columns
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: user.init,              // parses + throws ValidationError on failure
-  validators: user.validators,   // same schema gates save() / isValid()
+  tableName: 'users',
+  init:       bridge.init,        // parses + throws ValidationError on failure
+  validators: bridge.validators,  // same schema gates save() / isValid()
 }) {}
-
-// Same schema drives the migration — no drift between parse-time types and
-// the DDL that backs them.
-await connector.createTable('users', (t) => {
-  t.integer('id', { primary: true, autoIncrement: true, null: false });
-  user.applyColumns(t);         // adds name, age, active, metadata columns
-});
 ```
 
-`fromZod(schema)` returns `{ init, validators, applyColumns }`. Wire `init` and `validators` into `Model({...})`, and call `applyColumns(t)` inside a `createTable` callback to emit one column per top-level field.
+`fromZod(schema)` returns `{ init, validators, applyColumns, toTypedColumns }`. Use `toTypedColumns()` to plug into `defineSchema`, and wire `init` + `validators` into `Model({...})`.
+
+### Using `applyColumns` for migrations
+
+`applyColumns(t)` is still useful inside `connector.createTable(...)` migration callbacks — the `defineTable` builder is imperative and operates independently from `defineSchema`:
+
+```ts
+await connector.createTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true, null: false });
+  bridge.applyColumns(t);   // adds name, age, active, metadata columns
+});
+```
 
 ## Type mapping
 

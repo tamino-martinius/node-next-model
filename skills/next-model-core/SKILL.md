@@ -37,76 +37,50 @@ pnpm add @next-model/core
 
 ## Defining a model
 
-Three idioms ship in the README.
-
-### `init`-based (legacy)
+The only supported way to construct a Model is schema-first: define a `defineSchema(...)` block, pass it to the connector, then reference the connector from `Model({...})`.
 
 ```ts
-import { Model, KeyType, SortDirection } from '@next-model/core';
-
-class User extends Model({
-  tableName: 'users',
-  init: (props: { firstName: string; lastName: string; gender?: string }) => props,
-}) {
-  get name() {
-    return `${this.firstName} ${this.lastName}`;
-  }
-}
-
-const user = await User.create({ firstName: 'John', lastName: 'Doe' });
-user.id;     // auto-assigned number
-user.name;   // 'John Doe'
-```
-
-### `defineSchema(...)` + connector
-
-```ts
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
 const dbSchema = defineSchema({
   users: {
     columns: {
-      id: { type: 'integer', primary: true, autoIncrement: true },
-      email: { type: 'string' },
-      name: { type: 'string' },
-      age: { type: 'integer' },
+      id:         { type: 'integer', primary: true, autoIncrement: true },
+      email:      { type: 'string' },
+      name:       { type: 'string' },
+      age:        { type: 'integer' },
       archivedAt: { type: 'timestamp', null: true },
     },
   },
   posts: {
     columns: {
-      id: { type: 'integer', primary: true, autoIncrement: true },
+      id:     { type: 'integer', primary: true, autoIncrement: true },
       userId: { type: 'integer' },
-      title: { type: 'string' },
+      title:  { type: 'string' },
     },
   },
 });
 
 const connector = new SqliteConnector(':memory:', { schema: dbSchema });
 
-class User extends Model({ connector, tableName: 'users' }) {}
-class Post extends Model({ connector, tableName: 'posts' }) {}
-```
-
-Column-kind → prop-type mapping: `string`/`text` → `string`; `integer`/`bigint`/`float`/`decimal` → `number`; `boolean` → `boolean`; `date`/`datetime`/`timestamp` → `Date`; `json` → `unknown`. `null: true` widens to `T | null`. Primary columns drive `keys` (string/text → `KeyType.uuid`, numeric → `KeyType.number`).
-
-### `Model<Interface>({...})` (interface-generic props)
-
-```ts
-import { Model } from '@next-model/core';
-
-interface UserProps {
-  email: string;
-  name: string;
-  archivedAt: Date | null;
+class User extends Model({ connector, tableName: 'users' }) {
+  get displayName() { return this.name; }
 }
+class Post extends Model({ connector, tableName: 'posts' }) {}
 
-class User extends Model<UserProps>({
-  tableName: 'users',
-  // No init needed — defaults to identity. Props are typed via the generic.
-}) {}
+const user = await User.create({ email: 'john@example.com', name: 'John Doe', age: 30 });
+user.id;           // auto-assigned number
+user.displayName;  // 'John Doe'
 ```
+
+Column-kind → prop-type mapping: `string`/`text` → `string`; `integer`/`bigint`/`float`/`decimal` → `number`; `boolean` → `boolean`; `date`/`datetime`/`timestamp` → `Date`; `json` → `unknown`. `null: true` widens to `T | null`. Primary columns drive key type inference (string/text → UUID key, numeric → number key).
+
+Key rules:
+- `Model({ tableName, init, keys })` — removed. Use `defineSchema` + connector.
+- `Model<Interface>({...})` interface-generic — removed. Column types come from the schema.
+- `init` is optional. Schema-derived defaults apply column `default:` values at build time. Pass `init: (p) => ({...p, transform})` only when you need an explicit transformation.
+- `keys` is no longer a top-level option — derived from the schema's `primary: true` columns.
 
 ## Querying
 
@@ -217,8 +191,9 @@ import {
   validateConfirmation,
 } from '@next-model/core';
 
-const User = Model({
-  // ...
+class User extends Model({
+  connector,   // connector built from a schema with email, name, role, etc. columns
+  tableName: 'users',
   validators: [
     validatePresence(['email', 'name']),
     validateFormat('email', { with: /^[^@\s]+@[^@\s]+\.[^@\s]+$/ }),
@@ -229,7 +204,7 @@ const User = Model({
     validateUniqueness('email', { caseSensitive: false }),
     validateConfirmation('password'),
   ],
-});
+}) {}
 ```
 
 Every factory accepts `{ message?, allowNull?, allowBlank?, if?, unless? }`. Each instance carries an `errors` collection populated by `isValid()`.
@@ -237,7 +212,9 @@ Every factory accepts `{ message?, allowNull?, allowBlank?, if?, unless? }`. Eac
 ## Lifecycle callbacks
 
 ```ts
-Model({
+class User extends Model({
+  connector,
+  tableName: 'users',
   callbacks: {
     beforeSave:   [ (record) => { /* ... */ } ],
     beforeCreate: [ /* ... */ ],
@@ -248,7 +225,7 @@ Model({
     beforeDelete: [ /* ... */ ],
     afterDelete:  [ /* ... */ ],
   },
-});
+}) {}
 
 const unsubscribe = User.on('afterSave', (user) => {
   logger.info('user saved', user.savedChanges());
@@ -263,10 +240,21 @@ Enabled by default. `createdAt` is set on insert, `updatedAt` on every save. `to
 
 ## Soft delete
 
+`softDelete: true` requires a `discardedAt` column of type `timestamp` with `null: true` in the schema:
+
 ```ts
+// In your defineSchema block:
+//   posts: {
+//     columns: {
+//       id:          { type: 'integer', primary: true, autoIncrement: true },
+//       title:       { type: 'string' },
+//       discardedAt: { type: 'timestamp', null: true },
+//     },
+//   },
+
 class Post extends Model({
+  connector,   // connector built from a schema that includes the discardedAt column
   tableName: 'posts',
-  init: (props: { title: string; discardedAt?: Date | null }) => ({ discardedAt: null, ...props }),
   softDelete: true,
 }) {}
 
@@ -283,17 +271,51 @@ await post.restore();
 
 ## Associations
 
+Associations are declared at the schema level (not on the Model factory). The `hasMany` / `belongsTo` / `hasOne` / `hasManyThrough` target is the **table name** (string), not a class reference or thunk — so association declarations are cycle-free:
+
 ```ts
-class User extends Model({
-  tableName: 'users',
-  init: (props: { name: string }) => props,
-  associations: {
-    posts:   { hasMany:   () => Post,    foreignKey: 'userId' },
-    profile: { hasOne:    () => Profile, foreignKey: 'userId' },
-    company: { belongsTo: () => Company, foreignKey: 'companyId' },
-    roles:   { hasManyThrough: () => Role, through: () => UserRole },
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:        { type: 'integer', primary: true, autoIncrement: true },
+      name:      { type: 'string' },
+      companyId: { type: 'integer' },
+    },
+    associations: {
+      posts:   { hasMany:   'posts',     foreignKey: 'userId' },
+      profile: { hasOne:    'profiles',  foreignKey: 'userId' },
+      company: { belongsTo: 'companies', foreignKey: 'companyId' },
+      roles:   { hasManyThrough: 'roles', through: 'user_roles' },
+    },
   },
-}) {}
+  posts: {
+    columns: {
+      id:     { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      title:  { type: 'string' },
+    },
+    associations: {
+      user: { belongsTo: 'users', foreignKey: 'userId' },
+    },
+  },
+  // ... profiles, companies, roles, user_roles similarly
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
+
+class User extends Model({ connector, tableName: 'users' }) {}
+class Post extends Model({ connector, tableName: 'posts' }) {}
+```
+
+To have `user.posts` return `Post[]` instead of the raw schema row shape, augment the global `ModelRegistry`:
+
+```ts
+declare module '@next-model/core' {
+  interface ModelRegistry {
+    users: import('./user').User;
+    posts: import('./post').Post;
+  }
+}
 ```
 
 Instance accessors return chainable builders, not eager promises:

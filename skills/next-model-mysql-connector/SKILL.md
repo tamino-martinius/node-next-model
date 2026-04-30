@@ -76,15 +76,24 @@ Existing call sites without `{ schema }` keep working unchanged.
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MysqlConnector } from '@next-model/mysql-connector';
 
-const connector = new MysqlConnector(process.env.DATABASE_URL!);
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:   { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age:  { type: 'integer' },
+    },
+  },
+});
+
+const connector = new MysqlConnector(process.env.DATABASE_URL!, { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { name: string; age: number }) => props,
+  tableName: 'users',
 }) {}
 ```
 
