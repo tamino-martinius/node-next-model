@@ -2579,6 +2579,9 @@ export function Model(props: any): any {
       );
     }
     const keys: Dict<KeyType> = props.keys ?? deriveKeysFromTableDefinition(tableDefinition);
+    // Caller-supplied `init` replaces the schema default builder entirely — there
+    // is no composition. If schema defaults need to apply alongside a custom
+    // transform, the caller should re-derive them inside their `init`.
     const init = props.init ?? buildSchemaInit(tableDefinition);
     const associations =
       props.associations ??

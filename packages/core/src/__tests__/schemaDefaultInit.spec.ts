@@ -71,4 +71,21 @@ describe('schema-driven default init', () => {
     expect(p.published).toBeUndefined();
     expect(p.views).toBeUndefined();
   });
+
+  it('applies default: null as an explicit null value', () => {
+    const localSchema = defineSchema({
+      docs: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          title: { type: 'string' },
+          archivedAt: { type: 'datetime', null: true, default: null },
+        },
+      },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema: localSchema });
+    class Doc extends Model({ connector, tableName: 'docs', timestamps: false }) {}
+
+    const d = Doc.build({ title: 'hi' });
+    expect(d.archivedAt).toBeNull();
+  });
 });
