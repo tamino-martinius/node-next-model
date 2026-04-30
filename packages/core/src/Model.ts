@@ -1492,6 +1492,7 @@ export class ModelClass {
       Object.defineProperty(this, key, {
         get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
+        configurable: true,
       });
     }
 
@@ -1500,6 +1501,7 @@ export class ModelClass {
     for (const key in model.keys) {
       Object.defineProperty(this, key, {
         get: () => (this.keys ? this.keys[key] : undefined),
+        configurable: true,
       });
     }
 
