@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { defineSchema, FilterError, Model } from '@next-model/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryLocalStorage } from '../__mocks__/MemoryLocalStorage.js';
@@ -430,5 +430,6 @@ describe('LocalStorageConnector', () => {
 
 runModelConformance({
   name: 'LocalStorageConnector',
-  makeConnector: () => new LocalStorageConnector({ localStorage: new MemoryLocalStorage() }),
+  makeConnector: () =>
+    new LocalStorageConnector({ localStorage: new MemoryLocalStorage() }, { schema: conformanceSchema }),
 });

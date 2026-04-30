@@ -17,7 +17,7 @@ export interface ConformanceOptions {
 // Each table used anywhere in this fixture is declared here with its full
 // column set (union of all usages across describe blocks).
 // ---------------------------------------------------------------------------
-const conformanceSchema = defineSchema({
+export const conformanceSchema = defineSchema({
   // --- Core CRUD table -------------------------------------------------------
   conformance_cats: {
     columns: {
@@ -138,7 +138,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
     function makeCat(c: Connector) {
       return class extends Model({
-        schema: conformanceSchema,
         tableName,
         connector: c,
         timestamps: false,
@@ -474,8 +473,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
         });
         TagModel = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName: upsertTable,
+                tableName: upsertTable,
             connector,
             timestamps: false,
           })
@@ -668,8 +666,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
       it('rejects save when a validator returns false', async () => {
         class Strict extends Model({
-          schema: conformanceSchema,
-          tableName,
+            tableName,
           connector,
           timestamps: false,
           validators: [(instance: { name: string }) => instance.name.length > 0],
@@ -681,8 +678,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       it('runs lifecycle callbacks in declared order', async () => {
         const events: string[] = [];
         class Tracked extends Model({
-          schema: conformanceSchema,
-          tableName,
+            tableName,
           connector,
           timestamps: false,
           callbacks: {
@@ -699,8 +695,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
       it('on() subscribes a callback at runtime', async () => {
         const seen: string[] = [];
         class Live extends Model({
-          schema: conformanceSchema,
-          tableName,
+            tableName,
           connector,
           timestamps: false,
         }) {}
@@ -725,8 +720,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
         });
         Doc = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName,
+                tableName,
             connector,
             timestamps: false,
             softDelete: true,
@@ -761,8 +755,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
     describe('Named scopes', () => {
       it('exposes scopes as chainable static methods', async () => {
         class Scoped extends Model({
-          schema: conformanceSchema,
-          tableName,
+            tableName,
           connector,
           timestamps: false,
           scopes: {
@@ -796,8 +789,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
         // KEEP: init transforms AuthorProps → CatProps (adds `age: 0` default)
         Author = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName,
+                tableName,
             connector,
             timestamps: false,
             init: (props: { name: string }) => ({ ...props, age: 0 }),
@@ -805,8 +797,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
         ) {};
         Post = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName: postsTable,
+                tableName: postsTable,
             connector,
             timestamps: false,
           })
@@ -849,16 +840,14 @@ export function runModelConformance(opts: ConformanceOptions): void {
         });
         Post = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName: childTable,
+                tableName: childTable,
             connector,
             timestamps: false,
           })
         ) {};
         User = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName: parentTable,
+                tableName: parentTable,
             connector,
             timestamps: false,
           })
@@ -985,14 +974,12 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
       it('parent-scope traversal: User.findBy({email}).todos returns the user todos', async () => {
         const Todo: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: todosTable,
+            tableName: todosTable,
           connector,
           timestamps: false,
         }) {};
         const User: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: usersTable,
+            tableName: usersTable,
           connector,
           timestamps: false,
         }) {};
@@ -1013,23 +1000,20 @@ export function runModelConformance(opts: ConformanceOptions): void {
         let Address: any;
         Address = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName: addressesTable,
+                tableName: addressesTable,
             connector,
             timestamps: false,
           })
         ) {};
         Customer = class extends (
           Model({
-            schema: conformanceSchema,
-            tableName: customersTable,
+                tableName: customersTable,
             connector,
             timestamps: false,
           })
         ) {};
         const Order: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: ordersTable,
+            tableName: ordersTable,
           connector,
           timestamps: false,
         }) {};
@@ -1045,14 +1029,12 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
       it('Todo.filterBy({userId: User.filterBy({...})}) — subquery as filter value', async () => {
         const User: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: usersTable,
+            tableName: usersTable,
           connector,
           timestamps: false,
         }) {};
         const Todo: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: todosTable,
+            tableName: todosTable,
           connector,
           timestamps: false,
         }) {};
@@ -1072,14 +1054,12 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
       it('Order.filterBy({total: {$gt: OrderItem.filterBy({...}).sum(amount)}}) — aggregate subquery', async () => {
         const Order: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: ordersTable,
+            tableName: ordersTable,
           connector,
           timestamps: false,
         }) {};
         const OrderItem: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: orderItemsTable,
+            tableName: orderItemsTable,
           connector,
           timestamps: false,
         }) {};
@@ -1101,14 +1081,12 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
       it('Todo.filterBy({ownerEmail: User.filterBy({...}).pluck(email)}) — column subquery', async () => {
         const User: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: usersTable,
+            tableName: usersTable,
           connector,
           timestamps: false,
         }) {};
         const Todo: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: todosTable,
+            tableName: todosTable,
           connector,
           timestamps: false,
         }) {};
@@ -1127,14 +1105,12 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
       it('attributes getter on a resolved instance is a JSON-safe POJO', async () => {
         const Todo: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: todosTable,
+            tableName: todosTable,
           connector,
           timestamps: false,
         }) {};
         const User: any = class extends Model({
-          schema: conformanceSchema,
-          tableName: usersTable,
+            tableName: usersTable,
           connector,
           timestamps: false,
         }) {};

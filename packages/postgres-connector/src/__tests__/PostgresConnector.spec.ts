@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { defineAlter, KeyType } from '@next-model/core';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -417,5 +417,7 @@ describe('PostgresConnector#reflectSchema', () => {
 
 runModelConformance({
   name: 'PostgresConnector',
-  makeConnector: () => connector,
+  makeConnector: () =>
+    new PostgresConnector({ connectionString: DATABASE_URL, max: 1 }, { schema: conformanceSchema }),
+  teardown: async (c) => (c as PostgresConnector).destroy(),
 });

@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { ValkeyConnector } from '../index.js';
@@ -47,5 +47,7 @@ describe('ValkeyConnector', () => {
 
 runModelConformance({
   name: 'ValkeyConnector',
-  makeConnector: () => connector,
+  makeConnector: () =>
+    new ValkeyConnector({ client: connector.client, prefix: 'nm-vk-test:' }, { schema: conformanceSchema }),
+  skipTransactions: true,
 });

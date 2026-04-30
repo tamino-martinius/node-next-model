@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { defineAlter, UnsupportedOperationError } from '@next-model/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -187,5 +187,10 @@ describe('MongoDbConnector.alterTable', () => {
 
 runModelConformance({
   name: 'MongoDbConnector',
-  makeConnector: () => connector,
+  makeConnector: async () => {
+    const c = new MongoDbConnector({ url: URL, database: 'nm_test' }, { schema: conformanceSchema });
+    await c.connect();
+    return c;
+  },
+  teardown: async (c) => (c as MongoDbConnector).destroy(),
 });

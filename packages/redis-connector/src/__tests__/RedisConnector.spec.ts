@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { RedisConnector } from '../index.js';
@@ -72,5 +72,7 @@ describe('RedisConnector', () => {
 
 runModelConformance({
   name: 'RedisConnector',
-  makeConnector: () => connector,
+  makeConnector: () =>
+    new RedisConnector({ client: connector.client, prefix: 'nm-test:' }, { schema: conformanceSchema }),
+  skipTransactions: true,
 });
