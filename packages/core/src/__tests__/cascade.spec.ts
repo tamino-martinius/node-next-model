@@ -1,33 +1,44 @@
-import { KeyType, MemoryConnector, Model, PersistenceError, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, PersistenceError, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer', null: true },
+      title: { type: 'string' },
+    },
+  },
+  profiles: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      bio: { type: 'string' },
+    },
+  },
+});
 
 describe('cascade (dependent: destroy / deleteAll / nullify / restrict)', () => {
   let storage: Storage = {};
-  const sharedConnector = () => new MemoryConnector({ storage });
+  const sharedConnector = () => new MemoryConnector({ storage }, { schema });
 
   function makeModels(action: 'destroy' | 'deleteAll' | 'nullify' | 'restrict') {
     const Post = Model({
       tableName: 'posts',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { userId?: number | null; title?: string }) => ({
-        userId: p.userId ?? null,
-        title: p.title ?? '',
-      }),
     });
     const Profile = Model({
       tableName: 'profiles',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { userId?: number; bio?: string }) => ({
-        userId: p.userId ?? 0,
-        bio: p.bio ?? '',
-      }),
     });
     const User = Model({
       tableName: 'users',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { name?: string }) => ({ name: p.name ?? '' }),
       cascade: {
         posts: { hasMany: Post, foreignKey: 'userId', dependent: action },
         profile: { hasOne: Profile, foreignKey: 'userId', dependent: action },
@@ -129,14 +140,13 @@ describe('cascade (dependent: destroy / deleteAll / nullify / restrict)', () => 
     });
   });
 
+  // LEGACY: removed in Plan 3 — thunk support in cascade is a legacy-only feature
   describe('lazy model references', () => {
     it('accepts a thunk so circular imports work', async () => {
       let Post: any;
       const User = Model({
         tableName: 'users',
         connector: sharedConnector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string }) => ({ name: p.name ?? '' }),
         cascade: {
           posts: { hasMany: () => Post, foreignKey: 'userId', dependent: 'deleteAll' },
         },
@@ -144,11 +154,6 @@ describe('cascade (dependent: destroy / deleteAll / nullify / restrict)', () => 
       Post = Model({
         tableName: 'posts',
         connector: sharedConnector(),
-        keys: { id: KeyType.number },
-        init: (p: { userId?: number; title?: string }) => ({
-          userId: p.userId ?? 0,
-          title: p.title ?? '',
-        }),
       });
       const alice = await User.find(1);
       await alice!.delete();
@@ -161,17 +166,10 @@ describe('cascade (dependent: destroy / deleteAll / nullify / restrict)', () => 
       const Post = Model({
         tableName: 'posts',
         connector: sharedConnector(),
-        keys: { id: KeyType.number },
-        init: (p: { userId?: number; title?: string }) => ({
-          userId: p.userId ?? 0,
-          title: p.title ?? '',
-        }),
       });
       const User = Model({
         tableName: 'users',
         connector: sharedConnector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string }) => ({ name: p.name ?? '' }),
       });
       const alice = await User.find(1);
       await alice!.delete();
