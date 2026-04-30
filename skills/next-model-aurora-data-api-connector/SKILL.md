@@ -71,23 +71,32 @@ Set `dialect: 'postgres'` (default) or `dialect: 'mysql'` on the constructor opt
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { DataApiConnector } from '@next-model/aurora-data-api-connector';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:   { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age:  { type: 'integer' },
+    },
+  },
+});
 
 const connector = new DataApiConnector({
   secretArn: process.env.AURORA_SECRET_ARN,
   resourceArn: process.env.AURORA_CLUSTER_ARN,
   database: 'app_production',
-});
+}, { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { name: string; age: number }) => props,
+  tableName: 'users',
 }) {}
 
 const ada = await User.create({ name: 'Ada', age: 36 });
-const adults = await User.where({ age: { $gte: 18 } }).all();
+const adults = await User.filterBy({ $gte: { age: 18 } }).all();
 ```
 
 ## Mock client
@@ -104,7 +113,7 @@ const connector = new DataApiConnector({ client });
 // stub a result for the next query
 client.enqueue({ records: [{ id: 1, name: 'Ada' }] });
 
-class User extends Model({ tableName: 'users', connector, init: (p: { name: string }) => p }) {}
+class User extends Model({ connector, tableName: 'users' }) {}
 const [ada] = await User.all();
 
 // inspect the SQL the connector produced

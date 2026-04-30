@@ -35,15 +35,26 @@ Minimal example mounting the adapter on an Express app for a Model:
 
 ```ts
 import express from 'express';
-import { Model, SqliteConnector } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
 import { createRestRouter } from '@next-model/express-rest-api';
 
-const connector = new SqliteConnector(':memory:');
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:     { type: 'integer', primary: true, autoIncrement: true },
+      name:   { type: 'string' },
+      age:    { type: 'integer' },
+      active: { type: 'boolean' },
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { name: string; age: number; active: boolean }) => props,
+  tableName: 'users',
 }) {}
 
 const app = express();

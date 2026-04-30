@@ -53,15 +53,24 @@ The constructor signature, pool config, and runtime API are otherwise identical 
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MariaDbConnector } from '@next-model/mariadb-connector';
 
-const connector = new MariaDbConnector('mariadb://root:mariadb@127.0.0.1:3306/myapp');
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:   { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age:  { type: 'integer' },
+    },
+  },
+});
+
+const connector = new MariaDbConnector('mariadb://root:mariadb@127.0.0.1:3306/myapp', { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { name: string; age: number }) => props,
+  tableName: 'users',
 }) {}
 
 // One round-trip — INSERT ... RETURNING *.

@@ -7,15 +7,25 @@ A typed, promise-based ORM for TypeScript. Define models with a factory, chain i
 ### Define a model
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
-const connector = new SqliteConnector(':memory:');
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:        { type: 'integer', primary: true, autoIncrement: true },
+      firstName: { type: 'string' },
+      lastName:  { type: 'string' },
+      age:       { type: 'integer' },
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { firstName: string; lastName: string; age: number }) => props,
+  tableName: 'users',
 }) {
   get name() {
     return `${this.firstName} ${this.lastName}`;
@@ -97,7 +107,7 @@ This repository is a pnpm workspace; each published package lives under `package
 | [`@next-model/graphql-api`](./packages/graphql-api) | GraphQL schema generator — six default CRUD operations with per-operation auth + per-row response mapping. |
 | [`@next-model/nextjs-api`](./packages/nextjs-api) | Next.js App Router adapter — `{ GET, POST, PATCH, DELETE }` route-handler exports with the same auth + mapping hook surface. |
 | [`@next-model/migrations-generator`](./packages/migrations-generator) | CLI (`nm-generate-migration`) + library for scaffolding timestamped migration files. |
-| [`@next-model/zod`](./packages/zod) | Bridge zod schemas into a Model's `init`, `validators`, and `createTable` columns — one schema, three consumers. |
+| [`@next-model/zod`](./packages/zod) | Bridge zod schemas into `toTypedColumns()` (for `defineSchema`), `init` coercion, and `validators` — one schema, three consumers. |
 | [`@next-model/typebox`](./packages/typebox) | TypeBox variant of `@next-model/zod`. |
 | [`@next-model/arktype`](./packages/arktype) | arktype variant of `@next-model/zod`. |
 

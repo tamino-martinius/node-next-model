@@ -60,7 +60,7 @@ This skill is the **index**. For deep package docs, switch to the per-package sk
 | TypeBox | `@next-model/typebox` | `next-model-typebox` |
 | arktype | `@next-model/arktype` | `next-model-arktype` |
 
-> All three bridges convert one schema into `init`, `validators`, **and** `createTable` columns — single source of truth.
+> All three bridges convert one schema into `toTypedColumns()` (for `defineSchema`), `init` coercion, **and** `validators` — single source of truth.
 
 ### Frontend hooks
 
@@ -79,14 +79,23 @@ This skill is the **index**. For deep package docs, switch to the per-package sk
 ## Minimum example
 
 ```ts
-import { Model, MemoryConnector } from '@next-model/core';
+import { defineSchema, Model, MemoryConnector } from '@next-model/core';
 
-const connector = new MemoryConnector({ storage: {} });
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:   { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age:  { type: 'integer' },
+    },
+  },
+});
+
+const connector = new MemoryConnector({ storage: {} }, { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { name: string; age: number }) => props,
+  tableName: 'users',
 }) {}
 
 await User.create({ name: 'Ada', age: 36 });

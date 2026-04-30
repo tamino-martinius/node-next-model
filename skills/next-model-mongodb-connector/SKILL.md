@@ -76,16 +76,25 @@ const connector = new MongoDbConnector({ url: process.env.MONGODB_URL }, { schem
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MongoDbConnector } from '@next-model/mongodb-connector';
 
-const connector = new MongoDbConnector({ url: process.env.MONGODB_URL });
+const schema = defineSchema({
+  notes: {
+    columns: {
+      id:    { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      body:  { type: 'string' },
+    },
+  },
+});
+
+const connector = new MongoDbConnector({ url: process.env.MONGODB_URL }, { schema });
 await connector.connect();
 
 class Note extends Model({
-  tableName: 'notes',
   connector,
-  init: (props: { title: string; body: string }) => props,
+  tableName: 'notes',
 }) {}
 ```
 

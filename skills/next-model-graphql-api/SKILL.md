@@ -36,15 +36,26 @@ Peer deps: `graphql ^16.9.0`, `@graphql-tools/schema ^10.0.0`, `@next-model/core
 
 ```ts
 import { makeExecutableSchema } from '@graphql-tools/schema';
-import { Model, SqliteConnector } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
 import { buildModelResource, composeSchema } from '@next-model/graphql-api';
 
-const connector = new SqliteConnector(':memory:');
+const dbSchema = defineSchema({
+  users: {
+    columns: {
+      id:     { type: 'integer', primary: true, autoIncrement: true },
+      name:   { type: 'string' },
+      age:    { type: 'integer' },
+      active: { type: 'boolean' },
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema: dbSchema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: (props: { name: string; age: number; active: boolean }) => props,
+  tableName: 'users',
 }) {}
 
 const userResource = buildModelResource({

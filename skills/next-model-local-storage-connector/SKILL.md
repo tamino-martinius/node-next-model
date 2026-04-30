@@ -68,15 +68,24 @@ Existing call sites without `{ schema }` keep working unchanged.
 ## Quick start
 
 ```ts
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { LocalStorageConnector } from '@next-model/local-storage-connector';
 
-const connector = new LocalStorageConnector();
+const schema = defineSchema({
+  notes: {
+    columns: {
+      id:    { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      body:  { type: 'string' },
+    },
+  },
+});
+
+const connector = new LocalStorageConnector({}, { schema });
 
 class Note extends Model({
-  tableName: 'notes',
   connector,
-  init: (props: { title: string; body: string }) => props,
+  tableName: 'notes',
 }) {}
 
 await Note.create({ title: 'Hello', body: 'world' });

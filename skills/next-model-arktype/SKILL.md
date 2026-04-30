@@ -35,35 +35,52 @@ pnpm add @next-model/arktype arktype
 ## Quick start
 
 ```ts
-import { Model, SqliteConnector } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
 import { fromArkType } from '@next-model/arktype';
 import { type } from 'arktype';
 
 const UserType = type({
-  name: 'string>=2',
-  age: 'number.integer>=0',
-  active: 'boolean',
+  name:       'string>=2',
+  age:        'number.integer>=0',
+  active:     'boolean',
   'nickname?': 'string',
-  metadata: { source: 'string' },
+  metadata:   { source: 'string' },
 });
 
-const user = fromArkType(UserType);
-const connector = new SqliteConnector(':memory:');
+const bridge = fromArkType(UserType);
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      ...bridge.toTypedColumns(),   // name, age, active, nickname, metadata columns
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
-  tableName: 'users',
   connector,
-  init: user.init,
-  validators: user.validators,
+  tableName: 'users',
+  init:       bridge.init,
+  validators: bridge.validators,
 }) {}
-
-await connector.createTable('users', (t) => {
-  t.integer('id', { primary: true, autoIncrement: true, null: false });
-  user.applyColumns(t);
-});
 ```
 
-`init` invokes the callable `type(value)` — on failure it throws `ValidationError` with `ArkErrors.summary`, the same human-readable multiline string arktype prints when you call `.throw()`.
+`fromArkType(schema)` returns `{ init, validators, applyColumns, toTypedColumns }`. Use `toTypedColumns()` to plug into `defineSchema`, and wire `init` + `validators` into `Model({...})`. `init` invokes the callable `type(value)` — on failure it throws `ValidationError` with `ArkErrors.summary`, the same human-readable multiline string arktype prints when you call `.throw()`.
+
+### Using `applyColumns` for migrations
+
+`applyColumns(t)` is still useful inside `connector.createTable(...)` migration callbacks — the `defineTable` builder is imperative and operates independently from `defineSchema`:
+
+```ts
+await connector.createTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true, null: false });
+  bridge.applyColumns(t);
+});
+```
 
 ## Type mapping
 
