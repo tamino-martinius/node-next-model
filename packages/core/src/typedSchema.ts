@@ -356,6 +356,38 @@ function renderIndexLiteral(idx: IndexDefinition, indent: string): string {
   return `${indent}{ ${parts.join(', ')} },`;
 }
 
+function renderAssociationLiteral(
+  name: string,
+  spec: Record<string, unknown>,
+  indent: string,
+): string {
+  // Order keys deterministically: discriminator first (belongsTo / hasMany /
+  // hasOne / hasManyThrough), then the rest. This produces stable output that
+  // matches the source-author's likely ordering.
+  const discriminators = ['belongsTo', 'hasMany', 'hasOne', 'hasManyThrough'];
+  const parts: string[] = [];
+  for (const key of discriminators) {
+    if (key in spec) {
+      parts.push(`${key}: ${renderAssociationValue(spec[key])}`);
+    }
+  }
+  for (const [key, value] of Object.entries(spec)) {
+    if (discriminators.includes(key)) continue;
+    if (value === undefined) continue;
+    parts.push(`${quoteKey(key)}: ${renderAssociationValue(value)}`);
+  }
+  return `${indent}${quoteKey(name)}: { ${parts.join(', ')} },`;
+}
+
+function renderAssociationValue(value: unknown): string {
+  if (typeof value === 'string') return `'${value.replace(/'/g, "\\'")}'`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null) return 'null';
+  // Associations only carry strings + a few enum-typed strings in practice;
+  // fall back to JSON.stringify for any unanticipated value.
+  return JSON.stringify(value);
+}
+
 const VALID_IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 function quoteKey(name: string): string {
   return VALID_IDENT.test(name) ? name : JSON.stringify(name);
@@ -397,6 +429,16 @@ export function generateSchemaSource(
       lines.push(`    indexes: [`);
       for (const idx of table.indexes) lines.push(renderIndexLiteral(idx, '      '));
       lines.push(`    ],`);
+    }
+    const associations = table.associations as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    if (associations && Object.keys(associations).length > 0) {
+      lines.push(`    associations: {`);
+      for (const [assocName, spec] of Object.entries(associations)) {
+        lines.push(renderAssociationLiteral(assocName, spec, '      '));
+      }
+      lines.push(`    },`);
     }
     lines.push(`  },`);
     tableBlocks.push(lines.join('\n'));

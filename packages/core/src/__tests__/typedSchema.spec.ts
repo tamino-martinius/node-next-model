@@ -641,4 +641,51 @@ describe('generateSchemaSource', () => {
     const source = generateSchemaSource([]);
     expect(source).toContain('export const schema = defineSchema({});');
   });
+
+  it('round-trips associations through defineSchema', async () => {
+    const t: TableDefinition = {
+      name: 'users',
+      columns: [
+        {
+          name: 'id',
+          type: 'integer',
+          nullable: false,
+          primary: true,
+          unique: false,
+          autoIncrement: true,
+        },
+      ],
+      indexes: [],
+      primaryKey: 'id',
+      associations: {
+        tasks: { hasMany: 'tasks', foreignKey: 'userId' },
+        profile: { hasOne: 'profiles', foreignKey: 'userId' },
+        company: { belongsTo: 'companies', foreignKey: 'companyId' },
+        tags: {
+          hasManyThrough: 'tags',
+          through: 'taggings',
+          throughForeignKey: 'userId',
+          targetForeignKey: 'tagId',
+        },
+      },
+    };
+    const source = generateSchemaSource([t]);
+    expect(source).toContain('associations: {');
+    expect(source).toContain("tasks: { hasMany: 'tasks'");
+    expect(source).toContain("profile: { hasOne: 'profiles'");
+    expect(source).toContain("company: { belongsTo: 'companies'");
+    expect(source).toContain("tags: { hasManyThrough: 'tags'");
+    expect(source).toContain("through: 'taggings'");
+
+    const schema = await evalGeneratedSource(source);
+    expect(schema.tableDefinitions.users.associations).toEqual(t.associations);
+  });
+
+  it('omits the associations block when the table declares none', () => {
+    const t = defineTable('events', (tbl) => {
+      tbl.string('payload', { null: true });
+    });
+    const source = generateSchemaSource([t]);
+    expect(source).not.toContain('associations:');
+  });
 });
