@@ -116,8 +116,8 @@ export type IncludeOptions = {
 type AssocNames<Assoc> = keyof Assoc & string;
 
 /**
- * The class returned from `Model({ connector, tableName })` (or the schema-direct
- * variant). Identical static API to `modelFactoryImpl`'s class except:
+ * The class returned from `Model({ connector, tableName })`. Identical static
+ * API to `modelFactoryImpl`'s class except:
  *
  *  - The instance type intersects with the typed association accessors
  *    derived from `S['tables'][K].associations`.
@@ -2398,58 +2398,6 @@ export function Model<
 >;
 
 /**
- * Schema-direct overload — pass a `DatabaseSchema` and a `tableName` directly,
- * without involving a connector. Useful when the connector isn't statically
- * typed (e.g. dynamic connector swapping). `init` defaults to identity; `keys`
- * is derived from the schema's primary columns.
- */
-export function Model<
-  S extends DatabaseSchema<any>,
-  K extends keyof S['tables'] & string,
-  Keys extends Dict<KeyType> = SchemaKeys<S, K>,
-  Scopes extends ScopeMap = {},
->(props: {
-  schema: S;
-  tableName: K;
-  /**
-   * Optional row-shape transformer. Defaults to identity — the props passed
-   * to `create` / `build` flow straight through to the connector.
-   */
-  init?: (props: SchemaProps<S, K>) => Schema;
-  filter?: Filter<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  defaultScope?: Filter<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  limit?: number;
-  skip?: number;
-  order?: Order<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  connector?: Connector<any>;
-  /** Override the keys map derived from the schema's primary columns. */
-  keys?: Keys;
-  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
-  softDelete?: boolean | string | { column?: string };
-  lockVersion?: boolean | string;
-  validators?: Validator<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >[];
-  callbacks?: Callbacks<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  scopes?: Scopes;
-  enums?: Dict<readonly string[]>;
-  inheritColumn?: string;
-  storeAccessors?: Dict<readonly string[]>;
-  cascade?: CascadeMap;
-  normalizes?: Dict<(value: any) => any>;
-  secureTokens?: string[] | Dict<{ length?: number }>;
-  counterCaches?: CounterCacheSpec[];
-}): SchemaModelClass<SchemaProps<S, K>, Keys, Scopes, SchemaAssociations<S, K>>;
-
-/**
  * Legacy overload — pass an explicit `init` callback whose parameter type
  * defines the row's prop shape, OR pass an interface as the generic type
  * argument (`Model<UserProps>({ tableName: 'x' })`) and let `init` default
@@ -2556,26 +2504,17 @@ export function Model<
 }): ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>>;
 
 export function Model(props: any): any {
-  // Schema-driven paths derive `keys` and `init` defaults from the
+  // Schema-driven path derives `keys` and `init` defaults from the
   // declarative schema before falling through to the legacy implementation.
   // The legacy implementation is the single source of truth for all
   // behaviour — schema mode is purely a sugar / TypeScript-inference layer
   // on top.
   //
-  // Two schema entry points:
+  // Schema entry point:
   //   - `connector: <connectorWithSchema>` + `tableName` — looks up the
   //     `tables[tableName]` definition on the connector's attached schema.
-  //   - `schema: <DatabaseSchema>` + `tableName` — same lookup but the
-  //     schema is passed directly (for connectors that aren't statically
-  //     typed).
-  //
-  // If both are passed the explicit `schema:` wins so callers can swap the
-  // schema's typing at the Model boundary even when the connector carries
-  // its own.
   let resolvedSchema: DatabaseSchema | undefined;
-  if (props.schema) {
-    resolvedSchema = props.schema as DatabaseSchema;
-  } else if (
+  if (
     props.connector &&
     typeof props.connector === 'object' &&
     'schema' in props.connector &&
@@ -2600,8 +2539,7 @@ export function Model(props: any): any {
     // transform, the caller should re-derive them inside their `init`.
     const init = props.init ?? buildSchemaInit(tableDefinition);
     const associations = schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
-    const { schema: _schema, ...rest } = props;
-    const result = modelFactoryImpl({ ...rest, tableName, keys, init, associations });
+    const result = modelFactoryImpl({ ...props, tableName, keys, init, associations });
     ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
     return result;
   }
