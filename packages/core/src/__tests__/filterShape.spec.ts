@@ -17,7 +17,7 @@ const schema = defineSchema({
       name: { type: 'string' },
       age: { type: 'integer' },
       status: { type: 'string' },
-      metadata: { type: 'string' },
+      metadata: { type: 'json' },
     },
   },
 });
