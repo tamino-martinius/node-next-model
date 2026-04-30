@@ -541,6 +541,13 @@ export class ModelClass {
    * constructed via the schema-mode entry point. Used by schema-driven
    * association resolution so the target Model class is reachable by name even
    * when the file declaring it imports another file in a cycle.
+   *
+   * **Caveat:** the registry is keyed only by tableName. Apps that construct
+   * multiple schemas declaring the same table name (e.g. multi-tenant
+   * deployments, mixed-scope test setups) will overwrite the prior entry. The
+   * single-schema-per-process assumption matches the typical app shape; if
+   * that ceases to hold, the registry needs to be scoped to the schema
+   * identity instead.
    */
   static tableRegistry: Map<string, typeof ModelClass> = new Map();
   /**
@@ -2177,8 +2184,7 @@ function schemaAssociationsToRuntime(
   const raw = selfDef.associations as Record<string, TypedAssociation> | undefined;
   if (!raw) return undefined;
   const result: AssociationsMap = {};
-  for (const name in raw) {
-    const spec = raw[name];
+  for (const [name, spec] of Object.entries(raw)) {
     const targetTable =
       'belongsTo' in spec
         ? spec.belongsTo
@@ -2228,7 +2234,7 @@ function schemaAssociationsToRuntime(
       const throughDef = allDefs[throughTable];
       if (!throughDef) {
         throw new Error(
-          `Model(): hasManyThrough association '${name}' on '${selfDef.name}' references unknown through table '${throughTable}'`,
+          `Model(): hasManyThrough association '${name}' on '${selfDef.name}' references unknown through table '${throughTable}'. Known: ${Object.keys(allDefs).join(', ')}`,
         );
       }
       result[name] = {
@@ -2251,6 +2257,14 @@ function schemaAssociationsToRuntime(
  * via `ModelClass.tableRegistry`, every lookup returns that class. Until
  * registration, the fallback shim provides just enough surface for the
  * resolver to compute query keys.
+ *
+ * **Shim limitations:** the fallback is missing `connector`, `defaultScope`,
+ * and other Model state. If a thunk fires before the user's sibling Model
+ * class is constructed (e.g. `await user.tasks.all()` is called before the
+ * `class Task extends Model(...)` declaration runs), `CollectionQuery`
+ * will throw a confusing `connector is undefined` error at materialise
+ * time. In practice every association access happens after both Model
+ * classes are declared, so the shim is never the materialise target.
  */
 function tableDefinitionAsModelShim(def: TableDefinition): typeof ModelClass {
   const registered = ModelClass.tableRegistry.get(def.name);
@@ -2543,7 +2557,9 @@ export function Model(props: any): any {
       props.associations ??
       schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
     const { schema: _schema, ...rest } = props;
-    return modelFactoryImpl({ ...rest, tableName, keys, init, associations });
+    const result = modelFactoryImpl({ ...rest, tableName, keys, init, associations });
+    ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
+    return result;
   }
   // Legacy / interface-generic path. When `init` is omitted (e.g.
   // `Model<UserProps>({ tableName: 'x' })`) it defaults to identity so the
@@ -3180,7 +3196,6 @@ function modelFactoryImpl<
     }
   }
 
-  ModelClass.tableRegistry.set(props.tableName, ModelSubclass as unknown as typeof ModelClass);
   return ModelSubclass as typeof ModelSubclass & ScopesToMethods<typeof ModelSubclass, Scopes>;
 }
 
