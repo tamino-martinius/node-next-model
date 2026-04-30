@@ -1,4 +1,4 @@
-import type { ColumnKind, ColumnOptions, TableBuilder } from '@next-model/core';
+import type { ColumnKind, ColumnOptions, TableBuilder, TypedColumn } from '@next-model/core';
 import { ValidationError } from '@next-model/core';
 import type { ZodTypeAny, z } from 'zod';
 
@@ -25,6 +25,13 @@ export interface ZodModelBridge<Schema extends ZodTypeAny> {
    * derived columns without touching a builder.
    */
   describeColumns: () => Array<{ name: string; kind: ColumnKind; options: ColumnOptions }>;
+  /**
+   * Plug-into-`defineSchema` shape — `Record<columnName, TypedColumn>` derived
+   * from the same column metadata that powers `applyColumns` /
+   * `describeColumns`. Use as `defineSchema({ users: { columns: bridge.toTypedColumns() } })`
+   * to pair the validator with the schema-first Model factory.
+   */
+  toTypedColumns: () => Record<string, TypedColumn>;
 }
 
 type ZodObjectShape = { shape: Record<string, ZodTypeAny> };
@@ -96,6 +103,20 @@ function formatIssue(path: (string | number)[], message: string): string {
   return path.length === 0 ? message : `${path.join('.')}: ${message}`;
 }
 
+function metaToTypedColumn(meta: { kind: ColumnKind; options: ColumnOptions }): TypedColumn {
+  const { kind, options } = meta;
+  const out: TypedColumn = { type: kind };
+  if (options.null !== undefined) out.null = options.null;
+  if (options.default !== undefined) out.default = options.default;
+  if (options.limit !== undefined) out.limit = options.limit;
+  if (options.primary !== undefined) out.primary = options.primary;
+  if (options.unique !== undefined) out.unique = options.unique;
+  if (options.precision !== undefined) out.precision = options.precision;
+  if (options.scale !== undefined) out.scale = options.scale;
+  if (options.autoIncrement !== undefined) out.autoIncrement = options.autoIncrement;
+  return out;
+}
+
 export function fromZod<Schema extends ZodTypeAny & ZodObjectShape>(
   schema: Schema,
 ): ZodModelBridge<Schema> {
@@ -143,6 +164,9 @@ export function fromZod<Schema extends ZodTypeAny & ZodObjectShape>(
     },
     describeColumns() {
       return columns.slice();
+    },
+    toTypedColumns() {
+      return Object.fromEntries(columns.map((m) => [m.name, metaToTypedColumn(m)]));
     },
   };
 }

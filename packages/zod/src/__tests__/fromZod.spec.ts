@@ -1,4 +1,4 @@
-import { MemoryConnector, Model, ValidationError } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model, ValidationError } from '@next-model/core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -101,5 +101,64 @@ describe('fromZod - end-to-end with Model', () => {
     await expect(User.create({ name: 'A', age: -1 } as any)).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+});
+
+describe('fromZod — toTypedColumns', () => {
+  it('produces a column map that defineSchema accepts', () => {
+    const UserSchema = z.object({
+      id: z.number().int(),
+      email: z.string(),
+      name: z.string(),
+      age: z.number().int().optional(),
+    });
+    const bridge = fromZod(UserSchema);
+
+    const cols = bridge.toTypedColumns();
+    // Required fields → null: false; optional fields → null: true.
+    expect(cols).toEqual({
+      id: { type: 'integer', null: false },
+      email: { type: 'string', null: false },
+      name: { type: 'string', null: false },
+      age: { type: 'integer', null: true },
+    });
+  });
+
+  it('the column map round-trips through defineSchema + Model end-to-end', async () => {
+    const UserSchema = z.object({
+      id: z.number().int(),
+      email: z.string(),
+      name: z.string(),
+    });
+    const bridge = fromZod(UserSchema);
+
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema });
+    class User extends Model({
+      connector,
+      tableName: 'users',
+      init: bridge.init,
+      validators: bridge.validators,
+      timestamps: false,
+    }) {}
+
+    const u = await User.create({ id: 1, email: 'a@b', name: 'Ada' });
+    expect(u.email).toBe('a@b');
+    expect(u.name).toBe('Ada');
+  });
+
+  it('preserves default values from zod .default() into the typed column', () => {
+    const Schema = z.object({
+      published: z.boolean().default(false),
+      count: z.number().int().default(0),
+    });
+    const cols = fromZod(Schema).toTypedColumns();
+    expect(cols.published.default).toBe(false);
+    expect(cols.count.default).toBe(0);
+    // Optional via .default() → null: true
+    expect(cols.published.null).toBe(true);
+    expect(cols.count.null).toBe(true);
   });
 });
