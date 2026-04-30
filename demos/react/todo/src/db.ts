@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { LocalStorageConnector } from '@next-model/local-storage-connector';
 
 const schema = defineSchema({

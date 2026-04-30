@@ -21,6 +21,22 @@ const fooSchema = defineSchema({
   },
 });
 
+// Minimal schema for the associations describe-block. MemoryConnector does
+// not validate columns, so we only need to declare the table names.
+const assocSchema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  authorships: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  profiles: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  photos: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  comments: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
+// Minimal schema for the scopes describe-block.
+const scopeSchema = defineSchema({
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
 describe('Model', () => {
   let storage: Storage = {};
 
@@ -1460,7 +1476,8 @@ describe('Model', () => {
 
   describe('associations', () => {
     let assocStorage: Storage = {};
-    const assocConnector = () => new MemoryConnector({ storage: assocStorage });
+    const assocConnector = () =>
+      new MemoryConnector({ storage: assocStorage }, { schema: assocSchema });
 
     beforeEach(() => {
       assocStorage = {};
@@ -2046,119 +2063,12 @@ describe('Model', () => {
         expect(postsBySlug.get('alice')?.map((p) => p.attributes.title)).toEqual(['A']);
       });
     });
-
-    // LEGACY: Tests Model-level `associations: {}` factory option with class
-    // thunks. Schema-level associations (declared via `defineSchema`) are
-    // covered by `schemaAssociations.spec.ts`, `whereMissing.spec.ts`, and
-    // `includes.spec.ts`. This block is removed in Plan 3 alongside the
-    // Model-level `associations:` field itself.
-    describe('auto-installed instance accessor returns query builders', () => {
-      it('hasMany accessor returns a CollectionQuery (awaitable to records[])', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          associations: {
-            todos: { hasMany: () => Todo, foreignKey: 'userId' },
-          },
-        }) {}
-        class Todo extends Model({
-          tableName: 'todos',
-          connector: assocConnector(),
-          timestamps: false,
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        await Todo.create({ userId: user.id as number, title: 'A' });
-        await Todo.create({ userId: user.id as number, title: 'B' });
-
-        const todos = (user as unknown as { todos: unknown }).todos;
-        expect(todos).toBeInstanceOf(CollectionQuery);
-        const resolved = (await todos) as Array<InstanceType<typeof Todo>>;
-        expect(Array.isArray(resolved)).toBe(true);
-        expect(resolved.map((t) => t.attributes.title).sort()).toEqual(['A', 'B']);
-      });
-
-      it('belongsTo accessor returns an InstanceQuery (awaitable to record|undefined)', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-        }) {}
-        class Post extends Model({
-          tableName: 'posts',
-          connector: assocConnector(),
-          timestamps: false,
-          associations: {
-            author: { belongsTo: () => User, foreignKey: 'userId' },
-          },
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        const post = await Post.create({ userId: user.id as number, title: 'Hi' });
-
-        const author = (post as unknown as { author: unknown }).author;
-        expect(author).toBeInstanceOf(InstanceQuery);
-        const resolved = (await author) as InstanceType<typeof User> | undefined;
-        expect(resolved?.attributes.name).toBe('Alice');
-      });
-
-      it('hasOne accessor returns an InstanceQuery', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          associations: {
-            profile: { hasOne: () => Profile, foreignKey: 'userId' },
-          },
-        }) {}
-        class Profile extends Model({
-          tableName: 'profiles',
-          connector: assocConnector(),
-          timestamps: false,
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        await Profile.create({ userId: user.id as number, bio: 'Hello' });
-
-        const profile = (user as unknown as { profile: unknown }).profile;
-        expect(profile).toBeInstanceOf(InstanceQuery);
-        const resolved = (await profile) as InstanceType<typeof Profile> | undefined;
-        expect(resolved?.attributes.bio).toBe('Hello');
-      });
-
-      it('hasManyThrough accessor returns a CollectionQuery with nested withParent chain', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          associations: {
-            roles: { hasManyThrough: () => Role, through: () => UserRole },
-          },
-        }) {}
-        class Role extends Model({
-          tableName: 'roles',
-          connector: assocConnector(),
-          timestamps: false,
-        }) {}
-        class UserRole extends Model({
-          tableName: 'userRoles',
-          connector: assocConnector(),
-          timestamps: false,
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        const admin = await Role.create({ name: 'admin' });
-        await UserRole.create({ userId: user.id as number, roleId: admin.id as number });
-
-        const roles = (user as unknown as { roles: unknown }).roles;
-        expect(roles).toBeInstanceOf(CollectionQuery);
-        // Nested chain: leaf (Role) → parent (UserRole) → upstream (User-instance).
-        const state = (roles as CollectionQuery).state;
-        expect(state.parent?.upstream.state.parent).toBeDefined();
-      });
-    });
   });
 
   describe('scopes', () => {
     let scopeStorage: Storage = {};
-    const scopeConnector = () => new MemoryConnector({ storage: scopeStorage });
+    const scopeConnector = () =>
+      new MemoryConnector({ storage: scopeStorage }, { schema: scopeSchema });
 
     beforeEach(() => {
       scopeStorage = {};
@@ -2769,7 +2679,7 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),
@@ -2848,7 +2758,7 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),
@@ -2927,29 +2837,6 @@ describe('Model', () => {
       expect(typeof r.attributes).toBe('object');
       expect(r.attributes).not.toBeInstanceOf(Function);
       expect(JSON.stringify(r.attributes)).toBe(JSON.stringify(r.toJSON()));
-      storage = {};
-    });
-
-    // LEGACY: Uses Model-level `associations: {}` with a class thunk; the
-    // schema-level equivalent is in `schemaAssociations.spec.ts`. Removed in
-    // Plan 3 alongside the Model-level `associations:` field.
-    it('attributes excludes association accessors', async () => {
-      storage = {};
-      const assocStorage: Storage = {};
-      const mkConn = () => new MemoryConnector({ storage: assocStorage });
-      const UserKlass = Model({
-        tableName: 'users',
-        connector: mkConn(),
-      });
-      const PostKlass = Model({
-        tableName: 'posts',
-        connector: mkConn(),
-        associations: { user: { belongsTo: () => UserKlass, foreignKey: 'userId' } },
-      });
-      const ada = await UserKlass.create({ name: 'Ada' });
-      const post = await PostKlass.create({ userId: ada.id as number, title: 'P' });
-      const json = JSON.parse(JSON.stringify(post.attributes));
-      expect(json.user).toBeUndefined();
       storage = {};
     });
   });
@@ -3133,7 +3020,7 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),

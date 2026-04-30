@@ -140,7 +140,6 @@ describe('cascade (dependent: destroy / deleteAll / nullify / restrict)', () => 
     });
   });
 
-  // LEGACY: removed in Plan 3 — thunk support in cascade is a legacy-only feature
   describe('lazy model references', () => {
     it('accepts a thunk so circular imports work', async () => {
       let Post: any;

@@ -175,9 +175,12 @@ describe('whereMissing', () => {
   });
 
   it('throws when the Model has no associations declared', async () => {
+    const noAssocSchema = defineSchema({
+      users: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+    });
     const User = Model({
       tableName: 'users',
-      connector: new MemoryConnector({ storage: { users: [] } }),
+      connector: new MemoryConnector({ storage: { users: [] } }, { schema: noAssocSchema }),
     });
     expect(() => User.whereMissing('posts')).toThrow(/declare 'associations'/);
   });

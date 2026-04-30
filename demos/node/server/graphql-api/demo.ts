@@ -1,5 +1,5 @@
 import { makeExecutableSchema } from '@graphql-tools/schema';
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { buildModelResource, composeSchema } from '@next-model/graphql-api';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 import express from 'express';

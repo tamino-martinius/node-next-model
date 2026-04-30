@@ -86,10 +86,13 @@ describe('fromZod - end-to-end with Model', () => {
       age: z.number().int().nonnegative(),
     });
     const bridge = fromZod(UserSchema);
-    const connector = new MemoryConnector({ storage: {}, lastIds: {} });
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
     class User extends Model({
-      tableName: 'users',
       connector,
+      tableName: 'users',
       timestamps: false,
       init: bridge.init,
       validators: bridge.validators,

@@ -242,8 +242,11 @@ describe('Model.includes — eager loading', () => {
   });
 
   it('throws when the Model declares no associations', async () => {
-    // Use a connector with no schema so the Model has no association registry.
-    const connector = new MemoryConnector({ storage: {} });
+    // Use a schema with no associations declared on the table.
+    const bareSchema = defineSchema({
+      bare: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema: bareSchema });
     class Bare extends Model({
       tableName: 'bare',
       connector,

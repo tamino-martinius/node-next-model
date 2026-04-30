@@ -1,4 +1,11 @@
-import { defineAlter, defineSchema, FilterError, KeyType, Model, PersistenceError } from '@next-model/core';
+import {
+  defineAlter,
+  defineSchema,
+  FilterError,
+  KeyType,
+  Model,
+  PersistenceError,
+} from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DataApiClient, DataApiQueryResult } from '../DataApiConnector.js';

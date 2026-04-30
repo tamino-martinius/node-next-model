@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MongoDbConnector } from '@next-model/mongodb-connector';
 
 const URL = process.env.MONGODB_URL ?? 'mongodb://127.0.0.1:27017';

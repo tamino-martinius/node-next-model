@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { KeyType } from '@next-model/core';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -307,5 +307,6 @@ describe('MysqlConnector#reflectSchema', () => {
 
 runModelConformance({
   name: 'MysqlConnector',
-  makeConnector: () => connector,
+  makeConnector: () => new MysqlConnector(DATABASE_URL, { schema: conformanceSchema }),
+  teardown: async (c) => (c as MysqlConnector).destroy(),
 });

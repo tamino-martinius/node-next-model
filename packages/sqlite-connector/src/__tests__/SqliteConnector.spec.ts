@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { defineAlter, KeyType } from '@next-model/core';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -554,5 +554,6 @@ describe('SqliteConnector#reflectSchema', () => {
 
 runModelConformance({
   name: 'SqliteConnector',
-  makeConnector: () => connector,
+  makeConnector: () => new SqliteConnector(':memory:', { schema: conformanceSchema }),
+  teardown: async (c) => (c as SqliteConnector).destroy(),
 });
