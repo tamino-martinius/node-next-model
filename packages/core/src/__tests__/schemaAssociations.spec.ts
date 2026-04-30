@@ -1,10 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { defineSchema, type DatabaseSchema } from '../typedSchema.js';
-import type {
-  ModelRegistry,
-  SchemaAssociations,
-  SchemaAssociationProp,
-  SchemaProps,
+import {
+  defineSchema,
+  type DatabaseSchema,
+  type SchemaAssociationProp,
+  type SchemaAssociations,
+  type SchemaProps,
 } from '../typedSchema.js';
 import type { CollectionQuery } from '../query/CollectionQuery.js';
 import type { InstanceQuery } from '../query/InstanceQuery.js';

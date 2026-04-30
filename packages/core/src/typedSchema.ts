@@ -158,6 +158,7 @@ export type SchemaKeys<S extends DatabaseSchema<any>, K extends keyof S['tables'
  * shape derived from the schema's column map), which is still useful but
  * lacks any methods declared on the class body.
  */
+// biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires interface; type alias cannot be augmented
 export interface ModelRegistry {}
 
 /**
@@ -188,22 +189,14 @@ export type SchemaAssociationProp<
   K extends keyof S['tables'] & string,
   Name extends keyof NonNullable<S['tables'][K]['associations']> & string,
   Reg = ModelRegistry,
-> = NonNullable<S['tables'][K]['associations']>[Name] extends { hasMany: infer T }
-  ? T extends string
+> = NonNullable<S['tables'][K]['associations']>[Name] extends { hasMany: infer T extends string }
+  ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
+  : NonNullable<S['tables'][K]['associations']>[Name] extends { hasManyThrough: infer T extends string }
     ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
-    : never
-  : NonNullable<S['tables'][K]['associations']>[Name] extends { hasManyThrough: infer T }
-    ? T extends string
-      ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
-      : never
-    : NonNullable<S['tables'][K]['associations']>[Name] extends { belongsTo: infer T }
-      ? T extends string
+    : NonNullable<S['tables'][K]['associations']>[Name] extends { belongsTo: infer T extends string }
+      ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
+      : NonNullable<S['tables'][K]['associations']>[Name] extends { hasOne: infer T extends string }
         ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
-        : never
-      : NonNullable<S['tables'][K]['associations']>[Name] extends { hasOne: infer T }
-        ? T extends string
-          ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
-          : never
         : never;
 
 /**
