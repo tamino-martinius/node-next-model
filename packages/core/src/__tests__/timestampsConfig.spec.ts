@@ -1,14 +1,56 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { MemoryConnector, Model, resolveSoftDelete, resolveTimestampColumns } from '../index.js';
+import { defineSchema, MemoryConnector, Model, resolveSoftDelete, resolveTimestampColumns } from '../index.js';
 
 interface Row {
   id?: number;
   name: string;
 }
 
+const schema = defineSchema({
+  events: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      inserted_at: { type: 'datetime', null: true },
+      last_change: { type: 'datetime', null: true },
+      createdAt: { type: 'datetime', null: true },
+      updatedAt: { type: 'datetime', null: true },
+    },
+  },
+  events_no_updated: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      createdAt: { type: 'datetime', null: true },
+    },
+  },
+  events_touch_off: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      createdAt: { type: 'datetime', null: true },
+    },
+  },
+  events_update_all: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      inserted_at: { type: 'datetime', null: true },
+      last_change: { type: 'datetime', null: true },
+    },
+  },
+  archived_posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      deleted_at: { type: 'datetime', null: true },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 describe('resolveTimestampColumns', () => {
@@ -83,7 +125,6 @@ describe('Model factory — custom timestamp columns', () => {
       tableName: 'events',
       connector: freshConnector(),
       timestamps: { createdAt: 'inserted_at', updatedAt: 'last_change' },
-      init: (props: Row) => props,
     }) {}
     const [ada] = await Event.createMany([{ name: 'hello' }]);
     const attrs = ada.attributes as Record<string, unknown>;
@@ -98,7 +139,6 @@ describe('Model factory — custom timestamp columns', () => {
       tableName: 'events_no_updated',
       connector: freshConnector(),
       timestamps: { createdAt: true, updatedAt: false },
-      init: (props: Row) => props,
     }) {}
     const [ada] = await Event.createMany([{ name: 'hello' }]);
     const attrs = ada.attributes as Record<string, unknown>;
@@ -111,7 +151,6 @@ describe('Model factory — custom timestamp columns', () => {
       tableName: 'events_touch_off',
       connector: freshConnector(),
       timestamps: { updatedAt: false },
-      init: (props: Row) => props,
     }) {}
     const [ada] = await Event.createMany([{ name: 'hello' }]);
     await expect(ada.touch()).rejects.toThrow(/no updatedAt column/);
@@ -122,7 +161,6 @@ describe('Model factory — custom timestamp columns', () => {
       tableName: 'events_update_all',
       connector: freshConnector(),
       timestamps: { createdAt: 'inserted_at', updatedAt: 'last_change' },
-      init: (props: Row) => props,
     }) {}
     await Event.createMany([{ name: 'a' }, { name: 'b' }]);
     await Event.updateAll({ name: 'c' });
@@ -139,7 +177,6 @@ describe('Model factory — custom softDelete column', () => {
     connector: freshConnector(),
     timestamps: false,
     softDelete: 'deleted_at',
-    init: (props: Row) => props,
   }) {}
 
   beforeEach(async () => {
