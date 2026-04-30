@@ -91,7 +91,6 @@ describe('counter caches', () => {
     await expect(ghost.delete()).resolves.toBeDefined();
   });
 
-  // LEGACY: removed in Plan 3
   it('lazy belongsTo thunk works for circular refs', async () => {
     let Post: any;
     const Comment = Model({
