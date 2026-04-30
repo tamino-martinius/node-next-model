@@ -1,5 +1,6 @@
 import {
   type Dict,
+  defineSchema,
   type Filter,
   type KeyType,
   MemoryConnector,
@@ -11,17 +12,25 @@ import { CollectionQuery } from '../query/CollectionQuery.js';
 import { InstanceQuery } from '../query/InstanceQuery.js';
 import { context, it } from './index.js';
 
+const fooSchema = defineSchema({
+  foo: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      foo: { type: 'string', null: true },
+      bar: { type: 'string', null: true },
+    },
+  },
+});
+
 describe('Model', () => {
   let storage: Storage = {};
 
   const tableName = 'foo';
-  const init = () => ({});
   let skip: number | undefined;
   let limit: number | undefined;
   let filter: Filter<any> | undefined;
   let order: Order<any> | undefined;
-  const connector = () => new MemoryConnector({ storage });
-  let keys: Dict<KeyType> | undefined;
+  const connector = () => new MemoryConnector({ storage }, { schema: fooSchema });
 
   const seed = [
     { id: 1, foo: 'bar', bar: 'baz' },
@@ -57,16 +66,13 @@ describe('Model', () => {
   const attributesOf = (items: any[]) => items.map((item) => item.attributes as Dict<any>);
 
   const CreateModel = () =>
-    ///@ts-expect-error
     Model({
       tableName,
-      init,
       skip,
       limit,
       filter,
       order,
       connector: connector(),
-      keys,
     });
 
   const subject = CreateModel;
@@ -3074,15 +3080,17 @@ describe('Model', () => {
 
     it('attributes excludes association accessors', async () => {
       storage = {};
+      const assocStorage: Storage = {};
+      const mkConn = () => new MemoryConnector({ storage: assocStorage });
       const UserKlass = Model({
         tableName: 'users',
         init: (props: { name: string }) => props,
-        connector: connector(),
+        connector: mkConn(),
       });
       const PostKlass = Model({
         tableName: 'posts',
         init: (props: { userId: number; title: string }) => props,
-        connector: connector(),
+        connector: mkConn(),
         associations: { user: { belongsTo: () => UserKlass, foreignKey: 'userId' } },
       });
       const ada = await UserKlass.create({ name: 'Ada' });
