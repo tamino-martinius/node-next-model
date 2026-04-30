@@ -328,6 +328,7 @@ describe('Model with connector-attached schema', () => {
   });
 });
 
+// LEGACY: removed in Plan 3
 describe('Legacy form still works', () => {
   it('Model with explicit init/tableName works unchanged', async () => {
     class Post extends Model({
@@ -354,6 +355,7 @@ describe('Legacy form still works', () => {
   });
 });
 
+// LEGACY: removed in Plan 3
 describe('Interface-generic form (Model<Props>({...}) without init)', () => {
   interface UserProps {
     email: string;
