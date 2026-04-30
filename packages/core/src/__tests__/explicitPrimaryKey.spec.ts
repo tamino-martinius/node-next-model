@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  defineSchema,
-  MemoryConnector,
-  Model,
-} from '../index.js';
+import { defineSchema, MemoryConnector, Model } from '../index.js';
 
 describe('Model construction with explicit primary key value', () => {
   it('schema-mode: passing id through init does not throw "Cannot redefine property"', async () => {

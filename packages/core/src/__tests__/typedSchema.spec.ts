@@ -139,7 +139,6 @@ describe('Model with connector-attached schema', () => {
       }) {}
     }).toThrow(/tableName 'unknown' is not declared/);
   });
-
 });
 
 /**

@@ -2,13 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { defineSchema, MemoryConnector, Model } from '../index.js';
 
-interface Row {
-  id?: number;
-  name: string;
-  score: number;
-  createdAt: string;
-}
-
 const schema = defineSchema({
   leaderboard: {
     columns: {

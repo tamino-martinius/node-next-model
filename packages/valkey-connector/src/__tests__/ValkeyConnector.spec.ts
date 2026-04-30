@@ -5,10 +5,13 @@ import { ValkeyConnector } from '../index.js';
 
 const VALKEY_URL = process.env.VALKEY_URL ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 
-const connector = new ValkeyConnector({
-  client: { url: VALKEY_URL },
-  prefix: 'nm-vk-test:',
-});
+const connector = new ValkeyConnector(
+  {
+    client: { url: VALKEY_URL },
+    prefix: 'nm-vk-test:',
+  },
+  { schema: conformanceSchema },
+);
 
 beforeAll(() => connector.connect());
 afterAll(() => connector.destroy());
@@ -47,7 +50,5 @@ describe('ValkeyConnector', () => {
 
 runModelConformance({
   name: 'ValkeyConnector',
-  makeConnector: () =>
-    new ValkeyConnector({ client: connector.client, prefix: 'nm-vk-test:' }, { schema: conformanceSchema }),
-  skipTransactions: true,
+  makeConnector: () => connector,
 });

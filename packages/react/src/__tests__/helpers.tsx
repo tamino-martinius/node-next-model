@@ -1,24 +1,28 @@
-import { MemoryConnector, Model } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model } from '@next-model/core';
 import type { ReactNode } from 'react';
 import { NextModelProvider } from '../Provider.js';
 
+const helpersSchema = defineSchema({
+  todos: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      done: { type: 'boolean', default: false },
+      userId: { type: 'integer', null: true },
+    },
+  },
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+});
+
 export function makeFixtures() {
-  const connector = new MemoryConnector({ storage: {} });
-  class Todo extends Model({
-    tableName: 'todos',
-    connector,
-    init: (props: { title: string; done: boolean; userId?: number }) => ({
-      done: false,
-      ...props,
-    }),
-    timestamps: false,
-  }) {}
-  class User extends Model({
-    tableName: 'users',
-    connector,
-    init: (props: { name: string }) => props,
-    timestamps: false,
-  }) {}
+  const connector = new MemoryConnector({ storage: {} }, { schema: helpersSchema });
+  class Todo extends Model({ connector, tableName: 'todos', timestamps: false }) {}
+  class User extends Model({ connector, tableName: 'users', timestamps: false }) {}
 
   const reset = async () => {
     await connector.dropTable('todos').catch(() => undefined);

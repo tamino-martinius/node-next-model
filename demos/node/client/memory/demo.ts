@@ -1,4 +1,4 @@
-import { MemoryConnector, Model, defineSchema } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model } from '@next-model/core';
 
 const schema = defineSchema({
   users: {

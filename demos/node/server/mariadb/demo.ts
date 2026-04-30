@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MariaDbConnector } from '@next-model/mariadb-connector';
 
 const DATABASE_URL =

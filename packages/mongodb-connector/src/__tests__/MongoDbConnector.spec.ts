@@ -188,7 +188,10 @@ describe('MongoDbConnector.alterTable', () => {
 runModelConformance({
   name: 'MongoDbConnector',
   makeConnector: async () => {
-    const c = new MongoDbConnector({ url: URL, database: 'nm_test' }, { schema: conformanceSchema });
+    const c = new MongoDbConnector(
+      { url: URL, database: 'nm_test' },
+      { schema: conformanceSchema },
+    );
     await c.connect();
     return c;
   },

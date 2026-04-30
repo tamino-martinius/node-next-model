@@ -5,7 +5,10 @@ import { RedisConnector } from '../index.js';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 
-const connector = new RedisConnector({ client: { url: REDIS_URL }, prefix: 'nm-test:' });
+const connector = new RedisConnector(
+  { client: { url: REDIS_URL }, prefix: 'nm-test:' },
+  { schema: conformanceSchema },
+);
 
 beforeAll(() => connector.connect());
 afterAll(() => connector.destroy());
@@ -72,7 +75,5 @@ describe('RedisConnector', () => {
 
 runModelConformance({
   name: 'RedisConnector',
-  makeConnector: () =>
-    new RedisConnector({ client: connector.client, prefix: 'nm-test:' }, { schema: conformanceSchema }),
-  skipTransactions: true,
+  makeConnector: () => connector,
 });

@@ -431,5 +431,8 @@ describe('LocalStorageConnector', () => {
 runModelConformance({
   name: 'LocalStorageConnector',
   makeConnector: () =>
-    new LocalStorageConnector({ localStorage: new MemoryLocalStorage() }, { schema: conformanceSchema }),
+    new LocalStorageConnector(
+      { localStorage: new MemoryLocalStorage() },
+      { schema: conformanceSchema },
+    ),
 });

@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { PostgresConnector } from '@next-model/postgres-connector';
 
 const DATABASE_URL =

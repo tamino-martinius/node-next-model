@@ -418,6 +418,9 @@ describe('PostgresConnector#reflectSchema', () => {
 runModelConformance({
   name: 'PostgresConnector',
   makeConnector: () =>
-    new PostgresConnector({ connectionString: DATABASE_URL, max: 1 }, { schema: conformanceSchema }),
+    new PostgresConnector(
+      { connectionString: DATABASE_URL, max: 1 },
+      { schema: conformanceSchema },
+    ),
   teardown: async (c) => (c as PostgresConnector).destroy(),
 });

@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
 const schema = defineSchema({

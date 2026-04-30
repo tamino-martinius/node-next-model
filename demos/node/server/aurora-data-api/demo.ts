@@ -1,6 +1,6 @@
 import { DataApiConnector } from '@next-model/aurora-data-api-connector';
 import { MockDataApiClient } from '@next-model/aurora-data-api-connector/mock-client';
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 
 // In production you'd hand `DataApiConnector` your AWS Aurora Serverless v1
 // secret/cluster ARNs. For local development the package ships

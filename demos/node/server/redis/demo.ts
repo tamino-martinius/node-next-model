@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { RedisConnector } from '@next-model/redis-connector';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';

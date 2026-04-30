@@ -1,4 +1,10 @@
-import { defineSchema, generateSecureToken, MemoryConnector, Model, type Storage } from '../index.js';
+import {
+  defineSchema,
+  generateSecureToken,
+  MemoryConnector,
+  Model,
+  type Storage,
+} from '../index.js';
 
 const schema = defineSchema({
   users: {

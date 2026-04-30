@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { defineSchema, MemoryConnector, Model, resolveSoftDelete, resolveTimestampColumns } from '../index.js';
+import {
+  defineSchema,
+  MemoryConnector,
+  Model,
+  resolveSoftDelete,
+  resolveTimestampColumns,
+} from '../index.js';
 
 interface Row {
   id?: number;

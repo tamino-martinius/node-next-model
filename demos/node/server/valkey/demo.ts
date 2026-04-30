@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { ValkeyConnector } from '@next-model/valkey-connector';
 
 const VALKEY_URL = process.env.VALKEY_URL ?? 'redis://127.0.0.1:6379';

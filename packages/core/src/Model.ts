@@ -129,17 +129,20 @@ type SchemaModelClass<
   Keys extends Dict<KeyType>,
   Scopes extends ScopeMap,
   Assoc,
-> = ReturnType<typeof modelFactoryImpl<Props, Props, Keys, Scopes>> extends infer R
-  ? R extends new (...args: infer A) => infer Inst
-    ? Omit<R, 'prototype' | 'includes' | 'joins' | 'whereMissing'> & {
-        new (...args: A): Inst & Assoc;
-        prototype: Inst & Assoc;
-        includes<M>(this: M, ...names: Array<AssocNames<Assoc> | IncludeOptions>): M;
-        joins<M>(this: M, ...names: AssocNames<Assoc>[]): M;
-        whereMissing<M>(this: M, name: AssocNames<Assoc>): M;
-      }
-    : R
-  : never;
+> =
+  ReturnType<typeof modelFactoryImpl<Props, Props, Keys, Scopes>> extends infer R
+    ? R extends new (
+        ...args: infer A
+      ) => infer Inst
+      ? Omit<R, 'prototype' | 'includes' | 'joins' | 'whereMissing'> & {
+          new (...args: A): Inst & Assoc;
+          prototype: Inst & Assoc;
+          includes<M>(this: M, ...names: Array<AssocNames<Assoc> | IncludeOptions>): M;
+          joins<M>(this: M, ...names: AssocNames<Assoc>[]): M;
+          whereMissing<M>(this: M, name: AssocNames<Assoc>): M;
+        }
+      : R
+    : never;
 
 /**
  * An association entry on `Model.associations`. `belongsTo` / `hasMany` /
@@ -2431,7 +2434,10 @@ export function Model(props: any): any {
   // is no composition. If schema defaults need to apply alongside a custom
   // transform, the caller should re-derive them inside their `init`.
   const init = props.init ?? buildSchemaInit(tableDefinition);
-  const associations = schemaAssociationsToRuntime(tableDefinition, resolvedSchema.tableDefinitions);
+  const associations = schemaAssociationsToRuntime(
+    tableDefinition,
+    resolvedSchema.tableDefinitions,
+  );
   const result = modelFactoryImpl({ ...props, tableName, keys, init, associations });
   ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
   return result;

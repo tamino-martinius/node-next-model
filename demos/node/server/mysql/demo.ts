@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MysqlConnector } from '@next-model/mysql-connector';
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/nextmodel_demo';

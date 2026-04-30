@@ -1476,7 +1476,8 @@ describe('Model', () => {
 
   describe('associations', () => {
     let assocStorage: Storage = {};
-    const assocConnector = () => new MemoryConnector({ storage: assocStorage }, { schema: assocSchema });
+    const assocConnector = () =>
+      new MemoryConnector({ storage: assocStorage }, { schema: assocSchema });
 
     beforeEach(() => {
       assocStorage = {};
@@ -2062,12 +2063,12 @@ describe('Model', () => {
         expect(postsBySlug.get('alice')?.map((p) => p.attributes.title)).toEqual(['A']);
       });
     });
-
   });
 
   describe('scopes', () => {
     let scopeStorage: Storage = {};
-    const scopeConnector = () => new MemoryConnector({ storage: scopeStorage }, { schema: scopeSchema });
+    const scopeConnector = () =>
+      new MemoryConnector({ storage: scopeStorage }, { schema: scopeSchema });
 
     beforeEach(() => {
       scopeStorage = {};
@@ -2838,7 +2839,6 @@ describe('Model', () => {
       expect(JSON.stringify(r.attributes)).toBe(JSON.stringify(r.toJSON()));
       storage = {};
     });
-
   });
 
   describe('.reverse', () => {

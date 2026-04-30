@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { KnexConnector } from '@next-model/knex-connector';
 
 const CLIENT = process.env.KNEX_DEMO_CLIENT ?? 'sqlite3';
@@ -29,7 +29,8 @@ function buildConnector(): KnexConnector {
         {
           client: 'pg',
           connection:
-            process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/nextmodel_demo',
+            process.env.DATABASE_URL ??
+            'postgres://postgres:postgres@127.0.0.1:5432/nextmodel_demo',
         },
         { schema },
       );
@@ -37,7 +38,8 @@ function buildConnector(): KnexConnector {
       return new KnexConnector(
         {
           client: 'mysql2',
-          connection: process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/nextmodel_demo',
+          connection:
+            process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/nextmodel_demo',
         },
         { schema },
       );

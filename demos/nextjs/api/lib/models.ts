@@ -3,7 +3,7 @@ import 'server-only';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
 declare global {

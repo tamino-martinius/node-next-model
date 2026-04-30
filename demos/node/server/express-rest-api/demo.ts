@@ -1,4 +1,4 @@
-import { Model, defineSchema } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { createRestRouter } from '@next-model/express-rest-api';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 import express, { type Request } from 'express';
