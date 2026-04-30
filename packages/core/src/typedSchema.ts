@@ -34,6 +34,11 @@ export interface TypedColumn<K extends ColumnKind = ColumnKind> {
  *  - `hasManyThrough: 'targets', through: 'join'` — many-to-many via a join table.
  *
  * `polymorphic` mirrors the legacy Model-level shape for `Comment`-like models.
+ *
+ * `foreignKey` is required on the three short-association variants. Unlike the
+ * runtime `AssociationOptions` (which can derive `userId` from a Model class +
+ * association name), the schema layer has no Model class to introspect, so
+ * the column must be explicit.
  */
 export type TypedAssociation =
   | {
