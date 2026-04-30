@@ -1,4 +1,4 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { KeyType } from '@next-model/core';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -286,5 +286,6 @@ describe('MariaDbConnector#reflectSchema (inherited)', () => {
 
 runModelConformance({
   name: 'MariaDbConnector',
-  makeConnector: () => connector,
+  makeConnector: () => new MariaDbConnector(DATABASE_URL, { schema: conformanceSchema }),
+  teardown: async (c) => (c as MariaDbConnector).destroy(),
 });

@@ -1,19 +1,24 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      settings: { type: 'json' },
+      preferences: { type: 'json' },
+    },
+  },
+});
 
 describe('storeAccessors (typed JSON sub-attribute accessors)', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makeUser() {
     return Model({
       tableName: 'users',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { settings?: any; preferences?: any; name?: string }) => ({
-        name: p.name ?? '',
-        settings: p.settings ?? {},
-        preferences: p.preferences ?? {},
-      }),
       storeAccessors: {
         settings: ['theme', 'locale', 'fontSize'],
         preferences: ['emailFreq', 'tz'],
@@ -83,11 +88,6 @@ describe('storeAccessors (typed JSON sub-attribute accessors)', () => {
     const Demo = Model({
       tableName: 'users',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { settings?: any; name?: string }) => ({
-        name: p.name ?? '',
-        settings: p.settings ?? {},
-      }),
       storeAccessors: { settings: ['name', 'theme'] },
     });
     const u = (await Demo.find(1)) as any;

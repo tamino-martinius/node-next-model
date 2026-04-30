@@ -1,4 +1,4 @@
-import { MemoryConnector, Model, ValidationError } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model, ValidationError } from '@next-model/core';
 import { type } from 'arktype';
 import { describe, expect, it } from 'vitest';
 
@@ -121,10 +121,13 @@ describe('fromArkType — end-to-end with Model', () => {
       age: 'number.integer>=0',
     });
     const bridge = fromArkType(UserType);
-    const connector = new MemoryConnector({ storage: {}, lastIds: {} });
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
     class User extends Model({
-      tableName: 'users',
       connector,
+      tableName: 'users',
       timestamps: false,
       init: bridge.init,
       validators: bridge.validators,
@@ -136,5 +139,50 @@ describe('fromArkType — end-to-end with Model', () => {
     await expect(User.create({ name: 'A', age: -1 } as any)).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+});
+
+describe('fromArkType — toTypedColumns', () => {
+  it('produces a column map that defineSchema accepts', () => {
+    const UserType = type({
+      id: 'number.integer',
+      email: 'string',
+      name: 'string',
+      'age?': 'number.integer',
+    });
+    const bridge = fromArkType(UserType);
+
+    const cols = bridge.toTypedColumns();
+    expect(cols).toEqual({
+      id: { type: 'integer', null: false },
+      email: { type: 'string', null: false },
+      name: { type: 'string', null: false },
+      age: { type: 'integer', null: true },
+    });
+  });
+
+  it('the column map round-trips through defineSchema + Model end-to-end', async () => {
+    const UserType = type({
+      id: 'number.integer',
+      email: 'string',
+      name: 'string',
+    });
+    const bridge = fromArkType(UserType);
+
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema });
+    class User extends Model({
+      connector,
+      tableName: 'users',
+      init: bridge.init,
+      validators: bridge.validators,
+      timestamps: false,
+    }) {}
+
+    const u = await User.create({ id: 1, email: 'a@b', name: 'Ada' });
+    expect(u.email).toBe('a@b');
+    expect(u.name).toBe('Ada');
   });
 });

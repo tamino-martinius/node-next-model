@@ -27,9 +27,16 @@ The headline migration is mostly transparent (await on a builder works exactly l
 - New `Model.includes({ assoc: ... })` chainable for eager loading associations. Each entry names the property attached to returned instances and how to load it — `belongsTo`, `hasMany`, or `hasOne`. Runs a single batched query per association via the existing `preloadBelongsTo` / `preloadHasMany` primitives, cutting the N+1 round-trips you'd get from calling `this.user` / `this.posts` on every row. `Model.withoutIncludes()` and `unscoped()` both clear the eager-load chain.
 - New `Model.whereMissing(name)` chainable for parents that have no matching child rows — Rails' `User.where.missing(:posts)`. On connectors with `queryWithJoins` it emits a single `WHERE NOT EXISTS (...)` on the parent query; on others it falls back to `pluckUnique(foreignKey)` + `$notIn` filter. Multiple `whereMissing` calls AND together. When the child table is empty, all parents match (the natural `$notIn []` outcome).
 
+### Breaking changes — schema is mandatory
+
+- The legacy `Model({ tableName, init, keys })` overload has been removed. Every Model must be constructed via `Model({ connector, tableName })` where the connector carries a `defineSchema(...)` schema attached at construction time.
+- The schema-direct `Model({ schema, tableName })` overload has been removed. Pass the schema through the connector instead — `new XyzConnector(opts, { schema })`.
+- The Model-level `associations: { … }` factory field has been removed. Declare associations on the schema (`defineSchema({ users: { associations: { ... } } })`).
+- The `Model<UserProps>(...)` interface-generic overload has been removed. Schema-derived props are the only path.
+
 ### Schema-first associations
 
-- Schema-level associations: `defineSchema({ users: { associations: { tasks: { hasMany: 'tasks', foreignKey: 'userId' } } } })`. Cycle-free declarations (target tables are strings); `Model({ connector, tableName })` (or `Model({ schema, tableName })`) exposes typed accessors derived from the schema.
+- Schema-level associations: `defineSchema({ users: { associations: { tasks: { hasMany: 'tasks', foreignKey: 'userId' } } } })`. Cycle-free declarations (target tables are strings); `Model({ connector, tableName })` exposes typed accessors derived from the schema.
 - `ModelRegistry` interface: augment via declaration merging (`declare module '@next-model/core' { interface ModelRegistry { tasks: import('./task').Task } }`) to upgrade association accessors from row shapes to class instance types with custom methods. Type-only — does not introduce runtime imports.
 - Default `init` derived from the schema: when no `init` is passed, columns with `default` values (including `'currentTimestamp'`) are applied at `build()` time. Caller-supplied props win.
 - `Model.ts` now skips the auto-defined association accessor when a class getter for the same name exists on the prototype. Class authors can override `user.tasks` to return class instances with custom methods without touching the registry.

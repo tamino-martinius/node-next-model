@@ -1,7 +1,7 @@
 import {
   type Dict,
+  defineSchema,
   type Filter,
-  type KeyType,
   MemoryConnector,
   Model,
   type Order,
@@ -11,17 +11,41 @@ import { CollectionQuery } from '../query/CollectionQuery.js';
 import { InstanceQuery } from '../query/InstanceQuery.js';
 import { context, it } from './index.js';
 
+const fooSchema = defineSchema({
+  foo: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      foo: { type: 'string', null: true },
+      bar: { type: 'string', null: true },
+    },
+  },
+});
+
+// Minimal schema for the associations describe-block. MemoryConnector does
+// not validate columns, so we only need to declare the table names.
+const assocSchema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  authorships: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  profiles: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  photos: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  comments: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
+// Minimal schema for the scopes describe-block.
+const scopeSchema = defineSchema({
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
 describe('Model', () => {
   let storage: Storage = {};
 
   const tableName = 'foo';
-  const init = () => ({});
   let skip: number | undefined;
   let limit: number | undefined;
   let filter: Filter<any> | undefined;
   let order: Order<any> | undefined;
-  const connector = () => new MemoryConnector({ storage });
-  let keys: Dict<KeyType> | undefined;
+  const connector = () => new MemoryConnector({ storage }, { schema: fooSchema });
 
   const seed = [
     { id: 1, foo: 'bar', bar: 'baz' },
@@ -57,16 +81,13 @@ describe('Model', () => {
   const attributesOf = (items: any[]) => items.map((item) => item.attributes as Dict<any>);
 
   const CreateModel = () =>
-    ///@ts-expect-error
     Model({
       tableName,
-      init,
       skip,
       limit,
       filter,
       order,
       connector: connector(),
-      keys,
     });
 
   const subject = CreateModel;
@@ -614,7 +635,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -631,7 +651,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string; bar: string }) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -649,7 +668,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -667,7 +685,6 @@ describe('Model', () => {
       let seen: any;
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -685,7 +702,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -702,7 +718,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -746,7 +761,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const createdAt = new Date('2020-01-01');
@@ -762,7 +776,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -777,7 +790,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         timestamps: false,
       });
@@ -802,7 +814,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         validators: [(instance: any) => instance.foo === 'bar'],
       });
@@ -815,7 +826,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         validators: [
           (instance: any) => instance.foo === 'bar',
@@ -831,7 +841,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         validators: [async (instance: any) => instance.foo === 'bar'],
       });
@@ -844,7 +853,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         validators: [() => false],
       });
@@ -858,7 +866,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         validators: [(instance: any) => instance.foo === 'bar'],
       });
@@ -872,7 +879,6 @@ describe('Model', () => {
       let secondCalled = false;
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         validators: [
           () => false,
@@ -894,7 +900,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         callbacks: {
           beforeSave: [() => void order.push('beforeSave')],
@@ -915,7 +920,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         callbacks: {
           beforeSave: [() => void order.push('beforeSave')],
@@ -939,7 +943,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         callbacks: {
           beforeDelete: [() => void order.push('beforeDelete')],
@@ -957,7 +960,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         callbacks: {
           beforeSave: [
@@ -978,7 +980,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         callbacks: {
           beforeCreate: [
@@ -998,7 +999,6 @@ describe('Model', () => {
       let calls = 0;
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
         callbacks: {
           beforeSave: [() => void calls++],
@@ -1044,7 +1044,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'original' });
@@ -1096,7 +1095,6 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
     };
@@ -1159,7 +1157,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'a' });
@@ -1172,7 +1169,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       await expect(Klass.find(999)).rejects.toThrow(/not found/);
@@ -1185,7 +1181,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'match' });
@@ -1198,7 +1193,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       // After Task 13/26 the terminal materialises through InstanceQuery,
@@ -1215,7 +1209,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'a', bar: 1 });
@@ -1229,7 +1222,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.findOrBuild({ foo: 'missing' }, { bar: 42 });
@@ -1246,7 +1238,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'a' });
@@ -1261,7 +1252,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.firstOrCreate({ foo: 'new' }, { bar: 42 });
@@ -1277,7 +1267,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const original = await Klass.create({ foo: 'a', bar: 1 });
@@ -1292,7 +1281,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.updateOrCreate({ foo: 'new' }, { bar: 7 });
@@ -1308,7 +1296,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ count: 5 });
@@ -1323,7 +1310,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ count: 10 });
@@ -1336,7 +1322,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ count: 5 });
@@ -1349,7 +1334,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({});
@@ -1361,7 +1345,6 @@ describe('Model', () => {
     it('throws when the record is unsaved', async () => {
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = Klass.build({ count: 1 });
@@ -1376,7 +1359,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'a' });
@@ -1393,7 +1375,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'original' });
@@ -1409,7 +1390,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const a = await Klass.create({ foo: 'a' });
@@ -1423,7 +1403,6 @@ describe('Model', () => {
     it('throws when the record is unsaved', async () => {
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = Klass.build({ foo: 'x' });
@@ -1438,7 +1417,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = await Klass.create({ foo: 'a' });
@@ -1454,7 +1432,6 @@ describe('Model', () => {
     it('throws when the record is unsaved', async () => {
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       const record = Klass.build({ foo: 'x' });
@@ -1467,7 +1444,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'a', group: 1 });
@@ -1483,7 +1459,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: any) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'a' });
@@ -1501,7 +1476,8 @@ describe('Model', () => {
 
   describe('associations', () => {
     let assocStorage: Storage = {};
-    const assocConnector = () => new MemoryConnector({ storage: assocStorage });
+    const assocConnector = () =>
+      new MemoryConnector({ storage: assocStorage }, { schema: assocSchema });
 
     beforeEach(() => {
       assocStorage = {};
@@ -1511,12 +1487,10 @@ describe('Model', () => {
       it('returns the referenced record using tableName convention', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1528,12 +1502,10 @@ describe('Model', () => {
       it('returns undefined when the foreign key is null', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number | null; title: string }) => props,
           connector: assocConnector(),
         });
         const post = await PostKlass.create({ userId: null, title: 'Orphan' });
@@ -1544,12 +1516,10 @@ describe('Model', () => {
       it('returns undefined when the referenced record does not exist', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const post = await PostKlass.create({ userId: 999, title: 'Dangling' });
@@ -1560,12 +1530,10 @@ describe('Model', () => {
       it('accepts an explicit foreignKey', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { authorId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1579,12 +1547,10 @@ describe('Model', () => {
       it('returns a scoped query of related records', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1600,12 +1566,10 @@ describe('Model', () => {
       it('supports count on the scoped query', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1617,12 +1581,10 @@ describe('Model', () => {
       it('supports further chained scopes on the returned class', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string; published: boolean }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1636,12 +1598,10 @@ describe('Model', () => {
       it('accepts an explicit foreignKey', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { authorId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1655,17 +1615,14 @@ describe('Model', () => {
       it('returns target records linked via the join table', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const AuthorshipKlass = Model({
           tableName: 'authorships',
-          init: (props: { userId: number; postId: number }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -1684,17 +1641,14 @@ describe('Model', () => {
       it('supports further chained scopes on the returned class', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string; published: boolean }) => props,
           connector: assocConnector(),
         });
         const AuthorshipKlass = Model({
           tableName: 'authorships',
-          init: (props: { userId: number; postId: number }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -1714,17 +1668,14 @@ describe('Model', () => {
       it('returns an empty result when no join rows match', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const AuthorshipKlass = Model({
           tableName: 'authorships',
-          init: (props: { userId: number; postId: number }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -1735,17 +1686,14 @@ describe('Model', () => {
       it('honours custom foreignKeys', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const AuthorshipKlass = Model({
           tableName: 'authorships',
-          init: (props: { authorId: number; articleId: number }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -1765,12 +1713,10 @@ describe('Model', () => {
       it('returns the associated record', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const ProfileKlass = Model({
           tableName: 'profiles',
-          init: (props: { userId: number; bio: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1782,12 +1728,10 @@ describe('Model', () => {
       it('returns undefined when no related record exists', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const ProfileKlass = Model({
           tableName: 'profiles',
-          init: (props: { userId: number; bio: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1798,12 +1742,10 @@ describe('Model', () => {
       it('accepts an explicit foreignKey', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const ProfileKlass = Model({
           tableName: 'profiles',
-          init: (props: { ownerId: number; bio: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1817,17 +1759,14 @@ describe('Model', () => {
       it('belongsTo resolves by {name}Id + {name}Type matching target tableName', async () => {
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const PhotoKlass = Model({
           tableName: 'photos',
-          init: (props: { url: string }) => props,
           connector: assocConnector(),
         });
         const CommentKlass = Model({
           tableName: 'comments',
-          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
           connector: assocConnector(),
         });
         const post = await PostKlass.create({ title: 'Hello' });
@@ -1851,17 +1790,14 @@ describe('Model', () => {
       it('belongsTo returns undefined when type does not match target tableName', async () => {
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const PhotoKlass = Model({
           tableName: 'photos',
-          init: (props: { url: string }) => props,
           connector: assocConnector(),
         });
         const CommentKlass = Model({
           tableName: 'comments',
-          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
           connector: assocConnector(),
         });
         await PostKlass.create({ title: 'Hello' });
@@ -1878,12 +1814,10 @@ describe('Model', () => {
       it('hasMany scopes by both id and type', async () => {
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const CommentKlass = Model({
           tableName: 'comments',
-          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
           connector: assocConnector(),
         });
         const post1 = await PostKlass.create({ title: 'One' });
@@ -1910,12 +1844,10 @@ describe('Model', () => {
       it('honours explicit typeValue override', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const CommentKlass = Model({
           tableName: 'comments',
-          init: (props: { body: string; commentableId: number; commentableType: string }) => props,
           connector: assocConnector(),
         });
         const user = await UserKlass.create({ name: 'Alice' });
@@ -1933,12 +1865,10 @@ describe('Model', () => {
       it('supports typeKey override', async () => {
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { title: string }) => props,
           connector: assocConnector(),
         });
         const CommentKlass = Model({
           tableName: 'comments',
-          init: (props: { body: string; targetId: number; targetKind: string }) => props,
           connector: assocConnector(),
         });
         const post = await PostKlass.create({ title: 'P' });
@@ -1957,12 +1887,10 @@ describe('Model', () => {
       it('returns a map from parent pk to parent instance, keyed by the child foreignKey value', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -1980,12 +1908,10 @@ describe('Model', () => {
       it('de-duplicates parent lookups to a single query', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -2003,7 +1929,6 @@ describe('Model', () => {
       it('returns an empty map when records list is empty', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const result = await UserKlass.preloadBelongsTo([], { foreignKey: 'userId' });
@@ -2013,12 +1938,10 @@ describe('Model', () => {
       it('skips null/undefined foreign keys', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number | null; title: string }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -2033,12 +1956,10 @@ describe('Model', () => {
       it('supports a custom primaryKey on the parent', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { slug: string; name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userSlug: string; title: string }) => props,
           connector: assocConnector(),
         });
         await UserKlass.create({ slug: 'alice', name: 'Alice' });
@@ -2054,7 +1975,6 @@ describe('Model', () => {
       it('accepts plain objects as records', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -2070,12 +1990,10 @@ describe('Model', () => {
       it('returns a map from parent pk to child array, including empty buckets', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -2099,12 +2017,10 @@ describe('Model', () => {
       it('de-duplicates child lookups to a single query', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const alice = await UserKlass.create({ name: 'Alice' });
@@ -2122,7 +2038,6 @@ describe('Model', () => {
       it('returns an empty map when parents list is empty', async () => {
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userId: number; title: string }) => props,
           connector: assocConnector(),
         });
         const result = await PostKlass.preloadHasMany([], { foreignKey: 'userId' });
@@ -2132,12 +2047,10 @@ describe('Model', () => {
       it('supports a custom primaryKey on the parent', async () => {
         const UserKlass = Model({
           tableName: 'users',
-          init: (props: { slug: string; name: string }) => props,
           connector: assocConnector(),
         });
         const PostKlass = Model({
           tableName: 'posts',
-          init: (props: { userSlug: string; title: string }) => props,
           connector: assocConnector(),
         });
         await UserKlass.create({ slug: 'alice', name: 'Alice' });
@@ -2150,123 +2063,12 @@ describe('Model', () => {
         expect(postsBySlug.get('alice')?.map((p) => p.attributes.title)).toEqual(['A']);
       });
     });
-
-    describe('auto-installed instance accessor returns query builders', () => {
-      it('hasMany accessor returns a CollectionQuery (awaitable to records[])', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { name: string }) => p,
-          associations: {
-            todos: { hasMany: () => Todo, foreignKey: 'userId' },
-          },
-        }) {}
-        class Todo extends Model({
-          tableName: 'todos',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { userId: number; title: string }) => p,
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        await Todo.create({ userId: user.id as number, title: 'A' });
-        await Todo.create({ userId: user.id as number, title: 'B' });
-
-        const todos = (user as unknown as { todos: unknown }).todos;
-        expect(todos).toBeInstanceOf(CollectionQuery);
-        const resolved = (await todos) as Array<InstanceType<typeof Todo>>;
-        expect(Array.isArray(resolved)).toBe(true);
-        expect(resolved.map((t) => t.attributes.title).sort()).toEqual(['A', 'B']);
-      });
-
-      it('belongsTo accessor returns an InstanceQuery (awaitable to record|undefined)', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { name: string }) => p,
-        }) {}
-        class Post extends Model({
-          tableName: 'posts',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { userId: number; title: string }) => p,
-          associations: {
-            author: { belongsTo: () => User, foreignKey: 'userId' },
-          },
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        const post = await Post.create({ userId: user.id as number, title: 'Hi' });
-
-        const author = (post as unknown as { author: unknown }).author;
-        expect(author).toBeInstanceOf(InstanceQuery);
-        const resolved = (await author) as InstanceType<typeof User> | undefined;
-        expect(resolved?.attributes.name).toBe('Alice');
-      });
-
-      it('hasOne accessor returns an InstanceQuery', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { name: string }) => p,
-          associations: {
-            profile: { hasOne: () => Profile, foreignKey: 'userId' },
-          },
-        }) {}
-        class Profile extends Model({
-          tableName: 'profiles',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { userId: number; bio: string }) => p,
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        await Profile.create({ userId: user.id as number, bio: 'Hello' });
-
-        const profile = (user as unknown as { profile: unknown }).profile;
-        expect(profile).toBeInstanceOf(InstanceQuery);
-        const resolved = (await profile) as InstanceType<typeof Profile> | undefined;
-        expect(resolved?.attributes.bio).toBe('Hello');
-      });
-
-      it('hasManyThrough accessor returns a CollectionQuery with nested withParent chain', async () => {
-        class User extends Model({
-          tableName: 'users',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { name: string }) => p,
-          associations: {
-            roles: { hasManyThrough: () => Role, through: () => UserRole },
-          },
-        }) {}
-        class Role extends Model({
-          tableName: 'roles',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { name: string }) => p,
-        }) {}
-        class UserRole extends Model({
-          tableName: 'userRoles',
-          connector: assocConnector(),
-          timestamps: false,
-          init: (p: { userId: number; roleId: number }) => p,
-        }) {}
-        const user = await User.create({ name: 'Alice' });
-        const admin = await Role.create({ name: 'admin' });
-        await UserRole.create({ userId: user.id as number, roleId: admin.id as number });
-
-        const roles = (user as unknown as { roles: unknown }).roles;
-        expect(roles).toBeInstanceOf(CollectionQuery);
-        // Nested chain: leaf (Role) → parent (UserRole) → upstream (User-instance).
-        const state = (roles as CollectionQuery).state;
-        expect(state.parent?.upstream.state.parent).toBeDefined();
-      });
-    });
   });
 
   describe('scopes', () => {
     let scopeStorage: Storage = {};
-    const scopeConnector = () => new MemoryConnector({ storage: scopeStorage });
+    const scopeConnector = () =>
+      new MemoryConnector({ storage: scopeStorage }, { schema: scopeSchema });
 
     beforeEach(() => {
       scopeStorage = {};
@@ -2275,7 +2077,6 @@ describe('Model', () => {
     it('registers scope as static method that applies the filter literal', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; published: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
           published: { published: true } as Filter<any>,
@@ -2291,7 +2092,6 @@ describe('Model', () => {
     it('filter-literal scope produces a CollectionQuery exposing the filter', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; published: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
           published: { published: true } as Filter<any>,
@@ -2305,7 +2105,6 @@ describe('Model', () => {
     it('parameterized cases use a static method on the user subclass', async () => {
       class Klass extends Model({
         tableName: 'posts',
-        init: (props: { title: string; views: number }) => props,
         connector: scopeConnector(),
       }) {
         static minViews(threshold: number) {
@@ -2322,7 +2121,6 @@ describe('Model', () => {
     it('allows chaining scopes with other queries', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; published: boolean; views: number }) => props,
         connector: scopeConnector(),
         scopes: {
           published: { published: true } as Filter<any>,
@@ -2342,7 +2140,6 @@ describe('Model', () => {
     it('composes multiple scopes together', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; published: boolean; featured: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
           published: { published: true } as Filter<any>,
@@ -2360,7 +2157,6 @@ describe('Model', () => {
     it('filter-literal scope chains on top of another query', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; published: boolean; authorId: number }) => props,
         connector: scopeConnector(),
         scopes: {
           published: { published: true } as Filter<any>,
@@ -2379,7 +2175,6 @@ describe('Model', () => {
     it('function-form scope receives args and applies the returned filter', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; views: number }) => props,
         connector: scopeConnector(),
         scopes: {
           minViews: (threshold: number) => ({ $gte: { views: threshold } }) as Filter<any>,
@@ -2395,7 +2190,6 @@ describe('Model', () => {
     it('function-form scope produces a CollectionQuery with the resolved filter', () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { age: number }) => props,
         connector: scopeConnector(),
         scopes: {
           olderThan: (age: number) => ({ $gt: { age } }) as Filter<any>,
@@ -2409,7 +2203,6 @@ describe('Model', () => {
     it('function-form scope chains with other chain methods', async () => {
       const Klass = Model({
         tableName: 'posts',
-        init: (props: { title: string; views: number; published: boolean }) => props,
         connector: scopeConnector(),
         scopes: {
           minViews: (threshold: number) => ({ $gte: { views: threshold } }) as Filter<any>,
@@ -2428,7 +2221,6 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
     };
@@ -2476,7 +2268,6 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
     };
@@ -2514,7 +2305,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string }) => props,
         connector: connector(),
       });
       for (const tag of ['red', 'blue', 'red', 'green', 'blue', 'red']) {
@@ -2532,7 +2322,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string; active: boolean }) => props,
         connector: connector(),
       });
       await Klass.create({ tag: 'red', active: true });
@@ -2548,7 +2337,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string }) => props,
         connector: connector(),
       });
       const result = await Klass.countBy('tag');
@@ -2560,7 +2348,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string | null }) => props,
         connector: connector(),
       });
       await Klass.create({ tag: 'red' });
@@ -2578,7 +2365,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string; title: string }) => props,
         connector: connector(),
         order: { key: 'title' },
       });
@@ -2596,7 +2382,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string; rank: number }) => props,
         connector: connector(),
         order: { key: 'rank' },
       });
@@ -2612,7 +2397,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string }) => props,
         connector: connector(),
       });
       const result = await Klass.groupBy('tag');
@@ -2626,7 +2410,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2645,7 +2428,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const batches: any[] = [];
@@ -2660,7 +2442,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string; active: boolean }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2679,7 +2460,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2698,7 +2478,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const created: number[] = [];
@@ -2720,7 +2499,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2739,7 +2517,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: number }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2760,7 +2537,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2793,7 +2569,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         limit: 2,
         skip: 1,
@@ -2811,7 +2586,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string; active: boolean }) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'a', active: true });
@@ -2827,7 +2601,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       await Klass.create({ foo: 'a' });
@@ -2840,7 +2613,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const result = await Klass.paginate(1, 10);
@@ -2856,7 +2628,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         order: { key: 'foo' },
       });
@@ -2875,7 +2646,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const a = await Klass.create({ foo: 'a' });
@@ -2891,7 +2661,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { tag: string }) => props,
         connector: connector(),
       });
       await Klass.create({ tag: 'x' });
@@ -2910,7 +2679,7 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),
@@ -2989,7 +2758,7 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),
@@ -3006,7 +2775,6 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { foo: string; bar: number }) => props,
         connector: connector(),
       });
     };
@@ -3071,26 +2839,6 @@ describe('Model', () => {
       expect(JSON.stringify(r.attributes)).toBe(JSON.stringify(r.toJSON()));
       storage = {};
     });
-
-    it('attributes excludes association accessors', async () => {
-      storage = {};
-      const UserKlass = Model({
-        tableName: 'users',
-        init: (props: { name: string }) => props,
-        connector: connector(),
-      });
-      const PostKlass = Model({
-        tableName: 'posts',
-        init: (props: { userId: number; title: string }) => props,
-        connector: connector(),
-        associations: { user: { belongsTo: () => UserKlass, foreignKey: 'userId' } },
-      });
-      const ada = await UserKlass.create({ name: 'Ada' });
-      const post = await PostKlass.create({ userId: ada.id as number, title: 'P' });
-      const json = JSON.parse(JSON.stringify(post.attributes));
-      expect(json.user).toBeUndefined();
-      storage = {};
-    });
   });
 
   describe('.reverse', () => {
@@ -3098,7 +2846,6 @@ describe('Model', () => {
       storage = {};
       return Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
     };
@@ -3146,7 +2893,6 @@ describe('Model', () => {
       const seen: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       Klass.on('afterCreate', (instance) => {
@@ -3162,7 +2908,6 @@ describe('Model', () => {
       let calls = 0;
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const unsubscribe = Klass.on('afterSave', () => {
@@ -3180,7 +2925,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       Klass.on('afterSave', () => void order.push('first'));
@@ -3195,7 +2939,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         callbacks: {
           afterSave: [() => void order.push('config')],
@@ -3212,7 +2955,6 @@ describe('Model', () => {
       const order: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       Klass.on('beforeSave', async () => {
@@ -3230,7 +2972,6 @@ describe('Model', () => {
       const seen: string[] = [];
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const instance = await Klass.create({ foo: 'gone' });
@@ -3245,7 +2986,6 @@ describe('Model', () => {
       let calls = 0;
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
       });
       const unsubscribe = Klass.on('afterSave', () => {
@@ -3264,7 +3004,6 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { foo: string }) => props,
         connector: connector(),
         filter: { foo: 'x' },
         limit: 1,
@@ -3281,7 +3020,7 @@ describe('Model', () => {
       storage = {};
       const Klass = Model({
         tableName,
-        init: (props: { title: string; discardedAt?: Date | null }) => ({
+        init: (props: any) => ({
           discardedAt: null,
           ...props,
         }),

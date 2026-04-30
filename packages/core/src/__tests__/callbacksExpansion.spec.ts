@@ -1,16 +1,23 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+    },
+  },
+});
 
 describe('lifecycle callback expansion', () => {
   let storage: Storage = {};
   const tableName = 'posts';
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost() {
     return Model({
       tableName,
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (props: { title?: string }) => ({ title: props?.title ?? '' }),
     });
   }
 
@@ -85,8 +92,6 @@ describe('lifecycle callback expansion', () => {
       const Post = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (props: { title?: string }) => ({ title: props?.title ?? '' }),
         validators: [(r: any) => r.title.startsWith('NORMALIZED')],
       });
       Post.on('beforeValidation', (r: any) => {

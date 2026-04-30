@@ -1,3 +1,5 @@
+import type { CollectionQuery } from './query/CollectionQuery.js';
+import type { InstanceQuery } from './query/InstanceQuery.js';
 import type {
   ColumnDefault,
   ColumnDefinition,
@@ -6,8 +8,6 @@ import type {
   TableDefinition,
 } from './schema.js';
 import { type Dict, KeyType } from './types.js';
-import type { CollectionQuery } from './query/CollectionQuery.js';
-import type { InstanceQuery } from './query/InstanceQuery.js';
 
 /**
  * Single-column declaration for a typed schema. Mirrors the option shape used
@@ -109,7 +109,50 @@ export type ApplyNull<T, Null> = Null extends true ? T | null : T;
  * multi-table `DatabaseSchema`. Pass the schema and the table key.
  */
 export type SchemaProps<S extends DatabaseSchema<any>, K extends keyof S['tables'] & string> = {
-  [P in keyof S['tables'][K]['columns']]: ApplyNull<
+  -readonly [P in keyof S['tables'][K]['columns']]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
+};
+
+/**
+ * Whether a column can be omitted from `create()` / `build()` input. True when:
+ *  - The column is auto-incremented (DB assigns the value)
+ *  - The column has a static `default`
+ *  - The column is nullable
+ */
+type IsOptionalCreateColumn<C> = C extends { autoIncrement: true }
+  ? true
+  : C extends { default: any }
+    ? true
+    : C extends { null: true }
+      ? true
+      : false;
+
+/**
+ * Derive the `create()` / `build()` input shape for a table. Required for
+ * non-default, non-nullable, non-autoIncrement columns; optional for the rest.
+ * The runtime-derived default init applies column defaults, the connector
+ * assigns auto-increment primary keys, and nullable columns can be omitted.
+ */
+export type SchemaCreateProps<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+> = {
+  -readonly [P in keyof S['tables'][K]['columns'] as IsOptionalCreateColumn<
+    S['tables'][K]['columns'][P]
+  > extends true
+    ? never
+    : P]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
+} & {
+  -readonly [P in keyof S['tables'][K]['columns'] as IsOptionalCreateColumn<
+    S['tables'][K]['columns'][P]
+  > extends true
+    ? P
+    : never]?: ApplyNull<
     ColumnTSType<S['tables'][K]['columns'][P]['type']>,
     S['tables'][K]['columns'][P]['null']
   >;
@@ -171,11 +214,7 @@ export type ResolveAssociationTarget<
   S extends DatabaseSchema<any>,
   T extends string,
   Reg = ModelRegistry,
-> = T extends keyof Reg
-  ? Reg[T]
-  : T extends keyof S['tables'] & string
-    ? SchemaProps<S, T>
-    : never;
+> = T extends keyof Reg ? Reg[T] : T extends keyof S['tables'] & string ? SchemaProps<S, T> : never;
 
 /**
  * Map a single association entry to its accessor query type. `hasMany` and
@@ -191,9 +230,13 @@ export type SchemaAssociationProp<
   Reg = ModelRegistry,
 > = NonNullable<S['tables'][K]['associations']>[Name] extends { hasMany: infer T extends string }
   ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
-  : NonNullable<S['tables'][K]['associations']>[Name] extends { hasManyThrough: infer T extends string }
+  : NonNullable<S['tables'][K]['associations']>[Name] extends {
+        hasManyThrough: infer T extends string;
+      }
     ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
-    : NonNullable<S['tables'][K]['associations']>[Name] extends { belongsTo: infer T extends string }
+    : NonNullable<S['tables'][K]['associations']>[Name] extends {
+          belongsTo: infer T extends string;
+        }
       ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
       : NonNullable<S['tables'][K]['associations']>[Name] extends { hasOne: infer T extends string }
         ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
@@ -209,11 +252,12 @@ export type SchemaAssociations<
   S extends DatabaseSchema<any>,
   K extends keyof S['tables'] & string,
   Reg = ModelRegistry,
-> = S['tables'][K]['associations'] extends Record<string, TypedAssociation>
-  ? {
-      [N in keyof S['tables'][K]['associations'] & string]: SchemaAssociationProp<S, K, N, Reg>;
-    }
-  : {};
+> =
+  S['tables'][K]['associations'] extends Record<string, TypedAssociation>
+    ? {
+        [N in keyof S['tables'][K]['associations'] & string]: SchemaAssociationProp<S, K, N, Reg>;
+      }
+    : {};
 
 /**
  * The runtime representation of a multi-table typed schema. Carries the raw
@@ -430,9 +474,7 @@ export function generateSchemaSource(
       for (const idx of table.indexes) lines.push(renderIndexLiteral(idx, '      '));
       lines.push(`    ],`);
     }
-    const associations = table.associations as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+    const associations = table.associations as Record<string, Record<string, unknown>> | undefined;
     if (associations && Object.keys(associations).length > 0) {
       lines.push(`    associations: {`);
       for (const [assocName, spec] of Object.entries(associations)) {

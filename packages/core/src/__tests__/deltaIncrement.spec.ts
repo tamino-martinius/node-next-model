@@ -1,10 +1,44 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  delta_widgets: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      count: { type: 'integer', default: 0 },
+      group: { type: 'string', default: 'a' },
+    },
+  },
+  race_posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      commentsCount: { type: 'integer', default: 0 },
+    },
+  },
+  race_comments: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      postId: { type: 'integer', default: 0 },
+    },
+  },
+  cb_posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      commentsCount: { type: 'integer', default: 0 },
+    },
+  },
+  cb_comments: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      postId: { type: 'integer', default: 0 },
+    },
+  },
+});
 
 describe('delta increment / decrement', () => {
   let storage: Storage = {};
   const tableName = 'delta_widgets';
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   beforeEach(() => {
     storage = { [tableName]: [] };
@@ -16,9 +50,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
         validators: [
           () => {
             validatorCalls++;
@@ -43,9 +75,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: true,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const record = await Klass.create({ count: 0 });
       const before = (record.attributes as any).updatedAt as Date;
@@ -60,9 +90,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
         callbacks: {
           afterUpdate: [() => events.push('afterUpdate')],
           beforeSave: [() => events.push('beforeSave')],
@@ -84,9 +112,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const record = await Klass.create({ count: 5 });
       await record.increment('count', 3);
@@ -97,9 +123,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const record = await Klass.create({ count: 1 });
       // wipe row so the WHERE matches nothing
@@ -113,12 +137,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { count?: number; group?: string }) => ({
-          count: p.count ?? 0,
-          group: p.group ?? 'a',
-        }),
       });
       await Klass.create({ count: 1, group: 'a' });
       await Klass.create({ count: 1, group: 'a' });
@@ -133,9 +152,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const r = await Klass.create({ count: 10 });
       const affected = await (Klass.filterBy({ id: r.id }) as any).decrement('count', 3);
@@ -147,9 +164,7 @@ describe('delta increment / decrement', () => {
       const Klass = Model({
         tableName,
         connector: connector(),
-        keys: { id: KeyType.number },
         timestamps: true,
-        init: (p: { count?: number }) => ({ count: p.count ?? 0 }),
       });
       const a = await Klass.create({ count: 0 });
       const before = (a.attributes as any).updatedAt as Date;
@@ -166,16 +181,12 @@ describe('delta increment / decrement', () => {
       const Post = Model({
         tableName: 'race_posts',
         connector: shared,
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { commentsCount?: number }) => ({ commentsCount: p.commentsCount ?? 0 }),
       });
       const Comment = Model({
         tableName: 'race_comments',
         connector: shared,
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { postId?: number }) => ({ postId: p.postId ?? 0 }),
         counterCaches: [{ belongsTo: Post, foreignKey: 'postId', column: 'commentsCount' }],
       });
       storage.race_posts = [{ id: 1, commentsCount: 0 }];
@@ -194,9 +205,7 @@ describe('delta increment / decrement', () => {
       const Post = Model({
         tableName: 'cb_posts',
         connector: shared,
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { commentsCount?: number }) => ({ commentsCount: p.commentsCount ?? 0 }),
         callbacks: {
           beforeSave: [() => events.push('post.beforeSave')],
           afterSave: [() => events.push('post.afterSave')],
@@ -213,9 +222,7 @@ describe('delta increment / decrement', () => {
       const Comment = Model({
         tableName: 'cb_comments',
         connector: shared,
-        keys: { id: KeyType.number },
         timestamps: false,
-        init: (p: { postId?: number }) => ({ postId: p.postId ?? 0 }),
         counterCaches: [{ belongsTo: Post, foreignKey: 'postId', column: 'commentsCount' }],
       });
       storage.cb_posts = [{ id: 1, commentsCount: 0 }];

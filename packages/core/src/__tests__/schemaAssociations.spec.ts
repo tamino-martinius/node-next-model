@@ -1,15 +1,15 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import { MemoryConnector } from '../MemoryConnector.js';
+import { Model } from '../Model.js';
+import type { CollectionQuery } from '../query/CollectionQuery.js';
+import type { InstanceQuery } from '../query/InstanceQuery.js';
 import {
-  defineSchema,
   type DatabaseSchema,
+  defineSchema,
   type SchemaAssociationProp,
   type SchemaAssociations,
   type SchemaProps,
 } from '../typedSchema.js';
-import type { CollectionQuery } from '../query/CollectionQuery.js';
-import type { InstanceQuery } from '../query/InstanceQuery.js';
-import { Model } from '../Model.js';
-import { MemoryConnector } from '../MemoryConnector.js';
 
 describe('TypedAssociation — schema can carry associations', () => {
   it('compiles when a table declares associations', () => {

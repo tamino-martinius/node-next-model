@@ -1,16 +1,25 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MariaDbConnector } from '@next-model/mariadb-connector';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? 'mysql://root:mariadb@127.0.0.1:3306/nextmodel_demo';
 
-const connector = new MariaDbConnector(DATABASE_URL);
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      preferences: { type: 'json' },
+    },
+  },
+});
+
+const connector = new MariaDbConnector(DATABASE_URL, { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; preferences: object }) => props,
 }) {}
 
 await connector.dropTable('users');

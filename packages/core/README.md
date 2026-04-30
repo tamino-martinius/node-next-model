@@ -8,7 +8,6 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Defining a model](#defining-a-model)
   - [Schema-driven props](#schema-driven-props)
   - [Schema-first associations (recommended)](#schema-first-associations-recommended)
-  - [Interface-generic props](#interface-generic-props)
   - [Factory options](#factory-options)
   - [Keys (primary key type)](#keys-primary-key-type)
   - [Named scopes](#named-scopes)
@@ -52,26 +51,7 @@ pnpm add @next-model/core
 
 ## Defining a model
 
-Models are defined via the `Model({...})` factory, which returns a class you can extend.
-
-```ts
-import { Model, KeyType, SortDirection } from '@next-model/core';
-
-class User extends Model({
-  tableName: 'users',
-  init: (props: { firstName: string; lastName: string; gender?: string }) => props,
-}) {
-  get name() {
-    return `${this.firstName} ${this.lastName}`;
-  }
-}
-
-const user = await User.create({ firstName: 'John', lastName: 'Doe' });
-user.id;     // auto-assigned number
-user.name;   // 'John Doe'
-```
-
-`init` is the one required callback. It defines the shape of the props accepted by `create`/`build` and returns the row that actually gets persisted — so you can coerce, default, or derive fields before they hit the connector.
+Models are defined via the `Model({...})` factory, which returns a class you can extend. Every model requires a connector carrying a `defineSchema(...)` schema.
 
 ### Schema-driven props
 
@@ -137,20 +117,6 @@ class User extends Model({
   init: (p) => ({ ...p, email: p.email.toLowerCase() }),  // optional transformer
 }) {}
 ```
-
-#### Passing the schema directly
-
-If your connector isn't statically typed (dynamic connector swapping, runtime injection, etc.) you can pass the schema straight to `Model({ schema, tableName })` instead of attaching it to the connector. The behaviour is identical; the explicit `schema:` prop wins when both forms are present, so you can override the connector's typing at the Model boundary.
-
-```ts
-class User extends Model({
-  schema: dbSchema,
-  tableName: 'users',
-  connector,                            // optional — receives the schema separately
-}) {}
-```
-
-The legacy `init`-driven form stays available for cases where the row shape doesn't map to a single declared schema (e.g. when validators from a third-party library — `@next-model/zod`, `@next-model/typebox`, `@next-model/arktype` — provide both `init` and the column list).
 
 ### Schema-first associations (recommended)
 
@@ -256,45 +222,6 @@ class User extends Model({ connector, tableName: 'users' }) {
 }
 ```
 
-> **Migration note:** The Model-level `associations: { … }` field and the `Model({ keys, init })` legacy overload still work in this release for backwards compatibility but will be removed. New code should pass the schema through the connector and declare associations there.
-
-### Interface-generic props
-
-If you already have a TypeScript type for the row shape — generated from an OpenAPI spec, an inferred `z.infer<typeof userSchema>`, a hand-written interface, etc. — you can pass it as the generic argument to `Model<...>({...})` and skip the `init` callback entirely. `init` defaults to identity, so the props passed to `create` / `build` flow straight through to the connector.
-
-```ts
-import { Model } from '@next-model/core';
-
-interface UserProps {
-  email: string;
-  name: string;
-  archivedAt: Date | null;
-}
-
-class User extends Model<UserProps>({
-  tableName: 'users',
-  // No init needed — defaults to identity. Props are typed via the generic.
-}) {}
-
-const u = await User.create({ email: 'a@b', name: 'Ada', archivedAt: null });
-// TypeScript knows: u.email is string, u.archivedAt is Date | null.
-```
-
-Compared to `defineSchema(...)`:
-
-- Lighter weight — no runtime `defineSchema` call, no runtime `TableDefinition`.
-- Less powerful — interfaces carry no runtime info (no default values, no nullability hints beyond `T | null`), so the generated tooling that reads `TableDefinition` (migrations, schema snapshots, etc.) can't see this Model.
-- Best fit when you already have a TS type from elsewhere and don't need the schema's runtime metadata.
-
-You can still pass `init` to transform incoming props — the generic types its parameter for you:
-
-```ts
-class User extends Model<UserProps>({
-  tableName: 'users',
-  init: (p) => ({ ...p, email: p.email.toLowerCase() }),  // p is typed as UserProps
-}) {}
-```
-
 ### Schema generation
 
 You don't have to hand-write `defineSchema(...)` calls. Two pipelines emit them for you:
@@ -355,10 +282,10 @@ Pass `{ exportName: 'mySchema' }` to override the binding name.
 
 ```ts
 Model({
+  connector,                          // required — must carry a defineSchema(...) schema
   tableName: 'users',
-  init: (props: UserProps) => props,
-  connector,                          // defaults to an in-memory connector
-  keys: { id: KeyType.number },       // or { id: KeyType.uuid }, or composite
+  init: (p) => ({ ...p, email: p.email.toLowerCase() }), // optional transformer
+  keys: { id: KeyType.number },       // or { id: KeyType.uuid }, or composite (inferred from schema)
   filter: { active: true },           // initial chain filter (cleared by `unfiltered()`)
   defaultScope: { $null: 'deletedAt' }, // sticky filter — only `unscope` / `unscoped` removes it
   order: { key: 'createdAt' },        // default sort
@@ -386,9 +313,7 @@ Composite keys are allowed — any key in the `keys` dict is populated on insert
 `scopes` are the preferred shorthand for predeclared filters. Each entry is either a `Filter<any>` literal (no-arg method) or a `(...args) => Filter<any>` factory (args-forwarding method) — both call `filterBy(...)` under the hood. Use a static method on your subclass for multi-clause logic that doesn't fit a single `filterBy`:
 
 ```ts
-class User extends Model({
-  tableName: 'users',
-  init: (props: { firstName: string; gender: string; age: number }) => props,
+class User extends Model({ connector, tableName: 'users',
   scopes: {
     males: { gender: 'male' },
     adults: { $gte: { age: 18 } },
@@ -703,8 +628,8 @@ it:
 
 ```ts
 class Post extends Model({
+  connector,
   tableName: 'posts',
-  init: (p: { title: string; archivedAt: Date | null; published: boolean }) => p,
   defaultScope: { $and: [{ $null: 'archivedAt' }, { published: true }] },
 }) {}
 
@@ -996,8 +921,8 @@ stays browser-bundle-safe.
 
 ```ts
 class User extends Model({
+  connector,
   tableName: 'users',
-  init: (props: { email: string; age: number }) => props,
   validators: [
     (u) => u.email.includes('@'),
     async (u) => u.age >= 0,
@@ -1142,8 +1067,8 @@ Set `softDelete: true` to filter out discarded rows by default. The model looks 
 
 ```ts
 class Post extends Model({
+  connector,
   tableName: 'posts',
-  init: (props: { title: string; discardedAt?: Date | null }) => ({ discardedAt: null, ...props }),
   softDelete: true,
 }) {}
 
@@ -1200,9 +1125,8 @@ auto-filters reads to its own type.
 
 ```ts
 const Animal = Model({
+  connector,
   tableName: 'animals',
-  keys: { id: KeyType.number },
-  init: (p: { name?: string }) => ({ name: p.name ?? '' }),
   inheritColumn: 'type',
 });
 
@@ -1229,32 +1153,30 @@ compose on top of the auto-type filter.
 
 ## Associations
 
-Declare associations on the factory — each one names a `belongsTo`,
-`hasMany`, `hasOne`, or `hasManyThrough` plus the foreign-key column. Use
-`() => Other` thunks for circular imports. Each declared name installs
-a chainable instance accessor and unlocks the JOIN-shaped chainables
-(`joins(...)`, `whereMissing(...)`, `includes(...)`, cross-association
-`filterBy({ <name>: {...} })`).
+Declare associations on the schema (see [Schema-first associations](#schema-first-associations-recommended)) — each entry names a `belongsTo`, `hasMany`, or `hasOne` with a string table reference plus the foreign-key column. Each declared name installs a chainable instance accessor and unlocks the JOIN-shaped chainables (`joins(...)`, `whereMissing(...)`, `includes(...)`, cross-association `filterBy({ <name>: {...} })`).
 
 ```ts
-class User extends Model({
-  tableName: 'users',
-  init: (props: { name: string }) => props,
-  associations: {
-    posts:   { hasMany:   () => Post,    foreignKey: 'userId' },
-    profile: { hasOne:    () => Profile, foreignKey: 'userId' },
-    company: { belongsTo: () => Company, foreignKey: 'companyId' },
-    roles:   { hasManyThrough: () => Role, through: () => UserRole },
+// schema.ts — declare once, every Model bound to this connector inherits the associations.
+export const schema = defineSchema({
+  users: {
+    columns: { id: { type: 'integer', primary: true, autoIncrement: true }, name: { type: 'string' } },
+    associations: {
+      posts:   { hasMany:   'posts',   foreignKey: 'userId' },
+      profile: { hasOne:    'profiles', foreignKey: 'userId' },
+      company: { belongsTo: 'companies', foreignKey: 'companyId' },
+    },
   },
-}) {}
+  posts: {
+    columns: { id: { type: 'integer', primary: true, autoIncrement: true }, userId: { type: 'integer' }, title: { type: 'string' } },
+    associations: {
+      author: { belongsTo: 'users', foreignKey: 'userId' },
+    },
+  },
+  // ... profiles, companies
+});
 
-class Post extends Model({
-  tableName: 'posts',
-  init: (props: { title: string; userId: number }) => props,
-  associations: {
-    author: { belongsTo: () => User, foreignKey: 'userId' },
-  },
-}) {}
+class User extends Model({ connector, tableName: 'users' }) {}
+class Post extends Model({ connector, tableName: 'posts' }) {}
 ```
 
 Instance accessors return chainable query builders, not eager promises —
@@ -1289,22 +1211,23 @@ const street = (await Order.first().customer.address)?.street;
 ```
 
 Polymorphic associations share a `{name}Id` + `{name}Type` pair — declare
-the `polymorphic` shorthand on each side:
+the `polymorphic` shorthand on each side in the schema:
 
 ```ts
-class Comment extends Model({
-  // ...
-  associations: {
-    commentable: { belongsTo: () => Post, polymorphic: 'commentable' },
+export const schema = defineSchema({
+  comments: {
+    columns: { /* ... */ },
+    associations: {
+      commentable: { belongsTo: 'posts', polymorphic: 'commentable' },
+    },
   },
-}) {}
-
-class Post extends Model({
-  // ...
-  associations: {
-    comments: { hasMany: () => Comment, polymorphic: 'commentable' },
+  posts: {
+    columns: { /* ... */ },
+    associations: {
+      comments: { hasMany: 'comments', polymorphic: 'commentable' },
+    },
   },
-}) {}
+});
 ```
 
 Override the defaults via `foreignKey`, `primaryKey`, `typeKey`,

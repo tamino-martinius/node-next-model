@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { MemoryConnector } from '../MemoryConnector.js';
 import { Model } from '../Model.js';
 import { defineSchema } from '../typedSchema.js';
-import { MemoryConnector } from '../MemoryConnector.js';
 
 describe('schema-driven default init', () => {
   const schema = defineSchema({

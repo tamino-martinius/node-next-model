@@ -1,27 +1,34 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string', default: '' },
+      commentsCount: { type: 'integer', default: 0 },
+    },
+  },
+  comments: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      postId: { type: 'integer', null: true },
+      body: { type: 'string', default: '' },
+    },
+  },
+});
 
 describe('counter caches', () => {
   let storage: Storage = {};
-  const sharedConnector = () => new MemoryConnector({ storage });
+  const sharedConnector = () => new MemoryConnector({ storage }, { schema });
 
   function makeModels() {
     const Post = Model({
       tableName: 'posts',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { title?: string; commentsCount?: number }) => ({
-        title: p.title ?? '',
-        commentsCount: p.commentsCount ?? 0,
-      }),
     });
     const Comment = Model({
       tableName: 'comments',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { postId?: number | null; body?: string }) => ({
-        postId: p.postId ?? null,
-        body: p.body ?? '',
-      }),
       counterCaches: [{ belongsTo: Post, foreignKey: 'postId', column: 'commentsCount' }],
     });
     return { Post, Comment };
@@ -89,21 +96,11 @@ describe('counter caches', () => {
     const Comment = Model({
       tableName: 'comments',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { postId?: number; body?: string }) => ({
-        postId: p.postId ?? 0,
-        body: p.body ?? '',
-      }),
       counterCaches: [{ belongsTo: () => Post, foreignKey: 'postId', column: 'commentsCount' }],
     });
     Post = Model({
       tableName: 'posts',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { title?: string; commentsCount?: number }) => ({
-        title: p.title ?? '',
-        commentsCount: p.commentsCount ?? 0,
-      }),
     });
     await Comment.create({ postId: 1, body: 'lazy' });
     expect(((await Post.find(1)) as any).commentsCount).toBe(1);
@@ -113,11 +110,6 @@ describe('counter caches', () => {
     const Comment = Model({
       tableName: 'comments',
       connector: sharedConnector(),
-      keys: { id: KeyType.number },
-      init: (p: { postId?: number; body?: string }) => ({
-        postId: p.postId ?? 0,
-        body: p.body ?? '',
-      }),
     });
     await Comment.create({ postId: 1, body: 'x' });
     // No counter, no parent mutation.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MemoryConnector, Model } from '../index.js';
+import { defineSchema, MemoryConnector, Model } from '../index.js';
 
 interface UserRow {
   id?: number;
@@ -19,8 +19,41 @@ interface CommentRow {
   body: string;
 }
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+    associations: {
+      posts: { hasMany: 'posts', foreignKey: 'userId' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+    },
+    associations: {
+      user: { belongsTo: 'users', foreignKey: 'userId' },
+      comments: { hasMany: 'comments', foreignKey: 'postId' },
+    },
+  },
+  comments: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      postId: { type: 'integer' },
+      body: { type: 'string' },
+    },
+    associations: {
+      post: { belongsTo: 'posts', foreignKey: 'postId' },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 function buildModels(connector: MemoryConnector) {
@@ -28,29 +61,16 @@ function buildModels(connector: MemoryConnector) {
     tableName: 'users',
     connector,
     timestamps: false,
-    init: (p: UserRow) => p,
-    associations: {
-      posts: { hasMany: () => Post, foreignKey: 'userId' },
-    },
   }) {}
   class Post extends Model({
     tableName: 'posts',
     connector,
     timestamps: false,
-    init: (p: PostRow) => p,
-    associations: {
-      user: { belongsTo: () => User, foreignKey: 'userId' },
-      comments: { hasMany: () => Comment, foreignKey: 'postId' },
-    },
   }) {}
   class Comment extends Model({
     tableName: 'comments',
     connector,
     timestamps: false,
-    init: (p: CommentRow) => p,
-    associations: {
-      post: { belongsTo: () => Post, foreignKey: 'postId' },
-    },
   }) {}
   return { User, Post, Comment };
 }
@@ -222,12 +242,15 @@ describe('Model.includes — eager loading', () => {
   });
 
   it('throws when the Model declares no associations', async () => {
-    const connector = freshConnector();
+    // Use a schema with no associations declared on the table.
+    const bareSchema = defineSchema({
+      bare: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema: bareSchema });
     class Bare extends Model({
       tableName: 'bare',
       connector,
       timestamps: false,
-      init: (p: { name: string }) => p,
     }) {}
     expect(() => Bare.includes('posts')).toThrow(/declare 'associations'/);
   });
@@ -239,44 +262,58 @@ describe('Model.includes — eager loading', () => {
   });
 
   it('rejects an association whose name collides with a primary-key column', () => {
-    const connector = freshConnector();
+    const collidingSchema = defineSchema({
+      rows: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          name: { type: 'string' },
+          rowId: { type: 'integer' },
+        },
+        associations: {
+          id: { hasMany: 'posts', foreignKey: 'rowId' },
+        },
+      },
+      posts: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          rowId: { type: 'integer' },
+        },
+      },
+    });
     expect(() =>
       Model({
         tableName: 'rows',
-        connector,
+        connector: new MemoryConnector({ storage: {} }, { schema: collidingSchema }),
         timestamps: false,
-        init: (p: { name: string }) => p,
-        associations: { id: { hasMany: () => Post, foreignKey: 'rowId' } },
       }),
     ).toThrow(/collides with a primary key column/);
-    class Post extends Model({
-      tableName: 'posts',
-      connector,
-      timestamps: false,
-      init: (p: PostRow) => p,
-    }) {}
-    void Post;
   });
 
   it('rejects an association whose name collides with a built-in instance method', () => {
-    const connector = freshConnector();
+    const collidingSchema = defineSchema({
+      rows: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          name: { type: 'string' },
+          rowId: { type: 'integer' },
+        },
+        associations: {
+          save: { hasMany: 'posts', foreignKey: 'rowId' },
+        },
+      },
+      posts: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          rowId: { type: 'integer' },
+        },
+      },
+    });
     expect(() =>
       Model({
         tableName: 'rows',
-        connector,
+        connector: new MemoryConnector({ storage: {} }, { schema: collidingSchema }),
         timestamps: false,
-        init: (p: { name: string }) => p,
-        associations: {
-          save: { hasMany: () => Post, foreignKey: 'rowId' },
-        },
       }),
     ).toThrow(/built-in instance method/);
-    class Post extends Model({
-      tableName: 'posts',
-      connector,
-      timestamps: false,
-      init: (p: PostRow) => p,
-    }) {}
-    void Post;
   });
 });

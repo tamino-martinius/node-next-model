@@ -1,4 +1,4 @@
-import { MemoryConnector, Model } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model } from '@next-model/core';
 import { describe, expect, it } from 'vitest';
 
 import { createCollectionHandlers, createMemberHandlers } from '../index.js';
@@ -10,8 +10,19 @@ interface UserShape {
   active: boolean;
 }
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      active: { type: 'boolean' },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 function buildUser(connector: MemoryConnector) {
@@ -19,7 +30,6 @@ function buildUser(connector: MemoryConnector) {
     tableName: 'users',
     connector,
     timestamps: false,
-    init: (props: UserShape) => props,
   }) {};
 }
 

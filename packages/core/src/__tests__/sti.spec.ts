@@ -1,20 +1,25 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  animals: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      type: { type: 'string' },
+      name: { type: 'string' },
+      species: { type: 'string' },
+      sound: { type: 'string' },
+    },
+  },
+});
 
 describe('Single Table Inheritance', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makeModels() {
     const Animal = Model({
       tableName: 'animals',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { name?: string; species?: string; sound?: string; type?: string }) => ({
-        name: p.name ?? '',
-        species: p.species ?? '',
-        sound: p.sound ?? '',
-        type: p.type ?? '',
-      }),
       inheritColumn: 'type',
     });
     const Dog = Animal.inherit({ type: 'Dog' });
@@ -92,8 +97,6 @@ describe('Single Table Inheritance', () => {
     const Animal = Model({
       tableName: 'animals',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({}),
     });
     expect(() => Animal.inherit({ type: 'Dog' })).toThrowError(/inheritColumn/);
   });
@@ -102,8 +105,6 @@ describe('Single Table Inheritance', () => {
     const Animal = Model({
       tableName: 'animals',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { name?: string; type?: string }) => ({ name: p.name ?? '', type: p.type ?? '' }),
       inheritColumn: 'type',
     });
     const Dog = Animal.inherit({

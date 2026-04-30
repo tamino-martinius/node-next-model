@@ -1,23 +1,39 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { PostgresConnector } from '@next-model/postgres-connector';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/nextmodel_demo';
 
-const connector = new PostgresConnector({ connectionString: DATABASE_URL, max: 4 });
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+      payload: { type: 'json' },
+    },
+  },
+});
+
+const connector = new PostgresConnector({ connectionString: DATABASE_URL, max: 4 }, { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; age: number }) => props,
 }) {}
 
 class Post extends Model({
   tableName: 'posts',
   connector,
   timestamps: false,
-  init: (props: { title: string; userId: number; payload: object }) => props,
 }) {}
 
 // Recreate schema each run so the demo is idempotent.

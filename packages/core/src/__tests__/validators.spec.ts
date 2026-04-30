@@ -1,5 +1,5 @@
 import {
-  KeyType,
+  defineSchema,
   MemoryConnector,
   Model,
   type Storage,
@@ -14,9 +14,39 @@ import {
   validateUniqueness,
 } from '../index.js';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string', default: '' },
+      code: { type: 'string', default: '' },
+      email: { type: 'string', null: true, default: null },
+      password: { type: 'string', default: '' },
+      tenantId: { type: 'integer', default: 0 },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      role: { type: 'string', default: 'user' },
+      username: { type: 'string', default: '' },
+    },
+  },
+  rows: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string', default: '' },
+      code: { type: 'string', default: '' },
+      age: { type: 'integer', null: true, default: null },
+      count: { type: 'integer', null: true, default: null },
+      draft: { type: 'boolean', default: false },
+    },
+  },
+});
+
 describe('validator registry', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   afterEach(() => {
     storage = {};
@@ -27,11 +57,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string; email?: string }) => ({
-          name: p.name ?? '',
-          email: p.email ?? '',
-        }),
         validators: [validatePresence(['name', 'email'])],
       });
       const u = User.build({});
@@ -45,8 +70,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string }) => ({ name: p.name ?? '' }),
         validators: [validatePresence('name')],
       });
       const u = User.build({ name: 'a' });
@@ -60,8 +83,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { email?: string }) => ({ email: p.email ?? '' }),
         validators: [validateFormat('email', { with: /^[^@\s]+@[^@\s]+\.[^@\s]+$/ })],
       });
       const u = User.build({ email: 'not-an-email' });
@@ -73,8 +94,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { email?: string | null }) => ({ email: p.email ?? null }),
         validators: [validateFormat('email', { with: /@/, allowNull: true })],
       });
       const u = User.build({ email: null });
@@ -87,11 +106,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string; code?: string }) => ({
-          name: p.name ?? '',
-          code: p.code ?? '',
-        }),
         validators: [validateLength('name', { min: 3, max: 5 }), validateLength('code', { is: 4 })],
       });
       const tooShort = User.build({ name: 'a', code: '123' });
@@ -113,11 +127,6 @@ describe('validator registry', () => {
       const Post = Model({
         tableName: 'posts',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { role?: string; username?: string }) => ({
-          role: p.role ?? 'user',
-          username: p.username ?? '',
-        }),
         validators: [
           validateInclusion('role', ['admin', 'user', 'guest']),
           validateExclusion('username', ['admin', 'root']),
@@ -137,8 +146,6 @@ describe('validator registry', () => {
       const Row = Model({
         tableName: 'rows',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { age?: any; count?: any }) => ({ age: p.age ?? null, count: p.count ?? null }),
         validators: [
           validateNumericality('age', { integer: true, min: 0, max: 120, allowNull: true }),
           validateNumericality('count', { greaterThan: 0, allowNull: true }),
@@ -163,8 +170,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { password?: string }) => ({ password: p.password ?? '' }),
         validators: [validateConfirmation('password')],
       });
       const u: any = User.build({ password: 'abc' });
@@ -187,8 +192,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { email?: string }) => ({ email: p.email ?? '' }),
         validators: [validateUniqueness('email')],
       });
       const dup = User.build({ email: 'a@a.com' });
@@ -201,8 +204,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { email?: string }) => ({ email: p.email ?? '' }),
         validators: [validateUniqueness('email')],
       });
       const existing = await User.find(1);
@@ -219,11 +220,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { email?: string; tenantId?: number }) => ({
-          email: p.email ?? '',
-          tenantId: p.tenantId ?? 0,
-        }),
         validators: [validateUniqueness('email', { scope: ['tenantId'] })],
       });
       const newInTenant1 = User.build({ email: 'a@a.com', tenantId: 1 });
@@ -238,11 +234,6 @@ describe('validator registry', () => {
       const Row = Model({
         tableName: 'rows',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string; draft?: boolean }) => ({
-          name: p.name ?? '',
-          draft: p.draft ?? false,
-        }),
         validators: [validatePresence('name', { unless: (r: any) => r.draft })],
       });
       const draft = Row.build({ name: '', draft: true });
@@ -255,8 +246,6 @@ describe('validator registry', () => {
       const Row = Model({
         tableName: 'rows',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string }) => ({ name: p.name ?? '' }),
         validators: [validatePresence('name', { message: 'is required' })],
       });
       const r = Row.build({});
@@ -270,8 +259,6 @@ describe('validator registry', () => {
       const Row = Model({
         tableName: 'rows',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string }) => ({ name: p.name ?? '' }),
         validators: [validatePresence('name'), (r: any) => r.name !== 'banned'],
       });
       const a = Row.build({ name: '' });
@@ -288,11 +275,6 @@ describe('validator registry', () => {
       const User = Model({
         tableName: 'users',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string; email?: string }) => ({
-          name: p.name ?? '',
-          email: p.email ?? '',
-        }),
         validators: [validatePresence(['name', 'email'])],
       });
       const u = User.build({});
@@ -315,8 +297,6 @@ describe('validator registry', () => {
       const Row = Model({
         tableName: 'rows',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { name?: string }) => ({ name: p.name ?? '' }),
         validators: [validatePresence('name')],
       });
       const r = Row.build({});

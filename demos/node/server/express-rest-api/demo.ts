@@ -1,16 +1,26 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { createRestRouter } from '@next-model/express-rest-api';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 import express, { type Request } from 'express';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      role: { type: 'string' },
+      active: { type: 'boolean', default: true },
+    },
+  },
+});
+
 // In-memory sqlite so the demo boots with zero infra and wipes on exit.
-const connector = new SqliteConnector(':memory:');
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; role: 'admin' | 'member'; active: boolean }) => props,
 }) {}
 
 await connector.createTable('users', (t) => {

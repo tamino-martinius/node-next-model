@@ -1,22 +1,37 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { MysqlConnector } from '@next-model/mysql-connector';
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/nextmodel_demo';
 
-const connector = new MysqlConnector(DATABASE_URL);
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+    },
+  },
+});
+
+const connector = new MysqlConnector(DATABASE_URL, { schema });
 
 class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string; age: number }) => props,
 }) {}
 
 class Post extends Model({
   tableName: 'posts',
   connector,
   timestamps: false,
-  init: (props: { title: string; userId: number }) => props,
 }) {}
 
 await connector.dropTable('posts');

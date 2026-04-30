@@ -1,5 +1,5 @@
-import { runModelConformance } from '@next-model/conformance';
-import { FilterError, Model } from '@next-model/core';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
+import { defineSchema, FilterError, Model } from '@next-model/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryLocalStorage } from '../__mocks__/MemoryLocalStorage.js';
 import { LocalStorageConnector } from '../LocalStorageConnector.js';
@@ -9,12 +9,19 @@ let connector: LocalStorageConnector;
 
 const tableName = 'users';
 
-type UserProps = { name: string | null; age: number };
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string', null: true },
+      age: { type: 'integer' },
+    },
+  },
+});
 
 function buildUser() {
   return class User extends Model({
     tableName,
-    init: (props: UserProps) => props,
     connector,
     timestamps: false,
   }) {};
@@ -27,7 +34,7 @@ let carol: InstanceType<typeof User>;
 
 async function seed(): Promise<void> {
   webStorage = new MemoryLocalStorage();
-  connector = new LocalStorageConnector({ localStorage: webStorage });
+  connector = new LocalStorageConnector({ localStorage: webStorage }, { schema });
   User = buildUser();
   alice = await User.create({ name: 'alice', age: 18 });
   bob = await User.create({ name: null, age: 21 });
@@ -423,5 +430,9 @@ describe('LocalStorageConnector', () => {
 
 runModelConformance({
   name: 'LocalStorageConnector',
-  makeConnector: () => new LocalStorageConnector({ localStorage: new MemoryLocalStorage() }),
+  makeConnector: () =>
+    new LocalStorageConnector(
+      { localStorage: new MemoryLocalStorage() },
+      { schema: conformanceSchema },
+    ),
 });

@@ -1,12 +1,26 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { RedisConnector } from '@next-model/redis-connector';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 
-const connector = new RedisConnector({
-  client: { url: REDIS_URL },
-  prefix: 'nm-demo:',
+const schema = defineSchema({
+  notes: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      body: { type: 'text' },
+      tags: { type: 'json' },
+    },
+  },
 });
+
+const connector = new RedisConnector(
+  {
+    client: { url: REDIS_URL },
+    prefix: 'nm-demo:',
+  },
+  { schema },
+);
 
 await connector.connect();
 
@@ -14,7 +28,6 @@ class Note extends Model({
   tableName: 'notes',
   connector,
   timestamps: false,
-  init: (props: { title: string; body: string; tags: string[] }) => props,
 }) {}
 
 // Wipe the prefix so the demo is idempotent.

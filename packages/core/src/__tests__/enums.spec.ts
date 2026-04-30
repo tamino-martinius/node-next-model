@@ -1,21 +1,32 @@
-import { KeyType, MemoryConnector, Model, type Storage, ValidationError } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage, ValidationError } from '../index.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      status: { type: 'string' },
+      visibility: { type: 'string' },
+    },
+  },
+  items: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      state: { type: 'string' },
+    },
+  },
+});
 
 describe('enums', () => {
   let storage: Storage = {};
   const tableName = 'posts';
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost() {
     return Model({
       tableName,
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({
-        title: '' as string,
-        status: 'draft' as string,
-        visibility: 'public' as string,
-      }),
       enums: {
         status: ['draft', 'published', 'archived'] as const,
         visibility: ['public', 'private'] as const,
@@ -78,9 +89,10 @@ describe('enums', () => {
   it('handles snake_case values via camelCase scopes / PascalCase predicates', async () => {
     const Item = Model({
       tableName: 'items',
-      connector: new MemoryConnector({ storage: { items: [{ id: 1, state: 'in_review' }] } }),
-      keys: { id: KeyType.number },
-      init: () => ({ state: 'pending' as string }),
+      connector: new MemoryConnector(
+        { storage: { items: [{ id: 1, state: 'in_review' }] } },
+        { schema },
+      ),
       enums: { state: ['pending', 'in_review', 'approved'] as const },
     }) as any;
     expect(typeof Item.inReview).toBe('function');
@@ -106,11 +118,18 @@ describe('enums', () => {
   });
 
   it('throws at factory construction when an enum value collides with an existing static method', () => {
+    const collidingSchema = defineSchema({
+      posts: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          status: { type: 'string' },
+        },
+      },
+    });
     expect(() =>
       Model({
-        tableName: 'x',
-        keys: { id: KeyType.number },
-        init: () => ({ status: '' as string }),
+        tableName: 'posts',
+        connector: new MemoryConnector({ storage: {} }, { schema: collidingSchema }),
         enums: { status: ['all'] as const },
       }),
     ).toThrowError(/collides with existing static method 'all'/);

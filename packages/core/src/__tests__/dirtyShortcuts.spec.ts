@@ -1,16 +1,25 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      body: { type: 'string' },
+      score: { type: 'integer' },
+    },
+  },
+});
 
 describe('dirty-tracking shortcuts', () => {
   let storage: Storage = {};
   const tableName = 'posts';
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   const Post = () =>
     Model({
       tableName,
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ title: '' as string, body: '' as string, score: 0 }),
     });
 
   beforeEach(() => {
