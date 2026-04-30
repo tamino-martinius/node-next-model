@@ -1,18 +1,38 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string', default: '' },
+      views: { type: 'integer', default: 0 },
+    },
+  },
+  tags: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      slug: { type: 'string', default: '' },
+      name: { type: 'string', default: '' },
+    },
+  },
+  slots: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      tenantId: { type: 'integer', default: 0 },
+      key: { type: 'string', default: '' },
+      value: { type: 'string', default: '' },
+    },
+  },
+});
 
 describe('upsert / upsertAll', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost() {
     return Model({
-      tableName: 'posts',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { id?: number; title?: string; views?: number }) => ({
-        title: p.title ?? '',
-        views: p.views ?? 0,
-      }),
+      tableName: 'posts',
     });
   }
 
@@ -50,14 +70,15 @@ describe('upsert / upsertAll', () => {
 
     it('respects an explicit onConflict column', async () => {
       const Tag = Model({
-        tableName: 'tags',
-        connector: new MemoryConnector({
-          storage: {
-            tags: [{ id: 1, slug: 'js', name: 'JavaScript' }],
+        connector: new MemoryConnector(
+          {
+            storage: {
+              tags: [{ id: 1, slug: 'js', name: 'JavaScript' }],
+            },
           },
-        }),
-        keys: { id: KeyType.number },
-        init: (p: { slug?: string; name?: string }) => ({ slug: p.slug ?? '', name: p.name ?? '' }),
+          { schema },
+        ),
+        tableName: 'tags',
       });
       const result = (await Tag.upsert({ slug: 'js', name: 'JS' }, { onConflict: 'slug' })) as any;
       expect(result.id).toBe(1);
@@ -66,19 +87,16 @@ describe('upsert / upsertAll', () => {
 
     it('respects a multi-column onConflict tuple', async () => {
       const Slot = Model({
-        tableName: 'slots',
-        connector: new MemoryConnector({
-          storage: {
-            slots: [{ id: 1, tenantId: 1, key: 'home', value: 'old' }],
+        connector: new MemoryConnector(
+          {
+            storage: {
+              slots: [{ id: 1, tenantId: 1, key: 'home', value: 'old' }],
+            },
+            lastIds: { slots: 1 },
           },
-          lastIds: { slots: 1 },
-        }),
-        keys: { id: KeyType.number },
-        init: (p: { tenantId?: number; key?: string; value?: string }) => ({
-          tenantId: p.tenantId ?? 0,
-          key: p.key ?? '',
-          value: p.value ?? '',
-        }),
+          { schema },
+        ),
+        tableName: 'slots',
       });
       const updated = (await Slot.upsert(
         { tenantId: 1, key: 'home', value: 'new' },
@@ -156,22 +174,19 @@ describe('upsert / upsertAll', () => {
 
     it('respects multi-column onConflict', async () => {
       const Slot = Model({
-        tableName: 'slots',
-        connector: new MemoryConnector({
-          storage: {
-            slots: [
-              { id: 1, tenantId: 1, key: 'home', value: 'old1' },
-              { id: 2, tenantId: 2, key: 'home', value: 'old2' },
-            ],
+        connector: new MemoryConnector(
+          {
+            storage: {
+              slots: [
+                { id: 1, tenantId: 1, key: 'home', value: 'old1' },
+                { id: 2, tenantId: 2, key: 'home', value: 'old2' },
+              ],
+            },
+            lastIds: { slots: 2 },
           },
-          lastIds: { slots: 2 },
-        }),
-        keys: { id: KeyType.number },
-        init: (p: { tenantId?: number; key?: string; value?: string }) => ({
-          tenantId: p.tenantId ?? 0,
-          key: p.key ?? '',
-          value: p.value ?? '',
-        }),
+          { schema },
+        ),
+        tableName: 'slots',
       });
       const results = (await Slot.upsertAll(
         [

@@ -1,15 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryConnector } from '../MemoryConnector.js';
+import { defineSchema, MemoryConnector } from '../index.js';
 import { Model } from '../Model.js';
 
-const makeConnector = () => new MemoryConnector({ storage: {} });
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      archivedAt: { type: 'datetime', null: true },
+    },
+  },
+  items: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      active: { type: 'boolean' },
+      archivedAt: { type: 'datetime', null: true },
+    },
+  },
+});
+
+const makeConnector = () => new MemoryConnector({ storage: {} }, { schema });
 
 describe('defaultScope', () => {
   const buildPost = () => {
     const connector = makeConnector();
     return class Post extends Model({
       tableName: 'posts',
-      init: (p: { title: string; archivedAt: Date | null }) => p,
       defaultScope: { $null: 'archivedAt' },
       timestamps: false,
       connector,
@@ -69,7 +86,6 @@ describe('defaultScope', () => {
     const connector = makeConnector();
     class Item extends Model({
       tableName: 'items',
-      init: (p: { active: boolean; name: string }) => p,
       defaultScope: { active: true },
       timestamps: false,
       connector,
@@ -84,7 +100,6 @@ describe('defaultScope', () => {
     const connector = makeConnector();
     class Item extends Model({
       tableName: 'items',
-      init: (p: { active: boolean; archivedAt: Date | null; name: string }) => p,
       defaultScope: { $and: [{ active: true }, { $null: 'archivedAt' }] },
       timestamps: false,
       connector,
