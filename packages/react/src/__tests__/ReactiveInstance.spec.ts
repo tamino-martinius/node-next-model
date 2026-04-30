@@ -1,13 +1,22 @@
-import { MemoryConnector, Model } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model } from '@next-model/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitterFor } from '../instanceState.js';
 import { wrapInstance } from '../ReactiveInstance.js';
 
-const connector = new MemoryConnector({ storage: {} });
+const schema = defineSchema({
+  todos: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      done: { type: 'boolean', default: false },
+    },
+  },
+});
+
+const connector = new MemoryConnector({ storage: {} }, { schema });
 class Todo extends Model({
   tableName: 'todos',
   connector,
-  init: (props: { title: string; done: boolean }) => props,
   timestamps: false,
 }) {}
 
@@ -81,7 +90,6 @@ describe('wrapInstance', () => {
     class StrictTodo extends Model({
       tableName: 'todos',
       connector,
-      init: (p: { title: string; done: boolean }) => p,
       validators: [(t: any) => Boolean(t.attributes.title)],
       timestamps: false,
     }) {}
@@ -118,7 +126,7 @@ describe('wrapInstance', () => {
     const todo = Todo.build({ title: 'a', done: false });
     const reactive = wrapInstance(todo, { resettable: true }) as any;
     reactive.reset();
-    expect(todo.attributes).toEqual({});
+    expect(todo.attributes).toEqual({ done: false });
   });
 
   it('non-resettable shell does not expose reset', () => {
