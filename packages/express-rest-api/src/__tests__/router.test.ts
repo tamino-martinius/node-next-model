@@ -1,4 +1,4 @@
-import { MemoryConnector, Model } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model } from '@next-model/core';
 import express, { type Request } from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -12,8 +12,25 @@ interface UserShape {
   active: boolean;
 }
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      active: { type: 'boolean' },
+    },
+  },
+  strict_users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 function buildUser(connector: MemoryConnector) {
@@ -21,7 +38,6 @@ function buildUser(connector: MemoryConnector) {
     tableName: 'users',
     connector,
     timestamps: false,
-    init: (props: UserShape) => props,
   }) {};
 }
 
@@ -282,7 +298,6 @@ describe('createRestRouter — validation errors', () => {
       tableName: 'strict_users',
       connector,
       timestamps: false,
-      init: (props: { name: string }) => props,
       validators: [
         (instance) => {
           const name = (instance.attributes as { name: string }).name;
