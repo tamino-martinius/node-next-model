@@ -1,18 +1,34 @@
-import { defineAlter, FilterError, KeyType, Model, PersistenceError } from '@next-model/core';
+import {
+  defineAlter,
+  defineSchema,
+  FilterError,
+  KeyType,
+  Model,
+  PersistenceError,
+} from '@next-model/core';
 import type Knex from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DataApiClient, DataApiQueryResult } from '../DataApiConnector.js';
 import { DataApiConnector } from '../index.js';
 import { MockDataApiClient } from '../MockDataApiClient.js';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string', null: true },
+      age: { type: 'integer' },
+    },
+  },
+});
+
 const mockClient = new MockDataApiClient();
-const connector = new DataApiConnector({ client: mockClient });
+const connector = new DataApiConnector({ client: mockClient }, { schema });
 
 const tableName = 'users';
 
 class User extends Model({
   tableName,
-  init: (props: { name: string | null; age: number }) => props,
   connector,
 }) {}
 

@@ -6,11 +6,15 @@ import type { ColumnQuery } from './query/ColumnQuery.js';
 import { InstanceQuery } from './query/InstanceQuery.js';
 import type { QueryState } from './query/QueryState.js';
 import type { ScalarQuery } from './query/ScalarQuery.js';
+import type { TableDefinition } from './schema.js';
 import {
   type DatabaseSchema,
   deriveKeysFromTableDefinition,
+  type SchemaAssociations,
+  type SchemaCreateProps,
   type SchemaKeys,
   type SchemaProps,
+  type TypedAssociation,
 } from './typedSchema.js';
 import {
   type AggregateKind,
@@ -109,6 +113,38 @@ export type IncludeOptions = {
    */
   strategy?: IncludeStrategy;
 };
+
+type AssocNames<Assoc> = keyof Assoc & string;
+
+/**
+ * The class returned from `Model({ connector, tableName })`. Identical static
+ * API to `modelFactoryImpl`'s class except:
+ *
+ *  - The instance type intersects with the typed association accessors
+ *    derived from `S['tables'][K].associations`.
+ *  - `includes` / `joins` / `whereMissing` are constrained to declared
+ *    association names so unknown strings fail at compile time.
+ */
+type SchemaModelClass<
+  CreateProps,
+  PersistentProps extends Schema,
+  Keys extends Dict<KeyType>,
+  Scopes extends ScopeMap,
+  Assoc,
+> =
+  ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>> extends infer R
+    ? R extends new (
+        ...args: infer A
+      ) => infer Inst
+      ? Omit<R, 'prototype' | 'includes' | 'joins' | 'whereMissing'> & {
+          new (...args: A): Inst & Assoc;
+          prototype: Inst & Assoc;
+          includes<M>(this: M, ...names: Array<AssocNames<Assoc> | IncludeOptions>): M;
+          joins<M>(this: M, ...names: AssocNames<Assoc>[]): M;
+          whereMissing<M>(this: M, name: AssocNames<Assoc>): M;
+        }
+      : R
+    : never;
 
 /**
  * An association entry on `Model.associations`. `belongsTo` / `hasMany` /
@@ -505,6 +541,20 @@ export class ModelClass {
    * shape; `() => Model` thunks are supported for circular imports.
    */
   static associations: AssociationsMap | undefined = undefined;
+  /**
+   * Registry of `tableName → Model class`, populated when each Model is
+   * constructed via the schema-mode entry point. Used by schema-driven
+   * association resolution so the target Model class is reachable by name even
+   * when the file declaring it imports another file in a cycle.
+   *
+   * **Caveat:** the registry is keyed only by tableName. Apps that construct
+   * multiple schemas declaring the same table name (e.g. multi-tenant
+   * deployments, mixed-scope test setups) will overwrite the prior entry. The
+   * single-schema-per-process assumption matches the typical app shape; if
+   * that ceases to hold, the registry needs to be scoped to the schema
+   * identity instead.
+   */
+  static tableRegistry: Map<string, typeof ModelClass> = new Map();
   /**
    * Pending JOIN clauses accumulated by `joins(...)`, `whereMissing(...)`, and
    * cross-association `filterBy(...)` calls. Resolved at terminal time:
@@ -1447,14 +1497,22 @@ export class ModelClass {
       Object.defineProperty(this, key, {
         get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
+        configurable: true,
       });
     }
 
     const model = this.constructor as typeof ModelClass;
 
+    // Keys are configurable so they can re-define a same-named property
+    // installed by the persistentProps loop above (e.g. when the caller
+    // passes an explicit primary value through `init`). The descriptor is
+    // intentionally setter-less — assignments to a key field flow through
+    // `assign({...})` via the persistentProps getter chain, not by
+    // overwriting the descriptor here.
     for (const key in model.keys) {
       Object.defineProperty(this, key, {
         get: () => (this.keys ? this.keys[key] : undefined),
+        configurable: true,
       });
     }
 
@@ -1490,6 +1548,11 @@ export class ModelClass {
     if (model.associations) {
       for (const name in model.associations) {
         if (Object.getOwnPropertyDescriptor(this, name)) continue;
+        // Class-defined getters live on the prototype, not on `this`. Skip
+        // auto-defining the property when the prototype chain already exposes
+        // a descriptor for this name — the class author opted into custom
+        // accessor logic and the auto-accessor would otherwise shadow it.
+        if (hasPrototypeProperty(this, name)) continue;
         const spec = model.associations[name];
         let cached: unknown;
         let hasCached = false;
@@ -2120,6 +2183,159 @@ export class ModelClass {
 }
 
 /**
+ * Returns true when any prototype in `obj`'s chain (excluding Object.prototype
+ * itself) owns a property descriptor for `name`. Used to detect class-defined
+ * getters so the constructor's auto-association installer can skip them and let
+ * the user's custom accessor run instead.
+ */
+function hasPrototypeProperty(obj: object, name: string): boolean {
+  let proto: object | null = Object.getPrototypeOf(obj);
+  while (proto && proto !== Object.prototype) {
+    if (Object.getOwnPropertyDescriptor(proto, name)) return true;
+    proto = Object.getPrototypeOf(proto);
+  }
+  return false;
+}
+
+/**
+ * Translate a schema-level `tableDefinition.associations` map (target-table
+ * strings) into the runtime `AssociationsMap` shape (target-class refs) the
+ * factory consumes. The runtime stores the *table* metadata, not the Model
+ * class — `resolveAssociationTarget` reads `target.tableName` and
+ * `target.keys` only, so we hand it a minimal table-shaped shim until the
+ * user's Model class registers itself.
+ *
+ * Each call site is invoked lazily by `resolveAssociationTarget` via a
+ * `() => target` thunk, so the user's Model classes for sibling tables
+ * don't have to be defined yet when `Model({ schema, tableName })` runs
+ * for any single table.
+ */
+function schemaAssociationsToRuntime(
+  selfDef: TableDefinition,
+  allDefs: { [name: string]: TableDefinition },
+): AssociationsMap | undefined {
+  const raw = selfDef.associations as Record<string, TypedAssociation> | undefined;
+  if (!raw) return undefined;
+  const result: AssociationsMap = {};
+  for (const [name, spec] of Object.entries(raw)) {
+    const targetTable =
+      'belongsTo' in spec
+        ? spec.belongsTo
+        : 'hasMany' in spec
+          ? spec.hasMany
+          : 'hasOne' in spec
+            ? spec.hasOne
+            : spec.hasManyThrough;
+    const targetDef = allDefs[targetTable];
+    if (!targetDef) {
+      throw new Error(
+        `Model(): association '${name}' on '${selfDef.name}' references unknown table '${targetTable}'. Known: ${Object.keys(
+          allDefs,
+        ).join(', ')}`,
+      );
+    }
+    const targetThunk = () => tableDefinitionAsModelShim(targetDef);
+    if ('belongsTo' in spec) {
+      result[name] = {
+        belongsTo: targetThunk as any,
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+        polymorphic: spec.polymorphic,
+        typeKey: spec.typeKey,
+        typeValue: spec.typeValue,
+      };
+    } else if ('hasMany' in spec) {
+      result[name] = {
+        hasMany: targetThunk as any,
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+        polymorphic: spec.polymorphic,
+        typeKey: spec.typeKey,
+        typeValue: spec.typeValue,
+      };
+    } else if ('hasOne' in spec) {
+      result[name] = {
+        hasOne: targetThunk as any,
+        foreignKey: spec.foreignKey,
+        primaryKey: spec.primaryKey,
+        polymorphic: spec.polymorphic,
+        typeKey: spec.typeKey,
+        typeValue: spec.typeValue,
+      };
+    } else {
+      const throughTable = spec.through;
+      const throughDef = allDefs[throughTable];
+      if (!throughDef) {
+        throw new Error(
+          `Model(): hasManyThrough association '${name}' on '${selfDef.name}' references unknown through table '${throughTable}'. Known: ${Object.keys(allDefs).join(', ')}`,
+        );
+      }
+      result[name] = {
+        hasManyThrough: targetThunk as any,
+        through: (() => tableDefinitionAsModelShim(throughDef)) as any,
+        throughForeignKey: spec.throughForeignKey,
+        targetForeignKey: spec.targetForeignKey,
+        selfPrimaryKey: spec.selfPrimaryKey,
+        targetPrimaryKey: spec.targetPrimaryKey,
+      };
+    }
+  }
+  return result;
+}
+
+/**
+ * Build an `init` function from a schema's `TableDefinition`. The returned
+ * function applies each column's static `default` to the in-memory record
+ * when the caller did not supply that key, leaving caller-supplied values
+ * untouched. `'currentTimestamp'` defaults are evaluated at call time —
+ * each `build()` gets a fresh `Date`. Auto-increment primary keys are
+ * skipped (the connector assigns them).
+ */
+function buildSchemaInit(
+  tableDef: TableDefinition,
+): (props: Record<string, unknown>) => Record<string, unknown> {
+  return (props) => {
+    const out: Record<string, unknown> = { ...props };
+    for (const col of tableDef.columns) {
+      if (col.primary && col.autoIncrement) continue;
+      if (out[col.name] !== undefined) continue;
+      if (col.default === undefined) continue;
+      if (col.default === 'currentTimestamp') {
+        out[col.name] = new Date();
+      } else {
+        out[col.name] = col.default;
+      }
+    }
+    return out;
+  };
+}
+
+/**
+ * Build a minimal Model-shaped object from a `TableDefinition`. The runtime
+ * association resolver (`resolveAssociationTarget`) reads only `tableName`
+ * and `keys` from the target. After the user's Model class registers itself
+ * via `ModelClass.tableRegistry`, every lookup returns that class. Until
+ * registration, the fallback shim provides just enough surface for the
+ * resolver to compute query keys.
+ *
+ * **Shim limitations:** the fallback is missing `connector`, `defaultScope`,
+ * and other Model state. If a thunk fires before the user's sibling Model
+ * class is constructed (e.g. `await user.tasks.all()` is called before the
+ * `class Task extends Model(...)` declaration runs), `CollectionQuery`
+ * will throw a confusing `connector is undefined` error at materialise
+ * time. In practice every association access happens after both Model
+ * classes are declared, so the shim is never the materialise target.
+ */
+function tableDefinitionAsModelShim(def: TableDefinition): typeof ModelClass {
+  const registered = ModelClass.tableRegistry.get(def.name);
+  if (registered) return registered;
+  return {
+    tableName: def.name,
+    keys: deriveKeysFromTableDefinition(def),
+  } as unknown as typeof ModelClass;
+}
+
+/**
  * Connector-attached schema overload — pass a `Connector<DatabaseSchema>`
  * (a connector instance constructed with `{ schema }`) and a `tableName`.
  * TypeScript walks the connector's attached schema's `tables[tableName]` and
@@ -2138,7 +2354,7 @@ export function Model<
    * Optional row-shape transformer. Defaults to identity — the props passed
    * to `create` / `build` flow straight through to the connector.
    */
-  init?: (props: SchemaProps<NonNullable<Conn['schema']>, K>) => Schema;
+  init?: (props: SchemaCreateProps<NonNullable<Conn['schema']>, K>) => Schema;
   filter?: Filter<
     SchemaProps<NonNullable<Conn['schema']>, K> & {
       [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number;
@@ -2179,206 +2395,18 @@ export function Model<
   normalizes?: Dict<(value: any) => any>;
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
-  associations?: AssociationsMap;
-}): ReturnType<
-  typeof modelFactoryImpl<
-    SchemaProps<NonNullable<Conn['schema']>, K>,
-    SchemaProps<NonNullable<Conn['schema']>, K>,
-    Keys,
-    Scopes
-  >
+}): SchemaModelClass<
+  SchemaCreateProps<NonNullable<Conn['schema']>, K>,
+  SchemaProps<NonNullable<Conn['schema']>, K>,
+  Keys,
+  Scopes,
+  SchemaAssociations<NonNullable<Conn['schema']>, K>
 >;
 
-/**
- * Schema-direct overload — pass a `DatabaseSchema` and a `tableName` directly,
- * without involving a connector. Useful when the connector isn't statically
- * typed (e.g. dynamic connector swapping). `init` defaults to identity; `keys`
- * is derived from the schema's primary columns.
- */
-export function Model<
-  S extends DatabaseSchema<any>,
-  K extends keyof S['tables'] & string,
-  Keys extends Dict<KeyType> = SchemaKeys<S, K>,
-  Scopes extends ScopeMap = {},
->(props: {
-  schema: S;
-  tableName: K;
-  /**
-   * Optional row-shape transformer. Defaults to identity — the props passed
-   * to `create` / `build` flow straight through to the connector.
-   */
-  init?: (props: SchemaProps<S, K>) => Schema;
-  filter?: Filter<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  defaultScope?: Filter<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  limit?: number;
-  skip?: number;
-  order?: Order<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  connector?: Connector<any>;
-  /** Override the keys map derived from the schema's primary columns. */
-  keys?: Keys;
-  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
-  softDelete?: boolean | string | { column?: string };
-  lockVersion?: boolean | string;
-  validators?: Validator<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >[];
-  callbacks?: Callbacks<
-    SchemaProps<S, K> & { [P in keyof Keys]: Keys[P] extends KeyType.uuid ? string : number }
-  >;
-  scopes?: Scopes;
-  enums?: Dict<readonly string[]>;
-  inheritColumn?: string;
-  storeAccessors?: Dict<readonly string[]>;
-  cascade?: CascadeMap;
-  normalizes?: Dict<(value: any) => any>;
-  secureTokens?: string[] | Dict<{ length?: number }>;
-  counterCaches?: CounterCacheSpec[];
-  associations?: AssociationsMap;
-}): ReturnType<typeof modelFactoryImpl<SchemaProps<S, K>, SchemaProps<S, K>, Keys, Scopes>>;
-
-/**
- * Legacy overload — pass an explicit `init` callback whose parameter type
- * defines the row's prop shape, OR pass an interface as the generic type
- * argument (`Model<UserProps>({ tableName: 'x' })`) and let `init` default
- * to identity. `tableName` is required; `init` is optional; `keys` defaults
- * to `{ id: KeyType.number }`.
- */
-export function Model<
-  CreateProps = {},
-  PersistentProps extends Schema = CreateProps extends Schema ? CreateProps : Schema,
-  Keys extends Dict<KeyType> = { id: KeyType.number },
-  Scopes extends ScopeMap = {},
->(props: {
-  tableName: string;
-  init?: (props: CreateProps) => PersistentProps;
-  filter?: Filter<
-    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-  >;
-  /**
-   * Sticky filter applied to every chained read on the Model. Unlike
-   * `filter`, which seeds the initial chain state and is cleared by
-   * `unfiltered()`, `defaultScope` is merged in at materialise-time
-   * regardless of what the chain did with `filter`. Suppress per-key via
-   * `Model.unscope('column', ...)`; suppress entirely via `Model.unscoped()`.
-   */
-  defaultScope?: Filter<
-    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-  >;
-  limit?: number;
-  skip?: number;
-  order?: Order<
-    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-  >;
-  connector?: Connector<any>;
-  keys?: Keys;
-  timestamps?: boolean | { createdAt?: boolean | string; updatedAt?: boolean | string };
-  softDelete?: boolean | string | { column?: string };
-  /**
-   * Enable optimistic locking. `true` uses the column `lockVersion`; pass a
-   * string to use a custom column name. Inserts default the column to 0 and
-   * `save()` / `delete()` throw `StaleObjectError` when the in-memory value
-   * no longer matches the row.
-   */
-  lockVersion?: boolean | string;
-  validators?: Validator<
-    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-  >[];
-  callbacks?: Callbacks<
-    PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
-  >;
-  scopes?: Scopes;
-  /**
-   * Map of column → allowed string values. Each value becomes a chainable
-   * class scope (`Post.draft()`) plus an instance predicate (`post.isDraft()`).
-   * Snake_case values map to camelCase scopes / PascalCase predicates.
-   */
-  enums?: Dict<readonly string[]>;
-  /**
-   * Enable Single Table Inheritance on this Model. Pass the column name used
-   * for the subclass discriminator. Subclasses are declared via
-   * `Base.inherit({ type: 'Dog' })`.
-   */
-  inheritColumn?: string;
-  /**
-   * Map of JSON column → list of sub-keys to expose as instance accessors.
-   * `storeAccessors: { settings: ['theme', 'locale'] }` makes `user.theme`
-   * read/write `user.settings.theme`. Sub-keys must not collide with
-   * Model.keys, persistentProps, or any prototype method.
-   */
-  storeAccessors?: Dict<readonly string[]>;
-  /**
-   * Cascade configuration. Each entry declares a child association and what
-   * to do with its rows when the parent is deleted:
-   *
-   *   - `'destroy'`: load each child and call `.delete()` (callbacks fire)
-   *   - `'deleteAll'`: bulk delete via the connector (no child callbacks)
-   *   - `'nullify'`: bulk update children's foreign-key column to null
-   *   - `'restrict'`: throw `PersistenceError` if any matching child exists
-   *
-   * Cascades run BEFORE the parent's own delete, so a `restrict` failure
-   * leaves the parent intact. Use a function for `hasMany` / `hasOne` to
-   * defer model resolution past circular imports.
-   */
-  cascade?: CascadeMap;
-  /**
-   * Per-column normalizers run on `assign(...)` (and so also on `build` /
-   * `update`). Useful for trimming whitespace, lowercasing emails, stripping
-   * non-digits from phone numbers, etc.
-   */
-  normalizes?: Dict<(value: any) => any>;
-  /**
-   * Columns to auto-populate with a random URL-safe token on insert when
-   * the value is blank. Pass column names directly or per-column options
-   * (`{ apiKey: { length: 24 } }`); default length is 24 bytes →
-   * 32-character base64-url tokens.
-   */
-  secureTokens?: string[] | Dict<{ length?: number }>;
-  /**
-   * Counter cache configuration. Each entry declares a `belongsTo` parent
-   * Model, the foreign-key column on this Model, and a counter column on
-   * the parent. The Model auto-maintains the counter via afterCreate /
-   * afterDelete / afterUpdate hooks (the latter handles parent reassignment).
-   */
-  counterCaches?: CounterCacheSpec[];
-  /**
-   * Declared associations on this Model. Each entry names one of `belongsTo`
-   * / `hasMany` / `hasOne` plus the foreign-key column. Required for
-   * `Model.joins(...names)` / `Model.includes(...names)` /
-   * `Model.whereMissing(name)` / cross-association `filterBy({ name: ... })`,
-   * and for the auto-defined lazy accessors on each instance (`user.posts`,
-   * `user.profile`, `user.company`). Use `() => Other` thunks for circular
-   * imports — same shape as `cascade` and `counterCaches`.
-   */
-  associations?: AssociationsMap;
-}): ReturnType<typeof modelFactoryImpl<CreateProps, PersistentProps, Keys, Scopes>>;
-
 export function Model(props: any): any {
-  // Schema-driven paths derive `keys` and `init` defaults from the
-  // declarative schema before falling through to the legacy implementation.
-  // The legacy implementation is the single source of truth for all
-  // behaviour — schema mode is purely a sugar / TypeScript-inference layer
-  // on top.
-  //
-  // Two schema entry points:
-  //   - `connector: <connectorWithSchema>` + `tableName` — looks up the
-  //     `tables[tableName]` definition on the connector's attached schema.
-  //   - `schema: <DatabaseSchema>` + `tableName` — same lookup but the
-  //     schema is passed directly (for connectors that aren't statically
-  //     typed).
-  //
-  // If both are passed the explicit `schema:` wins so callers can swap the
-  // schema's typing at the Model boundary even when the connector carries
-  // its own.
+  // Schema-driven path: look up the schema attached to the connector.
   let resolvedSchema: DatabaseSchema | undefined;
-  if (props.schema) {
-    resolvedSchema = props.schema as DatabaseSchema;
-  } else if (
+  if (
     props.connector &&
     typeof props.connector === 'object' &&
     'schema' in props.connector &&
@@ -2387,27 +2415,35 @@ export function Model(props: any): any {
     resolvedSchema = props.connector.schema as DatabaseSchema;
   }
 
-  if (resolvedSchema && props.tableName) {
-    const tableName = props.tableName as string;
-    const tableDefinition = resolvedSchema.tableDefinitions[tableName];
-    if (!tableDefinition) {
-      throw new Error(
-        `Model(): tableName '${tableName}' is not declared on the attached schema. Known tables: ${Object.keys(
-          resolvedSchema.tableDefinitions,
-        ).join(', ')}`,
-      );
-    }
-    const keys: Dict<KeyType> = props.keys ?? deriveKeysFromTableDefinition(tableDefinition);
-    const init = props.init ?? ((p: any) => p);
-    const { schema: _schema, ...rest } = props;
-    return modelFactoryImpl({ ...rest, tableName, keys, init });
+  if (!resolvedSchema) {
+    throw new Error(
+      'Model() requires a connector with an attached schema. ' +
+        'Pass `connector` constructed with `{ schema }` (e.g. `new MemoryConnector({}, { schema })`). ' +
+        'The legacy `Model({ tableName, init, keys })` overload was removed.',
+    );
   }
-  // Legacy / interface-generic path. When `init` is omitted (e.g.
-  // `Model<UserProps>({ tableName: 'x' })`) it defaults to identity so the
-  // factory still has a row-shape transformer. The explicit-init form keeps
-  // working unchanged because we only fill in the default when missing.
-  const init = props.init ?? ((p: any) => p);
-  return modelFactoryImpl({ ...props, init });
+
+  const tableName = props.tableName as string;
+  const tableDefinition = resolvedSchema.tableDefinitions[tableName];
+  if (!tableDefinition) {
+    throw new Error(
+      `Model(): tableName '${tableName}' is not declared on the attached schema. Known tables: ${Object.keys(
+        resolvedSchema.tableDefinitions,
+      ).join(', ')}`,
+    );
+  }
+  const keys: Dict<KeyType> = props.keys ?? deriveKeysFromTableDefinition(tableDefinition);
+  // Caller-supplied `init` replaces the schema default builder entirely — there
+  // is no composition. If schema defaults need to apply alongside a custom
+  // transform, the caller should re-derive them inside their `init`.
+  const init = props.init ?? buildSchemaInit(tableDefinition);
+  const associations = schemaAssociationsToRuntime(
+    tableDefinition,
+    resolvedSchema.tableDefinitions,
+  );
+  const result = modelFactoryImpl({ ...props, tableName, keys, init, associations });
+  ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
+  return result;
 }
 
 function modelFactoryImpl<

@@ -1,16 +1,25 @@
-import { KeyType, MemoryConnector, Model, StaleObjectError, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, StaleObjectError, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string', default: '' },
+      lockVersion: { type: 'integer', default: 0 },
+      version: { type: 'integer', default: 0 },
+    },
+  },
+});
 
 describe('optimistic locking', () => {
   let storage: Storage = {};
   const tableName = 'posts';
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost(opts: { lockVersion?: boolean | string } = { lockVersion: true }) {
     return Model({
       tableName,
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ title: '' as string, lockVersion: 0, version: 0 }),
       lockVersion: opts.lockVersion,
     });
   }
@@ -102,8 +111,6 @@ describe('optimistic locking', () => {
     const Post = Model({
       tableName,
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ title: '' as string, lockVersion: 0, version: 0 }),
     });
     expect(Post.lockVersionColumn).toBeUndefined();
     const a = await Post.find(1);

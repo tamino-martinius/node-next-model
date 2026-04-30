@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { Model } from '../Model.js';
+import { defineSchema } from '../typedSchema.js';
 import { type Connector, KeyType } from '../types.js';
 
 export interface ConformanceOptions {
@@ -11,10 +12,123 @@ export interface ConformanceOptions {
   skipTransactions?: boolean;
 }
 
-interface CatProps {
-  name: string;
-  age: number;
-}
+// ---------------------------------------------------------------------------
+// Schema declaration — shared across all conformance Model call sites.
+// Each table used anywhere in this fixture is declared here with its full
+// column set (union of all usages across describe blocks).
+// ---------------------------------------------------------------------------
+export const conformanceSchema = defineSchema({
+  // --- Core CRUD table -------------------------------------------------------
+  conformance_cats: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+    },
+  },
+  // --- Upsert table ----------------------------------------------------------
+  conformance_upsert: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      slug: { type: 'string' },
+      name: { type: 'string' },
+    },
+  },
+  // --- Validators / lifecycle callbacks table --------------------------------
+  conformance_validated: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+  // --- Soft delete table -----------------------------------------------------
+  conformance_soft: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      label: { type: 'string' },
+      discardedAt: { type: 'timestamp', null: true },
+    },
+  },
+  // --- Associations test: posts table ----------------------------------------
+  conformance_posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      authorId: { type: 'integer' },
+    },
+  },
+  // --- JOIN capability tables ------------------------------------------------
+  conformance_join_users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+    associations: {
+      posts: { hasMany: 'conformance_join_posts', foreignKey: 'userId' },
+    },
+  },
+  conformance_join_posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+      status: { type: 'string' },
+    },
+  },
+  // --- Builder pipeline tables -----------------------------------------------
+  conformance_chain_users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      email: { type: 'string' },
+      role: { type: 'string', null: true },
+      active: { type: 'integer', null: true },
+    },
+    associations: {
+      todos: { hasMany: 'conformance_chain_todos', foreignKey: 'userId' },
+    },
+  },
+  conformance_chain_todos: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer', null: true },
+      title: { type: 'string' },
+      ownerEmail: { type: 'string', null: true },
+    },
+  },
+  conformance_chain_addresses: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      city: { type: 'string' },
+    },
+  },
+  conformance_chain_customers: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      addressId: { type: 'integer' },
+    },
+    associations: {
+      address: { belongsTo: 'conformance_chain_addresses', foreignKey: 'addressId' },
+    },
+  },
+  conformance_chain_orders: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      total: { type: 'integer' },
+      customerId: { type: 'integer', null: true },
+    },
+    associations: {
+      customer: { belongsTo: 'conformance_chain_customers', foreignKey: 'customerId' },
+    },
+  },
+  conformance_chain_order_items: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      orderId: { type: 'integer' },
+      amount: { type: 'integer' },
+    },
+  },
+});
 
 export function runModelConformance(opts: ConformanceOptions): void {
   describe(`Model conformance — ${opts.name}`, () => {
@@ -27,7 +141,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
         tableName,
         connector: c,
         timestamps: false,
-        init: (props: CatProps) => props,
       }) {};
     }
 
@@ -349,7 +462,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
     describe('upsert / upsertAll', () => {
       const upsertTable = 'conformance_upsert';
-      type Tag = { slug: string; name: string };
       let TagModel: any;
 
       beforeEach(async () => {
@@ -364,7 +476,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
             tableName: upsertTable,
             connector,
             timestamps: false,
-            init: (props: Tag) => props,
           })
         ) {};
       });
@@ -543,7 +654,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
     describe('Validators + lifecycle callbacks', () => {
       const tableName = 'conformance_validated';
-      type Props = { name: string };
 
       beforeEach(async () => {
         if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
@@ -558,7 +668,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
           tableName,
           connector,
           timestamps: false,
-          init: (props: Props) => props,
           validators: [(instance: { name: string }) => instance.name.length > 0],
         }) {}
         await expect(Strict.create({ name: '' })).rejects.toThrow(/validation/i);
@@ -571,7 +680,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
           tableName,
           connector,
           timestamps: false,
-          init: (props: Props) => props,
           callbacks: {
             beforeCreate: [() => events.push('beforeCreate')],
             afterCreate: [() => events.push('afterCreate')],
@@ -589,7 +697,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
           tableName,
           connector,
           timestamps: false,
-          init: (props: Props) => props,
         }) {}
         const off = Live.on('afterCreate', (instance: any) => seen.push(instance.name));
         await Live.create({ name: 'first' });
@@ -601,7 +708,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
     describe('Soft delete', () => {
       const tableName = 'conformance_soft';
-      type Props = { label: string };
       let Doc: any;
 
       beforeEach(async () => {
@@ -617,7 +723,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
             connector,
             timestamps: false,
             softDelete: true,
-            init: (props: Props) => props,
           })
         ) {};
       });
@@ -652,7 +757,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
           tableName,
           connector,
           timestamps: false,
-          init: (props: CatProps) => props,
           scopes: {
             adults: { $gte: { age: 3 } },
           },
@@ -671,8 +775,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
 
     describe('Associations', () => {
       const postsTable = 'conformance_posts';
-      type AuthorProps = { name: string };
-      type PostProps = { title: string; authorId: number };
       let Author: any;
       let Post: any;
 
@@ -683,12 +785,13 @@ export function runModelConformance(opts: ConformanceOptions): void {
           t.string('title');
           t.integer('authorId');
         });
+        // KEEP: init transforms AuthorProps → CatProps (adds `age: 0` default)
         Author = class extends (
           Model({
             tableName,
             connector,
             timestamps: false,
-            init: (props: AuthorProps) => ({ ...props, age: 0 }) as CatProps,
+            init: (props: { name: string }) => ({ ...props, age: 0 }),
           })
         ) {};
         Post = class extends (
@@ -696,7 +799,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
             tableName: postsTable,
             connector,
             timestamps: false,
-            init: (props: PostProps) => props,
           })
         ) {};
       });
@@ -718,8 +820,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
     describe('JOIN capability (fast path + fallback parity)', () => {
       const parentTable = 'conformance_join_users';
       const childTable = 'conformance_join_posts';
-      type UserProps = { name: string };
-      type PostProps = { title: string; userId: number; status: string };
       let User: any;
       let Post: any;
 
@@ -742,7 +842,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
             tableName: childTable,
             connector,
             timestamps: false,
-            init: (props: PostProps) => props,
           })
         ) {};
         User = class extends (
@@ -750,10 +849,6 @@ export function runModelConformance(opts: ConformanceOptions): void {
             tableName: parentTable,
             connector,
             timestamps: false,
-            init: (props: UserProps) => props,
-            associations: {
-              posts: { hasMany: () => Post, foreignKey: 'userId' },
-            },
           })
         ) {};
       });
@@ -877,22 +972,15 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('parent-scope traversal: User.findBy({email}).todos returns the user todos', async () => {
-        type UserProps = { email: string; role?: string; active?: number };
-        type TodoProps = { userId: number; title: string; ownerEmail?: string };
         const Todo: any = class extends Model({
           tableName: todosTable,
           connector,
           timestamps: false,
-          init: (props: TodoProps) => props,
         }) {};
         const User: any = class extends Model({
           tableName: usersTable,
           connector,
           timestamps: false,
-          init: (props: UserProps) => props,
-          associations: {
-            todos: { hasMany: () => Todo, foreignKey: 'userId' },
-          },
         }) {};
 
         const user = await User.create({ email: 'a@b' });
@@ -907,39 +995,20 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('multi-level traversal: Order.first().customer.address resolves through 2 belongsTo hops', async () => {
-        type AddressProps = { city: string };
-        type CustomerProps = { name: string; addressId: number };
-        type OrderProps = { total: number; customerId: number };
-
-        let Customer: any;
-        let Address: any;
-        Address = class extends (
-          Model({
-            tableName: addressesTable,
-            connector,
-            timestamps: false,
-            init: (props: AddressProps) => props,
-          })
-        ) {};
-        Customer = class extends (
-          Model({
-            tableName: customersTable,
-            connector,
-            timestamps: false,
-            init: (props: CustomerProps) => props,
-            associations: {
-              address: { belongsTo: () => Address, foreignKey: 'addressId' },
-            },
-          })
-        ) {};
+        const Address: any = class extends Model({
+          tableName: addressesTable,
+          connector,
+          timestamps: false,
+        }) {};
+        const Customer: any = class extends Model({
+          tableName: customersTable,
+          connector,
+          timestamps: false,
+        }) {};
         const Order: any = class extends Model({
           tableName: ordersTable,
           connector,
           timestamps: false,
-          init: (props: OrderProps) => props,
-          associations: {
-            customer: { belongsTo: () => Customer, foreignKey: 'customerId' },
-          },
         }) {};
 
         const address = await Address.create({ city: 'Berlin' });
@@ -952,19 +1021,15 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('Todo.filterBy({userId: User.filterBy({...})}) — subquery as filter value', async () => {
-        type UserProps = { email: string; active?: number };
-        type TodoProps = { userId: number; title: string };
         const User: any = class extends Model({
           tableName: usersTable,
           connector,
           timestamps: false,
-          init: (props: UserProps) => props,
         }) {};
         const Todo: any = class extends Model({
           tableName: todosTable,
           connector,
           timestamps: false,
-          init: (props: TodoProps) => props,
         }) {};
 
         const active = await User.create({ email: 'a@b', active: 1 });
@@ -981,20 +1046,15 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('Order.filterBy({total: {$gt: OrderItem.filterBy({...}).sum(amount)}}) — aggregate subquery', async () => {
-        type OrderProps = { total: number; customerId?: number };
-        type ItemProps = { orderId: number; amount: number };
-
         const Order: any = class extends Model({
           tableName: ordersTable,
           connector,
           timestamps: false,
-          init: (props: OrderProps) => props,
         }) {};
         const OrderItem: any = class extends Model({
           tableName: orderItemsTable,
           connector,
           timestamps: false,
-          init: (props: ItemProps) => props,
         }) {};
 
         await Order.create({ total: 10 });
@@ -1013,19 +1073,15 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('Todo.filterBy({ownerEmail: User.filterBy({...}).pluck(email)}) — column subquery', async () => {
-        type UserProps = { email: string; role: string };
-        type TodoProps = { userId?: number; title: string; ownerEmail: string };
         const User: any = class extends Model({
           tableName: usersTable,
           connector,
           timestamps: false,
-          init: (props: UserProps) => props,
         }) {};
         const Todo: any = class extends Model({
           tableName: todosTable,
           connector,
           timestamps: false,
-          init: (props: TodoProps) => props,
         }) {};
 
         await User.create({ email: 'admin@x', role: 'admin' });
@@ -1041,22 +1097,15 @@ export function runModelConformance(opts: ConformanceOptions): void {
       });
 
       it('attributes getter on a resolved instance is a JSON-safe POJO', async () => {
-        type UserProps = { email: string };
-        type TodoProps = { userId: number; title: string };
         const Todo: any = class extends Model({
           tableName: todosTable,
           connector,
           timestamps: false,
-          init: (props: TodoProps) => props,
         }) {};
         const User: any = class extends Model({
           tableName: usersTable,
           connector,
           timestamps: false,
-          init: (props: UserProps) => props,
-          associations: {
-            todos: { hasMany: () => Todo, foreignKey: 'userId' },
-          },
         }) {};
 
         const user = await User.create({ email: 'a@b' });

@@ -1,14 +1,17 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { ValkeyConnector } from '../index.js';
 
 const VALKEY_URL = process.env.VALKEY_URL ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 
-const connector = new ValkeyConnector({
-  client: { url: VALKEY_URL },
-  prefix: 'nm-vk-test:',
-});
+const connector = new ValkeyConnector(
+  {
+    client: { url: VALKEY_URL },
+    prefix: 'nm-vk-test:',
+  },
+  { schema: conformanceSchema },
+);
 
 beforeAll(() => connector.connect());
 afterAll(() => connector.destroy());

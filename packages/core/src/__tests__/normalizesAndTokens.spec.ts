@@ -1,18 +1,37 @@
-import { generateSecureToken, KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import {
+  defineSchema,
+  generateSecureToken,
+  MemoryConnector,
+  Model,
+  type Storage,
+} from '../index.js';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      email: { type: 'string', default: '' },
+      phone: { type: 'string', default: '' },
+      bio: { type: 'string', default: '' },
+    },
+  },
+  invites: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      token: { type: 'string', default: '' },
+      email: { type: 'string', default: '' },
+    },
+  },
+});
 
 describe('normalizes', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makeUser() {
     return Model({
       tableName: 'users',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { email?: string; phone?: string }) => ({
-        email: p.email ?? '',
-        phone: p.phone ?? '',
-      }),
       normalizes: {
         email: (v: any) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
         phone: (v: any) => (typeof v === 'string' ? v.replace(/\D/g, '') : v),
@@ -60,8 +79,6 @@ describe('normalizes', () => {
     const User = Model({
       tableName: 'users',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { email?: string; bio?: string }) => ({ email: p.email ?? '', bio: p.bio ?? '' }),
       normalizes: { email: (v: any) => (typeof v === 'string' ? v.trim().toLowerCase() : v) },
     });
     const u: any = User.build({});
@@ -74,7 +91,7 @@ describe('normalizes', () => {
 
 describe('secureTokens', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   beforeEach(() => {
     storage = { invites: [] };
@@ -88,11 +105,6 @@ describe('secureTokens', () => {
     const Invite = Model({
       tableName: 'invites',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { token?: string; email?: string }) => ({
-        token: p.token ?? '',
-        email: p.email ?? '',
-      }),
       secureTokens: ['token'],
     });
     const created = (await Invite.create({ email: 'a@a.com' })) as any;
@@ -105,8 +117,6 @@ describe('secureTokens', () => {
     const Invite = Model({
       tableName: 'invites',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { token?: string }) => ({ token: p.token ?? '' }),
       secureTokens: { token: { length: 6 } },
     });
     const created = (await Invite.create({})) as any;
@@ -118,8 +128,6 @@ describe('secureTokens', () => {
     const Invite = Model({
       tableName: 'invites',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { token?: string }) => ({ token: p.token ?? '' }),
       secureTokens: ['token'],
     });
     const created = (await Invite.create({ token: 'manual' })) as any;
@@ -130,8 +138,6 @@ describe('secureTokens', () => {
     const Invite = Model({
       tableName: 'invites',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { token?: string }) => ({ token: p.token ?? '' }),
       secureTokens: ['token'],
     });
     const a = (await Invite.create({})) as any;

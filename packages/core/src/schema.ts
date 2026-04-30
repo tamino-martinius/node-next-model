@@ -60,6 +60,8 @@ export interface TableDefinition {
   columns: ColumnDefinition[];
   indexes: IndexDefinition[];
   primaryKey?: string;
+  /** Associations declared at the schema level. Mirrors `TypedTable.associations`. */
+  associations?: Record<string, unknown>;
 }
 
 export interface TableBuilder {

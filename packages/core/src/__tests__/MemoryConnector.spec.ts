@@ -1296,9 +1296,9 @@ describe('#queryScoped(spec)', () => {
   });
 });
 
-import { runModelConformance } from './conformance.js';
+import { conformanceSchema, runModelConformance } from './conformance.js';
 
 runModelConformance({
   name: 'MemoryConnector',
-  makeConnector: () => new MemoryConnector({ storage: {} }),
+  makeConnector: () => new MemoryConnector({ storage: {} }, { schema: conformanceSchema }),
 });

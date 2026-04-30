@@ -1,14 +1,29 @@
-import { MemoryConnector, Model } from '@next-model/core';
+import { defineSchema, MemoryConnector, Model } from '@next-model/core';
 import { describe, expect, it } from 'vitest';
 
 import { buildModelResource, composeSchema } from '../index.js';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+    },
+  },
+});
 
 function buildUser(connector: MemoryConnector) {
   return class User extends Model({
     tableName: 'users',
     connector,
     timestamps: false,
-    init: (props: { name: string }) => props,
   }) {};
 }
 
@@ -17,13 +32,12 @@ function buildPost(connector: MemoryConnector) {
     tableName: 'posts',
     connector,
     timestamps: false,
-    init: (props: { title: string; userId: number }) => props,
   }) {};
 }
 
 describe('composeSchema', () => {
   it('merges typeDefs + resolver maps from multiple resources', () => {
-    const connector = new MemoryConnector({ storage: {}, lastIds: {} });
+    const connector = new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
     const userResource = buildModelResource({
       Model: buildUser(connector),
       name: 'User',

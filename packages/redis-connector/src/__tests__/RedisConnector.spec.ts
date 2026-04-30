@@ -1,11 +1,14 @@
-import { runModelConformance } from '@next-model/conformance';
+import { conformanceSchema, runModelConformance } from '@next-model/conformance';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { RedisConnector } from '../index.js';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
 
-const connector = new RedisConnector({ client: { url: REDIS_URL }, prefix: 'nm-test:' });
+const connector = new RedisConnector(
+  { client: { url: REDIS_URL }, prefix: 'nm-test:' },
+  { schema: conformanceSchema },
+);
 
 beforeAll(() => connector.connect());
 afterAll(() => connector.destroy());

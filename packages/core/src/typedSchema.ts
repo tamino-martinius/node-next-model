@@ -1,3 +1,5 @@
+import type { CollectionQuery } from './query/CollectionQuery.js';
+import type { InstanceQuery } from './query/InstanceQuery.js';
 import type {
   ColumnDefault,
   ColumnDefinition,
@@ -24,10 +26,66 @@ export interface TypedColumn<K extends ColumnKind = ColumnKind> {
   autoIncrement?: boolean;
 }
 
+/**
+ * Schema-level association declaration. Cycle-free because the target table is
+ * a string, not a class reference. Four forms:
+ *
+ *  - `belongsTo: 'parents'` — child holds the foreign key (`parentId`).
+ *  - `hasMany: 'children'` — parent owns 0..n children whose FK references it.
+ *  - `hasOne: 'child'`     — parent owns exactly one child whose FK references it.
+ *  - `hasManyThrough: 'targets', through: 'join'` — many-to-many via a join table.
+ *
+ * `polymorphic` mirrors the legacy Model-level shape for `Comment`-like models.
+ *
+ * `foreignKey` is required on the three short-association variants. Unlike the
+ * runtime `AssociationOptions` (which can derive `userId` from a Model class +
+ * association name), the schema layer has no Model class to introspect, so
+ * the column must be explicit.
+ */
+export type TypedAssociation =
+  | {
+      belongsTo: string;
+      foreignKey: string;
+      primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasMany: string;
+      foreignKey: string;
+      primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasOne: string;
+      foreignKey: string;
+      primaryKey?: string;
+      polymorphic?: string;
+      typeKey?: string;
+      typeValue?: string;
+    }
+  | {
+      hasManyThrough: string;
+      through: string;
+      throughForeignKey?: string;
+      targetForeignKey?: string;
+      selfPrimaryKey?: string;
+      targetPrimaryKey?: string;
+    };
+
+export type TypedAssociations = Record<string, TypedAssociation>;
+
 /** A single table entry inside a `DatabaseSchema`. */
-export interface TypedTable<C extends Record<string, TypedColumn> = Record<string, TypedColumn>> {
+export interface TypedTable<
+  C extends Record<string, TypedColumn> = Record<string, TypedColumn>,
+  A extends TypedAssociations = TypedAssociations,
+> {
   columns: C;
   indexes?: IndexDefinition[];
+  associations?: A;
 }
 
 /** Maps a `ColumnKind` to its TypeScript prop type. */
@@ -51,7 +109,50 @@ export type ApplyNull<T, Null> = Null extends true ? T | null : T;
  * multi-table `DatabaseSchema`. Pass the schema and the table key.
  */
 export type SchemaProps<S extends DatabaseSchema<any>, K extends keyof S['tables'] & string> = {
-  [P in keyof S['tables'][K]['columns']]: ApplyNull<
+  -readonly [P in keyof S['tables'][K]['columns']]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
+};
+
+/**
+ * Whether a column can be omitted from `create()` / `build()` input. True when:
+ *  - The column is auto-incremented (DB assigns the value)
+ *  - The column has a static `default`
+ *  - The column is nullable
+ */
+type IsOptionalCreateColumn<C> = C extends { autoIncrement: true }
+  ? true
+  : C extends { default: any }
+    ? true
+    : C extends { null: true }
+      ? true
+      : false;
+
+/**
+ * Derive the `create()` / `build()` input shape for a table. Required for
+ * non-default, non-nullable, non-autoIncrement columns; optional for the rest.
+ * The runtime-derived default init applies column defaults, the connector
+ * assigns auto-increment primary keys, and nullable columns can be omitted.
+ */
+export type SchemaCreateProps<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+> = {
+  -readonly [P in keyof S['tables'][K]['columns'] as IsOptionalCreateColumn<
+    S['tables'][K]['columns'][P]
+  > extends true
+    ? never
+    : P]: ApplyNull<
+    ColumnTSType<S['tables'][K]['columns'][P]['type']>,
+    S['tables'][K]['columns'][P]['null']
+  >;
+} & {
+  -readonly [P in keyof S['tables'][K]['columns'] as IsOptionalCreateColumn<
+    S['tables'][K]['columns'][P]
+  > extends true
+    ? P
+    : never]?: ApplyNull<
     ColumnTSType<S['tables'][K]['columns'][P]['type']>,
     S['tables'][K]['columns'][P]['null']
   >;
@@ -78,6 +179,85 @@ export type SchemaKeys<S extends DatabaseSchema<any>, K extends keyof S['tables'
         ? KeyType.uuid
         : KeyType.number;
     };
+
+/**
+ * Open registry mapping schema table names → user-defined Model classes.
+ * Augment via declaration merging from your application code so that
+ * association accessors return class-instance types (with custom methods)
+ * rather than the bare row shape:
+ *
+ * ```ts
+ * declare module '@next-model/core' {
+ *   interface ModelRegistry {
+ *     users: import('./user').User;
+ *     tasks: import('./task').Task;
+ *   }
+ * }
+ * ```
+ *
+ * The augmentation is type-only — `import('./x').X` is erased at runtime, so
+ * adding entries here cannot introduce a circular runtime import. Tables not
+ * present in the registry fall back to `SchemaProps<S, tableName>` (the row
+ * shape derived from the schema's column map), which is still useful but
+ * lacks any methods declared on the class body.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires interface; type alias cannot be augmented
+export interface ModelRegistry {}
+
+/**
+ * Resolve a schema table name to a target type for accessor return values.
+ * Looks up `Reg[T]` first (the user's class instance via `ModelRegistry`
+ * augmentation); falls back to `SchemaProps<S, T>` when the table isn't in
+ * the registry.
+ */
+export type ResolveAssociationTarget<
+  S extends DatabaseSchema<any>,
+  T extends string,
+  Reg = ModelRegistry,
+> = T extends keyof Reg ? Reg[T] : T extends keyof S['tables'] & string ? SchemaProps<S, T> : never;
+
+/**
+ * Map a single association entry to its accessor query type. `hasMany` and
+ * `hasManyThrough` produce a `CollectionQuery<Target[]>`. `hasOne` and
+ * `belongsTo` produce an `InstanceQuery<Target | undefined>`. `Target` is
+ * `ModelRegistry[targetTable]` when the user has augmented the registry with
+ * their Model class; otherwise it's `SchemaProps<S, targetTable>`.
+ */
+export type SchemaAssociationProp<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+  Name extends keyof NonNullable<S['tables'][K]['associations']> & string,
+  Reg = ModelRegistry,
+> = NonNullable<S['tables'][K]['associations']>[Name] extends { hasMany: infer T extends string }
+  ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
+  : NonNullable<S['tables'][K]['associations']>[Name] extends {
+        hasManyThrough: infer T extends string;
+      }
+    ? CollectionQuery<ResolveAssociationTarget<S, T, Reg>[]>
+    : NonNullable<S['tables'][K]['associations']>[Name] extends {
+          belongsTo: infer T extends string;
+        }
+      ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
+      : NonNullable<S['tables'][K]['associations']>[Name] extends { hasOne: infer T extends string }
+        ? InstanceQuery<ResolveAssociationTarget<S, T, Reg> | undefined>
+        : never;
+
+/**
+ * Map every association declared on `S['tables'][K]` to its accessor type.
+ * Used by the `Model({ connector, tableName })` and `Model({ schema, tableName })`
+ * overloads' return types to attach typed accessor properties to the instance
+ * type.
+ */
+export type SchemaAssociations<
+  S extends DatabaseSchema<any>,
+  K extends keyof S['tables'] & string,
+  Reg = ModelRegistry,
+> =
+  S['tables'][K]['associations'] extends Record<string, TypedAssociation>
+    ? {
+        [N in keyof S['tables'][K]['associations'] & string]: SchemaAssociationProp<S, K, N, Reg>;
+      }
+    : {};
 
 /**
  * The runtime representation of a multi-table typed schema. Carries the raw
@@ -116,6 +296,7 @@ function buildTableDefinition(name: string, table: TypedTable): TableDefinition 
     columns: columnDefs,
     indexes: table.indexes ?? [],
     primaryKey: primary?.name,
+    associations: table.associations,
   };
 }
 
@@ -219,6 +400,38 @@ function renderIndexLiteral(idx: IndexDefinition, indent: string): string {
   return `${indent}{ ${parts.join(', ')} },`;
 }
 
+function renderAssociationLiteral(
+  name: string,
+  spec: Record<string, unknown>,
+  indent: string,
+): string {
+  // Order keys deterministically: discriminator first (belongsTo / hasMany /
+  // hasOne / hasManyThrough), then the rest. This produces stable output that
+  // matches the source-author's likely ordering.
+  const discriminators = ['belongsTo', 'hasMany', 'hasOne', 'hasManyThrough'];
+  const parts: string[] = [];
+  for (const key of discriminators) {
+    if (key in spec) {
+      parts.push(`${key}: ${renderAssociationValue(spec[key])}`);
+    }
+  }
+  for (const [key, value] of Object.entries(spec)) {
+    if (discriminators.includes(key)) continue;
+    if (value === undefined) continue;
+    parts.push(`${quoteKey(key)}: ${renderAssociationValue(value)}`);
+  }
+  return `${indent}${quoteKey(name)}: { ${parts.join(', ')} },`;
+}
+
+function renderAssociationValue(value: unknown): string {
+  if (typeof value === 'string') return `'${value.replace(/'/g, "\\'")}'`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null) return 'null';
+  // Associations only carry strings + a few enum-typed strings in practice;
+  // fall back to JSON.stringify for any unanticipated value.
+  return JSON.stringify(value);
+}
+
 const VALID_IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 function quoteKey(name: string): string {
   return VALID_IDENT.test(name) ? name : JSON.stringify(name);
@@ -260,6 +473,14 @@ export function generateSchemaSource(
       lines.push(`    indexes: [`);
       for (const idx of table.indexes) lines.push(renderIndexLiteral(idx, '      '));
       lines.push(`    ],`);
+    }
+    const associations = table.associations as Record<string, Record<string, unknown>> | undefined;
+    if (associations && Object.keys(associations).length > 0) {
+      lines.push(`    associations: {`);
+      for (const [assocName, spec] of Object.entries(associations)) {
+        lines.push(renderAssociationLiteral(assocName, spec, '      '));
+      }
+      lines.push(`    },`);
     }
     lines.push(`  },`);
     tableBlocks.push(lines.join('\n'));

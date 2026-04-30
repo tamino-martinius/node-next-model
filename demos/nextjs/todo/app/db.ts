@@ -3,22 +3,39 @@ import 'server-only';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { SqliteConnector } from '@next-model/sqlite-connector';
 
 // One on-disk sqlite database shared by every request — survives `next dev`
 // HMR via a globalThis cache so we don't re-open the file on every reload.
 declare global {
   // eslint-disable-next-line no-var
-  var __nm_demo_db: { connector: SqliteConnector; ready: Promise<void> } | undefined;
+  var __nm_demo_db: { connector: SqliteConnector<typeof schema>; ready: Promise<void> } | undefined;
 }
 
 const DB_PATH = './.data/nextjs-todo.sqlite';
 
-function bootstrap(): { connector: SqliteConnector; ready: Promise<void> } {
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+  tasks: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      done: { type: 'boolean', default: false },
+      userId: { type: 'integer' },
+    },
+  },
+});
+
+function bootstrap(): { connector: SqliteConnector<typeof schema>; ready: Promise<void> } {
   if (globalThis.__nm_demo_db) return globalThis.__nm_demo_db;
   mkdirSync(dirname(DB_PATH), { recursive: true });
-  const connector = new SqliteConnector(DB_PATH);
+  const connector = new SqliteConnector(DB_PATH, { schema });
   const ready = (async () => {
     if (!(await connector.hasTable('users'))) {
       await connector.createTable('users', (t) => {
@@ -51,12 +68,10 @@ export class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string }) => props,
 }) {}
 
 export class Task extends Model({
   tableName: 'tasks',
   connector,
   timestamps: false,
-  init: (props: { title: string; done: boolean; userId: number }) => props,
 }) {}

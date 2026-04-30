@@ -1,15 +1,23 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      lastSeenAt: { type: 'datetime', null: true },
+    },
+  },
+});
 
 describe('persistence ergonomics', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost() {
     return Model({
       tableName: 'posts',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: (p: { title?: string }) => ({ title: p.title ?? '' }),
     });
   }
 
@@ -63,11 +71,6 @@ describe('persistence ergonomics', () => {
       const Stamped = Model({
         tableName: 'posts',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { title?: string }) => ({
-          title: p.title ?? '',
-          lastSeenAt: null as Date | null,
-        }),
       });
       storage.posts = [
         {
@@ -88,8 +91,6 @@ describe('persistence ergonomics', () => {
       const NoTimestamps = Model({
         tableName: 'posts',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { title?: string }) => ({ title: p.title ?? '' }),
         timestamps: false,
       });
       storage.posts = [{ id: 1, title: 'A' }];
@@ -101,11 +102,6 @@ describe('persistence ergonomics', () => {
       const NoTimestamps = Model({
         tableName: 'posts',
         connector: connector(),
-        keys: { id: KeyType.number },
-        init: (p: { title?: string; lastSeenAt?: Date | null }) => ({
-          title: p.title ?? '',
-          lastSeenAt: p.lastSeenAt ?? null,
-        }),
         timestamps: false,
       });
       storage.posts = [{ id: 1, title: 'A', lastSeenAt: null }];

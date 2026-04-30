@@ -1,31 +1,49 @@
-import { KeyType, MemoryConnector, Model, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      active: { type: 'boolean' },
+    },
+    associations: {
+      posts: { hasMany: 'posts', foreignKey: 'userId' },
+      profile: { hasOne: 'profiles', foreignKey: 'userId' },
+    },
+  },
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      title: { type: 'string' },
+    },
+  },
+  profiles: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      bio: { type: 'string' },
+    },
+  },
+});
 
 describe('whereMissing', () => {
   let storage: Storage = {};
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makeModels() {
     const Post = Model({
       tableName: 'posts',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ userId: 0, title: '' as string }),
     });
     const Profile = Model({
       tableName: 'profiles',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ userId: 0, bio: '' as string }),
     });
     const User = Model({
       tableName: 'users',
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ name: '' as string, active: true as boolean }),
-      associations: {
-        posts: { hasMany: () => Post, foreignKey: 'userId' },
-        profile: { hasOne: () => Profile, foreignKey: 'userId' },
-      },
     });
     return { Post, Profile, User };
   }
@@ -83,59 +101,86 @@ describe('whereMissing', () => {
   });
 
   it('respects a custom primaryKey via the association registry', async () => {
+    const tagSchema = defineSchema({
+      articles: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          tagSlug: { type: 'string' },
+        },
+      },
+      tags: {
+        columns: {
+          slug: { type: 'string', primary: true },
+          name: { type: 'string' },
+        },
+        associations: {
+          articles: { hasMany: 'articles', foreignKey: 'tagSlug', primaryKey: 'slug' },
+        },
+      },
+    });
     const Article = Model({
       tableName: 'articles',
-      connector: new MemoryConnector({
-        storage: { articles: [{ id: 1, tagSlug: 'js' }] },
-      }),
-      keys: { id: KeyType.number },
-      init: () => ({ tagSlug: '' as string }),
+      connector: new MemoryConnector(
+        {
+          storage: { articles: [{ id: 1, tagSlug: 'js' }] },
+        },
+        { schema: tagSchema },
+      ),
     });
     const Tag = Model({
       tableName: 'tags',
-      connector: new MemoryConnector({
-        storage: {
-          tags: [
-            { slug: 'js', name: 'JS' },
-            { slug: 'go', name: 'Go' },
-          ],
+      connector: new MemoryConnector(
+        {
+          storage: {
+            tags: [
+              { slug: 'js', name: 'JS' },
+              { slug: 'go', name: 'Go' },
+            ],
+          },
         },
-      }),
-      keys: { slug: KeyType.manual },
-      init: () => ({ name: '' as string }),
-      associations: {
-        articles: { hasMany: () => Article, foreignKey: 'tagSlug', primaryKey: 'slug' },
-      },
+        { schema: tagSchema },
+      ),
     });
+    void Article;
     const result = await Tag.whereMissing('articles').all();
     expect(result.map((t: any) => t.slug)).toEqual(['go']);
   });
 
   it('rejects belongsTo associations with a clear error', async () => {
-    const Author = Model({
-      tableName: 'authors',
-      connector: new MemoryConnector({ storage: { authors: [] } }),
-      keys: { id: KeyType.number },
-      init: () => ({ name: '' as string }),
+    const btSchema = defineSchema({
+      authors: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          name: { type: 'string' },
+        },
+      },
+      books: {
+        columns: {
+          id: { type: 'integer', primary: true, autoIncrement: true },
+          authorId: { type: 'integer' },
+        },
+        associations: {
+          author: { belongsTo: 'authors', foreignKey: 'authorId' },
+        },
+      },
     });
     const Book = Model({
       tableName: 'books',
-      connector: new MemoryConnector({ storage: { books: [{ id: 1, authorId: 7 }] } }),
-      keys: { id: KeyType.number },
-      init: () => ({ authorId: 0 }),
-      associations: {
-        author: { belongsTo: () => Author, foreignKey: 'authorId' },
-      },
+      connector: new MemoryConnector(
+        { storage: { books: [{ id: 1, authorId: 7 }] } },
+        { schema: btSchema },
+      ),
     });
     expect(() => Book.whereMissing('author')).toThrow(/only supports hasMany \/ hasOne/);
   });
 
   it('throws when the Model has no associations declared', async () => {
+    const noAssocSchema = defineSchema({
+      users: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+    });
     const User = Model({
       tableName: 'users',
-      connector: new MemoryConnector({ storage: { users: [] } }),
-      keys: { id: KeyType.number },
-      init: () => ({ name: '' as string }),
+      connector: new MemoryConnector({ storage: { users: [] } }, { schema: noAssocSchema }),
     });
     expect(() => User.whereMissing('posts')).toThrow(/declare 'associations'/);
   });

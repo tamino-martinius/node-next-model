@@ -1,4 +1,10 @@
-import { MemoryConnector, Model, ValidationError } from '@next-model/core';
+import {
+  defineSchema,
+  defineTable,
+  MemoryConnector,
+  Model,
+  ValidationError,
+} from '@next-model/core';
 import { Type } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 
@@ -96,10 +102,13 @@ describe('fromTypeBox — end-to-end with Model', () => {
       age: Type.Integer({ minimum: 0 }),
     });
     const bridge = fromTypeBox(UserSchema);
-    const connector = new MemoryConnector({ storage: {}, lastIds: {} });
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
     class User extends Model({
-      tableName: 'users',
       connector,
+      tableName: 'users',
       timestamps: false,
       init: bridge.init,
       validators: bridge.validators,
@@ -111,5 +120,92 @@ describe('fromTypeBox — end-to-end with Model', () => {
     await expect(User.create({ name: 'A', age: -1 } as any)).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+});
+
+describe('fromTypeBox — toTypedColumns', () => {
+  it('produces a column map that defineSchema accepts', () => {
+    const UserSchema = Type.Object({
+      id: Type.Integer(),
+      email: Type.String(),
+      name: Type.String(),
+      age: Type.Optional(Type.Integer()),
+    });
+    const bridge = fromTypeBox(UserSchema);
+
+    const cols = bridge.toTypedColumns();
+    expect(cols).toEqual({
+      id: { type: 'integer', null: false },
+      email: { type: 'string', null: false },
+      name: { type: 'string', null: false },
+      age: { type: 'integer', null: true },
+    });
+  });
+
+  it('the column map round-trips through defineSchema + Model end-to-end', async () => {
+    const UserSchema = Type.Object({
+      id: Type.Integer(),
+      email: Type.String(),
+      name: Type.String(),
+    });
+    const bridge = fromTypeBox(UserSchema);
+
+    const schema = defineSchema({
+      users: { columns: bridge.toTypedColumns() },
+    });
+    const connector = new MemoryConnector({ storage: {} }, { schema });
+    class User extends Model({
+      connector,
+      tableName: 'users',
+      init: bridge.init,
+      validators: bridge.validators,
+      timestamps: false,
+    }) {}
+
+    const u = await User.create({ id: 1, email: 'a@b', name: 'Ada' });
+    expect(u.email).toBe('a@b');
+    expect(u.name).toBe('Ada');
+  });
+
+  it('preserves default values from TypeBox into the typed column', () => {
+    // TypeBox's default goes via the schema's `default` keyword.
+    const Schema = Type.Object({
+      published: Type.Optional(Type.Boolean({ default: false })),
+      count: Type.Optional(Type.Integer({ default: 0 })),
+    });
+    const cols = fromTypeBox(Schema).toTypedColumns();
+    expect(cols.published.default).toBe(false);
+    expect(cols.count.default).toBe(0);
+    expect(cols.published.null).toBe(true);
+    expect(cols.count.null).toBe(true);
+  });
+});
+
+describe('fromTypeBox — applyColumns', () => {
+  it('applies columns to a defineTable builder', () => {
+    const UserSchema = Type.Object({
+      id: Type.Integer(),
+      email: Type.String(),
+      role: Type.Union([Type.Literal('admin'), Type.Literal('member')]),
+      tags: Type.Array(Type.String()),
+    });
+    const bridge = fromTypeBox(UserSchema);
+    const table = defineTable('users', (t) => bridge.applyColumns(t));
+    const colByName = Object.fromEntries(table.columns.map((c) => [c.name, c]));
+    expect(colByName.id.type).toBe('integer');
+    expect(colByName.email.type).toBe('string');
+    // Union of string literals → 'string' kind (not 'text')
+    expect(colByName.role.type).toBe('string');
+    // Array → 'json' kind
+    expect(colByName.tags.type).toBe('json');
+  });
+
+  it('classifies a nullable union into the non-null inner type', () => {
+    const Schema = Type.Object({
+      // anyOf with a `type: 'null'` branch — nullable string
+      maybe: Type.Union([Type.String(), Type.Null()]),
+    });
+    const cols = fromTypeBox(Schema).describeColumns();
+    expect(cols.find((c) => c.name === 'maybe')?.kind).toBe('string');
   });
 });

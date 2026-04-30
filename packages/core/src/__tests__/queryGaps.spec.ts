@@ -1,16 +1,25 @@
-import { KeyType, MemoryConnector, Model, SortDirection, type Storage } from '../index.js';
+import { defineSchema, MemoryConnector, Model, SortDirection, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      userId: { type: 'integer' },
+      status: { type: 'string' },
+    },
+  },
+});
 
 describe('query-builder gaps', () => {
   let storage: Storage = {};
   const tableName = 'posts';
-  const connector = () => new MemoryConnector({ storage });
+  const connector = () => new MemoryConnector({ storage }, { schema });
 
   function makePost() {
     return Model({
       tableName,
       connector: connector(),
-      keys: { id: KeyType.number },
-      init: () => ({ title: '' as string, userId: 0, status: 'draft' as string }),
     });
   }
 

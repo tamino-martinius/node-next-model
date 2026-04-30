@@ -1,20 +1,35 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { LocalStorageConnector } from '@next-model/local-storage-connector';
 
-export const connector = new LocalStorageConnector({ prefix: 'nm-todo-v2:' });
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+    },
+  },
+  tasks: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      userId: { type: 'integer' },
+      text: { type: 'string' },
+      done: { type: 'boolean', default: false },
+    },
+  },
+});
+
+export const connector = new LocalStorageConnector({ prefix: 'nm-todo-v2:' }, { schema });
 
 export class User extends Model({
   tableName: 'users',
   connector,
   timestamps: false,
-  init: (props: { name: string }) => props,
 }) {}
 
 export class Task extends Model({
   tableName: 'tasks',
   connector,
   timestamps: false,
-  init: (props: { userId: number; text: string; done: boolean }) => props,
 }) {}
 
 let bootstrapped: Promise<void> | undefined;

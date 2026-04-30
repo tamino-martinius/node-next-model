@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MemoryConnector, Model } from '../index.js';
+import { defineSchema, MemoryConnector, Model } from '../index.js';
 
 interface Row {
   id?: number;
@@ -10,8 +10,20 @@ interface Row {
   note: string;
 }
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string' },
+      age: { type: 'integer' },
+      active: { type: 'boolean' },
+      note: { type: 'string' },
+    },
+  },
+});
+
 function freshConnector(): MemoryConnector {
-  return new MemoryConnector({ storage: {}, lastIds: {} });
+  return new MemoryConnector({ storage: {}, lastIds: {} }, { schema });
 }
 
 function buildUser(connector: MemoryConnector) {
@@ -19,7 +31,6 @@ function buildUser(connector: MemoryConnector) {
     tableName: 'users',
     connector,
     timestamps: false,
-    init: (props: Row) => props,
   }) {};
 }
 

@@ -1,4 +1,4 @@
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
 import { LocalStorageConnector } from '@next-model/local-storage-connector';
 
 // `LocalStorageConnector` reaches for `globalThis.localStorage` in browsers.
@@ -25,15 +25,27 @@ class NodeLocalStorage {
   }
 }
 
-const connector = new LocalStorageConnector({
-  localStorage: new NodeLocalStorage(),
-  prefix: 'demo:',
+const schema = defineSchema({
+  notes: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string' },
+      body: { type: 'text' },
+    },
+  },
 });
+
+const connector = new LocalStorageConnector(
+  {
+    localStorage: new NodeLocalStorage(),
+    prefix: 'demo:',
+  },
+  { schema },
+);
 
 class Note extends Model({
   tableName: 'notes',
   connector,
-  init: (props: { title: string; body: string }) => props,
 }) {}
 
 await connector.createTable('notes', (t) => {
