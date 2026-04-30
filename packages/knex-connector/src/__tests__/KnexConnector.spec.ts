@@ -1,5 +1,5 @@
 import { runModelConformance } from '@next-model/conformance';
-import { defineAlter, FilterError, KeyType, Model } from '@next-model/core';
+import { defineAlter, defineSchema, FilterError, KeyType, Model } from '@next-model/core';
 import type { Knex } from 'knex';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -7,27 +7,46 @@ import { KnexConnector } from '../index.js';
 
 const TEST_CLIENT = process.env.KNEX_TEST_CLIENT ?? 'sqlite3';
 
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      name: { type: 'string', null: true },
+      age: { type: 'integer' },
+    },
+  },
+});
+
 function buildConnector(): KnexConnector {
   switch (TEST_CLIENT) {
     case 'sqlite3':
-      return new KnexConnector({
-        client: 'sqlite3',
-        connection: { filename: ':memory:' },
-        useNullAsDefault: true,
-      });
+      return new KnexConnector(
+        {
+          client: 'sqlite3',
+          connection: { filename: ':memory:' },
+          useNullAsDefault: true,
+        },
+        { schema },
+      );
     case 'pg':
-      return new KnexConnector({
-        client: 'pg',
-        connection:
-          process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/postgres',
-        pool: { min: 1, max: 1 },
-      });
+      return new KnexConnector(
+        {
+          client: 'pg',
+          connection:
+            process.env.DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/postgres',
+          pool: { min: 1, max: 1 },
+        },
+        { schema },
+      );
     case 'mysql2':
-      return new KnexConnector({
-        client: 'mysql2',
-        connection: process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/test',
-        pool: { min: 1, max: 1 },
-      });
+      return new KnexConnector(
+        {
+          client: 'mysql2',
+          connection: process.env.DATABASE_URL ?? 'mysql://root:mysql@127.0.0.1:3306/test',
+          pool: { min: 1, max: 1 },
+        },
+        { schema },
+      );
     default:
       throw new Error(`Unknown KNEX_TEST_CLIENT: ${TEST_CLIENT}`);
   }
@@ -39,7 +58,6 @@ const tableName = 'users';
 
 class User extends Model({
   tableName,
-  init: (props: { name: string | null; age: number }) => props,
   connector,
 }) {}
 
