@@ -2047,6 +2047,11 @@ describe('Model', () => {
       });
     });
 
+    // LEGACY: Tests Model-level `associations: {}` factory option with class
+    // thunks. Schema-level associations (declared via `defineSchema`) are
+    // covered by `schemaAssociations.spec.ts`, `whereMissing.spec.ts`, and
+    // `includes.spec.ts`. This block is removed in Plan 3 alongside the
+    // Model-level `associations:` field itself.
     describe('auto-installed instance accessor returns query builders', () => {
       it('hasMany accessor returns a CollectionQuery (awaitable to records[])', async () => {
         class User extends Model({
@@ -2925,6 +2930,9 @@ describe('Model', () => {
       storage = {};
     });
 
+    // LEGACY: Uses Model-level `associations: {}` with a class thunk; the
+    // schema-level equivalent is in `schemaAssociations.spec.ts`. Removed in
+    // Plan 3 alongside the Model-level `associations:` field.
     it('attributes excludes association accessors', async () => {
       storage = {};
       const assocStorage: Storage = {};
