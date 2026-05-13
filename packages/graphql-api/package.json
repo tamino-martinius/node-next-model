@@ -1,6 +1,6 @@
 {
   "name": "@next-model/graphql-api",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "GraphQL schema generator for next-model. Turns any Model into CRUD queries + mutations with per-operation authorization and response mapping hooks.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

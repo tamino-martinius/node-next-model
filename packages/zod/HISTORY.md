@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Initial release. `fromZod(objectSchema)` returns `{ init, validators, applyColumns, describeColumns }` for use with the Model factory + schema DSL.

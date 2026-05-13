@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Implements `Connector.alterTable(spec)`. Column renames / removals rewrite the underlying hashes via `HDEL` / `HSET`. `addColumn` / `addIndex` / `removeIndex` / `renameIndex` / `changeColumn` are no-ops since Redis stores arbitrary fields and doesn't enforce indexes; foreign keys + check constraints throw `UnsupportedOperationError`. Inherited verbatim by `@next-model/valkey-connector`.

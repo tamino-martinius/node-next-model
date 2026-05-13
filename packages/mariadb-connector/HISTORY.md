@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Inherits `Connector.reflectSchema()` from `MysqlConnector`. MariaDB exposes the same `information_schema` views (`TABLES`, `COLUMNS`, `STATISTICS`) with the same column shapes, so the parent's introspection path works without any MariaDB-specific override. Returns one `TableDefinition` per base table in the current `DATABASE()` with column kinds, primary key, indexes, and `auto_increment` flags mapped back through the same MySQL type mapping (`tinyint(1)` → `boolean`, etc.). Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.

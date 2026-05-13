@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Implements `Connector.reflectSchema()` for schema introspection. Reads `information_schema.tables` for the user's tables in `current_schema()`, `information_schema.columns` for column types / nullability / defaults / `VARCHAR(N)` limits / `NUMERIC(p,s)` precision and scale, `information_schema.table_constraints` joined to `information_schema.key_column_usage` for primary key + single-column unique constraints, and `pg_index` / `pg_class` / `pg_attribute` (skipping the auto-created PRIMARY KEY / UNIQUE constraint indexes) for explicit `CREATE INDEX` definitions. Postgres types map back to the connector's `ColumnKind`: `varchar` / `text` / `integer` / `bigint` / `boolean` / `timestamp` (with or without time zone) / `date` / `time` / `numeric(p,s)` / `real` / `double precision` / `json` / `jsonb`. `nextval(...)` defaults flag the column as `autoIncrement: true`; `now()` / `CURRENT_TIMESTAMP` round-trip back to `'currentTimestamp'`; quoted string defaults are unescaped, numeric defaults parsed back to `number`. Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.

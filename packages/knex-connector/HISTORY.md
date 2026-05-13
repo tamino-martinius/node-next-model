@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Implements `Connector.reflectSchema()` for schema introspection, dispatching by `knex.client.config.client` to the matching dialect's introspection path: `sqlite3` / `better-sqlite3` use `PRAGMA` queries against `sqlite_master`; `pg` / `postgres` use `information_schema` + `pg_index` / `pg_class`; `mysql` / `mysql2` / `mariadb` use MySQL `information_schema`. Each branch mirrors what the corresponding native connector (`SqliteConnector`, `PostgresConnector`, `MysqlConnector`) returns, including auto-increment detection (`AUTOINCREMENT` keyword in SQLite DDL, `nextval(...)` in Postgres column defaults, `EXTRA = 'auto_increment'` in MySQL) and the type-table mappings (e.g., `tinyint(1)` → `boolean` on MySQL). Throws `PersistenceError` for any other Knex client name. Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.

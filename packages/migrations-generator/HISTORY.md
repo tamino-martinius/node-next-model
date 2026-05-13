@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - New `schema-from-db` subcommand. Loads a connector module (default export, named `connector` export, or a factory), calls `Connector.reflectSchema()`, and writes a typed-schema TS file with one `defineSchema(...)` per reflected table via `@next-model/core`'s `generateSchemaSource`. Errors out helpfully when the connector doesn't implement `reflectSchema`. Programmatic entry points are exported as `runSchemaFromDb`, `parseSchemaFromDbArgs`, and `runCliAsync`.

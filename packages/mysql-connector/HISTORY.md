@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Implements `Connector.reflectSchema()` for schema introspection. Reads `information_schema.TABLES` (filtered to `TABLE_SCHEMA = DATABASE()` and `TABLE_TYPE = 'BASE TABLE'`), `information_schema.COLUMNS` for column types / nullability / defaults / `VARCHAR(N)` limits / `DECIMAL(p,s)` precision and scale + `EXTRA = 'auto_increment'`, and `information_schema.STATISTICS` for primary key + unique / non-unique indexes. MySQL types map back to the connector's `ColumnKind`: `varchar(N)` → `string` with limit, `text` / `longtext` → `text`, `int` / `mediumint` → `integer`, `bigint` → `bigint`, `tinyint(1)` → `boolean` (other widths → `integer`), `decimal(p,s)` → `decimal`, `float` / `double` → `float`, `datetime` / `timestamp` / `date` / `json` map verbatim. The auto-generated PRIMARY KEY index and single-column UNIQUE indexes are folded back into column-level flags so the resulting `TableDefinition[]` round-trips back into `createTable` cleanly. Inherited verbatim by `@next-model/mariadb-connector`. Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.

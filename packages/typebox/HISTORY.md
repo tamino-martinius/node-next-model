@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Initial release. `fromTypeBox(objectSchema)` returns `{ init, validators, applyColumns, describeColumns }` mirroring `@next-model/zod`. `init` applies `Value.Default` + `Value.Check` and throws `ValidationError` with a formatted `Value.Errors` summary.

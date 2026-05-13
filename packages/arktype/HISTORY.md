@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Initial release. `fromArkType(objectType)` returns `{ init, validators, applyColumns, describeColumns }` — same surface as `@next-model/zod` and `@next-model/typebox`, backed by arktype 2.x.

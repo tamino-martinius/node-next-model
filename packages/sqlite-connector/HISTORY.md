@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Implements `Connector.reflectSchema()` for schema introspection. Reads `sqlite_master` for the user's tables (skipping `sqlite_*` internals), `PRAGMA table_info(...)` for columns (mapping SQLite affinity types back to `ColumnKind`, recovering `VARCHAR(N)` limits and `NUMERIC(p,s)` precision/scale), and `PRAGMA index_list(...)` / `PRAGMA index_info(...)` for explicit indexes. The original `CREATE TABLE` SQL stored in `sqlite_master.sql` is parsed for `AUTOINCREMENT` so the reflected `TableDefinition[]` round-trips back into `createTable`. SQLite's lossy mappings still apply — booleans surface as `integer` and unbounded `t.string(...)` columns surface as `text` (no native BOOLEAN, and `TEXT` is indistinguishable from a stored `t.text`). Defaults are decoded back to typed values: `'currentTimestamp'` for `CURRENT_TIMESTAMP`, `null` for `NULL`, numeric / boolean / string literals as appropriate. Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.

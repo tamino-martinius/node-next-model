@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.0
+
 ## v1.0.0
 
 - Initial release. `buildModelResource({ Model, name, fields, ... })` returns `{ typeDefs, resolvers }` for six default operations: `list`, `get`, `count`, `create`, `update`, `delete`.
