@@ -2,6 +2,15 @@
 
 ## vNext
 
+### Added
+
+- `connector.ensureSchema()` walks the attached `schema.tableDefinitions` and dispatches every missing table through `createTable`, returning `{ created, existing }` so callers can log what changed. Idempotent: existing tables are reported, not recreated. Throws if no schema is attached.
+- Sourcemap files (`dist/**/*.map`) are now included in the published tarball. Downstream Vite / webpack / Rollup builds resolve stack frames inside `@next-model/sqlite-connector` to original TypeScript source without `ENOENT` warnings. No runtime change.
+
+### Changed
+
+- Boolean columns are coerced to `true` / `false` on read when a schema is attached. SQLite has no native boolean and `better-sqlite3` returns 0 / 1 INTEGER for every column declared `boolean`; the connector now mirrors the existing JSON-column behaviour and coerces 0 / 1 → `false` / `true` inside `hydrateRow` for columns the attached schema declares `{ type: 'boolean' }`. `null` and any non-0/1 value passes through unchanged. The write path was already accepting both `true`/`false` and `0`/`1` and is unchanged. **Behaviour change:** callers that compared boolean columns against `0` / `1` strictly (`row.col === 1`) need to switch to `=== true` / `=== false`. Code using `Boolean(row.col)` or loose equality (`== true`) is unaffected. The coercion only activates when a schema is attached at construction; callers using `new SqliteConnector(':memory:')` (no schema) still see raw 0 / 1 INTEGER reads.
+
 ## v1.1.0
 
 ## v1.0.0
