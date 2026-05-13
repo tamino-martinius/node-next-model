@@ -470,6 +470,18 @@ export type ScopesToMethods<Self, S extends ScopeMap> = {
 
 export class ModelClass {
   static tableName: string;
+  /**
+   * Column names declared on the schema for this Model's table, in the order
+   * they appear in the schema. Used by the instance constructor to install
+   * property getters for every declared column — including columns the
+   * caller omitted at `create({ ... })` time — so that a later
+   * `update({ col: value })` makes `instance.col` readable without a
+   * re-fetch.
+   *
+   * Defaults to an empty array for legacy code paths that build a Model
+   * without going through the schema-driven `Model()` factory.
+   */
+  static schemaColumnNames: readonly string[] = [];
   static filter: Filter<any> | undefined;
   /**
    * Sticky filter applied to every chained read on the Model. Unlike
@@ -1493,15 +1505,33 @@ export class ModelClass {
     this.persistentProps = props;
     this.keys = keys;
 
-    for (const key in this.persistentProps) {
+    const model = this.constructor as typeof ModelClass;
+
+    // Install getters / setters for every column declared on the Model's
+    // schema. Iterating only `persistentProps` would miss columns the caller
+    // omitted at insert (e.g. nullable timestamps like `archivedAt`) — a
+    // later `instance.update({ archivedAt: new Date() })` would store the
+    // value but `instance.archivedAt` would still read `undefined` until
+    // re-fetched. Falling back to `persistentProps` keeps the previous
+    // behaviour for any Model built without a schema column list.
+    const installed = new Set<string>();
+    const schemaCols = model.schemaColumnNames ?? [];
+    for (const key of schemaCols) {
+      installed.add(key);
       Object.defineProperty(this, key, {
         get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
         configurable: true,
       });
     }
-
-    const model = this.constructor as typeof ModelClass;
+    for (const key in this.persistentProps) {
+      if (installed.has(key)) continue;
+      Object.defineProperty(this, key, {
+        get: () => this.attributes[key],
+        set: (value) => this.assign({ [key]: value }),
+        configurable: true,
+      });
+    }
 
     // Keys are configurable so they can re-define a same-named property
     // installed by the persistentProps loop above (e.g. when the caller
@@ -2441,7 +2471,15 @@ export function Model(props: any): any {
     tableDefinition,
     resolvedSchema.tableDefinitions,
   );
-  const result = modelFactoryImpl({ ...props, tableName, keys, init, associations });
+  const schemaColumnNames = tableDefinition.columns.map((c) => c.name);
+  const result = modelFactoryImpl({
+    ...props,
+    tableName,
+    keys,
+    init,
+    associations,
+    schemaColumnNames,
+  });
   ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
   return result;
 }
@@ -2485,6 +2523,16 @@ function modelFactoryImpl<
   secureTokens?: string[] | Dict<{ length?: number }>;
   counterCaches?: CounterCacheSpec[];
   associations?: AssociationsMap;
+  /**
+   * Column names declared on the schema's `tableDefinition` for this model.
+   * The instance constructor uses this list to pre-install property getters
+   * for every declared column — including those that are absent at insert
+   * time (nullable columns, defaults supplied at insert by the DB, ...) —
+   * so a subsequent `update({ col: value })` makes `instance.col` readable
+   * without a re-fetch. Optional so the legacy non-schema-driven Model
+   * factory path stays compilable.
+   */
+  schemaColumnNames?: string[];
 }) {
   const connector = props.connector ? props.connector : new MemoryConnector();
   const order = props.order ? (Array.isArray(props.order) ? props.order : [props.order]) : [];
@@ -2558,6 +2606,7 @@ function modelFactoryImpl<
 
   const ModelSubclass = class Model extends ModelClass {
     static tableName = props.tableName;
+    static schemaColumnNames: readonly string[] = props.schemaColumnNames ?? [];
     static filter = props.filter;
     static defaultScope = props.defaultScope;
     static limit = props.limit;
