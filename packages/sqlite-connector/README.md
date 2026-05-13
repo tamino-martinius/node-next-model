@@ -63,6 +63,19 @@ const connector = new SqliteConnector(':memory:', { schema });
 
 The `extras: { schema }` arg is purely a type-level decoration — the runtime contract is unchanged, and existing constructor call sites without a schema keep working.
 
+### Materialising tables with `ensureSchema()`
+
+Once a schema is attached, `connector.ensureSchema()` walks every declared table and creates any that don't already exist. It's idempotent — call it on every app boot:
+
+```ts
+const connector = new SqliteConnector('./data/app.sqlite', { schema });
+const { created, existing } = await connector.ensureSchema();
+// first boot:  { created: ['users', 'posts', ...], existing: [] }
+// later boots: { created: [], existing: ['users', 'posts', ...] }
+```
+
+Calling `ensureSchema()` without a schema throws — pass `{ schema }` at construction.
+
 ## Wiring a Model
 
 ```ts
@@ -109,6 +122,30 @@ All identifiers are quoted with `"…"`. Identifiers are validated against `^[A-
 - `boolean` → `1` / `0`.
 
 This lets you pass JS-native values directly through Model.
+
+### Boolean read-side coercion
+
+SQLite has no native boolean kind; `better-sqlite3` returns 0 / 1 as `INTEGER` for any column declared `boolean`. When a schema is attached to the connector, columns declared `{ type: 'boolean' }` are coerced back to `true` / `false` on every read — strict identity (`=== true` / `=== false`) works without a `Boolean(...)` wrapper.
+
+```ts
+const schema = defineSchema({
+  users: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      isAdmin: { type: 'boolean', null: false },
+    },
+  },
+});
+const c = new SqliteConnector(':memory:', { schema });
+await c.ensureSchema();
+await c.batchInsert('users', { id: 1 } as any, [{ isAdmin: true }]);
+const [row] = await c.query({ tableName: 'users' });
+row.isAdmin === true; // ← was `row.isAdmin === 1` before
+```
+
+The coercion only kicks in when an actual schema is attached. Existing call sites that use `new SqliteConnector(':memory:')` with no schema (or run against pre-existing tables that were never declared through `defineSchema`) keep reading raw `0` / `1` INTEGER, so older code that compared columns with `=== 1` continues to compile and work — only the new schema-driven path opts into strict booleans.
+
+`null` and any non-`0`/`1` integer value passes through unchanged.
 
 ### `execute(query, bindings)`
 

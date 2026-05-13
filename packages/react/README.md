@@ -151,3 +151,7 @@ import type {
 - No optimistic insertion of newly saved rows into watched arrays — use `useInvalidateKeys`.
 - No interval / background polling.
 - Cross-Provider mutations are not propagated.
+
+## Source maps
+
+`dist/**/*.map` is included in the published tarball, so downstream bundlers (Vite, webpack, esbuild, Rollup) resolve the original TypeScript source on errors out of `@next-model/react` without `ENOENT` warnings. There is no runtime change.

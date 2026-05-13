@@ -50,6 +50,15 @@ const connector = new LocalStorageConnector({ prefix: 'app:' }, { schema });
 
 Existing call sites without `{ schema }` keep working unchanged.
 
+### Materialising tables with `ensureSchema()`
+
+Inherited from `MemoryConnector`: when a schema is attached, `connector.ensureSchema()` iterates every declared table and initialises it idempotently. Returns `{ created, existing }`. Call once on app boot:
+
+```ts
+const connector = new LocalStorageConnector({ prefix: 'app:' }, { schema });
+const { created } = await connector.ensureSchema();
+```
+
 ## Wiring a Model
 
 ```ts

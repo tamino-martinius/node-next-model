@@ -32,12 +32,24 @@ class User extends Model({
   }
 }
 
-await User.createTable();
+await connector.ensureSchema();  // creates every declared table that doesn't exist
 const ada = await User.create({ firstName: 'Ada', lastName: 'Lovelace', age: 36 });
 ada.name; // 'Ada Lovelace'
 ```
 
 Models are TypeScript classes — add getters, methods, and computed properties just like normal. Swap `SqliteConnector` for any other connector ([Postgres](./packages/postgres-connector), [MySQL](./packages/mysql-connector), [MongoDB](./packages/mongodb-connector), [Redis](./packages/redis-connector), `MemoryConnector` for tests, …) and every Model feature keeps working through the same `Connector` interface.
+
+### Materialise the schema with `ensureSchema()`
+
+When the connector carries an attached schema, `connector.ensureSchema()` walks every table declared on it and creates any table that doesn't already exist. Calling it again is a no-op: existing tables are skipped, only new ones are created. It returns `{ created: string[], existing: string[] }` so you can log the diff.
+
+```ts
+const connector = new SqliteConnector('./data/app.sqlite', { schema });
+const { created, existing } = await connector.ensureSchema();
+// app boot: creates missing tables; subsequent boots: returns { created: [], existing: [...] }
+```
+
+Implemented by `SqliteConnector`, `MemoryConnector`, and `LocalStorageConnector` today; other connectors fall back to the explicit `createTable(name, builder)` loop until they opt in.
 
 ### Query with chainable, immutable scopes
 
@@ -56,6 +68,8 @@ await User.filterBy({ $in: { age: [25, 30, 36] } })
 ```
 
 Operators available on every connector: `$eq` · `$gt` · `$gte` · `$lt` · `$lte` · `$in` · `$notIn` · `$null` · `$notNull` · `$like` · `$ilike` · `$between`. Compose them with `filterBy` / `orFilterBy` / `unfiltered` / `unscoped`. Predeclare reusable filters via `scopes` on the `Model({...})` definition.
+
+Each column-style operator accepts both the nested ORM-style form `filterBy({ col: { $in: [...] } })` and the top-level form `filterBy({ $in: { col: [...] } })` — they produce the same query. Operators and equality keys can also be mixed in a single filter object: `filterBy({ workspaceId: 1, $null: 'archivedAt' })` is composed as an AND of every predicate, no `.filterBy(...).filterBy(...)` chaining required.
 
 ### Use it from React
 
