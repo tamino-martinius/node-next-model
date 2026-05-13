@@ -1,6 +1,6 @@
 # Release workflow.
 #
-# Trigger: manual workflow_dispatch on the `vNext` branch with a semver
+# Trigger: manual workflow_dispatch on the `main` branch with a semver
 # `version` input (no leading "v"). The workflow:
 #   1. Validates the branch + version + that the tag does not already exist.
 #   2. Sanity-builds the workspace (lint + build + typecheck + typecheck:demos).
@@ -11,7 +11,7 @@
 #   5. For stable releases (no prerelease component) only: rewrites every
 #      HISTORY.md so `## vNext` becomes `## v<version>` and a fresh empty
 #      `## vNext` block is inserted above it.
-#   6. Commits + tags `v<version>`, pushes to vNext.
+#   6. Commits + tags `v<version>`, pushes to main.
 #   7. Packs each public package via `pnpm pack` (which rewrites
 #      `workspace:*` deps to concrete versions).
 #   8. Publishes each tarball to npm with provenance via Trusted Publishing.
@@ -22,7 +22,7 @@
 #     npmjs.com pointing at this repository and `release.yml`. For packages
 #     not yet published, use npm's first-publish flow with the Trusted
 #     Publisher pre-registered.
-#   - Branch protection on `vNext` allows the GITHUB_TOKEN to push commits
+#   - Branch protection on `main` allows the GITHUB_TOKEN to push commits
 #     and tags. If protection blocks the bot push, supply a PAT and switch
 #     the `token:` on actions/checkout below.
 #   - No NPM_TOKEN secret is required.
@@ -56,9 +56,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Guard ref
-        if: github.ref_name != 'vNext'
+        if: github.ref_name != 'main'
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          echo "::error::release workflow may only be dispatched from the vNext branch (got ${{ github.ref_name }})"
+          echo "::error::release workflow may only be dispatched from the main branch (got $REF_NAME)"
           exit 1
 
       - uses: actions/checkout@v6
@@ -172,7 +174,7 @@ jobs:
           fi
           git commit -m "chore(release): v$VERSION"
           git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin vNext --follow-tags
+          git push origin main --follow-tags
 
       - name: Pack tarballs
         env:
