@@ -1,65 +1,37 @@
 {
-  "name": "@next-model/core",
-  "version": "1.0.0-alpha.31",
-  "description": "AWS Data API model layer package with zero dependencies to use in lambda",
-  "keywords": [
-    "model",
-    "database",
-    "model layer",
-    "pg",
-    "postgres",
-    "mysql",
-    "data api",
-    "dataapi",
-    "aws",
-    "serverless",
-    "typescript",
-    "jest",
-    "node",
-    "nodejs"
-  ],
+  "name": "next-model-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo for @next-model/core and its connector packages",
   "author": "Tamino Martinius <dev@zaku.eu>",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "jsnext:main": "./dist/index.mjs",
-  "typings": "./dist/index.d.ts",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tamino-martinius/node-data-api-model.git"
+    "url": "https://github.com/tamino-martinius/node-next-model.git"
   },
   "engines": {
-    "node": ">=8.10.0"
+    "node": ">=22"
   },
+  "packageManager": "pnpm@9.12.0",
   "scripts": {
-    "coverage": "rm -rf coverage* && jest --coverage --maxWorkers=1",
-    "test": "jest --maxWorkers=1",
-    "watch": "tsc -w",
-    "ci": "npm run coverage && codecov",
-    "compile": "rm -rf dist/* && tsc && tsc-mjs --declaration false --target esnext --module esnext --mjs",
-    "preversion": "npm run compile && git add ."
+    "build": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' --filter './packages/express-rest-api' --filter './packages/graphql-api' --filter './packages/nextjs-api' --filter './packages/migrations-generator' --filter './packages/zod' --filter './packages/typebox' --filter './packages/arktype' --filter './packages/react' run build",
+    "build:packages": "pnpm -r --filter './packages/*' run build",
+    "test": "pnpm -r --filter './packages/core' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/express-rest-api' --filter './packages/graphql-api' --filter './packages/nextjs-api' --filter './packages/migrations-generator' --filter './packages/zod' --filter './packages/typebox' --filter './packages/arktype' --filter './packages/react' run test",
+    "test:all": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' --filter './packages/express-rest-api' --filter './packages/graphql-api' --filter './packages/nextjs-api' --filter './packages/migrations-generator' --filter './packages/zod' --filter './packages/typebox' --filter './packages/arktype' --filter './packages/react' run test",
+    "typecheck": "pnpm -r --filter './packages/core' --filter './packages/knex-connector' --filter './packages/aurora-data-api-connector' --filter './packages/local-storage-connector' --filter './packages/migrations' --filter './packages/express-rest-api' --filter './packages/graphql-api' --filter './packages/nextjs-api' --filter './packages/migrations-generator' --filter './packages/zod' --filter './packages/typebox' --filter './packages/arktype' --filter './packages/react' run typecheck",
+    "typecheck:demos": "pnpm -r --filter '@next-model-demos/*' run typecheck",
+    "lint": "biome check .",
+    "test:release": "node --test .github/scripts/*.test.mjs",
+    "format": "biome format --write .",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
-    "@types/jest": "^24.0.25",
-    "@types/node": "^13.1.4",
-    "codecov": "^3.6.1",
-    "jest": "^24.9.0",
-    "ts-jest": "^24.2.0",
-    "ts-mjs": "^3.1.0",
-    "typescript": "^3.7.4"
+    "@biomejs/biome": "^2.4.13",
+    "typescript": "^6.0.3"
   },
-  "jest": {
-    "preset": "ts-jest",
-    "testRegex": "\\.(test|spec)\\.ts$",
-    "moduleFileExtensions": [
-      "ts",
-      "js"
-    ],
-    "collectCoverageFrom": [
-      "src/**/*.ts",
-      "!src/__benchmark__/**",
-      "!src/__tests__/**",
-      "!src/__mocks__/**"
-    ]
+  "pnpm": {
+    "overrides": {
+      "postcss@<8.5.10": ">=8.5.10"
+    }
   }
 }

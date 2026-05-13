@@ -1,0 +1,33 @@
+{
+  "name": "@next-model-demos/knex-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "node --experimental-strip-types demo.ts",
+    "start:sqlite": "KNEX_DEMO_CLIENT=sqlite3 node --experimental-strip-types demo.ts",
+    "start:pg": "KNEX_DEMO_CLIENT=pg DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/nextmodel_demo node --experimental-strip-types demo.ts",
+    "start:mysql": "KNEX_DEMO_CLIENT=mysql2 DATABASE_URL=mysql://root:mysql@127.0.0.1:3306/nextmodel_demo node --experimental-strip-types demo.ts",
+    "typecheck": "tsc --noEmit",
+    "db:up:pg": "docker compose --profile pg up -d",
+    "db:up:mysql": "docker compose --profile mysql up -d",
+    "db:down": "docker compose --profile pg --profile mysql down -v"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/knex-connector": "workspace:*",
+    "knex": "^3.2.9",
+    "mysql2": "^3.22.3",
+    "pg": "^8.20.0",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

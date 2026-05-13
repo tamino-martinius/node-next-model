@@ -1,0 +1,6 @@
+coverage*
+.eslintcache
+node_modules
+npm-debug.log*
+.DS_Store
+dist/**/__tests__

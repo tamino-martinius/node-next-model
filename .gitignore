@@ -1,6 +1,13 @@
-coverage*
+coverage/
 .eslintcache
 node_modules
 npm-debug.log*
 .DS_Store
-dist/**/__tests__
+dist
+*.tsbuildinfo
+.pnpm-store
+docs/superpowers/
+
+# AI Tools
+.claude
+.playwright-mcp/

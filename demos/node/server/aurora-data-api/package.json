@@ -1,0 +1,24 @@
+{
+  "name": "@next-model-demos/aurora-data-api-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "node --experimental-strip-types demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@next-model/aurora-data-api-connector": "workspace:*",
+    "@next-model/core": "workspace:*",
+    "knex": "^3.2.9",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

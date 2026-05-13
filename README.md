@@ -1,820 +1,256 @@
 # NextModel
 
-Write scoped models using **TypeScript**. [![Build Status](https://travis-ci.org/tamino-martinius/node-next-model.svg?branch=master)](https://travis-ci.org/tamino-martinius/node-next-model)
+A typed, promise-based ORM for TypeScript. Define models with a factory, chain immutable scopes, plug in any storage via the `Connector` interface, and run schema migrations against the same connector.
 
-NextModel gives you the ability to:
+## At a glance
 
-- Represent **models** and their data.
-- Represent **inheritance** hierarchies through related models.
-- Perform database operations in an **object-oriented** fashion.
-- Uses **Promises** for database queries.
-
-## Roadmap / Where can i contribute
-
-See [GitHub](https://github.com/tamino-martinius/node-next-model/projects/1) project for current progress/tasks
-
-- Fix **typos**
-- Add **associations** between models
-- Improve **documentation**
-- Implement **order** in `Connector`
-- `createdAt` and `updatedAt` **timestamps**
-- Add **callbacks**
-- Predefined **validations**
-- Improve **schema** with eg. default values, limits
-- Improve **associations** eg. cascading deletions
-- Add more packages for eg. **versioning** and **soft deleting**
-- Help to improve **tests** and the test **coverage**.
-- Add more connectors for eg. **graphQL** and **dynamoDB**
-- `includes` prefetches relations with two db queries _(fetch records => pluck ids => fetch related records by ids)_ instead of one query per related model.
-
-  `User.includes({address: {}})`, `Profile.includes({user: {address: {}}})`
-
-- Add a solution to create **Migrations**
-
-## TOC
-
-- [NextModel](#nextmodel)
-  - [Roadmap / Where can i contribute](#roadmap--where-can-i-contribute)
-  - [TOC](#toc)
-  - [Example](#example)
-  - [Model Instances](#model-instances)
-    - [build](#build)
-    - [create](#create)
-    - [From Scopes and queries](#from-scopes-and-queries)
-  - [Relations WIP - Definitions will change](#relations-wip---definitions-will-change)
-    - [belongsTo WIP - Definitions will change](#belongsto-wip---definitions-will-change)
-    - [hasMany WIP - Definitions will change](#hasmany-wip---definitions-will-change)
-    - [hasOne WIP - Definitions will change](#hasone-wip---definitions-will-change)
-  - [Queries](#queries)
-    - [filterBy](#filterby)
-    - [orderBy](#orderby)
-    - [skipBy](#skipby)
-    - [limitBy](#limitby)
-  - [Scopes](#scopes)
-    - [Build from scope](#build-from-scope)
-    - [Scope chaining](#scope-chaining)
-  - [Fetching](#fetching)
-    - [all](#all)
-    - [first](#first)
-    - [count](#count)
-  - [Batches WIP - Definitions will change](#batches-wip---definitions-will-change)
-    - [updateaAll WIP - Definitions will change](#updateaall-wip---definitions-will-change)
-    - [deleteAll WIP - Definitions will change](#deleteall-wip---definitions-will-change)
-  - [Model Parameters WIP - Definitions will change](#model-parameters-wip---definitions-will-change)
-    - [connector WIP - Definitions will change](#connector-wip---definitions-will-change)
-    - [keys WIP - Definitions will change](#keys-wip---definitions-will-change)
-    - [filter WIP - Definitions will change](#filter-wip---definitions-will-change)
-    - [order WIP - Definitions will change](#order-wip---definitions-will-change)
-    - [skip WIP - Definitions will change](#skip-wip---definitions-will-change)
-    - [limit WIP - Definitions will change](#limit-wip---definitions-will-change)
-  - [Instance Attributes](#instance-attributes)
-    - [isNew](#isnew)
-    - [isPersistent](#ispersistent)
-    - [attributes](#attributes)
-    - [isChanged WIP - Definitions will change](#ischanged-wip---definitions-will-change)
-    - [changes WIP - Definitions will change](#changes-wip---definitions-will-change)
-    - [Custom Attributes WIP - Definitions will change](#custom-attributes-wip---definitions-will-change)
-  - [Instance Actions](#instance-actions)
-    - [assign](#assign)
-    - [save](#save)
-    - [delete](#delete)
-    - [reload](#reload)
-    - [revertCachanges](#revertcachanges)
-    - [isValid](#isvalid)
-  - [Changelog](#changelog)
-
-## Example
+### Define a model
 
 ```ts
-// import
-import { Model } from '@next-model/core';
+import { defineSchema, Model } from '@next-model/core';
+import { SqliteConnector } from '@next-model/sqlite-connector';
+
+const schema = defineSchema({
+  users: {
+    columns: {
+      id:        { type: 'integer', primary: true, autoIncrement: true },
+      firstName: { type: 'string' },
+      lastName:  { type: 'string' },
+      age:       { type: 'integer' },
+    },
+  },
+});
+
+const connector = new SqliteConnector(':memory:', { schema });
 
 class User extends Model({
+  connector,
   tableName: 'users',
-  init: (props: { firstName?: string; lastName?: string; gender?: string }) => props,
 }) {
-  static get males() {
-    return this.filterBy({ gender: 'male' });
-  }
-
-  static get females() {
-    return this.filterBy({ gender: 'female' });
-  }
-
-  static withFirstName(firstName: string) {
-    return this.filterBy({ firstName });
-  }
-
-  get addresses() {
-    return Address.filterBy({ userId: this.attributes.id });
-  }
-
-  get name(): string {
-    return `${this.attributes.firstName} ${this.attributes.lastName}`;
-  }
-}
-
-class Address extends Model({
-  tableName: 'addresses',
-  init: (props: { street: string; userId: number }) => props,
-}) {
-  get user() {
-    return User.filterBy({ id: this.attributes.userId }).first;
-  }
-}
-
-// Creating
-user = User.build({
-  firstName: 'John',
-  lastName: 'Doe',
-  gender: 'male',
-});
-user.name === 'John Doe';
-user = await user.save();
-
-user = User.males.buildScoped({ firstName: 'John', lastName: 'Doe' });
-user.gender === 'male';
-
-user = await User.create({
-  firstName: 'John',
-  lastName: 'Doe',
-  gender: 'male',
-});
-
-address = await user.addresses.createScoped({
-  street: 'Bakerstr.',
-});
-address.userId === user.id;
-
-// Searching
-users = await User.males.all();
-user = await User.withFirstName('John').first();
-addresses = await user.addresses.all();
-users = await User.filterBy({ lastName: 'Doe' }).all();
-users = await User.males()
-  .order({ key: 'lastName' })
-  .all();
-```
-
-## Model Instances
-
-### build
-
-Initializes new record without saving it to the database.
-
-```ts
-user = User.build({ firstName: 'John', lastName: 'Doe' });
-user.isNew === true;
-user.name === 'John Doe';
-```
-
-### create
-
-Returns a `Promise` which returns the created record on success or the initialized if sth. goes wrong.
-
-```ts
-user = await User.create({
-  firstName: 'John',
-  lastName: 'Doe',
-});
-```
-
-### From Scopes and queries
-
-An record can be `buildScoped` or `createScoped` from filters. These records are created with scope values as default.
-
-```ts
-address = user.addresses.buildScoped();
-address.userId === user.id;
-
-user = User.males.buildScoped();
-user.gender === 'male';
-
-user = User.withFirstName('John').buildScoped();
-user.firstName === 'John';
-
-user = User.withFirstName('John')
-  .filterBy({ lastName: 'Doe' })
-  .buildScoped();
-user.name === 'John Doe';
-
-user = User.filterBy({ gender: 'male' }).buildScoped();
-user.gender === 'male';
-```
-
-## Relations _WIP - Definitions will change_
-
-Define the Model associations. Describe the relation between models to get predefined scopes and constructors.
-
-### belongsTo _WIP - Definitions will change_
-
-A `.belongsTo` association sets up a one-to-one connection with another model, such that each instance of the declaring model "belongs to" one instance of the other model.
-
-For example, if your application includes users and addresses, and each user can be assigned to exactly one address, you'd declare the user model this way:
-
-```ts
-class User extends NextModel<UserSchema>() {
-  get address() {
-    return this.belongsTo(Address);
-  }
-}
-
-user = await User.create({ addressId: id });
-address = await user.address;
-address.id === id;
-
-user = User.build();
-user.address = address;
-user.addressId === address.id;
-```
-
-### hasMany _WIP - Definitions will change_
-
-A `.hasMany` association indicates a one-to-many connection with another model. You'll often find this association on the "other side" of a [belongsTo](#belongsto) association. This association indicates that each instance of the model has zero or more instances of another model.
-
-For example, in an application containing users and addresses, the author model could be declared like this:
-
-```ts
-class Address extends NextModel<AddressSchema>() {
-  get users() {
-    return this.hasMany(User);
-  }
-};
-
-users = await address.users.all;
-user = await address.users.create({ ... });
-```
-
-### hasOne _WIP - Definitions will change_
-
-A `.hasOne` association also sets up a one-to-one connection with another model, but with somewhat different semantics (and consequences). This association indicates that each instance of a model contains or possesses one instance of another model.
-
-For example, if each address in your application has only one user, you'd declare the user model like this:
-
-```ts
-class User extends NextModel<UserSchema>() {
-  get address() {
-    return this.hasOne(Address);
-  }
-}
-
-class Address extends NextModel<AddressSchema>() {
-  get user() {
-    return this.belongsTo(User);
-  }
-}
-
-address = await user.address;
-```
-
-## Queries
-
-### filterBy
-
-Special filter syntax is dependent on used connector. But all connectors and the cache supports basic attribute filtering and the special queries $and, $or and $now. All special queries start with an leading $. The filter can be completely cleared by calling `.unfiltered`
-
-```ts
-User.filterBy({ gender: 'male' });
-User.filterBy({ age: 21 });
-User.filterBy({ name: 'John', gender: 'male' });
-User.filterBy({ $or: [{ firstName: 'John' }, { firstName: 'Foo' }] });
-User.filterBy({ $and: [{ firstName: 'John' }, { lastName: 'Doe' }] });
-User.filterBy({ $not: [{ gender: 'male' }, { gender: 'female' }] });
-User.males.filterBy({ name: 'John' });
-User.males.unfiltered().females;
-```
-
-### orderBy
-
-The fetched data can be sorted before fetching then. The `orderBy` function takes an object with property names as keys and the sort direction as value. Valid values are `asc` and `desc`. The order can be resetted by calling `.unordered`.
-
-```ts
-User.orderBy({ key: 'name' });
-User.orderBy({ key: 'name', dir: SortDirection.Desc });
-User.orderBy([{ key: 'name' }, { key: 'age', dir: SortDirection.Desc }]);
-User.males.orderBy({ key: 'name' dir: SortDirection.Asc });
-User.orderBy({ key: 'name' }).unordered;
-```
-
-### skipBy
-
-An defined amont of matching records can be skipped with `.skipBy(amount)` and be resetted with `.unskipped`. The current skipped amount of records can be fetched with `.skip`.
-
-_Please note:_ `.skipBy(amount)` and `.unskipped` will return a scoped model and will not modify the existing one.
-
-Default value is `0`.
-
-```ts
-User.count(); //=> 10
-User.skipBy(3).count(); //=> 7
-User.count(); //=> 10 - creates new instance and does not modify existing
-User.skipBy(15).count(); //=> 10
-User.skipBy(5).unskipped.count(); //=> 10
-```
-
-### limitBy
-
-The resultset can be limited with `.limitBy(amount)` and be resetted with `.unlimited`. The current limit can be fetched with `.limit`.
-
-_Please note:_ `.limitBy(amount)` and `.unlimited` will return a scoped model and will not modify the existing one.
-
-Default value is `Number.MAX_SAFE_INTEGER`.
-
-```ts
-User.count(); //=> 10
-User.limitBy(3).count(); //=> 3
-User.count(); //=> 10 - creates new instance and does not modify existing
-User.limitBy(15).count(); //=> 10
-User.limitBy(5).unlimited.count(); //=> 10
-```
-
-## Scopes
-
-Scopes are predefined queries on a Model. For example filters, orders and limitations.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get males() {
-    return this.filterBy({ gender: 'male' });
-  }
-
-  static get females() {
-    return this.filterBy({ gender: 'female' });
-  }
-
-  static withFirstName(firstName) {
-    return this.filterBy({ firstName });
-  }
-}
-```
-
-Now you can use these scopes to search/filter records.
-
-```ts
-User.males;
-User.withFirstName('John');
-```
-
-Scopes can be chained with other scopes or search queries.
-
-```ts
-User.males.witFirsthName('John');
-User.withFirstName('John').filterBy({ gender: 'transgender' });
-```
-
-### Build from scope
-
-```ts
-profile = User.males.buildScoped();
-profile.gender === 'male';
-```
-
-### Scope chaining
-
-```ts
-User.males.young;
-User.males.young.filterBy({ ... });
-```
-
-## Fetching
-
-If you want to read the data of the samples of the [previous section](#fetching) you can fetch if with the following functions. Each fetching function will return a `Promise` to read the data.
-
-### all
-
-Returns all data of the query. Results can be limited by [skipBy](#skipby) and [limitBy](#limitby).
-
-```ts
-users = await User.all();
-users = await User.males.all();
-users = await User.filterBy({ firstName: 'John' }).all();
-```
-
-### first
-
-Returns the first record which matches the query. Use **orderBy** to sort matching records before fetching the first one.
-
-```ts
-user = await User.first();
-user = await User.males.first();
-user = await User.filterBy({ firstName: 'John' }).first();
-user = await User.orderBy({ lastName: 'asc' }).first();
-```
-
-### count
-
-Returns the count of the matching records. Ignores [orderBy](#orderBy), [skip](#skipby) and [limit](#limitby) and always returns complete count of matching records.
-
-```ts
-count = await User.count();
-count = await User.males.count();
-count = await User.filterBy({ name: 'John' }).count();
-```
-
-## Batches _WIP - Definitions will change_
-
-When there is a need to change/delete multiple records at once its recommended to use the following methods if possible. They provide a much better performance compared to do it record by record.
-
-### updateaAll _WIP - Definitions will change_
-
-`.updateAll(attrs)` updates all matching records with the passed attributes.
-
-```ts
-users = await User.filterBy({ firstName: 'John' }).updateAll({ gender: 'male' });
-users = await User.updateAll({ encryptedPassword: undefined });
-```
-
-### deleteAll _WIP - Definitions will change_
-
-Deletes and returns all matching records..
-
-```ts
-deletedUsers = await User.deleteAll();
-deletedUsers = await User.query({ firstName: 'John', lastName: 'Doe' }).deleteAll();
-```
-
-## Model Parameters _WIP - Definitions will change_
-
-Class Properties are static getters which can be defined with the class. Some of them can be modified by [Queries](#queries) which creates a new Class.
-
-### connector _WIP - Definitions will change_
-
-A connector is the bridge between models and the database. NextModel comes with an DefaultConnector which reads and writes on an simpe js object.
-
-Available connectors:
-
-- WIP [knex](https://github.com/tamino-martinius/node-next-model-knex-connector.git) (mySQL, postgres, sqlite3, ...)
-- WIP [local-storage](https://github.com/tamino-martinius/node-next-model-local-storage-connector.git) (Client side for Browser usage)
-
-```ts
-const Connector = require('next-model-knex-connector');
-const connector = new Connector(options);
-
-class User extends NextModel<UserSchema>() {
-  static get connector() {
-    return connector;
-  }
-}
-```
-
-Define an base model with connector to prevent adding connector to all Models.
-
-_Please note:_ In this case its better to call the `@Model` Decorator just on the final models and not on the base model, else you need to define the [modelName](#modelname) on each model because its reflected from the base model.
-
-```ts
-class BaseModel<S extends Identifiable> extends NextModel<S>() {
-  static get connector() {
-    return connector;
-  }
-};
-
-class User extends BaseModel<UserSchema> {
-  ...
-};
-
-class Address extends BaseModel<AddressSchema> {
-  ...
-};
-```
-
-### keys _WIP - Definitions will change_
-
-The `.keys` will return all possible attributes you can pass to build new model Instances. The keys depend on [schema](#schema).
-
-```ts
-class Foo extends NextModel {
-  static get schema(): Schema {
-    return {
-      bar: { type: 'string' },
-    };
-  }
-}
-Foo.keys; //=> ['bar']
-```
-
-### filter _WIP - Definitions will change_
-
-A default scope can be defined by adding a getter for `.filter`. You need call [unfiltered](#query) to search without this scope.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get filter() {
-    return {
-      deletedAt: null,
-    };
-  }
-};
-
-user = await User.first;
-User.unqueried.where( ... );
-```
-
-### order _WIP - Definitions will change_
-
-Adds an default Order to all queries unless its overwritten.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get order() {
-    return [
-      {
-        name: 'asc',
-      },
-    ];
-  }
-}
-```
-
-### skip _WIP - Definitions will change_
-
-Adds an default amount of skipped records on every query. This can be changed by [skipBy](#skipby) and removed by `.unskipped`.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get limit(): number {
-    return 10;
-  }
-}
-```
-
-### limit _WIP - Definitions will change_
-
-Limits all queries made to this model to an specific amount. This can be changed by [limitBy](#limitby) and removed by `.unlimited`.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get limit(): number {
-    return 100;
-  }
-}
-```
-
-## Instance Attributes
-
-### isNew
-
-An record is new unless the record is saved to the database. NextModel checks if the identifier property is set for this attribute.
-
-```ts
-address = Address.build();
-address.isNew === true;
-address = await address.save();
-address.isNew === false;
-```
-
-### isPersistent
-
-The opposite of [isNew](#isnew). Returns false unless the record is not saved to the database.
-
-```ts
-address = Address.build();
-address.isPersistent === false;
-address = await address.save();
-address.isPersistent === true;
-```
-
-### attributes
-
-Returns an object which contains all properties defined by schema.
-
-```ts
-user = User.build({
-  firstName: 'John',
-  lastName: 'Doe',
-  gender: 'male',
-});
-
-user.attributes() ===
-  {
-    id: 1,
-    firstName: 'John',
-    lastName: 'Doe',
-    gender: 'male',
-  };
-```
-
-### isChanged _WIP - Definitions will change_
-
-When you change a fresh build or created Class instance this property changes to true.
-
-```ts
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-});
-address.isChanged === false;
-address.street = '2nd street';
-address.isChanged === true;
-```
-
-This property does not change when the value is same after assignment.
-
-```ts
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-});
-address.isChanged === false;
-address.street = '1st street';
-address.isChanged === false;
-```
-
-### changes _WIP - Definitions will change_
-
-The `changes` property contains an `object` of changes per property which has changed. Each entry contains an `from` and `to` property. Just the last value is saved at the `to` property if the property is changed multiple times. The changes are cleared once its set again to its initial value, or if the record got saved.
-
-```ts
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-});
-address.changes === {};
-address.street = '2nd street';
-address.changes ===
-  {
-    street: { from: '1st street', to: '2nd street' },
-  };
-address.street = '3rd street';
-address.changes ===
-  {
-    street: { from: '1st street', to: '3nd street' },
-  };
-address.street = '1st street';
-address.changes === {};
-```
-
-```ts
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-});
-address.changes === {};
-address.street = '2nd street';
-address.changes ===
-  {
-    street: { from: '1st street', to: '2nd street' },
-  };
-address = await address.save();
-address.changes === {};
-```
-
-### Custom Attributes _WIP - Definitions will change_
-
-Custom attributes can be defined as on every other js class.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get schema() {
-    return {
-      firstname: { type: 'string' },
-      lastname: { type: 'string' },
-    };
-  }
-
   get name() {
     return `${this.firstName} ${this.lastName}`;
   }
 }
 
-user = User.build({
-  firstname: 'Foo',
-  lastname: 'Bar',
-});
-user.name === 'Foo Bar';
+await User.createTable();
+const ada = await User.create({ firstName: 'Ada', lastName: 'Lovelace', age: 36 });
+ada.name; // 'Ada Lovelace'
 ```
 
-## Instance Actions
+Models are TypeScript classes — add getters, methods, and computed properties just like normal. Swap `SqliteConnector` for any other connector ([Postgres](./packages/postgres-connector), [MySQL](./packages/mysql-connector), [MongoDB](./packages/mongodb-connector), [Redis](./packages/redis-connector), `MemoryConnector` for tests, …) and every Model feature keeps working through the same `Connector` interface.
 
-### assign
-
-You can assign a new value to an [schema](#schema) defined property. This does **not** automatically save the data to the database. All assigned attributes will be tracked by [changes](#changes)
+### Query with chainable, immutable scopes
 
 ```ts
-address.assign({
-  street: '1st Street',
-  city: 'New York',
-});
+// Each chain step returns a new query — the source class is untouched.
+const adults = User.filterBy({ $gte: { age: 18 } });
+
+await adults.count();                                                  // number of adults
+await adults.orderBy({ key: 'age', dir: 'desc' }).first();             // oldest adult
+await adults.filterBy({ $like: { lastName: 'Love%' } }).all();         // intersected filters
+
+await User.filterBy({ $in: { age: [25, 30, 36] } })
+          .orderBy({ key: 'lastName' })
+          .limitBy(10)
+          .all();
 ```
 
-### save
+Operators available on every connector: `$eq` · `$gt` · `$gte` · `$lt` · `$lte` · `$in` · `$notIn` · `$null` · `$notNull` · `$like` · `$ilike` · `$between`. Compose them with `filterBy` / `orFilterBy` / `unfiltered` / `unscoped`. Predeclare reusable filters via `scopes` on the `Model({...})` definition.
 
-Saves the record to database. Returns a `Promise` with the created record including its newly created id. An already existing record gets updated.
+### Use it from React
 
-```ts
-address = Address.build({ street: '1st street' });
-address = await address.save();
-address.isNew === false;
-```
+```tsx
+import { NextModelProvider, useModel } from '@next-model/react';
 
-```ts
-address.street = 'changed';
-address = await address.save();
-```
-
-### delete
-
-Removes the record from database. Returns a `Promise` with the deleted record.
-
-```ts
-address.isNew === false;
-address = await address.delete();
-address.isNew === true;
-```
-
-### reload
-
-Refetches the record from database. All temporary attributes and changes will be lost. Returns a `Promise` with the reloaded record.
-
-```ts
-address.isNew === false;
-address.street = 'changed';
-address.notAnDatabaseColumn = 'foo';
-address = address.reload();
-address.name === '1st Street';
-address.notAnDatabaseColumn === undefined;
-```
-
-### revertCachanges
-
-Reverts an unsaved change with `#revertChange(key)` or reverts all unsaved changed with `#revertChanges()`.
-
-```ts
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-});
-address.changes === {};
-address.street = '2nd street';
-address.changes ===
-  {
-    street: { from: '1st street', to: '2nd street' },
-  };
-address.revertChange('street');
-address.changes === {};
-```
-
-```ts
-address = Address.build({
-  street: '1st street',
-  city: 'New York',
-});
-address.changes === {};
-address.street = '2nd street';
-(address.city = 'San Francisco'),
-  address.changes ===
-    {
-      street: { from: '1st street', to: '2nd street' },
-      street: { from: 'New York', to: 'San Francisco' },
-    };
-address.revertChanges();
-address.changes === {};
-```
-
-### isValid
-
-Checks if the current instance is valid. Promises to return boolean value.
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static get validators(): Validators {
-    return {
-      ageCheck: user => Promise.resolve(user.age > 0),
-    };
-  }
+export function Root() {
+  return <NextModelProvider><AdultUsers /></NextModelProvider>;
 }
 
-isValid = await new User({ age: 28 }).isValid; //=> true
-isValid = await new User({ age: -1 }).isValid; //=> flase
+function AdultUsers() {
+  const { data, isLoading } = useModel(User)
+    .filterBy({ $gte: { age: 18 } })
+    .orderBy({ key: 'lastName' })
+    .watch({ keys: ['users:adults'] });
 
-UncheckedUser = User.skipValidator('ageCheck');
-isValid = await new User({ age: -1 }).isValid; //=> true
-```
-
-```ts
-class User extends NextModel<UserSchema>() {
-  static ageCheck(user): Promise<boolean> {
-    return Promise.resolve(user.age > 0);
-  }
-
-  static get validators(): Validators {
-    return {
-      ageCheck: this.ageCheck,
-    };
-  }
+  if (isLoading) return <p>Loading…</p>;
+  return (
+    <ul>
+      {data.map((u) => (
+        <li key={u.id}>{u.name} · {u.age}</li>
+      ))}
+    </ul>
+  );
 }
 ```
 
-## Changelog
+`useModel(User)` returns the same chainable query builder you'd use server-side; `.watch()` subscribes the component so saves and deletes broadcast back into the live result set. For a one-shot read use `.fetch()` instead.
 
-See [history](HISTORY.md) for more details.
+## Packages
 
-- `1.0.0` **2019-xx-xx** Complete rewrite in typescript
-- `0.4.1` **2017-04-05** Bugfix: before and after callback
-- `0.4.0` **2017-02-28** Added platform specific callbacks
-- `0.3.0` **2017-02-27** Tracked property changes
-- `0.2.0` **2017-02-25** Improved browser compatibility
-- `0.1.0` **2017-02-23** Added Browser compatibility
-- `0.0.4` **2017-02-16** Added callbacks for `build`, `create`, `save` and `delete`
-- `0.0.3` **2017-02-12** Added CI
-- `0.0.2` **2017-02-05** Published [knex connector](https://github.com/tamino-martinius/node-next-model-knex-connector.git)
-- `0.0.1` **2017-01-23** Initial commit with query and scoping functions
+This repository is a pnpm workspace; each published package lives under `packages/`.
+
+| Package | Purpose |
+|---------|---------|
+| [`@next-model/core`](./packages/core) | Model factory, chainable query DSL, validators, callbacks, soft deletes, associations, in-memory connector. |
+| [`@next-model/knex-connector`](./packages/knex-connector) | SQL connector backed by Knex 3 (sqlite3 / Postgres / MySQL / MariaDB / Oracle / MSSQL). |
+| [`@next-model/postgres-connector`](./packages/postgres-connector) | Native PostgreSQL connector using `node-postgres` directly — no Knex. |
+| [`@next-model/sqlite-connector`](./packages/sqlite-connector) | Native SQLite connector using `better-sqlite3` directly — no Knex. |
+| [`@next-model/mysql-connector`](./packages/mysql-connector) | Native MySQL connector using `mysql2` directly — no Knex. |
+| [`@next-model/mariadb-connector`](./packages/mariadb-connector) | Native MariaDB connector. Extends `mysql-connector` and uses `RETURNING *`. |
+| [`@next-model/redis-connector`](./packages/redis-connector) | Redis connector — HASH per row + ZSET of ids per table. |
+| [`@next-model/valkey-connector`](./packages/valkey-connector) | Valkey connector. Extends `redis-connector` (Valkey is wire-compatible with Redis). |
+| [`@next-model/mongodb-connector`](./packages/mongodb-connector) | Native MongoDB connector using the official `mongodb` driver. |
+| [`@next-model/aurora-data-api-connector`](./packages/aurora-data-api-connector) | Connector for AWS Aurora Serverless v1 (RDS Data API). |
+| [`@next-model/local-storage-connector`](./packages/local-storage-connector) | Browser `localStorage` connector. Inherits from `MemoryConnector`. |
+| [`@next-model/migrations`](./packages/migrations) | Connector-agnostic schema migration runner with optional dependency graph. |
+| [`@next-model/express-rest-api`](./packages/express-rest-api) | Express 5 REST adapter — eight default CRUD actions with per-action auth + response-mapping hooks. |
+| [`@next-model/graphql-api`](./packages/graphql-api) | GraphQL schema generator — six default CRUD operations with per-operation auth + per-row response mapping. |
+| [`@next-model/nextjs-api`](./packages/nextjs-api) | Next.js App Router adapter — `{ GET, POST, PATCH, DELETE }` route-handler exports with the same auth + mapping hook surface. |
+| [`@next-model/migrations-generator`](./packages/migrations-generator) | CLI (`nm-generate-migration`) + library for scaffolding timestamped migration files. |
+| [`@next-model/zod`](./packages/zod) | Bridge zod schemas into `toTypedColumns()` (for `defineSchema`), `init` coercion, and `validators` — one schema, three consumers. |
+| [`@next-model/typebox`](./packages/typebox) | TypeBox variant of `@next-model/zod`. |
+| [`@next-model/arktype`](./packages/arktype) | arktype variant of `@next-model/zod`. |
+
+## Demos
+
+End-to-end runnable projects live under [`demos/`](./demos), grouped by runtime. `node/` is split into `server/` (needs Node / a DB / a native dep) and `client/` (also runs in a browser).
+
+| Demo | Adapter / connector | Infra |
+|---|---|---|
+| [`node/client/memory`](./demos/node/client/memory) | `@next-model/core` (`MemoryConnector`) | none |
+| [`node/client/local-storage`](./demos/node/client/local-storage) | `@next-model/local-storage-connector` | none |
+| [`node/server/sqlite`](./demos/node/server/sqlite) | `@next-model/sqlite-connector` | none (in-memory db) |
+| [`node/server/postgres`](./demos/node/server/postgres) | `@next-model/postgres-connector` | `docker compose up -d` (postgres:17) |
+| [`node/server/mysql`](./demos/node/server/mysql) | `@next-model/mysql-connector` | `docker compose up -d` (mysql:8) |
+| [`node/server/mariadb`](./demos/node/server/mariadb) | `@next-model/mariadb-connector` | `docker compose up -d` (mariadb:11) |
+| [`node/server/redis`](./demos/node/server/redis) | `@next-model/redis-connector` | `docker compose up -d` (redis:7) |
+| [`node/server/valkey`](./demos/node/server/valkey) | `@next-model/valkey-connector` | `docker compose up -d` (valkey:8) |
+| [`node/server/mongodb`](./demos/node/server/mongodb) | `@next-model/mongodb-connector` | `docker compose up -d` (mongo:7) |
+| [`node/server/knex`](./demos/node/server/knex) | `@next-model/knex-connector` | sqlite: none; `docker compose --profile pg|mysql up -d` |
+| [`node/server/aurora-data-api`](./demos/node/server/aurora-data-api) | `@next-model/aurora-data-api-connector` via `MockDataApiClient` | none |
+| [`node/server/express-rest-api`](./demos/node/server/express-rest-api) | Express 5 + `@next-model/express-rest-api` + `@next-model/sqlite-connector` | none |
+| [`node/server/graphql-api`](./demos/node/server/graphql-api) | `graphql-http` + `@next-model/graphql-api` + `@next-model/sqlite-connector` | none |
+| [`react/todo`](./demos/react/todo) | React 19 + Vite + `@next-model/local-storage-connector` | none (browser) |
+| [`nextjs/todo`](./demos/nextjs/todo) | Next.js 15 App Router + `@next-model/sqlite-connector` — server components + server actions | none |
+| [`nextjs/api`](./demos/nextjs/api) | Next.js 15 + `@next-model/nextjs-api` — REST route handlers | none |
+
+The [`demos/README.md`](./demos/README.md) covers the running convention in detail.
+
+## Schema mutations
+
+Migrations need more than `createTable` / `dropTable`. Each connector implements `alterTable(spec)` so existing tables can grow new columns, indexes, foreign keys, and check constraints in place — no destructive recreate.
+
+```ts
+import { defineAlter } from '@next-model/core';
+
+await connector.alterTable(defineAlter('users', (a) => {
+  a.addColumn('lastSeenAt', 'datetime', { null: true });
+  a.renameColumn('first_name', 'firstName');
+  a.changeColumn('age', 'integer', { null: false });
+  a.addIndex(['firstName', 'lastName'], { name: 'idx_users_full_name' });
+  a.addForeignKey('teams', { onDelete: 'cascade' });
+  a.addCheckConstraint('age >= 0', { name: 'chk_age_non_negative' });
+}));
+```
+
+The full op set: `addColumn` / `removeColumn` / `renameColumn` / `changeColumn`, `addIndex` / `removeIndex` / `renameIndex`, `addForeignKey` / `removeForeignKey`, `addCheckConstraint` / `removeCheckConstraint`, plus `addReference` / `removeReference` sugar (column + index + optional FK in one call). Constraints get stable default names (`fk_<table>_<refTable>`, `idx_<table>_<columns>`) so the matching `remove*` ops can target them without bookkeeping.
+
+| Connector | Behaviour |
+|---|---|
+| `KnexConnector`, `PostgresConnector`, `MysqlConnector`, `MariaDbConnector`, `DataApiConnector` | All ops translate to native `ALTER TABLE` / `CREATE INDEX` DDL. |
+| `SqliteConnector` | `addColumn` / `removeColumn` / `renameColumn` use native `ALTER TABLE` (SQLite ≥ 3.35 / 3.25). `changeColumn`, `addForeignKey` / `removeForeignKey`, and `addCheckConstraint` / `removeCheckConstraint` use the standard "create new table + copy + drop + rename" recreate dance internally. |
+| `MemoryConnector` / `LocalStorageConnector` | Column rename / remove rewrites the in-memory rows; `addColumn` back-fills the default. Index ops are no-ops (no indexing). Foreign keys + check constraints throw `UnsupportedOperationError` since they cannot be enforced. |
+| `RedisConnector` / `ValkeyConnector` | `removeColumn` / `renameColumn` rewrite hash fields. Other ops are no-ops or throw `UnsupportedOperationError` (relational constraints aren't enforced). |
+| `MongoDbConnector` | `removeColumn` / `renameColumn` use `$unset` / `$rename`. `addIndex` / `removeIndex` map to `createIndex` / `dropIndex`. Foreign keys + check constraints throw `UnsupportedOperationError`. |
+
+The same spec passed through `SchemaCollector.alterTable(...)` is mirrored into the schema snapshot, so `collector.writeSchema(path)` continues to round-trip cleanly through `createTable` + a series of mutations.
+
+### Reversible migrations (Rails-style `change`)
+
+`@next-model/migrations` accepts both styles of migration. Define a single `change(connector)` block and the runner records every schema mutation, then replays the inverse on `down()` automatically:
+
+```ts
+import type { ChangeMigration } from '@next-model/migrations';
+
+const addEmailToUsers: ChangeMigration = {
+  version: '20260101120000',
+  name: 'add_email_to_users',
+  async change(connector) {
+    await connector.alterTable(defineAlter('users', (a) => {
+      a.addColumn('email', 'string', { null: false });
+      a.addIndex('email', { unique: true, name: 'idx_users_email' });
+    }));
+  },
+};
+
+await migrator.migrate([addEmailToUsers]);
+await migrator.rollback([addEmailToUsers]);   // auto-derives removeIndex + removeColumn
+```
+
+Inversion table:
+
+| Recorded op | Inverse |
+|---|---|
+| `createTable(name, ...)` | `dropTable(name)` |
+| `addColumn(name, type, opts)` | `removeColumn(name)` |
+| `renameColumn(from, to)` | `renameColumn(to, from)` |
+| `changeColumn(name, type, opts, previous)` | `changeColumn(...)` back to `previous` |
+| `addIndex(cols, { name? })` | `removeIndex(name ?? cols)` |
+| `renameIndex(from, to)` | `renameIndex(to, from)` |
+| `addForeignKey(toTable, opts)` | `removeForeignKey(opts.name ?? "fk_<from>_<to>")` |
+| `addCheckConstraint(expr, { name })` | `removeCheckConstraint(name)` |
+
+Operations that lose information when applied (`dropTable`, `removeColumn`, `removeIndex`, `removeForeignKey`, `removeCheckConstraint`, `changeColumn` without a `previous` snapshot, `addCheckConstraint` without an explicit `name`) raise `IrreversibleMigrationError` on `down()`. Write explicit `up()` / `down()` for those — both styles can coexist in the same migration list. Inside a `change()` block you can only call schema-mutating methods (`createTable` / `dropTable` / `alterTable`); use `up()` / `down()` for any data-touching work.
+
+## Agent skills
+
+This repo ships **agent skills** under [`skills/`](./skills) — one SKILL.md per package plus an overview that helps an AI agent pick the right adapter for a use case. They follow the [open agent skills spec](https://agentskills.io) and are installable with the [`skills` CLI](https://github.com/vercel-labs/skills) for Claude Code, Cursor, OpenCode, Codex, and 50+ other coding agents.
+
+```sh
+# install every skill from this repo (Claude Code, Cursor, OpenCode, …)
+npx skills add tamino-martinius/node-next-model
+
+# list before installing
+npx skills add tamino-martinius/node-next-model --list
+
+# pick just the ones you need
+npx skills add tamino-martinius/node-next-model \
+  --skill next-model \
+  --skill next-model-core \
+  --skill next-model-postgres-connector
+
+# install globally (~/.claude/skills/, ~/.cursor/skills/, …)
+npx skills add tamino-martinius/node-next-model -g
+
+# target one agent
+npx skills add tamino-martinius/node-next-model -a claude-code -y
+```
+
+Available skills (`next-model` is the index; the rest map 1:1 to the packages above):
+
+`next-model` · `next-model-core` · `next-model-knex-connector` · `next-model-postgres-connector` · `next-model-sqlite-connector` · `next-model-mysql-connector` · `next-model-mariadb-connector` · `next-model-redis-connector` · `next-model-valkey-connector` · `next-model-mongodb-connector` · `next-model-aurora-data-api-connector` · `next-model-local-storage-connector` · `next-model-migrations` · `next-model-migrations-generator` · `next-model-express-rest-api` · `next-model-graphql-api` · `next-model-nextjs-api` · `next-model-zod` · `next-model-typebox` · `next-model-arktype` · `next-model-react`
+
+## Supported runtime
+
+- Node.js ≥ 22 (required by every package).
+- Pure ESM (`type: "module"`, `exports` field). Built with TypeScript 6 / `module: NodeNext`.
+- Browser support is limited to `@next-model/local-storage-connector`.
+
+## Development
+
+```sh
+pnpm install
+pnpm -r build
+pnpm typecheck
+pnpm -r coverage
+```
+
+CI matrix: Node 22 + 24 on every push, plus a real-database leg that boots Postgres 17 and MySQL 8 service containers and runs the knex-connector spec against each.
+
+## Contributing
+
+Open an issue or PR on [github.com/tamino-martinius/node-next-model](https://github.com/tamino-martinius/node-next-model). Each package keeps a rolling `vNext` section in its `HISTORY.md`; please append a one-line entry under the appropriate subheading when you ship a feature, fix or tooling change.
+
+## License
+
+MIT, copyright 2017–2026 Tamino Martinius.

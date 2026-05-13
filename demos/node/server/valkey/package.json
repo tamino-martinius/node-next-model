@@ -1,0 +1,26 @@
+{
+  "name": "@next-model-demos/valkey-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "node --experimental-strip-types demo.ts",
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down -v"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/redis-connector": "workspace:*",
+    "@next-model/valkey-connector": "workspace:*",
+    "redis": "^4.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

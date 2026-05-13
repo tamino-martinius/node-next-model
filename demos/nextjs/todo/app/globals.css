@@ -1,0 +1,98 @@
+:root {
+  color-scheme: light dark;
+}
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  max-width: 620px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+h1 {
+  margin-bottom: 0.25rem;
+}
+.lede {
+  opacity: 0.7;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+code {
+  background: color-mix(in oklab, currentColor 8%, transparent);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+h2 small {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-left: 0.5rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+section {
+  border-top: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+  padding-top: 0.25rem;
+}
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+.user-name {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.task-text {
+  flex: 1;
+}
+li .muted,
+li.muted {
+  opacity: 0.65;
+  font-style: italic;
+}
+li.done .task-text {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.user-list li.active .user-name {
+  font-weight: 600;
+  text-decoration: underline;
+}
+form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+input[type="text"] {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+}
+button {
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid color-mix(in oklab, currentColor 25%, transparent);
+  border-radius: 4px;
+}
+button:hover {
+  background: color-mix(in oklab, currentColor 7%, transparent);
+}

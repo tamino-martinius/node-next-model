@@ -1,0 +1,760 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  changes:
+    # Detect which packages were touched so the per-package jobs can skip
+    # themselves when nothing they depend on has changed. `core` is the
+    # transitive dependency of every connector, so a core change fans out to
+    # every job. CI/workflow changes also fan out — we always want to verify
+    # the workflow itself still works against every package.
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      knex: ${{ steps.filter.outputs.knex }}
+      aurora-data-api: ${{ steps.filter.outputs.aurora-data-api }}
+      local-storage: ${{ steps.filter.outputs.local-storage }}
+      sqlite: ${{ steps.filter.outputs.sqlite }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+      postgres: ${{ steps.filter.outputs.postgres }}
+      mysql: ${{ steps.filter.outputs.mysql }}
+      mariadb: ${{ steps.filter.outputs.mariadb }}
+      redis: ${{ steps.filter.outputs.redis }}
+      valkey: ${{ steps.filter.outputs.valkey }}
+      mongodb: ${{ steps.filter.outputs.mongodb }}
+      express-rest-api: ${{ steps.filter.outputs.express-rest-api }}
+      graphql-api: ${{ steps.filter.outputs.graphql-api }}
+      nextjs-api: ${{ steps.filter.outputs.nextjs-api }}
+      migrations-generator: ${{ steps.filter.outputs.migrations-generator }}
+      zod: ${{ steps.filter.outputs.zod }}
+      typebox: ${{ steps.filter.outputs.typebox }}
+      arktype: ${{ steps.filter.outputs.arktype }}
+      react: ${{ steps.filter.outputs.react }}
+      ci: ${{ steps.filter.outputs.ci }}
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          # Each per-package filter excludes `**/*.md` so documentation-only
+          # commits (HISTORY.md / README.md edits) don't trigger that
+          # package's tests. The `code` filter aggregates every non-markdown
+          # source change across the workspace and gates the always-on
+          # `validate` job — docs-only PRs skip the entire workflow.
+          filters: |
+            core:
+              - 'packages/core/**'
+              - '!packages/core/**/*.md'
+              - 'tsconfig.base.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'biome.json'
+            knex:
+              - 'packages/knex-connector/**'
+              - '!packages/knex-connector/**/*.md'
+            aurora-data-api:
+              - 'packages/aurora-data-api-connector/**'
+              - '!packages/aurora-data-api-connector/**/*.md'
+            local-storage:
+              - 'packages/local-storage-connector/**'
+              - '!packages/local-storage-connector/**/*.md'
+            sqlite:
+              - 'packages/sqlite-connector/**'
+              - '!packages/sqlite-connector/**/*.md'
+            migrations:
+              - 'packages/migrations/**'
+              - '!packages/migrations/**/*.md'
+              - 'packages/knex-connector/**'
+              - '!packages/knex-connector/**/*.md'
+            postgres:
+              - 'packages/postgres-connector/**'
+              - '!packages/postgres-connector/**/*.md'
+            mysql:
+              - 'packages/mysql-connector/**'
+              - '!packages/mysql-connector/**/*.md'
+            mariadb:
+              - 'packages/mariadb-connector/**'
+              - '!packages/mariadb-connector/**/*.md'
+              - 'packages/mysql-connector/**'
+              - '!packages/mysql-connector/**/*.md'
+            redis:
+              - 'packages/redis-connector/**'
+              - '!packages/redis-connector/**/*.md'
+            valkey:
+              - 'packages/valkey-connector/**'
+              - '!packages/valkey-connector/**/*.md'
+              - 'packages/redis-connector/**'
+              - '!packages/redis-connector/**/*.md'
+            mongodb:
+              - 'packages/mongodb-connector/**'
+              - '!packages/mongodb-connector/**/*.md'
+            express-rest-api:
+              - 'packages/express-rest-api/**'
+              - '!packages/express-rest-api/**/*.md'
+            graphql-api:
+              - 'packages/graphql-api/**'
+              - '!packages/graphql-api/**/*.md'
+            nextjs-api:
+              - 'packages/nextjs-api/**'
+              - '!packages/nextjs-api/**/*.md'
+            migrations-generator:
+              - 'packages/migrations-generator/**'
+              - '!packages/migrations-generator/**/*.md'
+              - 'packages/core/**'
+              - '!packages/core/**/*.md'
+            zod:
+              - 'packages/zod/**'
+              - '!packages/zod/**/*.md'
+            typebox:
+              - 'packages/typebox/**'
+              - '!packages/typebox/**/*.md'
+            arktype:
+              - 'packages/arktype/**'
+              - '!packages/arktype/**/*.md'
+            react:
+              - 'packages/react/**'
+              - '!packages/react/**/*.md'
+            ci:
+              - '.github/**'
+            code:
+              - 'packages/**'
+              - '!packages/**/*.md'
+              - 'tsconfig.base.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'biome.json'
+
+  validate:
+    # Workspace-wide checks that run whenever any non-markdown source moves:
+    # lint, build, typecheck across the supported Node versions. Docs-only
+    # PRs skip this job entirely. Failures here surface as `validate` so
+    # they're never confused with a per-package coverage failure.
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm -r --filter './packages/*' build
+      - run: pnpm typecheck
+      - run: pnpm typecheck:demos
+      - run: pnpm test:release
+
+  test-core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core build
+      - run: pnpm --filter @next-model/core coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-core
+          path: packages/core/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-knex-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.knex == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/knex-connector -r build
+      - run: pnpm --filter @next-model/knex-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-knex-connector
+          path: packages/knex-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-aurora-data-api-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.aurora-data-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/aurora-data-api-connector -r build
+      - run: pnpm --filter @next-model/aurora-data-api-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-aurora-data-api-connector
+          path: packages/aurora-data-api-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-local-storage-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.local-storage == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/local-storage-connector -r build
+      - run: pnpm --filter @next-model/local-storage-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-local-storage-connector
+          path: packages/local-storage-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-sqlite-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.sqlite == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/sqlite-connector -r build
+      - run: pnpm --filter @next-model/sqlite-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-sqlite-connector
+          path: packages/sqlite-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-express-rest-api:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.express-rest-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/express-rest-api -r build
+      - run: pnpm --filter @next-model/express-rest-api coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-express-rest-api
+          path: packages/express-rest-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-graphql-api:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.graphql-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/graphql-api -r build
+      - run: pnpm --filter @next-model/graphql-api coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-graphql-api
+          path: packages/graphql-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-nextjs-api:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.nextjs-api == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/nextjs-api -r build
+      - run: pnpm --filter @next-model/nextjs-api coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-nextjs-api
+          path: packages/nextjs-api/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-zod:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.zod == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/zod -r build
+      - run: pnpm --filter @next-model/zod coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-zod
+          path: packages/zod/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-typebox:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.typebox == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/typebox -r build
+      - run: pnpm --filter @next-model/typebox coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-typebox
+          path: packages/typebox/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-arktype:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.arktype == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/arktype -r build
+      - run: pnpm --filter @next-model/arktype coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-arktype
+          path: packages/arktype/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-react:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.react == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/react -r build
+      - run: pnpm --filter @next-model/react coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-react
+          path: packages/react/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-migrations-generator:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.migrations-generator == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/migrations-generator -r build
+      - run: pnpm --filter @next-model/migrations-generator coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-migrations-generator
+          path: packages/migrations-generator/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-migrations:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.migrations == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/knex-connector --filter @next-model/migrations -r build
+      - run: pnpm --filter @next-model/migrations coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-migrations
+          path: packages/migrations/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-postgres-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.postgres == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/postgres-connector -r build
+      - name: Test postgres-connector against Postgres 17
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: pnpm --filter @next-model/postgres-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-postgres-connector
+          path: packages/postgres-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-mysql-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.mysql == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -pmysql"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/mysql-connector -r build
+      - name: Test mysql-connector against MySQL 8
+        env:
+          DATABASE_URL: mysql://root:mysql@127.0.0.1:3306/test
+        run: pnpm --filter @next-model/mysql-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-mysql-connector
+          path: packages/mysql-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-mariadb-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.mariadb == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: mariadb
+          MARIADB_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h localhost -pmariadb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/mysql-connector --filter @next-model/mariadb-connector -r build
+      - name: Test mariadb-connector against MariaDB 11
+        env:
+          DATABASE_URL: mysql://root:mariadb@127.0.0.1:3306/test
+        run: pnpm --filter @next-model/mariadb-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-mariadb-connector
+          path: packages/mariadb-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-redis-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.redis == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/redis-connector -r build
+      - name: Test redis-connector against Redis 7
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+        run: pnpm --filter @next-model/redis-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-redis-connector
+          path: packages/redis-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-valkey-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.valkey == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      valkey:
+        image: valkey/valkey:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/redis-connector --filter @next-model/valkey-connector -r build
+      - name: Test valkey-connector against Valkey 8
+        env:
+          VALKEY_URL: redis://127.0.0.1:6379
+        run: pnpm --filter @next-model/valkey-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-valkey-connector
+          path: packages/valkey-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-mongodb-connector:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.mongodb == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/mongodb-connector -r build
+      - name: Test mongodb-connector against MongoDB 7
+        env:
+          MONGODB_URL: mongodb://127.0.0.1:27017
+        run: pnpm --filter @next-model/mongodb-connector coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-mongodb-connector
+          path: packages/mongodb-connector/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
+  test-knex-real-db:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || needs.changes.outputs.knex == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each entry pins KNEX_TEST_CLIENT and DATABASE_URL alongside the
+        # matrix label. `sqlite3` needs no service; `pg` / `mysql2` reach the
+        # postgres / mysql sidecars; `mariadb` reuses the mysql2 driver
+        # against the MariaDB sidecar (port 3307 to avoid clashing with
+        # MySQL's 3306). All four exercise the queryWithJoins / EXISTS /
+        # NOT EXISTS paths against a real engine — see issue #145.
+        include:
+          - label: sqlite3
+            test-client: sqlite3
+            database-url: ''
+          - label: pg
+            test-client: pg
+            database-url: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          - label: mysql2
+            test-client: mysql2
+            database-url: mysql://root:mysql@127.0.0.1:3306/test
+          - label: mariadb
+            test-client: mysql2
+            database-url: mysql://root:mariadb@127.0.0.1:3307/test
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -pmysql"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: mariadb
+          MARIADB_DATABASE: test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h localhost -pmariadb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @next-model/core --filter @next-model/knex-connector -r build
+      - name: Test knex-connector against ${{ matrix.label }}
+        env:
+          KNEX_TEST_CLIENT: ${{ matrix.test-client }}
+          DATABASE_URL: ${{ matrix.database-url }}
+        run: pnpm --filter @next-model/knex-connector test
+
+  coverage-report:
+    needs:
+      - test-core
+      - test-knex-connector
+      - test-aurora-data-api-connector
+      - test-local-storage-connector
+      - test-sqlite-connector
+      - test-express-rest-api
+      - test-graphql-api
+      - test-nextjs-api
+      - test-migrations-generator
+      - test-zod
+      - test-typebox
+      - test-arktype
+      - test-react
+      - test-migrations
+      - test-postgres-connector
+      - test-mysql-connector
+      - test-mariadb-connector
+      - test-redis-connector
+      - test-valkey-connector
+      - test-mongodb-connector
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          path: coverage-artifacts
+      - name: Render coverage table
+        id: render
+        run: node .github/scripts/coverage-comment.mjs
+      - uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: coverage
+          message: ${{ steps.render.outputs.message }}

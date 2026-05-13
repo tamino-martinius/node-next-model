@@ -1,0 +1,270 @@
+import { defineSchema, MemoryConnector, Model, type Storage } from '../index.js';
+
+const schema = defineSchema({
+  posts: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      title: { type: 'string', default: '' },
+      views: { type: 'integer', default: 0 },
+    },
+  },
+  tags: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      slug: { type: 'string', default: '' },
+      name: { type: 'string', default: '' },
+    },
+  },
+  slots: {
+    columns: {
+      id: { type: 'integer', primary: true, autoIncrement: true },
+      tenantId: { type: 'integer', default: 0 },
+      key: { type: 'string', default: '' },
+      value: { type: 'string', default: '' },
+    },
+  },
+});
+
+describe('upsert / upsertAll', () => {
+  let storage: Storage = {};
+  const connector = () => new MemoryConnector({ storage }, { schema });
+
+  function makePost() {
+    return Model({
+      connector: connector(),
+      tableName: 'posts',
+    });
+  }
+
+  beforeEach(() => {
+    storage = {
+      posts: [
+        { id: 1, title: 'A', views: 10 },
+        { id: 2, title: 'B', views: 20 },
+      ],
+    };
+  });
+
+  afterEach(() => {
+    storage = {};
+  });
+
+  describe('#upsert', () => {
+    it('inserts when no row matches the primary key', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert({ id: 99, title: 'New', views: 1 })) as any;
+      expect(result.title).toBe('New');
+      expect(result.isPersistent()).toBe(true);
+      expect(storage.posts.find((r) => r.title === 'New')).toBeDefined();
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A');
+    });
+
+    it('updates when a row matches the primary key', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert({ id: 1, title: 'Updated', views: 11 })) as any;
+      expect(result.title).toBe('Updated');
+      expect(result.views).toBe(11);
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('Updated');
+      expect(storage.posts.find((r) => r.id === 1)?.views).toBe(11);
+    });
+
+    it('respects an explicit onConflict column', async () => {
+      const Tag = Model({
+        connector: new MemoryConnector(
+          {
+            storage: {
+              tags: [{ id: 1, slug: 'js', name: 'JavaScript' }],
+            },
+          },
+          { schema },
+        ),
+        tableName: 'tags',
+      });
+      const result = (await Tag.upsert({ slug: 'js', name: 'JS' }, { onConflict: 'slug' })) as any;
+      expect(result.id).toBe(1);
+      expect(result.name).toBe('JS');
+    });
+
+    it('respects a multi-column onConflict tuple', async () => {
+      const Slot = Model({
+        connector: new MemoryConnector(
+          {
+            storage: {
+              slots: [{ id: 1, tenantId: 1, key: 'home', value: 'old' }],
+            },
+            lastIds: { slots: 1 },
+          },
+          { schema },
+        ),
+        tableName: 'slots',
+      });
+      const updated = (await Slot.upsert(
+        { tenantId: 1, key: 'home', value: 'new' },
+        { onConflict: ['tenantId', 'key'] },
+      )) as any;
+      expect(updated.id).toBe(1);
+      expect(updated.value).toBe('new');
+      const fresh = (await Slot.upsert(
+        { tenantId: 2, key: 'home', value: 'fresh' },
+        { onConflict: ['tenantId', 'key'] },
+      )) as any;
+      expect(fresh.id).not.toBe(1);
+      expect(fresh.value).toBe('fresh');
+      expect(await Slot.count()).toBe(2);
+    });
+
+    it('throws when a conflict column is missing', async () => {
+      const Post = makePost();
+      await expect(Post.upsert({ title: 'No id' } as any)).rejects.toThrowError(
+        /upsert requires 'id'/,
+      );
+    });
+
+    it('returns the existing row unchanged when only the conflict column is supplied', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert({ id: 1 })) as any;
+      expect(result.title).toBe('A');
+    });
+  });
+
+  describe('#upsertAll', () => {
+    it('partitions inserts and updates and returns instances in input order', async () => {
+      const Post = makePost();
+      const results = (await Post.upsertAll([
+        { id: 1, title: 'A2' },
+        { id: 99, title: 'New' },
+        { id: 2, title: 'B2' },
+      ])) as any[];
+      expect(results.map((r) => r.attributes.title)).toEqual(['A2', 'New', 'B2']);
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A2');
+      expect(storage.posts.find((r) => r.id === 2)?.title).toBe('B2');
+      expect(storage.posts.find((r) => r.title === 'New')).toBeDefined();
+      expect(storage.posts).toHaveLength(3);
+    });
+
+    it('handles a fully-insert batch', async () => {
+      const Post = makePost();
+      const results = (await Post.upsertAll([
+        { id: 100, title: 'X' },
+        { id: 101, title: 'Y' },
+      ])) as any[];
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.attributes.title)).toEqual(['X', 'Y']);
+      expect(storage.posts).toHaveLength(4);
+    });
+
+    it('handles a fully-update batch with one bulk SELECT', async () => {
+      const Post = makePost();
+      const results = (await Post.upsertAll([
+        { id: 1, title: 'A2' },
+        { id: 2, title: 'B2' },
+      ])) as any[];
+      expect(results.map((r) => r.attributes.title)).toEqual(['A2', 'B2']);
+      expect(storage.posts).toHaveLength(2);
+    });
+
+    it('returns [] for an empty list without hitting the connector', async () => {
+      const Post = makePost();
+      const spy = vi.spyOn(Post.connector, 'query');
+      const results = await Post.upsertAll([]);
+      expect(results).toEqual([]);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('respects multi-column onConflict', async () => {
+      const Slot = Model({
+        connector: new MemoryConnector(
+          {
+            storage: {
+              slots: [
+                { id: 1, tenantId: 1, key: 'home', value: 'old1' },
+                { id: 2, tenantId: 2, key: 'home', value: 'old2' },
+              ],
+            },
+            lastIds: { slots: 2 },
+          },
+          { schema },
+        ),
+        tableName: 'slots',
+      });
+      const results = (await Slot.upsertAll(
+        [
+          { tenantId: 1, key: 'home', value: 'new1' },
+          { tenantId: 3, key: 'home', value: 'fresh' },
+        ],
+        { onConflict: ['tenantId', 'key'] },
+      )) as any[];
+      expect(results[0].id).toBe(1);
+      expect(results[0].attributes.value).toBe('new1');
+      expect(results[1].id).not.toBe(1);
+      expect(results[1].id).not.toBe(2);
+      expect(results[1].attributes.value).toBe('fresh');
+      expect(await Slot.count()).toBe(3);
+    });
+
+    it('throws when a conflict column is missing on any row', async () => {
+      const Post = makePost();
+      await expect(Post.upsertAll([{ title: 'No id' } as any])).rejects.toThrowError(
+        /upsertAll requires 'id'/,
+      );
+    });
+  });
+
+  describe('options.ignoreOnly', () => {
+    it('skips updates and returns the existing row untouched', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert(
+        { id: 1, title: 'OVERWRITE' },
+        { ignoreOnly: true },
+      )) as any;
+      expect(result.title).toBe('A');
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A');
+    });
+
+    it('still inserts when no conflict — ignoreOnly only affects the conflict path', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert({ id: 99, title: 'New' }, { ignoreOnly: true })) as any;
+      expect(result.title).toBe('New');
+      expect(result.isPersistent()).toBe(true);
+      expect(storage.posts).toHaveLength(3);
+    });
+
+    it('upsertAll mixes inserts with skipped existing rows', async () => {
+      const Post = makePost();
+      const results = (await Post.upsertAll(
+        [
+          { id: 1, title: 'KEEP-A' },
+          { id: 99, title: 'INSERT' },
+          { id: 2, title: 'KEEP-B' },
+        ],
+        { ignoreOnly: true },
+      )) as any[];
+      expect(results.map((r) => r.attributes.title)).toEqual(['A', 'INSERT', 'B']);
+      expect(storage.posts.find((r) => r.id === 1)?.title).toBe('A');
+      expect(storage.posts.find((r) => r.id === 2)?.title).toBe('B');
+    });
+  });
+
+  describe('options.updateColumns', () => {
+    it('limits the update to the listed columns', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert(
+        { id: 1, title: 'NEW', views: 999 },
+        { updateColumns: ['title'] },
+      )) as any;
+      expect(result.title).toBe('NEW');
+      expect(result.views).toBe(10);
+    });
+
+    it('an explicit empty list skips updates entirely', async () => {
+      const Post = makePost();
+      const result = (await Post.upsert(
+        { id: 1, title: 'NEW', views: 999 },
+        { updateColumns: [] },
+      )) as any;
+      expect(result.title).toBe('A');
+      expect(result.views).toBe(10);
+    });
+  });
+});

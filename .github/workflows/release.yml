@@ -1,0 +1,235 @@
+# Release workflow.
+#
+# Trigger: manual workflow_dispatch on the `main` branch with a semver
+# `version` input (no leading "v"). The workflow:
+#   1. Validates the branch + version + that the tag does not already exist.
+#   2. Sanity-builds the workspace (lint + build + typecheck + typecheck:demos).
+#   3. Bumps every public packages/*/package.json `version` to the input
+#      and refreshes pnpm-lock.yaml.
+#   4. Composes release notes from every package's HISTORY.md `## vNext`
+#      section.
+#   5. For stable releases (no prerelease component) only: rewrites every
+#      HISTORY.md so `## vNext` becomes `## v<version>` and a fresh empty
+#      `## vNext` block is inserted above it.
+#   6. Commits + tags `v<version>`, pushes to main.
+#   7. Packs each public package via `pnpm pack` (which rewrites
+#      `workspace:*` deps to concrete versions).
+#   8. Publishes each tarball to npm with provenance via Trusted Publishing.
+#   9. Creates a GitHub release with the tarballs attached.
+#
+# Prerequisites (one-time setup, not enforced by the workflow):
+#   - Each `@next-model/*` package has a Trusted Publisher configured on
+#     npmjs.com pointing at this repository and `release.yml`. For packages
+#     not yet published, use npm's first-publish flow with the Trusted
+#     Publisher pre-registered.
+#   - Branch protection on `main` allows the GITHUB_TOKEN to push commits
+#     and tags. If protection blocks the bot push, supply a PAT and switch
+#     the `token:` on actions/checkout below.
+#   - No NPM_TOKEN secret is required.
+#
+# Authoring conventions:
+#   - Each package owner curates the `## vNext` section of their HISTORY.md
+#     by hand. The workflow extracts the section verbatim — placeholder
+#     paragraphs (e.g. "Rolling changelog for the next major release...")
+#     should be removed before dispatching the release.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semver version (no leading "v"), e.g. 1.0.0-rc.0, 1.0.1, 1.1.0-beta.2'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard ref
+        if: github.ref_name != 'main'
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          echo "::error::release workflow may only be dispatched from the main branch (got $REF_NAME)"
+          exit 1
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version '$VERSION' is not valid semver (no leading v)"
+            exit 1
+          fi
+
+      - name: Refuse if tag already exists
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then
+            echo "::error::tag v$VERSION already exists on origin"
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          # Node 24 (current LTS) ships npm 11.x, which supports OIDC trusted
+          # publishing. Node 22 ships npm 10.9.7, which does not - and the
+          # in-place self-upgrade path is broken in the runner toolcache
+          # (actions/runner-images#13883, npm/cli#9151).
+          node-version: 24.x
+          cache: pnpm
+          # Intentionally omit registry-url: it makes setup-node write an .npmrc
+          # with _authToken=${NODE_AUTH_TOKEN} AND export a placeholder
+          # NODE_AUTH_TOKEN=XXXXX-XXXXX-XXXXX-XXXXX when no real token is set.
+          # npm publish would then send the placeholder, the registry would
+          # reject it, and OIDC trusted publishing would never be attempted.
+          # Without registry-url npm defaults to registry.npmjs.org and uses
+          # the GitHub Actions OIDC env vars automatically.
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Derive npm dist-tag
+        id: dist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          DIST_TAG=$(node .github/scripts/release-derive-dist-tag.mjs "$VERSION")
+          echo "tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          if [ "$DIST_TAG" = "latest" ]; then
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sanity build
+        run: |
+          pnpm lint
+          pnpm -r --filter './packages/*' build
+          pnpm typecheck
+          pnpm typecheck:demos
+
+      - name: Bump package versions
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node .github/scripts/release-bump-versions.mjs "$VERSION"
+
+      - name: Refresh pnpm-lock.yaml
+        run: pnpm install --lockfile-only
+
+      - name: Compose release notes
+        id: notes
+        run: |
+          set +e
+          node .github/scripts/release-compose-notes.mjs "$RUNNER_TEMP/release-notes.md"
+          NOTES_EXIT=$?
+          set -e
+          case "$NOTES_EXIT" in
+            0)
+              echo "have_notes=true" >> "$GITHUB_OUTPUT"
+              ;;
+            1)
+              echo "have_notes=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::release-compose-notes.mjs exited with unexpected code $NOTES_EXIT"
+              exit "$NOTES_EXIT"
+              ;;
+          esac
+          echo "notes_file=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Roll HISTORY.md for stable releases
+        if: steps.dist.outputs.is_prerelease == 'false'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node .github/scripts/release-roll-history.mjs "$VERSION"
+
+      - name: Commit, tag, push
+        env:
+          VERSION: ${{ inputs.version }}
+          IS_PRERELEASE: ${{ steps.dist.outputs.is_prerelease }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/*/package.json pnpm-lock.yaml
+          if [ "$IS_PRERELEASE" = "false" ]; then
+            git add packages/*/HISTORY.md
+          fi
+          git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin main --follow-tags
+
+      - name: Pack tarballs
+        env:
+          ARTIFACTS: ${{ runner.temp }}/release-artifacts
+        run: |
+          mkdir -p "$ARTIFACTS"
+          for pkg_dir in packages/*/; do
+            pkg_dir="${pkg_dir%/}"
+            is_private=$(node -e "const pkg = JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(pkg.private === true));" "${pkg_dir}/package.json")
+            if [ "$is_private" = "true" ]; then
+              echo "skipping private package $pkg_dir"
+              continue
+            fi
+            (cd "$pkg_dir" && pnpm pack --pack-destination "$ARTIFACTS")
+          done
+          ls -la "$ARTIFACTS"
+
+      - name: Publish to npm with provenance
+        env:
+          ARTIFACTS: ${{ runner.temp }}/release-artifacts
+          DIST_TAG: ${{ steps.dist.outputs.tag }}
+        # NOTE: Partial-publish recovery is manual. If npm publish fails on
+        # tarball N of M, packages 1..N-1 are already on the registry and
+        # cannot be republished at the same version. Re-running this workflow
+        # at the same version hits the "Refuse if tag already exists" guard.
+        # To recover, bump to a new version and re-dispatch.
+        run: |
+          for tarball in "$ARTIFACTS"/*.tgz; do
+            echo "::group::publish $(basename "$tarball")"
+            npm publish "$tarball" --access public --tag "$DIST_TAG" --provenance
+            echo "::endgroup::"
+          done
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          ARTIFACTS: ${{ runner.temp }}/release-artifacts
+          NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
+          HAVE_NOTES: ${{ steps.notes.outputs.have_notes }}
+          IS_PRERELEASE: ${{ steps.dist.outputs.is_prerelease }}
+        run: |
+          PRERELEASE_FLAG="--latest"
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          if [ "$HAVE_NOTES" = "true" ]; then
+            gh release create "v$VERSION" "$ARTIFACTS"/*.tgz \
+              --title "v$VERSION" \
+              --notes-file "$NOTES_FILE" \
+              $PRERELEASE_FLAG
+          else
+            gh release create "v$VERSION" "$ARTIFACTS"/*.tgz \
+              --title "v$VERSION" \
+              --generate-notes \
+              $PRERELEASE_FLAG
+          fi

@@ -1,0 +1,33 @@
+{
+  "name": "@next-model-demos/nextjs-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --workspace-root run build:packages",
+    "dev": "next dev",
+    "prebuild": "pnpm --workspace-root run build:packages",
+    "build": "next build",
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/nextjs-api": "workspace:*",
+    "@next-model/sqlite-connector": "workspace:*",
+    "better-sqlite3": "^12.9.0",
+    "next": "^16.2.6",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
