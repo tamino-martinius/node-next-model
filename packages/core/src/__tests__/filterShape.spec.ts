@@ -213,6 +213,49 @@ describe('normalizeFilterShape composes mixed-object filters', () => {
   });
 });
 
+describe('nested $in / $notIn syntax is equivalent to top-level', () => {
+  it('normalizes nested $in into top-level $in (pure)', () => {
+    expect(normalizeFilterShape({ status: { $in: ['open', 'pending'] } })).toEqual({
+      $in: { status: ['open', 'pending'] },
+    });
+  });
+
+  it('normalizes nested $notIn into top-level $notIn (pure)', () => {
+    expect(normalizeFilterShape({ status: { $notIn: ['closed'] } })).toEqual({
+      $notIn: { status: ['closed'] },
+    });
+  });
+
+  it('nested $in matches the same rows as top-level $in', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    const nested = await Ticket.filterBy({ status: { $in: ['open', 'pending'] } })
+      .orderBy({ key: 'name' })
+      .all();
+    const topLevel = await Ticket.filterBy({ $in: { status: ['open', 'pending'] } } as any)
+      .orderBy({ key: 'name' })
+      .all();
+    expect(nested.map((r) => (r.attributes as Row).name)).toEqual(
+      topLevel.map((r) => (r.attributes as Row).name),
+    );
+  });
+
+  it('mixed: nested $in + equality (combines with mixed-filter composition)', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    // status=open AND age in {10, 20, 40} → A (10/open), C (20/open). B is 40/pending.
+    const rows = await Ticket.filterBy({
+      status: 'open',
+      age: { $in: [10, 20, 40] },
+    })
+      .orderBy({ key: 'age' })
+      .all();
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['A', 'C']);
+  });
+});
+
 describe('filterBy composes mixed-object filters end-to-end', () => {
   it('mixed equality + $null: row in both', async () => {
     const connector = freshConnector();
