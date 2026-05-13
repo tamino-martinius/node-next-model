@@ -290,6 +290,54 @@ describe('validator registry', () => {
         email: ['cannot be blank'],
       });
     });
+
+    it('the thrown error message includes every offending field name', async () => {
+      const User = Model({
+        tableName: 'users',
+        connector: connector(),
+        validators: [validatePresence(['name', 'email'])],
+      });
+      await expect(User.create({} as any)).rejects.toThrow(/name/);
+      await expect(User.create({} as any)).rejects.toThrow(/email/);
+    });
+
+    it('the thrown error message follows "Validation failed: <field>: <reason>" form', async () => {
+      const User = Model({
+        tableName: 'users',
+        connector: connector(),
+        validators: [validatePresence(['name'])],
+      });
+      let thrown: ValidationError | undefined;
+      try {
+        await User.create({} as any);
+      } catch (e) {
+        thrown = e as ValidationError;
+      }
+      expect(thrown).toBeInstanceOf(ValidationError);
+      expect(thrown?.message).toMatch(/^Validation failed:.*name:/);
+      expect(thrown?.message).toContain('cannot be blank');
+    });
+
+    it('accepts the single-argument shape (errors only)', () => {
+      const e = new ValidationError({ name: ['cannot be blank'] });
+      expect(e).toBeInstanceOf(ValidationError);
+      expect(e.errors).toEqual({ name: ['cannot be blank'] });
+      expect(e.message).toMatch(/Validation failed/);
+      expect(e.message).toMatch(/name/);
+    });
+
+    it('preserves the plain string message when no error map is supplied', () => {
+      const e = new ValidationError('something custom');
+      expect(e.message).toBe('something custom');
+      expect(e.errors).toBeUndefined();
+    });
+
+    it('joins multiple reasons per field with a comma', () => {
+      const e = new ValidationError({
+        name: ['cannot be blank', 'must be at least 3 characters'],
+      });
+      expect(e.message).toContain('name: cannot be blank, must be at least 3 characters');
+    });
   });
 
   describe('Errors utility', () => {
