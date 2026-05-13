@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
 - New `Migrator` option `schemaOutputPath`. When set (and the connector is wrapped in `SchemaCollector`), every successful `migrate()` writes a typed-schema TS file at the configured path with one `defineSchema(...)` per tracked table — re-exported as `<camelCase>Schema` named consts — via `@next-model/core`'s `generateSchemaSource(tables)`. The `schema_migrations` tracking table is filtered out so the generated file mirrors only the user's schema. A misconfigured connector (plain connector instead of `SchemaCollector`) throws before any work happens. Pair with `Model({ schema })` to feed migrations directly into typed prop inference.

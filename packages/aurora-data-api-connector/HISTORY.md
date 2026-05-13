@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 Rolling changelog for the next major release. Items below are appended in the order they ship; this list will be finalized into a version heading when the release is cut.
 
 - Implements `Connector.reflectSchema()` for schema introspection across both Aurora dialects. `DataApiConfig` gains a `dialect: 'postgres' | 'mysql'` option (defaults to `'postgres'`). The Postgres path queries `information_schema.tables` / `information_schema.columns` / `information_schema.table_constraints` (PK + single-column UNIQUE) plus `pg_index` / `pg_class` for explicit indexes. The MySQL path queries `information_schema.TABLES` / `information_schema.COLUMNS` / `information_schema.STATISTICS`. Type tables mirror the standalone `PostgresConnector` / `MysqlConnector` mappings (`tinyint(1)` → `boolean`, `nextval(...)` / `EXTRA = 'auto_increment'` → `autoIncrement: true`). Throws `PersistenceError` for any other dialect. Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.

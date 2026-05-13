@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 Rolling changelog for the next major release. Items below group related changes; this list will be finalized into a version heading when the release is cut.
 
 ### Headline: promise-like chainable query builders

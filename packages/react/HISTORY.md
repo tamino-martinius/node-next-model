@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 ### Added
 - Initial release: `<NextModelProvider>`, `useModel`, `useInvalidateKeys`.
 - Reactive instance shells; identity-mapped Store; refcounted watch lifecycle.

@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 - Implements `Connector.alterTable(spec)`. `removeColumn` / `renameColumn` map to `updateMany({}, { $unset })` / `$rename`; `addIndex` / `removeIndex` use `collection.createIndex` / `dropIndex`. `addColumn` / `changeColumn` are document-store no-ops (MongoDB has no schema); `renameIndex`, foreign keys, and check constraints throw `UnsupportedOperationError`.
 
 ### Native UPSERT

@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 ### Native UPSERT
 - Inherits `Connector.upsert(spec)` from `@next-model/redis-connector` (composed via SELECT-then-INSERT-or-UPDATE on the connector's own primitives — non-atomic by Redis/Valkey design).
 

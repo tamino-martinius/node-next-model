@@ -1,6 +1,6 @@
 {
   "name": "@next-model/redis-connector",
-  "version": "1.0.0-rc.5",
+  "version": "1.0.0",
   "description": "Redis connector for next-model. Stores rows as HASH per id with a ZSET of ids per table.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

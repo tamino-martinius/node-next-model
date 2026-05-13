@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 - Initial release. `buildModelResource({ Model, name, fields, ... })` returns `{ typeDefs, resolvers }` for six default operations: `list`, `get`, `count`, `create`, `update`, `delete`.
 - Generated types per resource: `type <Name>`, `type <Name>List`, `input <Name>CreateInput`, `input <Name>UpdateInput`, `input <Name>FilterInput`, `input <Name>OrderInput`, plus an `enum <Name>OrderColumn` pinned to the field set.
 - `composeSchema(resources)` merges any number of resources into a single `{ typeDefs, resolvers }` bundle, emitting root `Query` / `Mutation` stubs so single-resource bundles still parse.

@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.0.0
+
 - Inherits `Connector.reflectSchema()` from `MysqlConnector`. MariaDB exposes the same `information_schema` views (`TABLES`, `COLUMNS`, `STATISTICS`) with the same column shapes, so the parent's introspection path works without any MariaDB-specific override. Returns one `TableDefinition` per base table in the current `DATABASE()` with column kinds, primary key, indexes, and `auto_increment` flags mapped back through the same MySQL type mapping (`tinyint(1)` → `boolean`, etc.). Pairs with `generateSchemaSource` from `@next-model/core` for end-to-end `nm-generate-migration schema-from-db` reflection.
 - Inherits `Connector.queryWithJoins(spec)` from `MysqlConnector` — MariaDB's wire-compatible `mysql2` driver and identical SQL surface mean the EXISTS / NOT EXISTS / batched-IN paths work without any MariaDB-specific override. Powers `Model.whereMissing` / `Model.joins` / `Model.includes({...}, { strategy: 'join' | 'auto' })` / cross-association `filterBy` natively.
 - Inherits `Connector.queryScoped(spec)` from `MysqlConnector` — same nested `WHERE col IN (SELECT …)` shape, identifier quoting, and projection routing. Powers promise-like chainable query builders (`User.where(...).pluck('email')`, `Order.where(...).sum('total')`, parent-scoped chains like `user.todos.where(...)`) on MariaDB without any MariaDB-specific override.
