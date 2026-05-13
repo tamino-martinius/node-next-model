@@ -1,7 +1,13 @@
 import { UnsupportedOperationError } from './errors.js';
 import { filterList } from './FilterEngine.js';
 import { baseQueryScoped } from './query/baseQueryScoped.js';
-import { type AlterTableSpec, defineTable, type TableBuilder } from './schema.js';
+import {
+  type AlterTableSpec,
+  type ColumnOptions,
+  defineTable,
+  type IndexOptions,
+  type TableBuilder,
+} from './schema.js';
 import type { DatabaseSchema } from './typedSchema.js';
 import {
   type AggregateKind,
@@ -245,6 +251,57 @@ export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefin
     if (!Object.hasOwn(this.storage, tableName)) {
       this.storage[tableName] = [];
     }
+  }
+
+  /**
+   * Materialise every table declared in the attached `schema` idempotently.
+   * Iterates `schema.tableDefinitions` and dispatches through the existing
+   * per-connector `createTable` path so connector-specific column type quirks
+   * are preserved. Subclasses (e.g. SQLite, localStorage) inherit this method
+   * — they only need to ensure their `createTable` / `hasTable` overrides are
+   * sound.
+   */
+  async ensureSchema(): Promise<{ created: string[]; existing: string[] }> {
+    if (!this.schema) {
+      throw new Error(
+        'Connector.ensureSchema(): no schema is attached. Pass `{ schema }` at construction.',
+      );
+    }
+    const created: string[] = [];
+    const existing: string[] = [];
+    const tableDefinitions = this.schema.tableDefinitions as Record<
+      string,
+      import('./schema.js').TableDefinition
+    >;
+    for (const tableName of Object.keys(tableDefinitions)) {
+      if (await this.hasTable(tableName)) {
+        existing.push(tableName);
+        continue;
+      }
+      const def = tableDefinitions[tableName];
+      await this.createTable(tableName, (t) => {
+        for (const col of def.columns) {
+          const options: ColumnOptions = {
+            null: col.nullable,
+            primary: col.primary,
+            unique: col.unique,
+            autoIncrement: col.autoIncrement,
+          };
+          if (col.default !== undefined) options.default = col.default;
+          if (col.limit !== undefined) options.limit = col.limit;
+          if (col.precision !== undefined) options.precision = col.precision;
+          if (col.scale !== undefined) options.scale = col.scale;
+          t.column(col.name, col.type, options);
+        }
+        for (const idx of def.indexes) {
+          const indexOptions: IndexOptions = { unique: idx.unique };
+          if (idx.name !== undefined) indexOptions.name = idx.name;
+          t.index(idx.columns, indexOptions);
+        }
+      });
+      created.push(tableName);
+    }
+    return { created, existing };
   }
 
   async dropTable(tableName: string): Promise<void> {

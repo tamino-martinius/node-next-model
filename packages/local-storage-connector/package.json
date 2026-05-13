@@ -14,8 +14,7 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "!dist/**/__tests__",
-    "!dist/**/*.map"
+    "!dist/**/__tests__"
   ],
   "repository": {
     "type": "git",

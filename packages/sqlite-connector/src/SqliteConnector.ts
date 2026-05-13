@@ -785,6 +785,52 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
     for (const idx of def.indexes) await this.createIndex(tableName, idx);
   }
 
+  /**
+   * Materialise every table declared in the attached `schema` idempotently.
+   * Iterates `schema.tableDefinitions`, skipping tables that already exist
+   * and dispatching unknown tables through this connector's `createTable`
+   * so SQLite-specific column-type rendering applies.
+   */
+  async ensureSchema(): Promise<{ created: string[]; existing: string[] }> {
+    if (!this.schema) {
+      throw new Error(
+        'SqliteConnector.ensureSchema(): no schema is attached. Pass `{ schema }` at construction.',
+      );
+    }
+    const created: string[] = [];
+    const existing: string[] = [];
+    const tableDefinitions = this.schema.tableDefinitions as Record<string, TableDefinition>;
+    for (const tableName of Object.keys(tableDefinitions)) {
+      if (await this.hasTable(tableName)) {
+        existing.push(tableName);
+        continue;
+      }
+      const def = tableDefinitions[tableName];
+      await this.createTable(tableName, (t) => {
+        for (const col of def.columns) {
+          const options: ColumnOptions = {
+            null: col.nullable,
+            primary: col.primary,
+            unique: col.unique,
+            autoIncrement: col.autoIncrement,
+          };
+          if (col.default !== undefined) options.default = col.default;
+          if (col.limit !== undefined) options.limit = col.limit;
+          if (col.precision !== undefined) options.precision = col.precision;
+          if (col.scale !== undefined) options.scale = col.scale;
+          t.column(col.name, col.type, options);
+        }
+        for (const idx of def.indexes) {
+          const indexOptions: { name?: string; unique?: boolean } = { unique: idx.unique };
+          if (idx.name !== undefined) indexOptions.name = idx.name;
+          t.index(idx.columns, indexOptions);
+        }
+      });
+      created.push(tableName);
+    }
+    return { created, existing };
+  }
+
   async dropTable(tableName: string): Promise<void> {
     this.runStatement(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
     this.jsonColumns.delete(tableName);
