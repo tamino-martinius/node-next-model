@@ -37,10 +37,27 @@ export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefin
   private lastIds: Dict<number>;
   private inTransaction = false;
 
-  constructor(props?: { storage?: Storage; lastIds?: Dict<number> }, extras?: { schema?: S }) {
+  /**
+   * Accepts two shapes for convenience:
+   *
+   *   new MemoryConnector()                                — defaults.
+   *   new MemoryConnector({ storage, lastIds })            — legacy props.
+   *   new MemoryConnector({ schema })                      — schema-only.
+   *   new MemoryConnector({ storage, lastIds, schema })    — unified.
+   *   new MemoryConnector({ storage, lastIds }, { schema }) — legacy two-arg.
+   *
+   * The unified single-arg shape is preferred. The legacy two-arg shape is
+   * kept so existing callers (and `LocalStorageConnector` subclassing) keep
+   * working. When `schema` appears in *both* the first arg and the extras,
+   * the extras arg wins (it's the older API surface).
+   */
+  constructor(
+    props?: { storage?: Storage; lastIds?: Dict<number>; schema?: S },
+    extras?: { schema?: S },
+  ) {
     this.storage = props?.storage || globalStorage;
     this.lastIds = props?.lastIds || globalLastIds;
-    this.schema = extras?.schema;
+    this.schema = extras?.schema ?? props?.schema;
   }
 
   private collection(tableName: string): Dict<any>[] {
