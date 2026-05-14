@@ -2,6 +2,11 @@
 
 ## vNext
 
+### Changed
+
+- `definitionFromOp` defaults `nullable` to `false` (matches the `@next-model/core` builder default, which also flipped in this release). Callers relying on the previous nullable-by-default behaviour must now pass `{ null: true }` explicitly.
+- `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`).
+
 ## v1.1.1
 
 ## v1.1.0

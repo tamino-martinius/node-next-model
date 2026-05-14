@@ -2,6 +2,16 @@
 
 ## vNext
 
+### Added
+
+- `Model.findOrNull(id)` — null-on-miss counterpart to `find(id)`. Sugar over `findBy({ [pk]: id })` with the same `id`-only signature as `find`, so callers get the conventional ORM "lookup or undefined" surface without writing the equality filter by hand. The typed factory mirrors the `Keys`-inferred id type. `find` keeps throwing `NotFoundError` on miss; nothing existing changes.
+- `orderBy` accepts the conventional `{ [col]: 'asc' | 'desc' }` shape alongside the strict `{ key, dir }` shape. A new shared `normalizeOrderEntry` helper lives on the core surface and is consumed by `MemoryConnector` and every external connector that builds order fragments — both shapes round-trip into the same `{ key, dir }` pair before any SQL or JS sort runs. Strict + loose shapes can be mixed in a multi-key `orderBy([...])` call; uppercase `'DESC'` / `'ASC'` and the `SortDirection` enum on the loose shape are also accepted.
+- `MemoryConnector` accepts a single-arg `{ schema }` constructor: `new MemoryConnector({ schema })` (and `new MemoryConnector({ storage, lastIds, schema })`) now expose the schema, rather than silently dropping it on the floor like the old `(props, extras)` arity did. The legacy two-arg form is kept for backwards compatibility; when both args carry `schema` the extras arg wins. `LocalStorageConnector` mirrors the widening on its options interface.
+
+### Changed
+
+- `TableBuilder.column(name, type, options)` (and the `applyAlterOps` `buildColumnDefinition` helper) default `options.null` to **false**, matching the typed-schema convention. Previously the builder defaulted to `true` while `defineSchema(...)` defaulted to `false`, so iterating `schema.tableDefinitions` to bootstrap a connector silently inverted every column's nullability. **Behaviour change** — callers relying on the old `null: true` default must now pass `{ null: true }` explicitly. Copy-pasting from `defineSchema` into `t.column(...)` round-trips cleanly post-flip.
+
 ## v1.1.1
 
 ### Added
