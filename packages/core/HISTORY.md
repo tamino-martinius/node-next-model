@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.1
+
 ### Added
 
 - `Connector.ensureSchema()` is now declared on the `Connector` interface as an optional method. Calling it on a connector with an attached schema iterates `schema.tableDefinitions`, dispatches every missing table through the connector's existing `createTable` path, and returns `{ created: string[]; existing: string[] }` — no more boilerplate that walks `Object.keys(schema.tableDefinitions)` and translates columns + indexes back into the builder DSL. Implemented on `MemoryConnector` (and inherited by `LocalStorageConnector`); third-party connectors stay compilable because the method is optional.

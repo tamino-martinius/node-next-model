@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.1
+
 ### Added
 
 - `connector.ensureSchema()` is inherited from `MemoryConnector` — when the connector carries a schema (`new LocalStorageConnector(opts, { schema })`), the call walks every declared table and initialises an empty array in `localStorage` for each one that doesn't already exist, returning `{ created, existing }`. Existing rows in other tables are untouched. Throws if no schema is attached.

@@ -1,6 +1,6 @@
 {
   "name": "@next-model/migrations",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Schema migrations for next-model. Zero runtime dependencies beyond @next-model/core.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

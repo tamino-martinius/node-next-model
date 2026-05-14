@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.1
+
 ### Added
 
 - `connector.ensureSchema()` walks the attached `schema.tableDefinitions` and dispatches every missing table through `createTable`, returning `{ created, existing }` so callers can log what changed. Idempotent: existing tables are reported, not recreated. Throws if no schema is attached.
