@@ -25,6 +25,7 @@ import {
   type JoinClause,
   type JoinQuerySpec,
   type KeyType,
+  normalizeOrderEntry,
   PersistenceError,
   type Projection,
   type QueryScopedSpec,
@@ -287,9 +288,10 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
 
   private buildOrder(order: Scope['order']): string {
     if (!order || order.length === 0) return '';
-    const parts = order.map((col) => {
-      const dir = (col.dir ?? SortDirection.Asc) === SortDirection.Asc ? 'ASC' : 'DESC';
-      return `${quoteIdent(col.key as string)} ${dir}`;
+    const parts = order.map((entry) => {
+      const { key, dir } = normalizeOrderEntry(entry);
+      const sql = dir === SortDirection.Desc ? 'DESC' : 'ASC';
+      return `${quoteIdent(key)} ${sql}`;
     });
     return ` ORDER BY ${parts.join(', ')}`;
   }

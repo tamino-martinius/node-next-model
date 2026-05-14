@@ -80,6 +80,47 @@ export type Order<PersistentProps extends Schema> =
   | OrderColumn<PersistentProps>
   | OrderColumn<PersistentProps>[];
 
+/**
+ * Normalise a single `orderBy` entry to the strict `{ key, dir }` shape.
+ *
+ * Connectors should call this before consuming an order entry so the loose
+ * conventional shape (`{ [col]: 'asc' | 'desc' }`) and the strict
+ * `{ key, dir? }` shape both round-trip through the same code path.
+ *
+ * Accepts:
+ *   - `{ key: 'createdAt', dir: SortDirection.Desc }` — strict, enum value.
+ *   - `{ key: 'createdAt', dir: 'desc' }` / `'DESC'` — strict + string dir.
+ *   - `{ key: 'createdAt' }` — strict, defaults to ASC.
+ *   - `{ createdAt: 'asc' }` / `{ createdAt: 'desc' }` — conventional shape.
+ *   - `{ createdAt: SortDirection.Desc }` — conventional shape, enum value.
+ *
+ * Throws when the entry is neither shape, so connectors fail loudly instead
+ * of silently emitting `ORDER BY "undefined"`.
+ */
+export function normalizeOrderEntry(entry: unknown): { key: string; dir: SortDirection } {
+  const asDir = (v: unknown): SortDirection =>
+    v === SortDirection.Desc || v === 'desc' || v === 'DESC' || v === -1
+      ? SortDirection.Desc
+      : SortDirection.Asc;
+
+  if (entry !== null && typeof entry === 'object') {
+    const obj = entry as Dict<unknown>;
+    // Strict shape: { key, dir? } — `key` must be a string and the only
+    // possible companion keys are `dir`. Treat as strict whenever `key` is
+    // present and a string.
+    if (typeof obj.key === 'string') {
+      return { key: obj.key, dir: asDir(obj.dir) };
+    }
+    // Loose shape: { [col]: 'asc' | 'desc' } — exactly one own key.
+    const keys = Object.keys(obj);
+    if (keys.length === 1) {
+      const key = keys[0];
+      return { key, dir: asDir(obj[key]) };
+    }
+  }
+  throw new Error(`Unrecognised orderBy entry shape: ${JSON.stringify(entry)}`);
+}
+
 export type AggregateKind = 'sum' | 'min' | 'max' | 'avg';
 
 export interface DeltaUpdateDelta {

@@ -16,9 +16,9 @@ import {
   type DeltaUpdateSpec,
   type Dict,
   KeyType,
+  normalizeOrderEntry,
   type QueryScopedSpec,
   type Scope,
-  SortDirection,
   type UpsertSpec,
 } from './types.js';
 
@@ -63,28 +63,19 @@ export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefin
     let items = await filterList(this.collection(tableName), filter);
 
     for (let orderIndex = order.length - 1; orderIndex >= 0; orderIndex -= 1) {
-      const key = order[orderIndex].key;
-      const dir = order[orderIndex].dir || SortDirection.Asc;
+      const { key, dir } = normalizeOrderEntry(order[orderIndex]);
 
       items = items.sort((a, b) => {
-        if (a[key as string] > b[key as string]) {
+        if (a[key] > b[key]) {
           return dir;
         }
-        if (a[key as string] < b[key as string]) {
+        if (a[key] < b[key]) {
           return -dir;
         }
-        if (
-          (a[key as string] === null || a[key as string] === undefined) &&
-          b[key as string] !== null &&
-          b[key as string] !== undefined
-        ) {
+        if ((a[key] === null || a[key] === undefined) && b[key] !== null && b[key] !== undefined) {
           return dir;
         }
-        if (
-          (b[key as string] === null || b[key as string] === undefined) &&
-          a[key as string] !== null &&
-          a[key as string] !== undefined
-        ) {
+        if ((b[key] === null || b[key] === undefined) && a[key] !== null && a[key] !== undefined) {
           return -dir;
         }
         return 0;
