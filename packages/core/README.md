@@ -356,6 +356,19 @@ await User.filterBy({ gender: 'male' }).buildScoped({ firstName: 'Joe' });
 await User.filterBy({ gender: 'female' }).createScoped({ firstName: 'Sally' });
 ```
 
+### Property accessors for every schema column
+
+Property getters / setters are installed for every column declared on the Model's schema — not just the columns supplied at `create({ ... })` time. So a `Model.create({ name: 'x' })` on a table that has a nullable `archivedAt` column produces an instance whose `archivedAt` getter exists from construction. A later `instance.update({ archivedAt: new Date() })` makes `instance.archivedAt` immediately readable without a re-fetch:
+
+```ts
+const item = await Item.create({ name: 'x' });    // archivedAt omitted
+item.archivedAt;                                  // undefined (getter exists)
+await item.update({ archivedAt: new Date() });
+item.archivedAt;                                  // Date — no Model.findBy needed
+```
+
+Columns absent from the schema (legacy / dynamic) still fall through to the runtime `persistentProps` keys, preserving behaviour for callers that never went through `defineSchema(...)`.
+
 ## Saving and updating
 
 ```ts
@@ -712,6 +725,35 @@ All comparison keys start with `$`:
 | `$like` | `filterBy({ $like: { email: '%@example.com' } })` |
 | `$async` | `filterBy({ $async: somePromiseResolvingToAFilter })` |
 | `$raw` | connector-specific raw SQL + bindings |
+
+#### Two equivalent shapes per column operator
+
+Every column-style operator (`$in`, `$notIn`, `$gt`, `$gte`, `$lt`, `$lte`, `$like`, `$between`, `$notBetween`, `$not`) accepts both the nested ORM-style form and the legacy top-level form. The two compile to the same query:
+
+```ts
+// Nested form (matches the shape most popular ORMs use).
+User.filterBy({ age: { $gt: 18 } });
+User.filterBy({ status: { $in: ['open', 'pending'] } });
+
+// Top-level form (equivalent).
+User.filterBy({ $gt: { age: 18 } });
+User.filterBy({ $in: { status: ['open', 'pending'] } });
+```
+
+#### Mixed-object filters compose with AND
+
+A single filter object can mix plain column equality with top-level operator keys and composition ops (`$and`, `$or`). Every entry is ANDed together; you don't need to chain `.filterBy(...).filterBy(...)` to keep them all alive:
+
+```ts
+// All three predicates apply.
+await User.filterBy({
+  workspaceId: 1,             // equality
+  $null: 'archivedAt',        // top-level operator
+  age: { $gt: 18 },           // column-op map (rewritten internally)
+}).all();
+```
+
+Without this composition step, the connector's `compileFilter` short-circuits on the first `$`-prefixed key it sees and silently drops the rest — `normalizeFilterShape` wraps mixed shapes in `$and` so every predicate survives.
 
 ### Subquery filter values
 
@@ -1396,6 +1438,18 @@ Any object implementing the `Connector` interface works. The package ships with:
 
 Writing your own is mostly a matter of mapping `Scope` to your driver's query builder. See `packages/knex-connector` or `packages/aurora-data-api-connector` for full examples.
 
+### `ensureSchema()`
+
+Connectors that carry an attached schema can implement the optional `ensureSchema()` method on the interface. It iterates the schema's `tableDefinitions` and creates every missing table idempotently, returning `{ created: string[], existing: string[] }`:
+
+```ts
+const connector = new MemoryConnector({}, { schema });
+const { created } = await connector.ensureSchema();
+// created → ['users', 'posts', ...]
+```
+
+`MemoryConnector`, `LocalStorageConnector` (inherits from `MemoryConnector`), and `SqliteConnector` implement `ensureSchema` today. Other connectors fall back to the original explicit `createTable(name, builder)` loop, and can opt in without a coordinated breaking change because the method is declared optional on `Connector`.
+
 ## Errors
 
 All errors extend `NextModelError` so you can catch them with a single check:
@@ -1403,8 +1457,29 @@ All errors extend `NextModelError` so you can catch them with a single check:
 - `NextModelError` — base class
 - `NotFoundError` — thrown by `find`, `findOrFail`, `save` (when update target vanished)
 - `PersistenceError` — connector-level insert/update/delete failures, or actions on unsaved records
-- `ValidationError` — thrown by `save` when any validator returns false
+- `ValidationError` — thrown by `save` when any validator returns false. Carries `.errors: Record<string, string[]>` mirroring the rejected instance's `errors.toJSON()`; its `.message` is formatted `"Validation failed: <field>: <reason>; <field>: <reason>"` so `expect(p).rejects.toThrow(/name/)` works.
 - `FilterError` — malformed filter expressions
+
+```ts
+import { ValidationError } from '@next-model/core';
+
+try {
+  await User.create({}); // missing required name + email
+} catch (e) {
+  if (e instanceof ValidationError) {
+    console.error(e.message);          // "Validation failed: name: cannot be blank; email: cannot be blank"
+    console.error(e.errors?.name);     // ["cannot be blank"]
+  }
+  throw e;
+}
+```
+
+Two construction shapes are accepted, mirrored both in tests and consumer code:
+
+```ts
+new ValidationError(errorsMap);                       // one-arg form
+new ValidationError('Validation failed', errorsMap);  // legacy two-arg form
+```
 
 ## Changelog
 

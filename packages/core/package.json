@@ -30,8 +30,7 @@
   "files": [
     "dist",
     "!dist/**/__tests__",
-    "!dist/**/__benchmark__",
-    "!dist/**/*.map"
+    "!dist/**/__benchmark__"
   ],
   "repository": {
     "type": "git",

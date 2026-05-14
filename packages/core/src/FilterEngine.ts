@@ -71,58 +71,78 @@ function isColumnOpMap(value: unknown): value is Record<string, unknown> {
 export function normalizeFilterShape<T extends Filter<any>>(filter: T): T {
   if (!isPlainObject(filter)) return filter;
 
-  const normalized: Record<string, unknown> = {};
+  // Plain column equality. These all coexist fine in a single object via the
+  // connector's `compileEquality` path, so we collect them together.
+  const equality: Record<string, unknown> = {};
+
+  // Each entry here becomes one AND-piece in the final wrapper. Top-level
+  // operators (`$null`, `$in`, `$gt`, `$and`, `$or`, `$not`, `$raw`,
+  // `$async`, ...) cannot coexist with each other or with equality in a
+  // single object — every connector's `compileFilter` short-circuits on the
+  // first operator it recognises and silently drops siblings. We split each
+  // one into its own AND-piece so the wrapper preserves the user's intent.
   const andPieces: unknown[] = [];
 
   for (const [key, value] of Object.entries(filter)) {
     if (COMPOSITION_OPS.has(key)) {
       if (key === '$and' || key === '$or') {
-        normalized[key] = (value as unknown[]).map((child) =>
-          normalizeFilterShape(child as Filter<any>),
-        );
+        andPieces.push({
+          [key]: (value as unknown[]).map((child) => normalizeFilterShape(child as Filter<any>)),
+        });
       } else if (key === '$not') {
-        normalized[key] = isPlainObject(value) ? normalizeFilterShape(value as Filter<any>) : value;
+        andPieces.push({
+          [key]: isPlainObject(value) ? normalizeFilterShape(value as Filter<any>) : value,
+        });
       } else {
-        normalized[key] = value;
+        andPieces.push({ [key]: value });
       }
       continue;
     }
 
     if (key.startsWith('$')) {
-      // Legacy `{$op: {col: v}}` — leave as-is.
-      normalized[key] = value;
+      // Top-level column operator (`$null`, `$in`, `$gt`, ...). Treat as its
+      // own AND-piece so it can safely coexist with sibling equality or
+      // other operators in the original filter.
+      andPieces.push({ [key]: value });
       continue;
     }
 
     if (isColumnOpMap(value)) {
       const ops = value as Record<string, unknown>;
       const opKeys = Object.keys(ops);
-      if (opKeys.length === 1) {
-        const op = opKeys[0];
-        normalized[op] ??= {} as Record<string, unknown>;
-        (normalized[op] as Record<string, unknown>)[key] = ops[op];
-      } else {
-        for (const op of opKeys) {
-          andPieces.push({ [op]: { [key]: ops[op] } });
-        }
+      for (const op of opKeys) {
+        andPieces.push({ [op]: { [key]: ops[op] } });
       }
       continue;
     }
 
     // Plain equality (possibly against a nested object literal — kept unchanged).
-    normalized[key] = value;
+    equality[key] = value;
   }
 
-  if (andPieces.length > 0) {
-    const existing = Object.keys(normalized);
-    if (existing.length === 0 && andPieces.length === 1) {
-      return andPieces[0] as T;
-    }
-    const rest = existing.length > 0 ? [normalized] : [];
-    return { $and: [...rest, ...andPieces] } as unknown as T;
+  // Decide the simplest equivalent shape because downstream code paths
+  // (lower, walkFilter, defaultScope pruning, the connector fast paths) all
+  // already special-case the flat form.
+  const equalityKeys = Object.keys(equality);
+
+  // No top-level operators were present — keep the flat equality shape so
+  // the connector's `compileEquality` fast path applies unchanged. (Empty
+  // object is also returned here — it is a no-op filter.)
+  if (andPieces.length === 0) return equality as T;
+
+  // Exactly one piece and no equality — return the single piece directly so
+  // single-operator filters keep their established shape (no spurious
+  // `$and` wrapper that would break callers / pretty-printers).
+  if (equalityKeys.length === 0 && andPieces.length === 1) {
+    return andPieces[0] as T;
   }
 
-  return normalized as T;
+  // Mixed form: wrap everything in $and. Equality (if any) is a single AND
+  // piece so the connector's compileEquality fast path still applies inside.
+  const wrapped: unknown[] = [];
+  if (equalityKeys.length > 0) wrapped.push(equality);
+  for (const piece of andPieces) wrapped.push(piece);
+  return { $and: wrapped } as unknown as T;
 }
 
 async function propertyFilter(items: Dict<any>[], filter: Dict<any>): Promise<Dict<any>[]> {

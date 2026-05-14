@@ -171,3 +171,126 @@ describe('filterBy accepts both shapes', () => {
     expect(rows.length).toBeGreaterThanOrEqual(0); // parses without throwing
   });
 });
+
+describe('normalizeFilterShape composes mixed-object filters', () => {
+  it('AND-wraps equality + top-level $null', () => {
+    expect(normalizeFilterShape({ status: 'open', $null: 'metadata' })).toEqual({
+      $and: [{ status: 'open' }, { $null: 'metadata' }],
+    });
+  });
+
+  it('AND-wraps equality + top-level $in', () => {
+    expect(normalizeFilterShape({ status: 'open', $in: { age: [10, 20] } })).toEqual({
+      $and: [{ status: 'open' }, { $in: { age: [10, 20] } }],
+    });
+  });
+
+  it('AND-wraps equality + column-op map ($gt)', () => {
+    expect(normalizeFilterShape({ status: 'open', age: { $gt: 18 } })).toEqual({
+      $and: [{ status: 'open' }, { $gt: { age: 18 } }],
+    });
+  });
+
+  it('AND-wraps multiple top-level operators', () => {
+    expect(
+      normalizeFilterShape({
+        $null: 'archivedAt',
+        $notNull: 'reviewedAt',
+      }),
+    ).toEqual({
+      $and: [{ $null: 'archivedAt' }, { $notNull: 'reviewedAt' }],
+    });
+  });
+
+  it('preserves $and alongside equality (composition op is its own piece)', () => {
+    const out = normalizeFilterShape({
+      status: 'open',
+      $and: [{ age: { $gt: 18 } }],
+    });
+    expect(out).toEqual({
+      $and: [{ status: 'open' }, { $and: [{ $gt: { age: 18 } }] }],
+    });
+  });
+});
+
+describe('nested $in / $notIn syntax is equivalent to top-level', () => {
+  it('normalizes nested $in into top-level $in (pure)', () => {
+    expect(normalizeFilterShape({ status: { $in: ['open', 'pending'] } })).toEqual({
+      $in: { status: ['open', 'pending'] },
+    });
+  });
+
+  it('normalizes nested $notIn into top-level $notIn (pure)', () => {
+    expect(normalizeFilterShape({ status: { $notIn: ['closed'] } })).toEqual({
+      $notIn: { status: ['closed'] },
+    });
+  });
+
+  it('nested $in matches the same rows as top-level $in', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    const nested = await Ticket.filterBy({ status: { $in: ['open', 'pending'] } })
+      .orderBy({ key: 'name' })
+      .all();
+    const topLevel = await Ticket.filterBy({ $in: { status: ['open', 'pending'] } } as any)
+      .orderBy({ key: 'name' })
+      .all();
+    expect(nested.map((r) => (r.attributes as Row).name)).toEqual(
+      topLevel.map((r) => (r.attributes as Row).name),
+    );
+  });
+
+  it('mixed: nested $in + equality (combines with mixed-filter composition)', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    // status=open AND age in {10, 20, 40} → A (10/open), C (20/open). B is 40/pending.
+    const rows = await Ticket.filterBy({
+      status: 'open',
+      age: { $in: [10, 20, 40] },
+    })
+      .orderBy({ key: 'age' })
+      .all();
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['A', 'C']);
+  });
+});
+
+describe('filterBy composes mixed-object filters end-to-end', () => {
+  it('mixed equality + $null: row in both', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    // Make the metadata column null on row B
+    await Ticket.filterBy({ name: 'B' }).updateAll({ metadata: null });
+    const rows = await Ticket.filterBy({ status: 'pending', $null: 'metadata' }).all();
+    // Only B is both pending AND has null metadata; E is pending but has metadata.
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['B']);
+  });
+
+  it('mixed equality + $in: row in both', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    const rows = await Ticket.filterBy({
+      status: 'open',
+      $in: { age: [10, 20, 40] },
+    })
+      .orderBy({ key: 'age' })
+      .all();
+    // status=open: A,C. age in 10/20/40: A,C,B. Intersection: A,C.
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['A', 'C']);
+  });
+
+  it('mixed $and + $null still composes correctly', async () => {
+    const connector = freshConnector();
+    const Ticket = buildModel(connector);
+    await seed(Ticket);
+    await Ticket.filterBy({ name: 'B' }).updateAll({ metadata: null });
+    const rows = await Ticket.filterBy({
+      $and: [{ status: 'pending' }],
+      $null: 'metadata',
+    } as any).all();
+    expect(rows.map((r) => (r.attributes as Row).name)).toEqual(['B']);
+  });
+});

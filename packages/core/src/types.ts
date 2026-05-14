@@ -126,6 +126,23 @@ export interface Connector<
   createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void>;
   dropTable(tableName: string): Promise<void>;
   /**
+   * Materialise every table declared in the attached `schema` idempotently.
+   * For each entry in `schema.tableDefinitions`: skip tables that already
+   * exist (added to `existing`); otherwise call `createTable` with the
+   * column + index definitions from the schema (added to `created`).
+   *
+   * Throws when no schema is attached to the connector — `ensureSchema`
+   * is a no-op without one, so the missing schema is treated as a config
+   * error rather than silent success.
+   *
+   * Optional on the interface so connectors that don't need it (recording
+   * wrappers, KV stores without a declared schema, etc.) can leave it
+   * undefined without breaking the contract. Concrete connectors that
+   * accept a schema at construction (memory, sqlite, local-storage, …)
+   * should implement it.
+   */
+  ensureSchema?(): Promise<{ created: string[]; existing: string[] }>;
+  /**
    * Apply a series of mutation ops to an existing table. SQL-shaped connectors
    * implement every op; non-relational connectors (Mongo, Redis, Valkey) may
    * throw `UnsupportedOperationError` for ops they cannot honour.

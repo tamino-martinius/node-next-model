@@ -92,6 +92,7 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
   db: DatabaseType;
   private inTransaction = false;
   private jsonColumns = new Map<string, Set<string>>();
+  private booleanColumns = new Map<string, Set<string>>();
   private tableDefinitions = new Map<string, TableDefinition>();
   private foreignKeys = new Map<string, ForeignKeyEntry[]>();
   private checkConstraints = new Map<string, CheckEntry[]>();
@@ -110,6 +111,10 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
     return this.jsonColumns.get(tableName);
   }
 
+  private booleanColumnsFor(tableName: string): Set<string> | undefined {
+    return this.booleanColumns.get(tableName);
+  }
+
   private serializeRow<T extends Dict<any>>(tableName: string, row: T): T {
     const jsonCols = this.jsonColumnsFor(tableName);
     if (!jsonCols || jsonCols.size === 0) return row;
@@ -125,16 +130,36 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
 
   private hydrateRow<T extends Dict<any>>(tableName: string, row: T): T {
     const jsonCols = this.jsonColumnsFor(tableName);
-    if (!jsonCols || jsonCols.size === 0) return row;
+    // Boolean coercion only kicks in when an actual schema is attached on the
+    // connector. Without a schema we cannot reliably tell whether the source
+    // application means a column to hold true/false versus the 0/1 INTEGER
+    // sentinels SQLite uses for arbitrary integer columns — so we leave raw
+    // 0/1 values alone in that case.
+    const boolCols = this.schema ? this.booleanColumnsFor(tableName) : undefined;
+    const hasJson = jsonCols && jsonCols.size > 0;
+    const hasBool = boolCols && boolCols.size > 0;
+    if (!hasJson && !hasBool) return row;
     const out: Dict<any> = { ...row };
-    for (const col of jsonCols) {
-      const v = out[col];
-      if (typeof v === 'string') {
-        try {
-          out[col] = JSON.parse(v);
-        } catch {
-          // Leave non-JSON strings alone — tolerates pre-existing rows.
+    if (hasJson) {
+      for (const col of jsonCols as Set<string>) {
+        const v = out[col];
+        if (typeof v === 'string') {
+          try {
+            out[col] = JSON.parse(v);
+          } catch {
+            // Leave non-JSON strings alone — tolerates pre-existing rows.
+          }
         }
+      }
+    }
+    if (hasBool) {
+      // SQLite has no native boolean — values come back as 0/1 INTEGER. When
+      // the attached schema declares a column as `boolean`, coerce on read so
+      // `row.col === true` / `=== false` work strictly. null / undefined and
+      // non-0/1 values are passed through unchanged.
+      for (const col of boolCols as Set<string>) {
+        const v = out[col];
+        if (v === 0 || v === 1) out[col] = v === 1;
       }
     }
     return out as T;
@@ -780,14 +805,63 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
     this.tableDefinitions.set(tableName, def);
     const jsonCols = new Set(def.columns.filter((c) => c.type === 'json').map((c) => c.name));
     if (jsonCols.size > 0) this.jsonColumns.set(tableName, jsonCols);
+    const boolCols = new Set(def.columns.filter((c) => c.type === 'boolean').map((c) => c.name));
+    if (boolCols.size > 0) this.booleanColumns.set(tableName, boolCols);
     if (await this.hasTable(tableName)) return;
     this.runStatement(this.buildCreateTableSql(tableName, def, [], []));
     for (const idx of def.indexes) await this.createIndex(tableName, idx);
   }
 
+  /**
+   * Materialise every table declared in the attached `schema` idempotently.
+   * Iterates `schema.tableDefinitions`, skipping tables that already exist
+   * and dispatching unknown tables through this connector's `createTable`
+   * so SQLite-specific column-type rendering applies.
+   */
+  async ensureSchema(): Promise<{ created: string[]; existing: string[] }> {
+    if (!this.schema) {
+      throw new Error(
+        'SqliteConnector.ensureSchema(): no schema is attached. Pass `{ schema }` at construction.',
+      );
+    }
+    const created: string[] = [];
+    const existing: string[] = [];
+    const tableDefinitions = this.schema.tableDefinitions as Record<string, TableDefinition>;
+    for (const tableName of Object.keys(tableDefinitions)) {
+      if (await this.hasTable(tableName)) {
+        existing.push(tableName);
+        continue;
+      }
+      const def = tableDefinitions[tableName];
+      await this.createTable(tableName, (t) => {
+        for (const col of def.columns) {
+          const options: ColumnOptions = {
+            null: col.nullable,
+            primary: col.primary,
+            unique: col.unique,
+            autoIncrement: col.autoIncrement,
+          };
+          if (col.default !== undefined) options.default = col.default;
+          if (col.limit !== undefined) options.limit = col.limit;
+          if (col.precision !== undefined) options.precision = col.precision;
+          if (col.scale !== undefined) options.scale = col.scale;
+          t.column(col.name, col.type, options);
+        }
+        for (const idx of def.indexes) {
+          const indexOptions: { name?: string; unique?: boolean } = { unique: idx.unique };
+          if (idx.name !== undefined) indexOptions.name = idx.name;
+          t.index(idx.columns, indexOptions);
+        }
+      });
+      created.push(tableName);
+    }
+    return { created, existing };
+  }
+
   async dropTable(tableName: string): Promise<void> {
     this.runStatement(`DROP TABLE IF EXISTS ${quoteIdent(tableName)}`);
     this.jsonColumns.delete(tableName);
+    this.booleanColumns.delete(tableName);
     this.tableDefinitions.delete(tableName);
     this.foreignKeys.delete(tableName);
     this.checkConstraints.delete(tableName);
@@ -806,6 +880,7 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
         const def = definitionFromOp(op.name, op.type, op.options);
         this.runStatement(`ALTER TABLE ${quoteIdent(tableName)} ADD COLUMN ${this.columnDdl(def)}`);
         if (op.type === 'json') this.markJsonColumn(tableName, op.name);
+        if (op.type === 'boolean') this.markBooleanColumn(tableName, op.name);
         this.applyToTrackedDefinition(tableName, [op]);
         return;
       }
@@ -814,6 +889,7 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
           `ALTER TABLE ${quoteIdent(tableName)} DROP COLUMN ${quoteIdent(op.name)}`,
         );
         this.unmarkJsonColumn(tableName, op.name);
+        this.unmarkBooleanColumn(tableName, op.name);
         this.applyToTrackedDefinition(tableName, [op]);
         return;
       case 'renameColumn':
@@ -821,6 +897,7 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
           `ALTER TABLE ${quoteIdent(tableName)} RENAME COLUMN ${quoteIdent(op.from)} TO ${quoteIdent(op.to)}`,
         );
         this.renameJsonColumn(tableName, op.from, op.to);
+        this.renameBooleanColumn(tableName, op.from, op.to);
         this.applyToTrackedDefinition(tableName, [op]);
         return;
       case 'addIndex':
@@ -948,6 +1025,8 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
     this.foreignKeys.set(tableName, nextFks);
     this.checkConstraints.set(tableName, nextChecks);
     if (op.op === 'changeColumn' && op.type === 'json') this.markJsonColumn(tableName, op.name);
+    if (op.op === 'changeColumn' && op.type === 'boolean')
+      this.markBooleanColumn(tableName, op.name);
   }
 
   private applyToTrackedDefinition(tableName: string, ops: AlterTableOp[]): void {
@@ -974,6 +1053,29 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
 
   private renameJsonColumn(tableName: string, from: string, to: string): void {
     const set = this.jsonColumns.get(tableName);
+    if (!set?.has(from)) return;
+    set.delete(from);
+    set.add(to);
+  }
+
+  private markBooleanColumn(tableName: string, col: string): void {
+    let set = this.booleanColumns.get(tableName);
+    if (!set) {
+      set = new Set();
+      this.booleanColumns.set(tableName, set);
+    }
+    set.add(col);
+  }
+
+  private unmarkBooleanColumn(tableName: string, col: string): void {
+    const set = this.booleanColumns.get(tableName);
+    if (!set) return;
+    set.delete(col);
+    if (set.size === 0) this.booleanColumns.delete(tableName);
+  }
+
+  private renameBooleanColumn(tableName: string, from: string, to: string): void {
+    const set = this.booleanColumns.get(tableName);
     if (!set?.has(from)) return;
     set.delete(from);
     set.add(to);

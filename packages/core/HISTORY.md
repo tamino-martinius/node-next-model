@@ -2,6 +2,18 @@
 
 ## vNext
 
+### Added
+
+- `Connector.ensureSchema()` is now declared on the `Connector` interface as an optional method. Calling it on a connector with an attached schema iterates `schema.tableDefinitions`, dispatches every missing table through the connector's existing `createTable` path, and returns `{ created: string[]; existing: string[] }` — no more boilerplate that walks `Object.keys(schema.tableDefinitions)` and translates columns + indexes back into the builder DSL. Implemented on `MemoryConnector` (and inherited by `LocalStorageConnector`); third-party connectors stay compilable because the method is optional.
+- `ValidationError` now formats its `.message` as `"Validation failed: <field>: <reason>; <field>: <reason>"` synthesised from the structured `.errors` payload, so test assertions like `expect(p).rejects.toThrow(/name/)` and `instanceOf(ValidationError)` checks pass without inspecting the rejected instance. The new single-argument shape `new ValidationError(errors)` is supported alongside the existing two-arg shape; plain-string callers (no errors map) keep the previous bare message.
+- The Model factory now publishes the resolved schema's column list on the subclass as `static schemaColumnNames` (read by the instance constructor — see below).
+
+### Changed
+
+- Mixed-object filter shapes now compose correctly. `filterBy({ workspaceId: 1, $null: 'archivedAt' })` used to silently drop the equality predicate because the connector's `compileFilter` short-circuits on the first `$`-prefixed key it sees. `normalizeFilterShape` now lifts every top-level operator out into its own AND-piece, so equality + `$null` / `$in` / `$gt` / `$and` / `$or` / column-op maps all coexist in a single filter object and survive end-to-end through every connector. Single-operator and pure-equality shapes are unchanged.
+- Nested column-op syntax (`filterBy({ col: { $in: [...] } })`) and the legacy top-level syntax (`filterBy({ $in: { col: [...] } })`) are now explicitly pinned as equivalent — `normalizeFilterShape` already rewrote one to the other, the test surface just makes the contract load-bearing so future refactors can't silently regress.
+- Property getters on Model instances are now installed for every column declared on the schema's `tableDefinition`, not only the keys present in `persistentProps` at construction. Columns omitted at insert (e.g. nullable timestamps like `archivedAt`) are now readable as `instance.col` immediately after `instance.update({ col: value })` — no more `Model.findBy({ id })` re-fetch dance. Legacy Model paths without `defineSchema` still fall back to the previous `persistentProps`-driven loop.
+
 ## v1.1.0
 
 ## v1.0.0

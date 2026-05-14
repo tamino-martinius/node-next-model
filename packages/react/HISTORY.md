@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Added
+
+- Sourcemap files (`dist/**/*.map`) are now included in the published tarball so downstream Vite / webpack / Rollup builds resolve stack frames inside `@next-model/react` to the original TypeScript source — no `ENOENT` warnings for `dist/index.js.map`. No runtime change.
+
 ## v1.1.0
 
 ## v1.0.0
