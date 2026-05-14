@@ -59,17 +59,23 @@ const adults = User.filterBy({ $gte: { age: 18 } });
 
 await adults.count();                                                  // number of adults
 await adults.orderBy({ key: 'age', dir: 'desc' }).first();             // oldest adult
+await adults.orderBy({ age: 'desc' }).first();                         // same — conventional shape
 await adults.filterBy({ $like: { lastName: 'Love%' } }).all();         // intersected filters
 
 await User.filterBy({ $in: { age: [25, 30, 36] } })
-          .orderBy({ key: 'lastName' })
+          .orderBy({ lastName: 'asc' })
           .limitBy(10)
           .all();
+
+await User.findOrNull(42);                                             // returns undefined on miss
+await User.find(42);                                                   // throws NotFoundError on miss
 ```
 
 Operators available on every connector: `$eq` · `$gt` · `$gte` · `$lt` · `$lte` · `$in` · `$notIn` · `$null` · `$notNull` · `$like` · `$ilike` · `$between`. Compose them with `filterBy` / `orFilterBy` / `unfiltered` / `unscoped`. Predeclare reusable filters via `scopes` on the `Model({...})` definition.
 
 Each column-style operator accepts both the nested ORM-style form `filterBy({ col: { $in: [...] } })` and the top-level form `filterBy({ $in: { col: [...] } })` — they produce the same query. Operators and equality keys can also be mixed in a single filter object: `filterBy({ workspaceId: 1, $null: 'archivedAt' })` is composed as an AND of every predicate, no `.filterBy(...).filterBy(...)` chaining required.
+
+`orderBy` accepts both the strict `{ key, dir }` shape and the conventional `{ col: 'asc' | 'desc' }` shape — connectors normalise either before building SQL, so `orderBy({ createdAt: 'desc' })` and `orderBy({ key: 'createdAt', dir: SortDirection.Desc })` produce the same query.
 
 ### Use it from React
 

@@ -13,9 +13,11 @@ If you also need MySQL / Postgres / MariaDB / MSSQL too, keep `@next-model/knex-
 ## Installation
 
 ```sh
-pnpm add @next-model/sqlite-connector better-sqlite3
-# or: npm install @next-model/sqlite-connector better-sqlite3
+pnpm add @next-model/core @next-model/sqlite-connector better-sqlite3
+# or: npm install @next-model/core @next-model/sqlite-connector better-sqlite3
 ```
+
+`@next-model/core` is declared as a `peerDependency` so consumers control the exact core version. Install it alongside the connector — pnpm and npm both warn at install time if it's missing.
 
 ## Constructing the connector
 
@@ -113,6 +115,15 @@ All identifiers are quoted with `"…"`. Identifiers are validated against `^[A-
 | `{ $like: { col: 'pat%' } }` | `"col" LIKE ?` (SQLite is case-insensitive for ASCII by default). |
 | `{ $raw: { $query: 'col = ?', $bindings: [v] } }` | The raw fragment is wrapped in `(...)`; bindings are appended in order. |
 | `{ $async: Promise<Filter> }` | Resolved by Model before reaching the connector — passing one directly raises `FilterError`. |
+
+### `orderBy` shapes
+
+Both the strict `{ key, dir }` shape and the conventional `{ [col]: 'asc' | 'desc' }` shape are normalised before SQL is built. Either produces the same `ORDER BY "col" ASC|DESC` fragment, so callers can pick whichever reads better:
+
+```ts
+await User.orderBy({ key: 'createdAt', dir: SortDirection.Desc }).all();
+await User.orderBy({ createdAt: 'desc' }).all();   // same query
+```
 
 ### Parameter coercion
 
