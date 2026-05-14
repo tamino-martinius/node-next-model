@@ -37,6 +37,9 @@
   "dependencies": {
     "better-sqlite3": "^12.9.0"
   },
+  "peerDependencies": {
+    "@next-model/core": "^1.1.1"
+  },
   "devDependencies": {
     "@next-model/core": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
