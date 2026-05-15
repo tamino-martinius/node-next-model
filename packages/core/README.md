@@ -797,7 +797,7 @@ await User.first();
 await User.last();                                     // reverse + first
 
 await User.find(42);                                   // by primary key, throws NotFoundError
-await User.findOrNull(42);                             // by primary key, returns undefined on miss
+await User.findOrNull(42);                             // by primary key, returns null on miss
 await User.findBy({ email: 'x@y.com' });               // first matching or undefined
 await User.findOrFail({ email: 'x@y.com' });           // throws NotFoundError
 await User.findOrBuild({ email }, { firstName: 'J' }); // returns unsaved draft if missing

@@ -39,15 +39,15 @@ describe('Model.findOrNull', () => {
     expect(post.title).toBe('A');
   });
 
-  it('returns undefined when the id does not exist', async () => {
+  it('returns null when the id does not exist', async () => {
     const Post = makePost();
     const post = await Post.findOrNull(99999);
-    expect(post).toBeUndefined();
+    expect(post).toBeNull();
   });
 
   it('does not throw for missing rows (unlike find)', async () => {
     const Post = makePost();
-    await expect(Post.findOrNull(99999)).resolves.toBeUndefined();
+    await expect(Post.findOrNull(99999)).resolves.toBeNull();
     await expect(Post.find(99999)).rejects.toThrow();
   });
 

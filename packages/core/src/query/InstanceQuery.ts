@@ -70,6 +70,9 @@ export class InstanceQuery<Result = unknown> implements PromiseLike<Result> {
       const label = this.model.name || this.model.tableName || 'Record';
       throw new NotFoundError(`${label} not found`);
     }
+    if (this.terminalKind === 'findOrNull') {
+      return null as unknown as Result;
+    }
     return undefined as unknown as Result;
   }
 

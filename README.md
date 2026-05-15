@@ -67,7 +67,7 @@ await User.filterBy({ $in: { age: [25, 30, 36] } })
           .limitBy(10)
           .all();
 
-await User.findOrNull(42);                                             // returns undefined on miss
+await User.findOrNull(42);                                             // returns null on miss
 await User.find(42);                                                   // throws NotFoundError on miss
 ```
 

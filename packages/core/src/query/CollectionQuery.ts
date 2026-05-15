@@ -479,15 +479,16 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
   }
 
   /**
-   * Like `find(id)`, but resolves to `undefined` on miss instead of throwing
+   * Like `find(id)`, but resolves to `null` on miss instead of throwing
    * `NotFoundError`. The conventional null-on-miss lookup most ORMs ship.
-   * Equivalent to `findBy({ [pk]: id })` but spelled with the same shape as
-   * `find`.
+   * Equivalent to `findBy({ [pk]: id })` but with an explicit `null` (not
+   * `undefined`) sentinel — matches the function's name and lets callers
+   * `??`-coalesce cleanly.
    */
   findOrNull(id: string | number): InstanceQuery {
     const pk = Object.keys(this.model.keys)[0] ?? 'id';
     const narrowed = this.filterBy({ [pk]: id } as Filter<any>);
-    return new InstanceQuery(this.model, 'findBy', { ...narrowed.state, limit: 1 });
+    return new InstanceQuery(this.model, 'findOrNull', { ...narrowed.state, limit: 1 });
   }
 
   findOrFail(filter: Filter<any>): InstanceQuery {
