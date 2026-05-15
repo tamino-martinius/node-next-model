@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.4
+
 ### Added
 
 - `withOrder(order)` is the new "replace ORDER BY" chainable on `CollectionQuery` and the Model static surface — semantically identical to the old `reorder()` but the name no longer shadows user-facing static methods on subclasses (e.g. `Item.reorder([...])` for "reorder items by sortOrder"). `reorder()` still works as a deprecated alias and emits a one-shot `console.warn` per process.

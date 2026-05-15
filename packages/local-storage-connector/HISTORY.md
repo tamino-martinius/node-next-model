@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.4
+
 ### Changed
 
 - `execute(query, bindings)` and `$raw.$query` no longer accept JS-source strings — pass a function instead (`(storage, ...bindings) => any[]` for `execute`; `(item, ...bindings) => boolean` for `$raw`). Inherited from `MemoryConnector`. See the core HISTORY for the full rationale (CSP-safe bundles, tree-shaking, source-map fidelity).
