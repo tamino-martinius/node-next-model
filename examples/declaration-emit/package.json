@@ -1,0 +1,18 @@
+{
+  "name": "@next-model-examples/declaration-emit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Acceptance test: downstream package re-exports a Model class and emits .d.ts cleanly.",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "pnpm clean && tsc --emitDeclarationOnly --declaration",
+    "test": "pnpm build"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
