@@ -39,7 +39,6 @@ let reorderDeprecationWarned = false;
 function warnReorderDeprecated(): void {
   if (reorderDeprecationWarned) return;
   reorderDeprecationWarned = true;
-  // biome-ignore lint/suspicious/noConsole: one-shot deprecation notice
   console.warn(
     'reorder() is deprecated; use withOrder() instead. ' +
       'The reorder() name is reserved so user-facing static methods on subclasses can use it freely.',

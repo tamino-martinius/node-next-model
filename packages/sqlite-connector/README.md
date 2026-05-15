@@ -190,6 +190,118 @@ Both use `RETURNING *` so the affected rows are returned in one round-trip. `LIM
 
 `{ default: 'currentTimestamp' }` becomes `DEFAULT CURRENT_TIMESTAMP`. `t.index([col], { unique })` issues a follow-up `CREATE [UNIQUE] INDEX … ON tbl (col)` after the table create. `dropTable` uses `DROP TABLE IF EXISTS`.
 
+## Electron integration
+
+`@next-model/sqlite-connector` works inside an Electron renderer when the renderer can `require` Node modules (typically `nodeIntegration: true`, `contextIsolation: false` or via a preload bridge). This section documents the wiring that surfaced repeatedly during downstream integration.
+
+### Main-process side (BrowserWindow + preload)
+
+```ts
+// electron-main.ts
+import { app, BrowserWindow } from 'electron';
+import path from 'node:path';
+
+app.whenReady().then(() => {
+  const win = new BrowserWindow({
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      // The simplest configuration when you want `better-sqlite3` to load in
+      // the renderer with a real Node `require`. If you keep
+      // `contextIsolation: true`, route the connector through the main
+      // process via IPC instead — `better-sqlite3` cannot cross the
+      // structured-clone boundary.
+      contextIsolation: false,
+      nodeIntegration: true,
+    },
+  });
+  win.loadFile('dist/index.html');
+});
+```
+
+### Preload bridge under `contextIsolation: false`
+
+`contextBridge.exposeInMainWorld(...)` is a no-op when `contextIsolation` is false — it only populates `window` inside the isolated world. Under `contextIsolation: false` you must assign directly:
+
+```ts
+// preload.cjs
+const { ipcRenderer } = require('electron');
+
+// Direct assignment — works under contextIsolation: false.
+// `contextBridge.exposeInMainWorld` would NOT populate `window` here.
+window.leitn = {
+  paths: {
+    appData: () => ipcRenderer.invoke('paths:appData'),
+  },
+};
+```
+
+### Vite renderer config
+
+Renderer bundlers (Vite, Webpack, …) don't know how to bundle the native
+`better-sqlite3` binding. Exclude both `better-sqlite3` and
+`@next-model/sqlite-connector` from optimization and rewrite the
+`better-sqlite3` import to a runtime `require()` so the renderer pulls
+the Node module from disk at boot:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  optimizeDeps: {
+    exclude: ['better-sqlite3', '@next-model/sqlite-connector'],
+  },
+  plugins: [
+    {
+      name: 'better-sqlite3-require-shim',
+      enforce: 'pre',
+      // Rewrite `import Database from 'better-sqlite3'` so the renderer
+      // resolves the native binding through Node's `require()` at runtime
+      // instead of letting Vite try to bundle the .node binary.
+      transform(code, id) {
+        if (!id.endsWith('.ts') && !id.endsWith('.tsx')) return null;
+        if (!code.includes("from 'better-sqlite3'")) return null;
+        return code.replace(
+          /import\s+(\w+)\s+from\s+'better-sqlite3'/g,
+          "const $1 = window.require('better-sqlite3')",
+        );
+      },
+    },
+  ],
+});
+```
+
+A future `@next-model/sqlite-connector/vite` entrypoint may ship this transform out of the box — for this release we document the snippet.
+
+### Renderer bootstrap
+
+The renderer typically wants to mount the React tree only after the connector exists and the schema is materialised. Top-level `await` works in modern bundlers; the bootstrap chain looks like:
+
+```ts
+// renderer/main.tsx
+import { createRoot } from 'react-dom/client';
+import { SqliteConnector } from '@next-model/sqlite-connector';
+import { schema } from './db/schema';
+import { App } from './App';
+
+// `window.require('fs')` instead of `import 'node:fs'` — Vite stubs the
+// `node:fs` builtin in the renderer bundle and crashes at runtime.
+const fs = window.require('fs');
+const appData: string = await window.leitn.paths.appData();
+fs.mkdirSync(appData, { recursive: true });
+const dbPath = `${appData}/app.sqlite`;
+
+const connector = new SqliteConnector(dbPath, { schema });
+await connector.ensureSchema();
+
+createRoot(document.getElementById('root')!).render(<App connector={connector} />);
+```
+
+The two gotchas worth calling out:
+
+- `node:fs` is stubbed in the renderer bundle; reach for `window.require('fs')` for any renderer-side filesystem work.
+- Always `await connector.ensureSchema()` before mounting the tree — Model reads issued before tables exist surface as opaque `no such table: …` errors deep inside `useSyncExternalStore` consumers.
+
 ## Testing matrix
 
 The shared `runModelConformance` suite (every Model feature) runs against an in-memory database every commit — no service container required.
