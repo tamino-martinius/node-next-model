@@ -151,6 +151,12 @@ jobs:
       - run: pnpm -r --filter './packages/*' build
       - run: pnpm typecheck
       - run: pnpm typecheck:demos
+      # Acceptance test: a downstream package that re-exports
+      # `class Foo extends Model({...}) {}` must successfully emit `.d.ts`.
+      # Builds the `examples/declaration-emit` fixture with
+      # `tsc --emitDeclarationOnly --declaration true`; CI fails if TS can't
+      # serialise the inferred Model factory return type.
+      - run: pnpm -r --filter './examples/*' run build
       - run: pnpm test:release
 
   test-core:
