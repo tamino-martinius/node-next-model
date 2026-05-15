@@ -1,6 +1,6 @@
 {
   "name": "@next-model/valkey-connector",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Valkey connector for next-model. Extends @next-model/redis-connector — Valkey is wire-compatible with Redis.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

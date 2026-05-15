@@ -1,6 +1,6 @@
 {
   "name": "@next-model/react",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "React reactivity bindings for @next-model/core — Provider-scoped identity map, reactive instance shells, watch + invalidation hooks.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

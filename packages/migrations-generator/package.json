@@ -1,6 +1,6 @@
 {
   "name": "@next-model/migrations-generator",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "CLI + library for scaffolding next-model migration files. Generates timestamped stubs, sensible naming, and optional table up/down bodies.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
