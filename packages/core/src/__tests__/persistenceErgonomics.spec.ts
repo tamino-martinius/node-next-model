@@ -6,6 +6,9 @@ const schema = defineSchema({
       id: { type: 'integer', primary: true, autoIncrement: true },
       title: { type: 'string' },
       lastSeenAt: { type: 'datetime', null: true },
+      // touch() / default-timestamps tests rely on these.
+      createdAt: { type: 'datetime', null: true },
+      updatedAt: { type: 'datetime', null: true },
     },
   },
 });

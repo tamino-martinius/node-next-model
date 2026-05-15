@@ -16,6 +16,10 @@ const fooSchema = defineSchema({
       id: { type: 'integer', primary: true, autoIncrement: true },
       foo: { type: 'string', null: true },
       bar: { type: 'string', null: true },
+      // The default-timestamps tests rely on these columns; declare them so
+      // the timestamps-inference default (schema-aware) keeps them enabled.
+      createdAt: { type: 'datetime', null: true },
+      updatedAt: { type: 'datetime', null: true },
     },
   },
 });

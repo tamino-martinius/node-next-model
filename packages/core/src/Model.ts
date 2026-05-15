@@ -2521,8 +2521,25 @@ export function Model(props: any): any {
     resolvedSchema.tableDefinitions,
   );
   const schemaColumnNames = tableDefinition.columns.map((c) => c.name);
+  // When the caller does not pass `timestamps` explicitly, peek at the
+  // schema to infer a safe default. Writing `createdAt` / `updatedAt`
+  // on insert against a table that does not declare those columns
+  // surfaces as `SqliteError: table X has no column named createdAt` —
+  // forcing users to remember `timestamps: false` for plumbing tables
+  // (sessions, ad-hoc lookups, ...). Inference:
+  //   - both columns present → keep current default (enable both)
+  //   - only `createdAt` → behave as `{ updatedAt: false }`
+  //   - only `updatedAt` → behave as `{ createdAt: false }`
+  //   - neither column   → behave as `timestamps: false`
+  // Explicit `timestamps:` (any value, including `false` / partial object)
+  // always wins — no inference, no warning.
+  const resolvedTimestamps =
+    props.timestamps === undefined
+      ? inferTimestampsFromSchema(schemaColumnNames)
+      : props.timestamps;
   const result = modelFactoryImpl({
     ...props,
+    timestamps: resolvedTimestamps,
     tableName,
     keys,
     init,
@@ -2531,6 +2548,21 @@ export function Model(props: any): any {
   });
   ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
   return result;
+}
+
+/**
+ * Map the schema's declared column set into the inferred default for the
+ * Model factory's `timestamps` option. Only consulted when the caller does
+ * NOT pass `timestamps:` explicitly.
+ */
+function inferTimestampsFromSchema(
+  columnNames: readonly string[],
+): boolean | { createdAt: boolean; updatedAt: boolean } {
+  const hasCreated = columnNames.includes('createdAt');
+  const hasUpdated = columnNames.includes('updatedAt');
+  if (hasCreated && hasUpdated) return true;
+  if (!hasCreated && !hasUpdated) return false;
+  return { createdAt: hasCreated, updatedAt: hasUpdated };
 }
 
 function modelFactoryImpl<
