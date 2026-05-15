@@ -142,6 +142,30 @@ type SchemaModelClass<
           includes<M>(this: M, ...names: Array<AssocNames<Assoc> | IncludeOptions>): M;
           joins<M>(this: M, ...names: AssocNames<Assoc>[]): M;
           whereMissing<M>(this: M, name: AssocNames<Assoc>): M;
+          /**
+           * Phantom type alias — *only* meaningful in type positions. The runtime
+           * value is always `undefined`. Use `typeof MyModel.Instance` to name
+           * the hydrated instance shape (including column property getters,
+           * association accessors, and persistent-key readonlys) in subclass
+           * static-method return / parameter types without spelling out
+           * `Awaited<ReturnType<typeof MyModel.create>>`.
+           *
+           * @example
+           * ```ts
+           * class Message extends Model({ tableName: 'messages', connector }) {
+           *   static async withBody(id: number): Promise<typeof Message.Instance> {
+           *     return Message.find(id);
+           *   }
+           *   static label(m: typeof Message.Instance): string {
+           *     return `${m.id}: ${m.body}`;
+           *   }
+           * }
+           * ```
+           */
+          Instance: Inst &
+            Assoc &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
         }
       : R
     : never;
