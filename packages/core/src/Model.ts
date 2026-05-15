@@ -142,6 +142,30 @@ type SchemaModelClass<
           includes<M>(this: M, ...names: Array<AssocNames<Assoc> | IncludeOptions>): M;
           joins<M>(this: M, ...names: AssocNames<Assoc>[]): M;
           whereMissing<M>(this: M, name: AssocNames<Assoc>): M;
+          /**
+           * Phantom type alias — *only* meaningful in type positions. The runtime
+           * value is always `undefined`. Use `typeof MyModel.Instance` to name
+           * the hydrated instance shape (including column property getters,
+           * association accessors, and persistent-key readonlys) in subclass
+           * static-method return / parameter types without spelling out
+           * `Awaited<ReturnType<typeof MyModel.create>>`.
+           *
+           * @example
+           * ```ts
+           * class Message extends Model({ tableName: 'messages', connector }) {
+           *   static async withBody(id: number): Promise<typeof Message.Instance> {
+           *     return Message.find(id);
+           *   }
+           *   static label(m: typeof Message.Instance): string {
+           *     return `${m.id}: ${m.body}`;
+           *   }
+           * }
+           * ```
+           */
+          Instance: Inst &
+            Assoc &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>;
         }
       : R
     : never;
@@ -688,6 +712,16 @@ export class ModelClass {
     return CollectionQuery.fromModel(this as any).unordered() as unknown as M;
   }
 
+  static withOrder<M extends typeof ModelClass>(this: M, order: Order<any>) {
+    return CollectionQuery.fromModel(this as any).withOrder(order) as unknown as M;
+  }
+
+  /**
+   * @deprecated Use {@link ModelClass.withOrder | withOrder} instead.
+   * Calling `reorder()` emits a one-shot `console.warn` and delegates to
+   * `withOrder()`. The `reorder` name is reserved so subclasses can use it
+   * for domain-specific user-facing methods (e.g. "reorder items by sortOrder").
+   */
   static reorder<M extends typeof ModelClass>(this: M, order: Order<any>) {
     return CollectionQuery.fromModel(this as any).reorder(order) as unknown as M;
   }
@@ -2487,8 +2521,25 @@ export function Model(props: any): any {
     resolvedSchema.tableDefinitions,
   );
   const schemaColumnNames = tableDefinition.columns.map((c) => c.name);
+  // When the caller does not pass `timestamps` explicitly, peek at the
+  // schema to infer a safe default. Writing `createdAt` / `updatedAt`
+  // on insert against a table that does not declare those columns
+  // surfaces as `SqliteError: table X has no column named createdAt` —
+  // forcing users to remember `timestamps: false` for plumbing tables
+  // (sessions, ad-hoc lookups, ...). Inference:
+  //   - both columns present → keep current default (enable both)
+  //   - only `createdAt` → behave as `{ updatedAt: false }`
+  //   - only `updatedAt` → behave as `{ createdAt: false }`
+  //   - neither column   → behave as `timestamps: false`
+  // Explicit `timestamps:` (any value, including `false` / partial object)
+  // always wins — no inference, no warning.
+  const resolvedTimestamps =
+    props.timestamps === undefined
+      ? inferTimestampsFromSchema(schemaColumnNames)
+      : props.timestamps;
   const result = modelFactoryImpl({
     ...props,
+    timestamps: resolvedTimestamps,
     tableName,
     keys,
     init,
@@ -2497,6 +2548,21 @@ export function Model(props: any): any {
   });
   ModelClass.tableRegistry.set(tableName, result as unknown as typeof ModelClass);
   return result;
+}
+
+/**
+ * Map the schema's declared column set into the inferred default for the
+ * Model factory's `timestamps` option. Only consulted when the caller does
+ * NOT pass `timestamps:` explicitly.
+ */
+function inferTimestampsFromSchema(
+  columnNames: readonly string[],
+): boolean | { createdAt: boolean; updatedAt: boolean } {
+  const hasCreated = columnNames.includes('createdAt');
+  const hasUpdated = columnNames.includes('updatedAt');
+  if (hasCreated && hasUpdated) return true;
+  if (!hasCreated && !hasUpdated) return false;
+  return { createdAt: hasCreated, updatedAt: hasUpdated };
 }
 
 function modelFactoryImpl<
@@ -2669,6 +2735,18 @@ function modelFactoryImpl<
       return super.orderBy(order) as M;
     }
 
+    static withOrder<M extends typeof ModelClass>(
+      this: M,
+      order: Order<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      return super.withOrder(order) as M;
+    }
+
+    /**
+     * @deprecated Use {@link ModelClass.withOrder | withOrder} instead.
+     */
     static reorder<M extends typeof ModelClass>(
       this: M,
       order: Order<

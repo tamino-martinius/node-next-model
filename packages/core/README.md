@@ -16,7 +16,7 @@ A typed, promise-based ORM for TypeScript. Declare models with a factory, chain 
 - [Deleting](#deleting)
 - [Querying](#querying)
   - [filterBy / orFilterBy](#filterby--orfilterby)
-  - [orderBy / reorder / reverse / unordered](#orderby--reorder--reverse--unordered)
+  - [orderBy / withOrder / reverse / unordered](#orderby--withorder--reverse--unordered)
   - [limitBy / skipBy / unlimited / unskipped](#limitby--skipby--unlimited--unskipped)
   - [unfiltered / unscoped](#unfiltered--unscoped)
   - [Default scope](#default-scope)
@@ -56,6 +56,8 @@ Models are defined via the `Model({...})` factory, which returns a class you can
 ### Schema-driven props
 
 Instead of writing an `init` callback to give TypeScript the row shape, declare a full database schema with `defineSchema(...)` and attach it to the connector. Each Model picks a table off the connector's schema by `tableName` — TypeScript infers the prop shape, `keys`, and `init` from the column map at the call site.
+
+> **`defineSchema` vs `defineTable`.** These are two different APIs and the difference trips up first-time users. **`defineSchema(...)`** takes a record of plain `{ columns, associations? }` literals (column objects keyed by name) — the declarative shape shown below; this is what you want for typed Models. **`defineTable(name, callback)`** is an imperative builder used by `@next-model/migrations` (`t.string('email', { null: false })`, …) and is **not** valid inside the `defineSchema(...)` argument. If you see an error like `Property 'string' does not exist on type '{ ... }'` while filling in a schema, you've reached for `defineTable`'s builder by mistake — pass plain column literals instead.
 
 ```ts
 import { Model, defineSchema } from '@next-model/core';
@@ -107,6 +109,27 @@ Adding `null: true` widens any of the above to `T | null`. Primary columns drive
 `tableName` is statically constrained to keys of `dbSchema.tables`, so a typo like `tableName: 'unknwon'` is a TypeScript error at the Model definition site — and the runtime throws `Model(): tableName 'unknwon' is not declared on the attached schema. Known tables: users, posts` if you bypass the type system.
 
 Each schema entry's `tableDefinitions[name]` is a runtime [`TableDefinition`](#schema-dsl) — the same shape `defineTable(...)` produces for `@next-model/migrations`. Tooling that consumes `TableDefinition` (schema snapshots, GraphQL / OpenAPI generators, admin UIs) can read the schema directly so there's a single source of truth for the table.
+
+The returned schema is iterable for bootstrap-style code — read `Object.keys(schema.tableDefinitions)` (or `Object.entries(...)`) to walk every declared table without touching the type-level `tables` field:
+
+```ts
+const schema = defineSchema({
+  users: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+  posts: { columns: { id: { type: 'integer', primary: true, autoIncrement: true } } },
+});
+
+for (const tableName of Object.keys(schema.tableDefinitions)) {
+  console.log(tableName);
+  // → 'users'
+  // → 'posts'
+}
+
+for (const [tableName, table] of Object.entries(schema.tableDefinitions)) {
+  console.log(tableName, table.columns.map((c) => c.name));
+}
+```
+
+This is how `connector.ensureSchema()` and the schema-from-db generator walk a schema; the same pattern is useful for app boot diagnostics, fixture seeding, or feeding tables into a generic admin UI.
 
 You can still pass an explicit `init` to coerce or derive fields, or override `keys`:
 
@@ -590,19 +613,21 @@ User.filterBy({ $or: [{ firstName: 'John' }, { firstName: 'Jane' }] });
 User.filterBy({ $not: { gender: 'male' } });
 ```
 
-### orderBy / reorder / reverse / unordered
+### orderBy / withOrder / reverse / unordered
 
 ```ts
 User.orderBy({ key: 'lastName' });
 User.orderBy([{ key: 'lastName' }, { key: 'firstName', dir: SortDirection.Desc }]);
 User.orderBy({ key: 'lastName' }).reverse();     // flip directions
-User.reorder({ key: 'age' });                    // replace existing order
+User.withOrder({ key: 'age' });                  // replace existing order
 User.orderBy({ key: 'age' }).unordered();
 
 // Conventional ORM shape works too — normalised inside the connector:
 User.orderBy({ lastName: 'asc' });
 User.orderBy([{ lastName: 'asc' }, { firstName: 'desc' }]);
 ```
+
+> **`reorder()` is deprecated.** Earlier releases exposed `reorder(order)` as the "replace ORDER BY" chainable, which shadowed user-facing static methods on subclasses (`Item.reorder([…])` for "reorder these items by sortOrder"). Use `withOrder(order)` instead — it does exactly the same thing. `reorder()` still works as a deprecated alias and emits a one-shot `console.warn` per process.
 
 `reverse()` flips the current order; with no order set, it falls back to descending primary key — which makes `Model.last()` reliable without configuration.
 
@@ -982,6 +1007,16 @@ await new User({ email: 'bad', age: 10 }).isValid(); // false
 await user.save();                                   // throws ValidationError if invalid
 ```
 
+> **`validators` is a flat array, not a per-field map.** Every factory takes the column name (or list of column names) as its first argument and returns a single validator function. Drop them all into `validators: [...]` side-by-side — there is no `validators: { email: [...] }` shape. Multiple column-scoped factories can target the same column.
+>
+> ```ts
+> validators: [
+>   validatePresence(['email', 'name']),         // flat array, not per-field map
+>   validateFormat('email', { with: /…/ }),
+>   validateLength('name', { min: 3, max: 50 }),
+> ],
+> ```
+
 ### Built-in validator factories
 
 Eight Rails-style factories ship from `@next-model/core` for the common
@@ -1108,7 +1143,16 @@ await Post.skipCallbacks(['afterCreate', 'afterSave'], async () => {
 
 ## Timestamps
 
-Enabled by default. `createdAt` is set on insert, `updatedAt` on every save. `touch()` updates `updatedAt` without any other changes. Opt out with `timestamps: false`, or pass your own values on insert to override.
+`createdAt` is set on insert, `updatedAt` on every save. `touch()` updates `updatedAt` without any other changes.
+
+The `timestamps:` option is inferred from the schema's column declarations when you don't pass it explicitly:
+
+- Schema declares both `createdAt` + `updatedAt` → enable both (matches the historical default).
+- Schema declares only `createdAt` → behaves as `{ updatedAt: false }`.
+- Schema declares only `updatedAt` → behaves as `{ createdAt: false }`.
+- Schema declares neither → behaves as `timestamps: false`.
+
+This means a plumbing table (sessions, ad-hoc lookups, …) that does not declare timestamp columns no longer fails inserts with `SqliteError: table X has no column named createdAt`. Explicit `timestamps:` always wins — pass `timestamps: false`, `timestamps: true`, or `timestamps: { createdAt: 'inserted_at', updatedAt: false }` to override inference. Pass your own values on insert to override individual rows.
 
 ## Soft deletes
 
@@ -1482,6 +1526,47 @@ await connector.createTable('users', (t) => {
 ```
 
 Copy-pasting from a `defineSchema(...)` schema into a `createTable(...)` builder block now round-trips cleanly.
+
+## Testing with Models
+
+The hydrated instance shape (column getters + association accessors + key readonlys) is intersected at construction time, so direct `new Model(...)` calls or hand-built fixture objects don't satisfy the typed surface — TypeScript will reject reads of getter columns like `m.body` unless the value comes back through `Model.create()` / `Model.find()` / `typeof Model.Instance`.
+
+Reach for a small typed factory helper instead of `as any`:
+
+```ts
+// test-helpers/makeMessage.ts
+import { Message } from '../models/Message';
+
+type MessageProps = Parameters<typeof Message.create>[0];
+
+/**
+ * Typed factory for unit tests: takes the same prop shape as `Message.create`,
+ * persists through the real Model surface, and returns `typeof Message.Instance`
+ * so test assertions on `m.body` / `m.author` typecheck without casts.
+ */
+export async function makeMessage(
+  props: Partial<MessageProps> = {},
+): Promise<typeof Message.Instance> {
+  return Message.create({
+    body: 'placeholder',
+    author: null,
+    ...props,
+  } as MessageProps);
+}
+```
+
+```ts
+// some.spec.ts
+import { makeMessage } from './test-helpers/makeMessage';
+
+it('formats the body', async () => {
+  const m = await makeMessage({ body: 'hello' });
+  expect(m.body).toBe('hello');             // typed — no `as any`
+  expect(formatLine(m)).toBe('hello');
+});
+```
+
+The same pattern scales to every Model: define one `makeX(props?)` helper per Model under `test-helpers/`, key it on `Parameters<typeof X.create>[0]`, and return `typeof X.Instance`. This consolidates the `as any` casts that tend to grow in test fixtures and gives every test a single place to update when a column gets renamed.
 
 ## Errors
 

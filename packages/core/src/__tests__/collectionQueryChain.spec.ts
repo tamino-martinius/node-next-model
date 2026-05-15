@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ModelClass } from '../Model.js';
-import { CollectionQuery } from '../query/CollectionQuery.js';
+import { __resetReorderDeprecationWarning, CollectionQuery } from '../query/CollectionQuery.js';
 import { SortDirection } from '../types.js';
 
 class Todo extends ModelClass {
@@ -21,11 +21,35 @@ describe('CollectionQuery chain methods', () => {
     expect(q.state.order).toEqual([{ key: 'createdAt' }]);
   });
 
-  it('reorder replaces state.order', () => {
+  it('withOrder replaces state.order without warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    __resetReorderDeprecationWarning();
     const q = CollectionQuery.fromModel(Todo as any)
       .orderBy({ key: 'a' as any })
-      .reorder({ key: 'b' as any });
+      .withOrder({ key: 'b' as any });
     expect(q.state.order).toEqual([{ key: 'b' }]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('reorder is a deprecated alias for withOrder; warns once per process', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    __resetReorderDeprecationWarning();
+    const q1 = CollectionQuery.fromModel(Todo as any)
+      .orderBy({ key: 'a' as any })
+      .reorder({ key: 'b' as any });
+    expect(q1.state.order).toEqual([{ key: 'b' }]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/reorder\(\) is deprecated/);
+    // Second call should NOT warn again (one-shot).
+    const q2 = CollectionQuery.fromModel(Todo as any).reorder({ key: 'c' as any });
+    expect(q2.state.order).toEqual([{ key: 'c' }]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  afterEach(() => {
+    __resetReorderDeprecationWarning();
   });
 
   it('limitBy / skipBy / unlimited / unskipped', () => {

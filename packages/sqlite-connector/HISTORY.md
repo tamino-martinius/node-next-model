@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Docs
+
+- Electron integration section added: BrowserWindow flags, preload bridge under `contextIsolation: false` (direct `window.leitn = api` assignment instead of `contextBridge.exposeInMainWorld(...)`, which is a no-op there), Vite renderer config (`optimizeDeps.exclude` for `better-sqlite3` + `@next-model/sqlite-connector`, a `transform` plugin that rewrites the `better-sqlite3` import to `window.require(...)`), and a renderer top-level-await bootstrap (`new SqliteConnector(dbPath, { schema })` → `await connector.ensureSchema()` → `createRoot(...).render(<App />)`). Includes the `window.require('fs')` gotcha for renderer-side filesystem work (Vite stubs `node:fs`).
+
 ## v1.1.2
 
 ### Added

@@ -2,6 +2,11 @@
 
 ## vNext
 
+### Added
+
+- `withOrder(order)` is the new "replace ORDER BY" chainable on `CollectionQuery` and the Model static surface — semantically identical to the old `reorder()` but the name no longer shadows user-facing static methods on subclasses (e.g. `Item.reorder([...])` for "reorder items by sortOrder"). `reorder()` still works as a deprecated alias and emits a one-shot `console.warn` per process.
+- `Model.Instance` is a phantom static type alias on every Model factory output (`typeof MyModel.Instance`). The runtime value is always `undefined`; TypeScript consults the declared shape `InstanceType<M> & Assoc & PersistentProps & Readonly<Keys…>` so subclass static methods returning hydrated records can use `typeof MyModel.Instance` as their return / parameter type without spelling out `Awaited<ReturnType<typeof MyModel.create>>` or losing the column-getter intersection.
+
 ### Changed
 
 - **Breaking (in-memory only)**: `MemoryConnector` and its subclasses no longer compile `$raw.$query` / `execute(query, ...)` strings at runtime through dynamic code evaluation. The shipped `dist/*.js` bundles are now free of every dynamic-code-evaluation call site, so `@next-model/core` can be consumed under a strict `Content-Security-Policy: script-src 'self'` (the default in Electron renderers and most security-sensitive web apps). It also unblocks tree-shaking and source-map fidelity. SQL connectors (Knex / Postgres / Sqlite / Mysql / MariaDB / DataApi) are unaffected — they treat `$raw.$query` as a SQL fragment, not JS source. Migration: pass a function instead of a string source.
@@ -9,6 +14,11 @@
   - `MemoryConnector.execute('(storage) => storage.users', [])` → `MemoryConnector.execute((storage) => storage.users, [])`.
   - Passing a string to a JS-evaluating connector now throws a `FilterError` / `UnsupportedOperationError` with a migration hint pointing at the function form.
 - A new acceptance test (`.github/scripts/no-eval-in-dist.test.mjs`, wired into `pnpm test:release`) scans every `packages/*/dist/**/*.js` and fails CI if any future change reintroduces a dynamic-evaluation call site.
+- The Model factory's `timestamps:` option is now inferred from the schema's column declarations when the caller doesn't pass it explicitly. A table with both `createdAt` and `updatedAt` columns keeps the historical default (enable both); only-`createdAt` behaves as `{ updatedAt: false }`; only-`updatedAt` behaves as `{ createdAt: false }`; neither behaves as `timestamps: false`. **Behaviour change in the niche where it bites** — `Model({ tableName: 'sessions', connector })` against a `sessions` table that didn't declare `createdAt` / `updatedAt` previously failed inserts with `SqliteError: table sessions has no column named createdAt`; it now succeeds. Explicit `timestamps:` (any value) always wins. Two internal test fixtures (`Model.spec` foo, `persistenceErgonomics.spec` posts) gained `createdAt` / `updatedAt` columns to preserve their existing semantics under the new schema-aware default.
+
+### Docs
+
+- README sections added / expanded across `@next-model/core` + `@next-model/sqlite-connector`: Electron integration walkthrough (preload + `contextIsolation: false`, Vite renderer config, renderer top-level-await bootstrap chain, `window.require('fs')` gotcha), `defineSchema` vs `defineTable` distinction callout, `Object.keys(schema.tableDefinitions)` iteration snippet, validators-are-a-flat-array callout, "Testing with Models" subsection (typed `makeX(props?)` factory helper pattern instead of `as any` in fixtures), refreshed `orderBy` / `withOrder` section, schema-aware Timestamps inference notes.
 
 ## v1.1.2
 
