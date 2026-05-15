@@ -169,8 +169,11 @@ export class LocalStorageConnector<
     return result;
   }
 
-  async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
-    return super.execute(query, bindings);
+  async execute(
+    query: string | ((storage: any, ...bindings: any[]) => any[]),
+    bindings: BaseType | BaseType[],
+  ): Promise<any[]> {
+    return super.execute(query as any, bindings);
   }
 
   async hasTable(tableName: string): Promise<boolean> {
