@@ -95,7 +95,7 @@ Inherited from `MemoryConnector`. All operators (`$and`, `$or`, `$not`, `$in`, `
 
 ### `execute(query, bindings)`
 
-Inherited from `MemoryConnector`: the `query` string is evaluated as a JavaScript expression over the in-memory rows. Use it only with code you control — there is no SQL parser or sanitiser between the string and the JS engine.
+Inherited from `MemoryConnector`: `query` is a function `(storage, ...bindings) => any[]` that walks the in-memory storage map directly. The JS-source-string form that older versions accepted has been removed — passing a string now throws `UnsupportedOperationError` with a migration hint. SQL connectors keep accepting SQL strings.
 
 ### Transactions
 

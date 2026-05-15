@@ -2,6 +2,14 @@
 
 ## vNext
 
+### Changed
+
+- **Breaking (in-memory only)**: `MemoryConnector` and its subclasses no longer compile `$raw.$query` / `execute(query, ...)` strings at runtime through dynamic code evaluation. The shipped `dist/*.js` bundles are now free of every dynamic-code-evaluation call site, so `@next-model/core` can be consumed under a strict `Content-Security-Policy: script-src 'self'` (the default in Electron renderers and most security-sensitive web apps). It also unblocks tree-shaking and source-map fidelity. SQL connectors (Knex / Postgres / Sqlite / Mysql / MariaDB / DataApi) are unaffected — they treat `$raw.$query` as a SQL fragment, not JS source. Migration: pass a function instead of a string source.
+  - `$raw.$query: '(item, x) => item.age > x'` → `$raw.$query: (item, x) => item.age > x`.
+  - `MemoryConnector.execute('(storage) => storage.users', [])` → `MemoryConnector.execute((storage) => storage.users, [])`.
+  - Passing a string to a JS-evaluating connector now throws a `FilterError` / `UnsupportedOperationError` with a migration hint pointing at the function form.
+- A new acceptance test (`.github/scripts/no-eval-in-dist.test.mjs`, wired into `pnpm test:release`) scans every `packages/*/dist/**/*.js` and fails CI if any future change reintroduces a dynamic-evaluation call site.
+
 ## v1.1.2
 
 ### Added
