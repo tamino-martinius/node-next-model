@@ -21,10 +21,18 @@ export interface WebStorageLike {
   removeItem(key: string): void;
 }
 
-export interface LocalStorageConnectorOptions {
+export interface LocalStorageConnectorOptions<
+  S extends DatabaseSchema<any> | undefined = undefined,
+> {
   localStorage?: WebStorageLike;
   prefix?: string;
   suffix?: string;
+  /**
+   * Optional schema. Lets callers do `new LocalStorageConnector({ schema })`
+   * without the separate `extras` arg, matching the unified `MemoryConnector`
+   * constructor shape.
+   */
+  schema?: S;
 }
 
 export class LocalStorageConnector<
@@ -39,10 +47,12 @@ export class LocalStorageConnector<
   private deferPersist = false;
   private pendingPersist = new Set<string>();
 
-  constructor(options: LocalStorageConnectorOptions = {}, extras?: { schema?: S }) {
+  constructor(options: LocalStorageConnectorOptions<S> = {}, extras?: { schema?: S }) {
     const storage: Storage = {};
     const lastIds: Dict<number> = {};
-    super({ storage, lastIds }, extras);
+    // Schema can be supplied on either arg; the `extras` arg wins to mirror
+    // the MemoryConnector constructor precedence.
+    super({ storage, lastIds, schema: extras?.schema ?? options.schema }, extras);
     this.storageRef = storage;
     this.lastIdsRef = lastIds;
     const ls =

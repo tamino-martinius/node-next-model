@@ -715,7 +715,7 @@ export function runModelConformance(opts: ConformanceOptions): void {
         await connector.createTable(tableName, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
           t.string('label');
-          t.timestamp('discardedAt');
+          t.timestamp('discardedAt', { null: true });
         });
         Doc = class extends (
           Model({
@@ -940,34 +940,34 @@ export function runModelConformance(opts: ConformanceOptions): void {
         }
         await connector.createTable(addressesTable, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
-          t.string('city');
+          t.string('city', { null: true });
         });
         await connector.createTable(customersTable, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
-          t.string('name');
-          t.integer('addressId');
+          t.string('name', { null: true });
+          t.integer('addressId', { null: true });
         });
         await connector.createTable(ordersTable, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
-          t.integer('total');
-          t.integer('customerId');
+          t.integer('total', { null: true });
+          t.integer('customerId', { null: true });
         });
         await connector.createTable(orderItemsTable, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
-          t.integer('orderId');
-          t.integer('amount');
+          t.integer('orderId', { null: true });
+          t.integer('amount', { null: true });
         });
         await connector.createTable(usersTable, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
-          t.string('email');
-          t.string('role');
-          t.integer('active');
+          t.string('email', { null: true });
+          t.string('role', { null: true });
+          t.integer('active', { null: true });
         });
         await connector.createTable(todosTable, (t) => {
           t.integer('id', { primary: true, autoIncrement: true, null: false });
-          t.integer('userId');
-          t.string('title');
-          t.string('ownerEmail');
+          t.integer('userId', { null: true });
+          t.string('title', { null: true });
+          t.string('ownerEmail', { null: true });
         });
       });
 

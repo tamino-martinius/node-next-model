@@ -1323,6 +1323,21 @@ export class ModelClass {
   }
 
   /**
+   * Like `find(id)` but resolves to `null` on miss instead of throwing
+   * `NotFoundError`. The conventional null-on-miss lookup pattern other
+   * ORMs ship. Sugar over `findBy({ [pk]: id })` with an explicit `null`
+   * sentinel — matches the function's name and lets callers `??`-coalesce.
+   */
+  static findOrNull<M extends typeof ModelClass>(
+    this: M,
+    id: number | string,
+  ): InstanceQuery<InstanceType<M> | null> {
+    return CollectionQuery.fromModel(this as any).findOrNull(
+      id,
+    ) as unknown as InstanceQuery<InstanceType<M> | null>;
+  }
+
+  /**
    * Same as `find(id)` but lookup is by arbitrary filter. Throws
    * `NotFoundError` when no row matches.
    */
@@ -2888,6 +2903,18 @@ function modelFactoryImpl<
         InstanceType<M> &
           PersistentProps &
           Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>
+      >;
+    }
+
+    static findOrNull<M extends typeof ModelClass>(
+      this: M,
+      id: Keys[keyof Keys] extends KeyType.uuid ? string : number,
+    ) {
+      return super.findOrNull(id as number | string) as unknown as InstanceQuery<
+        | (InstanceType<M> &
+            PersistentProps &
+            Readonly<{ [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }>)
+        | null
       >;
     }
 

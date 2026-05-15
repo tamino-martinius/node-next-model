@@ -2,6 +2,15 @@
 
 ## vNext
 
+### Added
+
+- `orderBy` accepts the conventional `{ [col]: 'asc' | 'desc' }` shape alongside the strict `{ key, dir }`. Both are normalised via the shared `normalizeOrderEntry` helper from `@next-model/core` before SQL is built — `orderBy({ createdAt: 'desc' })` and `orderBy({ key: 'createdAt', dir: SortDirection.Desc })` produce the same `ORDER BY` fragment. Previously the loose shape sneaked past the TypeScript signature and produced SQL `ORDER BY "undefined" ASC` (no such column).
+
+### Changed
+
+- `definitionFromOp` defaults `nullable` to `false` (matches the `@next-model/core` builder default, which also flipped in this release). Callers building columns via the alter-table path who relied on the previous nullable-by-default behaviour must now pass `{ null: true }` explicitly. The reflectSchema path is unchanged — it reads `notnull` from `PRAGMA table_info` and reports it verbatim.
+- `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`). Consumers installing only `@next-model/sqlite-connector` now get a clean install warning instead of a runtime `Cannot find package '@next-model/core'` error, and pnpm + npm both materialise core correctly. The monorepo's `devDependencies` entry (`workspace:*`) is kept so in-tree typecheck / test still resolve the local workspace version.
+
 ## v1.1.1
 
 ### Added

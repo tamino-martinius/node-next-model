@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Changed
+
+- `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`). Inherits the builder `null` default flip and `orderBy` shape acceptance from `@next-model/mysql-connector` + `@next-model/core`.
+
 ## v1.1.1
 
 ## v1.1.0

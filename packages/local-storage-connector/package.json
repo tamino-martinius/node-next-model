@@ -34,10 +34,11 @@
     "build": "pnpm clean && tsc",
     "prepack": "pnpm build"
   },
-  "dependencies": {
-    "@next-model/core": "workspace:*"
+  "peerDependencies": {
+    "@next-model/core": "^1.1.1"
   },
   "devDependencies": {
+    "@next-model/core": "workspace:*",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.5",
     "typescript": "^6.0.3",

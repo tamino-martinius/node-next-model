@@ -7,11 +7,11 @@ Browser `localStorage` connector for [`@next-model/core`](../core).
 ## Installation
 
 ```sh
-pnpm add @next-model/local-storage-connector
-# or: npm install @next-model/local-storage-connector
+pnpm add @next-model/core @next-model/local-storage-connector
+# or: npm install @next-model/core @next-model/local-storage-connector
 ```
 
-No other peer dependencies.
+`@next-model/core` is declared as a `peerDependency` — install it alongside the connector so pnpm/npm materialise it into your app's `node_modules`.
 
 ## Constructing the connector
 
@@ -36,7 +36,7 @@ When neither `localStorage` (option) nor `globalThis.localStorage` is available,
 
 ### Attaching a typed schema
 
-Pass a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) as the optional second arg so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level:
+Pass a `DatabaseSchema` (from `@next-model/core`'s `defineSchema(...)`) so `Model({ connector, tableName: 'users' })` can infer per-table props at the type level. Both call shapes work:
 
 ```ts
 import { defineSchema } from '@next-model/core';
@@ -45,10 +45,14 @@ const schema = defineSchema({
   users: { columns: { id: { type: 'integer', primary: true }, email: { type: 'string' } } },
 });
 
+// Single-arg form (preferred):
+const connector = new LocalStorageConnector({ prefix: 'app:', schema });
+
+// Legacy two-arg form (still supported):
 const connector = new LocalStorageConnector({ prefix: 'app:' }, { schema });
 ```
 
-Existing call sites without `{ schema }` keep working unchanged.
+Existing call sites without a schema keep working unchanged.
 
 ### Materialising tables with `ensureSchema()`
 

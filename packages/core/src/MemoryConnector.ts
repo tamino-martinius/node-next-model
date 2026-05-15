@@ -16,9 +16,9 @@ import {
   type DeltaUpdateSpec,
   type Dict,
   KeyType,
+  normalizeOrderEntry,
   type QueryScopedSpec,
   type Scope,
-  SortDirection,
   type UpsertSpec,
 } from './types.js';
 
@@ -37,10 +37,27 @@ export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefin
   private lastIds: Dict<number>;
   private inTransaction = false;
 
-  constructor(props?: { storage?: Storage; lastIds?: Dict<number> }, extras?: { schema?: S }) {
+  /**
+   * Accepts two shapes for convenience:
+   *
+   *   new MemoryConnector()                                — defaults.
+   *   new MemoryConnector({ storage, lastIds })            — legacy props.
+   *   new MemoryConnector({ schema })                      — schema-only.
+   *   new MemoryConnector({ storage, lastIds, schema })    — unified.
+   *   new MemoryConnector({ storage, lastIds }, { schema }) — legacy two-arg.
+   *
+   * The unified single-arg shape is preferred. The legacy two-arg shape is
+   * kept so existing callers (and `LocalStorageConnector` subclassing) keep
+   * working. When `schema` appears in *both* the first arg and the extras,
+   * the extras arg wins (it's the older API surface).
+   */
+  constructor(
+    props?: { storage?: Storage; lastIds?: Dict<number>; schema?: S },
+    extras?: { schema?: S },
+  ) {
     this.storage = props?.storage || globalStorage;
     this.lastIds = props?.lastIds || globalLastIds;
-    this.schema = extras?.schema;
+    this.schema = extras?.schema ?? props?.schema;
   }
 
   private collection(tableName: string): Dict<any>[] {
@@ -63,28 +80,19 @@ export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefin
     let items = await filterList(this.collection(tableName), filter);
 
     for (let orderIndex = order.length - 1; orderIndex >= 0; orderIndex -= 1) {
-      const key = order[orderIndex].key;
-      const dir = order[orderIndex].dir || SortDirection.Asc;
+      const { key, dir } = normalizeOrderEntry(order[orderIndex]);
 
       items = items.sort((a, b) => {
-        if (a[key as string] > b[key as string]) {
+        if (a[key] > b[key]) {
           return dir;
         }
-        if (a[key as string] < b[key as string]) {
+        if (a[key] < b[key]) {
           return -dir;
         }
-        if (
-          (a[key as string] === null || a[key as string] === undefined) &&
-          b[key as string] !== null &&
-          b[key as string] !== undefined
-        ) {
+        if ((a[key] === null || a[key] === undefined) && b[key] !== null && b[key] !== undefined) {
           return dir;
         }
-        if (
-          (b[key as string] === null || b[key as string] === undefined) &&
-          a[key as string] !== null &&
-          a[key as string] !== undefined
-        ) {
+        if ((b[key] === null || b[key] === undefined) && a[key] !== null && a[key] !== undefined) {
           return -dir;
         }
         return 0;

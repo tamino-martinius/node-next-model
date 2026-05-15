@@ -2,7 +2,7 @@ import type { AssociationLink, Dict, Filter, JoinClause, KeyType, OrderColumn } 
 
 export type { AssociationLink };
 
-export type TerminalKind = 'first' | 'last' | 'findBy' | 'find' | 'findOrFail';
+export type TerminalKind = 'first' | 'last' | 'findBy' | 'find' | 'findOrFail' | 'findOrNull';
 
 export interface ParentRef {
   upstream: { state: QueryState; terminalKind?: TerminalKind };

@@ -598,9 +598,15 @@ User.orderBy([{ key: 'lastName' }, { key: 'firstName', dir: SortDirection.Desc }
 User.orderBy({ key: 'lastName' }).reverse();     // flip directions
 User.reorder({ key: 'age' });                    // replace existing order
 User.orderBy({ key: 'age' }).unordered();
+
+// Conventional ORM shape works too — normalised inside the connector:
+User.orderBy({ lastName: 'asc' });
+User.orderBy([{ lastName: 'asc' }, { firstName: 'desc' }]);
 ```
 
 `reverse()` flips the current order; with no order set, it falls back to descending primary key — which makes `Model.last()` reliable without configuration.
+
+`orderBy` accepts either the strict `{ key, dir }` shape (with `dir` as either the `SortDirection` enum or the strings `'asc'` / `'desc'`) or the conventional single-key `{ [col]: 'asc' | 'desc' }` shape. Both are normalised before being passed to the connector — no more silent `ORDER BY "undefined"` SQL when the loose shape sneaks past the type checker.
 
 ### limitBy / skipBy / unlimited / unskipped
 
@@ -791,6 +797,7 @@ await User.first();
 await User.last();                                     // reverse + first
 
 await User.find(42);                                   // by primary key, throws NotFoundError
+await User.findOrNull(42);                             // by primary key, returns null on miss
 await User.findBy({ email: 'x@y.com' });               // first matching or undefined
 await User.findOrFail({ email: 'x@y.com' });           // throws NotFoundError
 await User.findOrBuild({ email }, { firstName: 'J' }); // returns unsaved draft if missing
@@ -1443,12 +1450,38 @@ Writing your own is mostly a matter of mapping `Scope` to your driver's query bu
 Connectors that carry an attached schema can implement the optional `ensureSchema()` method on the interface. It iterates the schema's `tableDefinitions` and creates every missing table idempotently, returning `{ created: string[], existing: string[] }`:
 
 ```ts
-const connector = new MemoryConnector({}, { schema });
+const connector = new MemoryConnector({ schema });
 const { created } = await connector.ensureSchema();
 // created → ['users', 'posts', ...]
 ```
 
 `MemoryConnector`, `LocalStorageConnector` (inherits from `MemoryConnector`), and `SqliteConnector` implement `ensureSchema` today. Other connectors fall back to the original explicit `createTable(name, builder)` loop, and can opt in without a coordinated breaking change because the method is declared optional on `Connector`.
+
+### `MemoryConnector` constructor shapes
+
+```ts
+new MemoryConnector();                                     // defaults
+new MemoryConnector({ schema });                           // schema-only
+new MemoryConnector({ storage, lastIds });                 // legacy props
+new MemoryConnector({ storage, lastIds, schema });         // unified single-arg
+new MemoryConnector({ storage, lastIds }, { schema });     // legacy two-arg
+```
+
+The unified single-arg form is preferred. The legacy two-arg form is kept for backwards compatibility (LocalStorageConnector subclassing relies on it). When `schema` appears on both args the extras arg wins. `LocalStorageConnector` accepts the same single-arg shape via `new LocalStorageConnector({ localStorage, schema })`.
+
+### Builder `null` default
+
+`TableBuilder.column(name, type, options)` and friends default `options.null` to **false** — matching the typed-schema convention (`defineSchema(...)` columns are NOT NULL unless `null: true`). Pass `{ null: true }` to make a column nullable:
+
+```ts
+await connector.createTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true });
+  t.string('email');                       // NOT NULL
+  t.timestamp('archivedAt', { null: true }); // nullable — must be explicit
+});
+```
+
+Copy-pasting from a `defineSchema(...)` schema into a `createTable(...)` builder block now round-trips cleanly.
 
 ## Errors
 

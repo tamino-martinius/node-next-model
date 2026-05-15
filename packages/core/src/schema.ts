@@ -90,7 +90,9 @@ class TableBuilderImpl implements TableBuilder {
     this.columns.push({
       name,
       type,
-      nullable: options.null ?? true,
+      // Matches the typed-schema convention: columns are NOT NULL by default.
+      // Pass `{ null: true }` to make a column nullable.
+      nullable: options.null ?? false,
       default: options.default,
       limit: options.limit,
       primary: options.primary ?? false,
@@ -491,7 +493,8 @@ function buildColumnDefinition(
   return {
     name,
     type,
-    nullable: options.null ?? true,
+    // Match the builder default: columns are NOT NULL unless `{ null: true }`.
+    nullable: options.null ?? false,
     default: options.default,
     limit: options.limit,
     primary: options.primary ?? false,

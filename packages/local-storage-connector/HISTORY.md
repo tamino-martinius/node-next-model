@@ -2,6 +2,14 @@
 
 ## vNext
 
+### Added
+
+- Single-arg constructor accepts `schema` inline: `new LocalStorageConnector({ localStorage, prefix, schema })` works in addition to the legacy `(options, { schema })` two-arg form. Mirrors the `MemoryConnector` widening so the constructor footprint is consistent across both connectors.
+
+### Changed
+
+- `@next-model/core` moved from `dependencies` to `peerDependencies` (`^1.1.1`). Consumers must install core alongside this connector — the install-time warning replaces the previous "core got hoisted from a transitive devDep" behaviour. The monorepo workspace continues to resolve the in-tree core via `devDependencies: { "@next-model/core": "workspace:*" }`.
+
 ## v1.1.1
 
 ### Added

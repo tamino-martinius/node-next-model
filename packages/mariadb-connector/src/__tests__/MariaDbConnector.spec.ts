@@ -87,16 +87,16 @@ describe('MariaDbConnector', () => {
     await connector.createTable(tableName, (t) => {
       t.integer('id', { primary: true, autoIncrement: true });
       t.string('email', { unique: true, limit: 320, null: false });
-      t.text('body');
-      t.bigint('counter', { default: 0 });
-      t.float('rate', { default: 1.5 });
-      t.decimal('price', { precision: 12, scale: 4 });
-      t.decimal('plain');
-      t.boolean('active', { default: true });
-      t.date('starts_on');
-      t.datetime('happens_at');
-      t.timestamp('seen_at', { default: 'currentTimestamp' });
-      t.json('payload');
+      t.text('body', { null: true });
+      t.bigint('counter', { default: 0, null: true });
+      t.float('rate', { default: 1.5, null: true });
+      t.decimal('price', { precision: 12, scale: 4, null: true });
+      t.decimal('plain', { null: true });
+      t.boolean('active', { default: true, null: true });
+      t.date('starts_on', { null: true });
+      t.datetime('happens_at', { null: true });
+      t.timestamp('seen_at', { default: 'currentTimestamp', null: true });
+      t.json('payload', { null: true });
       t.index(['email'], { name: 'idx_mariadb_kinds_email' });
       t.index(['email', 'active'], { unique: true });
     });
@@ -109,7 +109,7 @@ describe('MariaDbConnector', () => {
     if (await connector.hasTable(tableName)) await connector.dropTable(tableName);
     await connector.createTable(tableName, (t) => {
       t.integer('id', { primary: true, autoIncrement: true });
-      t.json('payload');
+      t.json('payload', { null: true });
     });
     await expect(
       connector.batchInsert(tableName, { id: 1 } as any, [{ payload: 'not json' }]),

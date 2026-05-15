@@ -38,6 +38,9 @@
   "dependencies": {
     "mysql2": "^3.22.3"
   },
+  "peerDependencies": {
+    "@next-model/core": "^1.1.1"
+  },
   "devDependencies": {
     "@next-model/core": "workspace:*",
     "@types/node": "^25.6.0",

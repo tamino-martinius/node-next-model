@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Changed
+
+- `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`). Downstream consumers now install core alongside the connector — fixes the `Cannot find package '@next-model/core'` runtime error when only the connector was added to a project. Monorepo workspaces keep resolving the in-tree core via the existing `devDependencies` entry.
+
 ## v1.1.1
 
 ## v1.1.0

@@ -29,6 +29,8 @@ Every hook throws if called outside a Provider.
 
 Returns a chainable query builder mirroring the static surface of the Model. Chain methods (`filterBy`, `where`, `orderBy`, `limit`, `skip`, `joins`, `includes`, `withoutIncludes`, `whereMissing`, `none`) return another chain.
 
+`orderBy` accepts either the strict `{ key, dir }` shape (`{ key: 'createdAt', dir: SortDirection.Desc }`) or the conventional `{ [col]: 'asc' | 'desc' }` shape (`{ createdAt: 'desc' }`) — both normalise into the same connector call.
+
 The hook return type is `ReactiveModelQuery<I, P>` where `I` is the fully-typed instance (including attribute fields and `id`) and `P` is the create-props type inferred from `Model({ init })`.
 
 #### Sync terminal

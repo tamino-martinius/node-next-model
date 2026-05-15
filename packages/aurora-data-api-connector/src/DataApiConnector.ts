@@ -1085,7 +1085,8 @@ function definitionFromOp(
   return {
     name,
     type,
-    nullable: options.null ?? true,
+    // Mirror the builder default in `@next-model/core`: NOT NULL unless explicit.
+    nullable: options.null ?? false,
     default: options.default,
     limit: options.limit,
     primary: options.primary ?? false,
