@@ -730,7 +730,7 @@ All comparison keys start with `$`:
 | `$gt`, `$gte`, `$lt`, `$lte` | `filterBy({ $gt: { age: 17 } })` |
 | `$like` | `filterBy({ $like: { email: '%@example.com' } })` |
 | `$async` | `filterBy({ $async: somePromiseResolvingToAFilter })` |
-| `$raw` | connector-specific raw SQL + bindings |
+| `$raw` | connector-specific raw SQL + bindings (SQL connectors); predicate function `(item, ...bindings) => boolean` on JS-evaluating connectors |
 
 #### Two equivalent shapes per column operator
 

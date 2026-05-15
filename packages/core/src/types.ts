@@ -33,9 +33,26 @@ export type FilterBetween<S extends Schema> = {
   [K in keyof S]: Range<S[K]>;
 };
 
+/**
+ * Predicate function for `$raw` filters on connectors that evaluate filters
+ * in JavaScript (the in-memory `MemoryConnector` and its `LocalStorage` /
+ * `Redis` / `Valkey` subclasses). Receives the candidate row and any extra
+ * bindings supplied via `$bindings`. Returns truthy to keep the row.
+ */
+export type FilterRawPredicate = (item: Dict<any>, ...bindings: any[]) => unknown;
+
 export interface FilterRaw {
   $bindings?: BaseType[] | Dict<BaseType>;
-  $query: string;
+  /**
+   * SQL connectors accept a string fragment that is parameterised with
+   * `$bindings`. JS-evaluating connectors (`MemoryConnector` /
+   * `LocalStorageConnector` / `RedisConnector` / `ValkeyConnector`) accept a
+   * predicate function instead. The legacy v1.x string form (a JS expression
+   * compiled at runtime through dynamic-code evaluation) is no longer
+   * supported on JS-evaluating connectors and throws `FilterError` with a
+   * migration hint.
+   */
+  $query: string | FilterRawPredicate;
 }
 
 export type Filter<S extends Schema> = Partial<S> | Partial<FilterSpecial<S>>;
@@ -160,6 +177,15 @@ export interface Connector<
   updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]>;
   deleteAll(scope: Scope): Promise<Dict<any>[]>;
   batchInsert(tableName: string, keys: Dict<KeyType>, items: Dict<any>[]): Promise<Dict<any>[]>;
+  /**
+   * Run a raw operation against the underlying store. SQL connectors treat
+   * `query` as a SQL string and `bindings` as parameter values. The
+   * JS-evaluating `MemoryConnector` family additionally accepts a function
+   * `(storage, ...bindings) => any[]` via its own overloaded signature — see
+   * `MemoryConnector.execute`. The legacy JS-source string form is no
+   * longer compiled by core; on JS-evaluating connectors a string `query`
+   * now throws.
+   */
   execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]>;
   transaction<T>(fn: () => Promise<T>): Promise<T>;
   aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined>;

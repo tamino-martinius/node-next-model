@@ -224,6 +224,13 @@ export class DataApiConnector<S extends DatabaseSchema<any> | undefined = undefi
   }
 
   private async rawFilter(query: Knex.QueryBuilder, filter: FilterRaw) {
+    if (typeof filter.$query !== 'string') {
+      throw new FilterError(
+        'DataApiConnector requires `$raw.$query` to be a SQL string; ' +
+          'predicate functions are only supported by JS-evaluating connectors ' +
+          '(MemoryConnector, LocalStorageConnector, RedisConnector, ValkeyConnector).',
+      );
+    }
     return {
       query: query.whereRaw(filter.$query, filter.$bindings || []),
     };

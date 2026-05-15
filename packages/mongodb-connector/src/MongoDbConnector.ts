@@ -177,6 +177,13 @@ export class MongoDbConnector<S extends DatabaseSchema<any> | undefined = undefi
     if (f.$raw !== undefined) {
       const raw = f.$raw as FilterRaw;
       // For Mongo, $raw.$query is expected to be a JSON-encoded mongo filter.
+      if (typeof raw.$query !== 'string') {
+        throw new FilterError(
+          'MongoDbConnector requires `$raw.$query` to be a JSON-encoded mongo ' +
+            'filter string; predicate functions are only supported by ' +
+            'JS-evaluating connectors.',
+        );
+      }
       try {
         return JSON.parse(raw.$query);
       } catch {

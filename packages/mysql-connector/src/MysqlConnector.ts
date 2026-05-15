@@ -207,6 +207,12 @@ export class MysqlConnector<S extends DatabaseSchema<any> | undefined = undefine
 
   private compileRaw(raw: FilterRaw, params: BaseType[]): string {
     if (!raw.$query) throw new FilterError('$raw requires a $query string');
+    if (typeof raw.$query !== 'string') {
+      throw new FilterError(
+        'MysqlConnector requires `$raw.$query` to be a SQL string; predicate ' +
+          'functions are only supported by JS-evaluating connectors.',
+      );
+    }
     for (const b of (raw.$bindings ?? []) as BaseType[]) params.push(b);
     return `(${raw.$query})`;
   }
