@@ -2,6 +2,14 @@
 
 ## vNext
 
+### Changed
+
+- Column accessors installed on every Model instance (schema columns, persistent-prop columns, primary-key columns, and `storeAccessors` sub-keys) are now `enumerable: true`. This makes raw Model instances structured-clone-friendly: `structuredClone(instance)` invokes each getter and stores the value on the clone, so receivers across structured-clone boundaries (Electron IPC, Web Workers, `BroadcastChannel`) see the column shape they expect instead of only the internal bookkeeping fields (`persistentProps`, `changedProps`, `lastSavedChanges`, `keys`). **Observable behaviour change** — `Object.keys(instance)` and `for (const k in instance)` now surface column names alongside the bookkeeping fields; any consumer code that enumerated instances expecting just the bookkeeping shape will now see more keys. `JSON.stringify(instance)` is unaffected (still routes through `toJSON()`). Note: `@next-model/react` wraps instances in a `Proxy` for reactivity; Proxies are unconditionally non-cloneable in V8/Chromium, so this change benefits raw instances only — consumers crossing IPC must still extract attributes from the Proxy via `instance.toJSON()` or `instance.attributes` first. See the README's "Serialization → Structured clone / IPC" section for the full pattern.
+
+### Docs
+
+- README `Serialization` section adds a "Structured clone / IPC" subsection covering the Electron renderer-to-main and Web Worker boundaries: which clone variant works on raw instances vs. `@next-model/react` Proxies, when to reach for `.toJSON()` / `.attributes`, and why.
+
 ## v1.1.4
 
 ### Added
