@@ -158,6 +158,13 @@ export class KnexConnector<S extends DatabaseSchema<any> | undefined = undefined
   }
 
   private async rawFilter(query: Knex.QueryBuilder, filter: FilterRaw) {
+    if (typeof filter.$query !== 'string') {
+      throw new FilterError(
+        'KnexConnector requires `$raw.$query` to be a SQL string; ' +
+          'predicate functions are only supported by JS-evaluating connectors ' +
+          '(MemoryConnector, LocalStorageConnector, RedisConnector, ValkeyConnector).',
+      );
+    }
     return {
       query: query.whereRaw(filter.$query, filter.$bindings || []),
     };

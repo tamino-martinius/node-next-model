@@ -196,6 +196,12 @@ export class PostgresConnector<S extends DatabaseSchema<any> | undefined = undef
 
   private compileRaw(raw: FilterRaw, params: BaseType[]): string {
     if (!raw.$query) throw new FilterError('$raw requires a $query string');
+    if (typeof raw.$query !== 'string') {
+      throw new FilterError(
+        'PostgresConnector requires `$raw.$query` to be a SQL string; ' +
+          'predicate functions are only supported by JS-evaluating connectors.',
+      );
+    }
     let sql = raw.$query;
     const bindings = (raw.$bindings ?? []) as BaseType[];
     for (const b of bindings) {
