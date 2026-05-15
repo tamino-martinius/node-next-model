@@ -946,6 +946,33 @@ user.pick(['firstName', 'lastName']);
 user.omit(['createdAt', 'updatedAt']);
 ```
 
+### Structured clone / IPC
+
+Column accessors on Model instances are installed as **enumerable** own properties, so a raw instance survives the structured clone algorithm (Electron IPC, Web Workers, `BroadcastChannel`, `postMessage`) with its column values at the top level:
+
+```ts
+const user = await User.findBy({ isDefault: true });
+const clone = structuredClone(user);
+clone.id;        // ✓ readable on the clone
+clone.firstName; // ✓ readable on the clone
+```
+
+Two caveats when crossing the boundary:
+
+1. **`@next-model/react` Proxies are not cloneable.** The hook layer (`useModel`, `useWatch`, `useAsyncTerminal`) wraps row instances in a `Proxy` for reactivity. `Proxy` is unconditionally non-cloneable in V8 / Chromium — `structuredClone(proxy)` and `port.postMessage(proxy)` both throw `DataCloneError: ... could not be cloned`. Extract a plain object with `instance.toJSON()` or `instance.attributes` before handing it to `ipcRenderer.invoke(...)` / `worker.postMessage(...)`:
+
+   ```ts
+   // ❌ throws "An object could not be cloned" when `user` is wrapped
+   await ipcRenderer.invoke('something', { user });
+
+   // ✓ works regardless of whether `user` is wrapped or raw
+   await ipcRenderer.invoke('something', { user: user.toJSON() });
+   ```
+
+   `.toJSON()` works on both wrapped and raw instances (the Proxy forwards the call to its target), so it's the safest single pattern.
+
+2. **Clone keeps the internal bookkeeping fields.** A cloned raw instance carries the column values *and* the `persistentProps` / `changedProps` / `lastSavedChanges` / `keys` shadows. Consumers that want only the wire-shape columns should use `.toJSON()` (or `JSON.parse(JSON.stringify(instance))` when datetime columns need to round-trip to ISO strings).
+
 ## Attribute boundary helpers
 
 ### normalizes

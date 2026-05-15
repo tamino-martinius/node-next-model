@@ -1563,6 +1563,17 @@ export class ModelClass {
     // value but `instance.archivedAt` would still read `undefined` until
     // re-fetched. Falling back to `persistentProps` keeps the previous
     // behaviour for any Model built without a schema column list.
+    // Column accessors are installed enumerable so that:
+    //  - `Object.keys(instance)` / `for (const k in instance)` surfaces the
+    //    schema columns (matches the user-facing mental model: `instance.id`
+    //    is a column, not just `instance.persistentProps.id`).
+    //  - `structuredClone(instance)` invokes each getter and stores the value
+    //    on the clone. Otherwise the clone would carry only the internal
+    //    bookkeeping fields (`persistentProps`, `changedProps`, …) and
+    //    receivers across structured-clone boundaries (Electron IPC, Web
+    //    Workers, `BroadcastChannel`) would see the wrong shape.
+    //  - `JSON.stringify(instance)` is unaffected — it goes through `toJSON()`
+    //    regardless of property enumerability.
     const installed = new Set<string>();
     const schemaCols = model.schemaColumnNames ?? [];
     for (const key of schemaCols) {
@@ -1570,6 +1581,7 @@ export class ModelClass {
       Object.defineProperty(this, key, {
         get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
+        enumerable: true,
         configurable: true,
       });
     }
@@ -1578,6 +1590,7 @@ export class ModelClass {
       Object.defineProperty(this, key, {
         get: () => this.attributes[key],
         set: (value) => this.assign({ [key]: value }),
+        enumerable: true,
         configurable: true,
       });
     }
@@ -1591,6 +1604,7 @@ export class ModelClass {
     for (const key in model.keys) {
       Object.defineProperty(this, key, {
         get: () => (this.keys ? this.keys[key] : undefined),
+        enumerable: true,
         configurable: true,
       });
     }
@@ -1620,6 +1634,8 @@ export class ModelClass {
             const current = ((this.attributes as Dict<any>)[column] ?? {}) as Dict<any>;
             this.assign({ [column]: { ...current, [subKey]: value } });
           },
+          enumerable: true,
+          configurable: true,
         });
       }
     }
