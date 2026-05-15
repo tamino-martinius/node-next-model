@@ -228,7 +228,7 @@ describe('MysqlConnector#reflectSchema', () => {
     await connector.createTable(tableName, (t) => {
       t.integer('id', { primary: true, autoIncrement: true, null: false });
       t.string('email', { limit: 320, null: false, unique: true });
-      t.text('body');
+      t.text('body', { null: true });
       t.boolean('active', { default: true, null: false });
       t.integer('count', { default: 0, null: false });
       t.decimal('price', { precision: 12, scale: 4 });

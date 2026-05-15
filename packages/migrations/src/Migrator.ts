@@ -47,7 +47,7 @@ export class Migrator {
     if (this.initialized) return;
     await this.connector.createTable(this.tableName, (t) => {
       t.string('version', { limit: VERSION_LIMIT, primary: true, null: false });
-      t.string('name', { limit: NAME_LIMIT });
+      t.string('name', { limit: NAME_LIMIT, null: true });
       t.timestamp('applied_at', { null: false });
     });
     this.initialized = true;
