@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.2
+
 ### Added
 
 - `orderBy` accepts the conventional `{ [col]: 'asc' | 'desc' }` shape alongside the strict `{ key, dir }`. Both are normalised via the shared `normalizeOrderEntry` helper from `@next-model/core` before SQL is built — `orderBy({ createdAt: 'desc' })` and `orderBy({ key: 'createdAt', dir: SortDirection.Desc })` produce the same `ORDER BY` fragment. Previously the loose shape sneaked past the TypeScript signature and produced SQL `ORDER BY "undefined" ASC` (no such column).

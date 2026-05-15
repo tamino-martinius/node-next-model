@@ -1,6 +1,6 @@
 {
   "name": "@next-model/typebox",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Bridge between TypeBox schemas and next-model — derive init(), validators, and schema-DSL columns from a single TObject.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

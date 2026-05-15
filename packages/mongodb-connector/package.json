@@ -1,6 +1,6 @@
 {
   "name": "@next-model/mongodb-connector",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Native MongoDB connector for next-model. Uses the official mongodb driver directly.",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

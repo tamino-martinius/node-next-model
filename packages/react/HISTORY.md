@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.2
+
 ### Added
 
 - `orderBy` accepts the conventional `{ [col]: 'asc' | 'desc' }` shape alongside the strict `{ key, dir }` shape, inherited from `@next-model/core`'s chainable query builder. `useModel(M).orderBy({ createdAt: 'desc' })` works identically to `useModel(M).orderBy({ key: 'createdAt', dir: SortDirection.Desc })`.

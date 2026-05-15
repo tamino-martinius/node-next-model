@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.2
+
 ### Added
 
 - `Model.findOrNull(id)` — null-on-miss counterpart to `find(id)`. Sugar over `findBy({ [pk]: id })` with the same `id`-only signature as `find`, but returns an explicit `null` (not `undefined`) on miss so callers can `??`-coalesce cleanly — the function's name reflects the actual sentinel. The typed factory mirrors the `Keys`-inferred id type. `find` keeps throwing `NotFoundError` on miss; nothing existing changes.

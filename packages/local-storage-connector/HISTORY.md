@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.2
+
 ### Added
 
 - Single-arg constructor accepts `schema` inline: `new LocalStorageConnector({ localStorage, prefix, schema })` works in addition to the legacy `(options, { schema })` two-arg form. Mirrors the `MemoryConnector` widening so the constructor footprint is consistent across both connectors.

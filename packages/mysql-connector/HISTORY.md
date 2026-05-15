@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.2
+
 ### Changed
 
 - `definitionFromOp` defaults `nullable` to `false` (matches the `@next-model/core` builder default, which also flipped in this release). Callers relying on the previous nullable-by-default behaviour must now pass `{ null: true }` explicitly.
