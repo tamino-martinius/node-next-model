@@ -688,6 +688,16 @@ export class ModelClass {
     return CollectionQuery.fromModel(this as any).unordered() as unknown as M;
   }
 
+  static withOrder<M extends typeof ModelClass>(this: M, order: Order<any>) {
+    return CollectionQuery.fromModel(this as any).withOrder(order) as unknown as M;
+  }
+
+  /**
+   * @deprecated Use {@link ModelClass.withOrder | withOrder} instead.
+   * Calling `reorder()` emits a one-shot `console.warn` and delegates to
+   * `withOrder()`. The `reorder` name is reserved so subclasses can use it
+   * for domain-specific user-facing methods (e.g. "reorder items by sortOrder").
+   */
   static reorder<M extends typeof ModelClass>(this: M, order: Order<any>) {
     return CollectionQuery.fromModel(this as any).reorder(order) as unknown as M;
   }
@@ -2669,6 +2679,18 @@ function modelFactoryImpl<
       return super.orderBy(order) as M;
     }
 
+    static withOrder<M extends typeof ModelClass>(
+      this: M,
+      order: Order<
+        PersistentProps & { [K in keyof Keys]: Keys[K] extends KeyType.uuid ? string : number }
+      >,
+    ) {
+      return super.withOrder(order) as M;
+    }
+
+    /**
+     * @deprecated Use {@link ModelClass.withOrder | withOrder} instead.
+     */
     static reorder<M extends typeof ModelClass>(
       this: M,
       order: Order<

@@ -35,6 +35,22 @@ import {
 
 type ModelLike = { tableName: string; keys: Dict<KeyType> };
 
+let reorderDeprecationWarned = false;
+function warnReorderDeprecated(): void {
+  if (reorderDeprecationWarned) return;
+  reorderDeprecationWarned = true;
+  // biome-ignore lint/suspicious/noConsole: one-shot deprecation notice
+  console.warn(
+    'reorder() is deprecated; use withOrder() instead. ' +
+      'The reorder() name is reserved so user-facing static methods on subclasses can use it freely.',
+  );
+}
+
+/** @internal Test-only reset for the one-shot reorder deprecation flag. */
+export function __resetReorderDeprecationWarning(): void {
+  reorderDeprecationWarned = false;
+}
+
 // Build a temp Model subclass carrying QueryState fields as static properties.
 // Used by chain methods that delegate to a Model static (named scopes, enum
 // scopes, etc.) so the static reads `this.<x>` sees the chained scope.
@@ -378,8 +394,19 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     return this.with({ order: mergeOrders(this.state.order, next) });
   }
 
-  reorder(order: Order<any>): this {
+  withOrder(order: Order<any>): this {
     return this.with({ order: Array.isArray(order) ? [...order] : [order] });
+  }
+
+  /**
+   * @deprecated Use {@link CollectionQuery.withOrder | withOrder} instead.
+   * Calling `reorder()` emits a one-shot `console.warn` and delegates to
+   * `withOrder()`. The `reorder` name is reserved so subclasses can use it
+   * for domain-specific user-facing methods (e.g. "reorder items by sortOrder").
+   */
+  reorder(order: Order<any>): this {
+    warnReorderDeprecated();
+    return this.withOrder(order);
   }
 
   unordered(): this {
@@ -883,7 +910,7 @@ export class CollectionQuery<Items = unknown[]> implements PromiseLike<Items> {
     const otherSkip = other instanceof CollectionQuery ? other.state.skip : other.skip;
     let q: this = this;
     if (otherFilter) q = q.filterBy(otherFilter);
-    if (otherOrder && otherOrder.length > 0) q = q.reorder(otherOrder);
+    if (otherOrder && otherOrder.length > 0) q = q.withOrder(otherOrder);
     if (otherLimit !== undefined) q = q.limitBy(otherLimit);
     if (otherSkip !== undefined) q = q.skipBy(otherSkip);
     return q;
