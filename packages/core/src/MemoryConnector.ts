@@ -380,7 +380,10 @@ export class MemoryConnector<S extends DatabaseSchema<any> | undefined = undefin
     }
   }
 
-  async execute(query: string, bindings: BaseType | BaseType[]): Promise<any[]> {
+  async execute(
+    query: string | ((storage: Storage, ...bindings: any[]) => any[]),
+    bindings: BaseType | BaseType[],
+  ): Promise<any[]> {
     const fn = compileExecute(query);
     if (Array.isArray(bindings)) {
       return fn(this.storage, ...bindings);
@@ -414,9 +417,35 @@ function defaultValueFor(value: unknown): unknown {
   return value;
 }
 
-function compileExecute(source: string): (...args: any[]) => any[] {
-  // biome-ignore lint/security/noGlobalEval: MemoryConnector.execute evaluates raw query strings by design
-  return eval(source);
+/**
+ * `MemoryConnector.execute` compiles a query into a function that walks the
+ * in-memory `Storage` directly. The legacy v1.x behaviour accepted a
+ * JavaScript-source string that was compiled at runtime through dynamic-code
+ * evaluation — a CSP / tree-shaking / source-map hazard. That code path has
+ * been removed; the runtime no longer compiles strings.
+ *
+ * Accepted shapes:
+ *  - a function `(storage, ...bindings) => any[]` — the recommended form.
+ *    Receives the connector's internal `Storage` map and any bindings the
+ *    caller supplied as the second argument to `execute`.
+ *  - a string — throws with a migration hint.
+ *
+ * SQL connectors keep accepting SQL strings; this only affects the
+ * JS-evaluating Memory / LocalStorage / Redis / Valkey path.
+ */
+function compileExecute(query: string | ((...args: any[]) => any[])): (...args: any[]) => any[] {
+  if (typeof query === 'function') return query;
+  if (typeof query === 'string') {
+    throw new UnsupportedOperationError(
+      'MemoryConnector.execute no longer accepts JavaScript-source strings. ' +
+        'Pass a function `(storage, ...bindings) => any[]` that walks the ' +
+        'storage map directly, or use the high-level CRUD methods. SQL ' +
+        'connectors still accept SQL strings.',
+    );
+  }
+  throw new UnsupportedOperationError(
+    `MemoryConnector.execute received ${typeof query}; expected a function.`,
+  );
 }
 
 export default MemoryConnector;

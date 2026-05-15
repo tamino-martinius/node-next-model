@@ -270,9 +270,12 @@ async function rawFilter(items: Dict<any>[], filter: FilterRaw): Promise<Dict<an
   const fn = compileRawQuery(filter.$query);
   const params = filter.$bindings;
   if (Array.isArray(params)) {
-    return items.filter((item) => fn(item, ...params));
+    return items.filter((item) => Boolean(fn(item, ...params)));
   }
-  return items.filter((item) => fn(item, params));
+  if (params === undefined) {
+    return items.filter((item) => Boolean(fn(item)));
+  }
+  return items.filter((item) => Boolean(fn(item, params)));
 }
 
 async function asyncFilter(
@@ -313,9 +316,33 @@ async function specialFilter(
   throw new FilterError(`unknown special filter operator: ${keys[0]}`);
 }
 
-function compileRawQuery(source: string): (...args: any[]) => any {
-  // biome-ignore lint/security/noGlobalEval: in-memory filter evaluates raw predicate strings by design
-  return eval(source);
+/**
+ * In-memory `$raw` filters compile to a predicate function. The legacy v1.x
+ * behaviour accepted a JavaScript-source string that was compiled at runtime
+ * through dynamic-code evaluation — a CSP / tree-shaking / source-map hazard.
+ * That code path has been removed; the runtime no longer compiles strings.
+ *
+ * Accepted shapes:
+ *  - a function `(item, ...bindings) => boolean` — the recommended form
+ *  - a string — throws `FilterError` with a migration hint
+ *
+ * SQL connectors (`KnexConnector`, `PostgresConnector`, `SqliteConnector`,
+ * `MysqlConnector`, `MariaDbConnector`, `AuroraDataApiConnector`) keep the
+ * string form because they treat `$query` as a SQL fragment, not JS source.
+ * This change only affects JS-evaluating connectors that route through
+ * `FilterEngine.filterList`.
+ */
+function compileRawQuery(query: string | ((...args: any[]) => any)): (...args: any[]) => any {
+  if (typeof query === 'function') return query;
+  if (typeof query === 'string') {
+    throw new FilterError(
+      '$raw.$query as a JavaScript-source string is not supported by JS-evaluating connectors. ' +
+        'Pass a predicate function instead: ' +
+        '`$raw: { $query: (item, x) => item.age > x, $bindings: [18] }`. ' +
+        'SQL connectors still accept SQL strings.',
+    );
+  }
+  throw new FilterError(`$raw.$query must be a function or SQL string; received ${typeof query}`);
 }
 
 export async function filterList(
