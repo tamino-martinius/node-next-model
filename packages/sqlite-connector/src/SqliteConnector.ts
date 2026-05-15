@@ -810,21 +810,40 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
 
   async createTable(tableName: string, blueprint: (t: TableBuilder) => void): Promise<void> {
     const def = defineTable(tableName, blueprint);
-    this.tableDefinitions.set(tableName, def);
-    const jsonCols = new Set(def.columns.filter((c) => c.type === 'json').map((c) => c.name));
-    if (jsonCols.size > 0) this.jsonColumns.set(tableName, jsonCols);
-    const boolCols = new Set(def.columns.filter((c) => c.type === 'boolean').map((c) => c.name));
-    if (boolCols.size > 0) this.booleanColumns.set(tableName, boolCols);
+    this.trackTableDefinition(tableName, def);
     if (await this.hasTable(tableName)) return;
     this.runStatement(this.buildCreateTableSql(tableName, def, [], []));
     for (const idx of def.indexes) await this.createIndex(tableName, idx);
   }
 
   /**
+   * Record `tableDefinitions` / `jsonColumns` / `booleanColumns` entries for a
+   * table the connector now knows about. Idempotent — re-registering with the
+   * same definition is a no-op. Used by `createTable` for fresh tables and by
+   * `ensureSchema` for tables that already exist on disk; without the latter
+   * call, `hydrateRow` would pass raw 0/1 INTEGER values through for boolean
+   * columns and leave json columns unparsed on every read against a returning
+   * (already-migrated) database.
+   */
+  private trackTableDefinition(tableName: string, def: TableDefinition): void {
+    this.tableDefinitions.set(tableName, def);
+    const jsonCols = new Set(def.columns.filter((c) => c.type === 'json').map((c) => c.name));
+    if (jsonCols.size > 0) this.jsonColumns.set(tableName, jsonCols);
+    else this.jsonColumns.delete(tableName);
+    const boolCols = new Set(def.columns.filter((c) => c.type === 'boolean').map((c) => c.name));
+    if (boolCols.size > 0) this.booleanColumns.set(tableName, boolCols);
+    else this.booleanColumns.delete(tableName);
+  }
+
+  /**
    * Materialise every table declared in the attached `schema` idempotently.
    * Iterates `schema.tableDefinitions`, skipping tables that already exist
    * and dispatching unknown tables through this connector's `createTable`
-   * so SQLite-specific column-type rendering applies.
+   * so SQLite-specific column-type rendering applies. For tables that already
+   * exist on disk we still register the json/boolean column kinds and the
+   * tracked table definition — otherwise row hydration (boolean 0/1 → false/
+   * true, json TEXT → parsed value) and the alter-table fallbacks would
+   * silently no-op on every boot after the first.
    */
   async ensureSchema(): Promise<{ created: string[]; existing: string[] }> {
     if (!this.schema) {
@@ -836,11 +855,12 @@ export class SqliteConnector<S extends DatabaseSchema<any> | undefined = undefin
     const existing: string[] = [];
     const tableDefinitions = this.schema.tableDefinitions as Record<string, TableDefinition>;
     for (const tableName of Object.keys(tableDefinitions)) {
+      const def = tableDefinitions[tableName];
       if (await this.hasTable(tableName)) {
+        this.trackTableDefinition(tableName, def);
         existing.push(tableName);
         continue;
       }
-      const def = tableDefinitions[tableName];
       await this.createTable(tableName, (t) => {
         for (const col of def.columns) {
           const options: ColumnOptions = {

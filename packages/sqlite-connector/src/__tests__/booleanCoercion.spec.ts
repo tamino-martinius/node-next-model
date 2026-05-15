@@ -84,6 +84,36 @@ describe('SqliteConnector boolean coercion (read path)', () => {
     expect(rows.map((r) => r.flag).sort()).toEqual([0, 1]);
   });
 
+  it('coerces booleans on returning databases where ensureSchema sees existing tables', async () => {
+    // Simulates the "second boot" path: tables already exist on disk, so
+    // ensureSchema hits the skip branch instead of dispatching createTable.
+    // The boolean-column tracking Map must still be populated, or hydrateRow
+    // passes raw 0/1 INTEGER values through and downstream Zod / boolean
+    // validators reject them with "Expected boolean, received number".
+    const c = new SqliteConnector(':memory:', { schema });
+    connector = c;
+    // First "boot" — create the table.
+    await c.ensureSchema();
+    await c.batchInsert('toggles', { id: 1 } as any, [
+      { isDefault: true, nullableFlag: false, label: 'a' },
+    ]);
+    // Drop the tracking Maps to mimic a fresh connector pointed at the same
+    // file: the table exists, but the in-process bookkeeping is empty until
+    // ensureSchema repopulates it.
+    (c as unknown as { booleanColumns: Map<string, Set<string>> }).booleanColumns.clear();
+    (c as unknown as { jsonColumns: Map<string, Set<string>> }).jsonColumns.clear();
+    (c as unknown as { tableDefinitions: Map<string, unknown> }).tableDefinitions.clear();
+    // Second "boot" — ensureSchema should re-register the tracking entry
+    // even though the table is already present.
+    const result = await c.ensureSchema();
+    expect(result.created).toEqual([]);
+    expect(result.existing).toEqual(['toggles']);
+    const [row] = await c.query({ tableName: 'toggles' });
+    expect(row.isDefault).toBe(true);
+    expect(row.nullableFlag).toBe(false);
+    expect(row.isDefault === true).toBe(true);
+  });
+
   it('does not touch non-boolean columns even when both kinds coexist', async () => {
     const mixedSchema = defineSchema({
       mixed: {
