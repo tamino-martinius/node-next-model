@@ -8,7 +8,6 @@ import {
   type Storage,
 } from '../index.js';
 import { CollectionQuery } from '../query/CollectionQuery.js';
-import { InstanceQuery } from '../query/InstanceQuery.js';
 import { context, it } from './index.js';
 
 const fooSchema = defineSchema({
