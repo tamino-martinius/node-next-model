@@ -1,12 +1,10 @@
 import type { Dict } from '@next-model/core';
 import { useEffect, useRef, useState } from 'react';
-import { tagStore } from './instanceState.js';
+import { decorate } from './adoptInstance.js';
 import { useStore } from './Provider.js';
 import { rowKey } from './pkKey.js';
-import { wrapInstance } from './ReactiveInstance.js';
 import type { ReactiveQuery, TerminalKind } from './ReactiveQuery.js';
 import { runQuery } from './runQuery.js';
-import type { Store } from './Store.js';
 
 export interface WatchResult<T> {
   data: T;
@@ -34,35 +32,8 @@ function isModelInstance(x: unknown): x is object {
   return Boolean(x && typeof x === 'object' && 'attributes' in (x as object));
 }
 
-function adopt(instance: object, tableName: string, store: Store): object {
-  tagStore(instance, store);
-  const shell = wrapInstance(instance);
-  const keys = keysOf(instance);
-  if (Object.keys(keys).length === 0) return shell; // unsaved — should not happen for watch results
-  const cached = store.acquire(tableName, keys);
-  if (cached) {
-    // Sync persistent attributes from the freshly-fetched instance into the
-    // canonical shell so that saves performed through any proxy are reflected here.
-    const freshAttrs = (instance as { persistentProps?: Record<string, unknown> }).persistentProps;
-    if (freshAttrs)
-      (cached as { persistentProps: Record<string, unknown> }).persistentProps = freshAttrs;
-    return cached;
-  }
-  store.softRegister(tableName, keys, shell);
-  return shell;
-}
-
-function decorate(raw: unknown, tableName: string, store: Store): unknown {
-  if (Array.isArray(raw)) {
-    const out: object[] = [];
-    for (const row of raw) {
-      if (isModelInstance(row)) out.push(adopt(row, tableName, store));
-    }
-    return out;
-  }
-  if (isModelInstance(raw)) return adopt(raw, tableName, store);
-  return raw;
-}
+// `adopt` and `decorate` live in `./adoptInstance.js` (shared with
+// `useAsyncTerminal` and `useModel`'s `.run()` terminal).
 
 export function useWatch<T>(
   query: ReactiveQuery<{ tableName: string }>,

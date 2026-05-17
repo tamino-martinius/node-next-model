@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { tagStore } from './instanceState.js';
+import { decorate } from './adoptInstance.js';
 import { useStore } from './Provider.js';
-import { wrapInstance } from './ReactiveInstance.js';
 import type { ReactiveQuery, TerminalKind } from './ReactiveQuery.js';
 import { runQuery } from './runQuery.js';
-import type { Store } from './Store.js';
 
 export interface AsyncResult<T> {
   data: T;
@@ -18,31 +16,13 @@ function initialData<T>(kind: TerminalKind): T {
   return (ARRAY_TERMINALS.has(kind) ? [] : undefined) as T;
 }
 
-function isModelInstance(x: unknown): x is object {
-  return Boolean(x && typeof x === 'object' && 'attributes' in (x as object));
-}
-
-function adopt(raw: unknown, store: Store): unknown {
-  if (Array.isArray(raw)) {
-    return raw.map((row) => {
-      if (!isModelInstance(row)) return row;
-      tagStore(row, store);
-      return wrapInstance(row);
-    });
-  }
-  if (isModelInstance(raw)) {
-    tagStore(raw, store);
-    return wrapInstance(raw);
-  }
-  return raw;
-}
-
 export function useAsyncTerminal<T>(
   query: ReactiveQuery<{ tableName: string }>,
   terminal: TerminalKind,
   terminalArgs: unknown[],
 ): AsyncResult<T> {
   const store = useStore();
+  const tableName = query.plan.ModelClass.tableName;
   const queryKey = query.hash(terminal, terminalArgs);
 
   const [state, setState] = useState<AsyncResult<T>>(() => ({
@@ -62,7 +42,7 @@ export function useAsyncTerminal<T>(
       (raw) => {
         if (inflightRef.current !== id) return;
         hasFetchedRef.current = true;
-        setState({ data: adopt(raw, store) as T, isLoading: false, error: undefined });
+        setState({ data: decorate(raw, tableName, store) as T, isLoading: false, error: undefined });
       },
       (error: unknown) => {
         if (inflightRef.current !== id) return;

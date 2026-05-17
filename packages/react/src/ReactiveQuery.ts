@@ -32,11 +32,20 @@ export interface QueryPlan {
 
 /**
  * A pending query that has not yet invoked a React hook.
- * Call `.fetch()` for a one-shot async result or `.watch()` for a live subscription.
+ *
+ * - `.fetch()` invokes `useAsyncTerminal` — a one-shot hook for render.
+ * - `.watch()` invokes `useWatch` — a live subscription, also a hook.
+ * - `.run()` is an imperative escape hatch: it returns a `Promise<T>` whose
+ *   instances are store-tagged reactive shells. Safe to call from
+ *   event handlers, mutation callbacks, or any non-render async code.
+ *   Subsequent `.update()` / `.delete()` calls on the returned shell
+ *   auto-publish the row key so existing watches refire without any
+ *   manual `invalidateKeys` plumbing.
  */
 export interface PendingResult<T> {
   fetch(): AsyncResult<T>;
   watch(options?: { keys?: (string | symbol)[] }): WatchResult<T>;
+  run(): Promise<T>;
 }
 
 /**
