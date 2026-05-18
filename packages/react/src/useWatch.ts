@@ -1,5 +1,5 @@
 import type { Dict } from '@next-model/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { decorate } from './adoptInstance.js';
 import { filterColumnsOf } from './filterColumns.js';
 import { useStore } from './Provider.js';
@@ -152,10 +152,12 @@ export function useWatch<T>(
   // chain. When a row mutation changes any of those columns (publishes
   // `col:<table>:<column>`), refetch so collection-membership flips
   // surface — e.g. a row whose `archivedAt` was just set drops out of a
-  // `filterBy({ $null: 'archivedAt' })` watch.
-  const filterCols = useMemo(() => filterColumnsOf(query.plan), [queryKey]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey encodes plan + filterCols depends on plan
+  // `filterBy({ $null: 'archivedAt' })` watch. `queryKey` already hashes
+  // `query.plan`, so re-running this effect on `queryKey` change is the
+  // right granularity.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey hashes query.plan
   useEffect(() => {
+    const filterCols = filterColumnsOf(query.plan);
     if (filterCols.size === 0) return;
     const offs: Array<() => void> = [];
     for (const col of filterCols) {

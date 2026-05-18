@@ -72,9 +72,7 @@ describe('filterColumnsOf', () => {
   });
 
   it('includes whereMissing column names', () => {
-    const cols = filterColumnsOf(
-      plan([{ method: 'whereMissing', args: ['parentId'] }]),
-    );
+    const cols = filterColumnsOf(plan([{ method: 'whereMissing', args: ['parentId'] }]));
     expect([...cols]).toEqual(['parentId']);
   });
 

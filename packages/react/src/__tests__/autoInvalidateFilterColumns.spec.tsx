@@ -87,8 +87,6 @@ describe('collection watches auto-refetch on filter-column mutations', () => {
     expect((result.current.watch.data as Array<{ id: number; title: string }>).length).toBe(1);
     expect((result.current.watch.data as Array<{ title: string }>)[0]!.title).toBe('new');
     // No row added/removed.
-    expect((result.current.watch.data as unknown[]).length).toBe(
-      (before as unknown[]).length,
-    );
+    expect((result.current.watch.data as unknown[]).length).toBe((before as unknown[]).length);
   });
 });

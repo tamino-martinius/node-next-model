@@ -42,7 +42,11 @@ export function useAsyncTerminal<T>(
       (raw) => {
         if (inflightRef.current !== id) return;
         hasFetchedRef.current = true;
-        setState({ data: decorate(raw, tableName, store) as T, isLoading: false, error: undefined });
+        setState({
+          data: decorate(raw, tableName, store) as T,
+          isLoading: false,
+          error: undefined,
+        });
       },
       (error: unknown) => {
         if (inflightRef.current !== id) return;

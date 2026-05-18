@@ -23,11 +23,8 @@ const proxies = new WeakMap<object, object>();
 function mutatedColumns(prop: string, args: unknown[], target: unknown): string[] {
   if (prop === 'update' && args[0] && typeof args[0] === 'object') {
     const patch = args[0] as Record<string, unknown>;
-    const persistent =
-      ((target as { persistentProps?: Record<string, unknown> }).persistentProps ?? {}) as Record<
-        string,
-        unknown
-      >;
+    const persistent = ((target as { persistentProps?: Record<string, unknown> }).persistentProps ??
+      {}) as Record<string, unknown>;
     return Object.keys(patch).filter((k) => persistent[k] !== patch[k]);
   }
   if (prop === 'save') {

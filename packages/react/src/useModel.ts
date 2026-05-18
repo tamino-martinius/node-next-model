@@ -10,8 +10,8 @@ import {
   ReactiveQuery,
   type TerminalKind,
 } from './ReactiveQuery.js';
-import type { Store } from './Store.js';
 import { runQuery } from './runQuery.js';
+import type { Store } from './Store.js';
 import { useAsyncTerminal } from './useAsyncTerminal.js';
 import { useWatch } from './useWatch.js';
 
