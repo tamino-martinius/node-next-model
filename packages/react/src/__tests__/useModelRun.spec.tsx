@@ -14,99 +14,84 @@ describe('useModel(M).<terminal>.run()', () => {
     await Todo.create({ title: 'a', done: false });
     await Todo.create({ title: 'b', done: true });
 
-    const { result } = renderHook(() => useModel(Todo as any), {
+    const { result } = renderHook(() => useModel(Todo), {
       wrapper: wrapWithProvider,
     });
 
-    const rows = await act(() => (result.current as any).all().run());
-    expect(Array.isArray(rows)).toBe(true);
+    const rows = await act(() => result.current.all().run());
     expect(rows).toHaveLength(2);
-    // Tagged shells are Proxy-wrapped; their `update`/`delete` are functions.
-    expect(typeof (rows as object[])[0]).toBe('object');
-    expect(typeof ((rows as any)[0] as { update: unknown }).update).toBe('function');
+    // Tagged shells expose `.update` / `.delete` — verifies the proxy wrap.
+    expect(typeof rows[0]!.update).toBe('function');
+    expect(typeof rows[0]!.delete).toBe('function');
   });
 
   it('first().run() returns a tagged shell or undefined', async () => {
-    const { result } = renderHook(() => useModel(Todo as any), {
+    const { result } = renderHook(() => useModel(Todo), {
       wrapper: wrapWithProvider,
     });
 
-    expect(await act(() => (result.current as any).first().run())).toBeUndefined();
+    expect(await act(() => result.current.first().run())).toBeUndefined();
 
     await Todo.create({ title: 'a', done: false });
-    const row = (await act(() => (result.current as any).first().run())) as
-      | { title: string; update: (p: object) => Promise<unknown> }
-      | undefined;
+    const row = await act(() => result.current.first().run());
     expect(row).toBeDefined();
     expect(row?.title).toBe('a');
   });
 
   it('find(pk).run() returns the tagged row, or undefined when missing', async () => {
-    const created = (await Todo.create({ title: 'a', done: false })) as {
-      id: number;
-    };
+    const created = await Todo.create({ title: 'a', done: false });
 
-    const { result } = renderHook(() => useModel(Todo as any), {
+    const { result } = renderHook(() => useModel(Todo), {
       wrapper: wrapWithProvider,
     });
 
-    const row = (await act(() => (result.current as any).find(created.id).run())) as
-      | { id: number; title: string }
-      | undefined;
+    const row = await act(() => result.current.find(created.id).run());
     expect(row?.id).toBe(created.id);
     expect(row?.title).toBe('a');
 
-    expect(await act(() => (result.current as any).find(99999).run())).toBeUndefined();
+    expect(await act(() => result.current.find(99999).run())).toBeUndefined();
   });
 
   it('shell mutation via .update() refires a sibling .watch() without manual invalidate', async () => {
-    const created = (await Todo.create({ title: 'old', done: false })) as { id: number };
+    const created = await Todo.create({ title: 'old', done: false });
 
     // Both hooks mounted under one Provider so they share a Store.
     const { result } = renderHook(
       () => {
-        const ops = useModel(Todo as any) as any;
+        const ops = useModel(Todo);
         const watch = ops.filterBy({ id: created.id }).first().watch();
         return { ops, watch };
       },
       { wrapper: wrapWithProvider },
     );
     await waitFor(() => expect(result.current.watch.isLoading).toBe(false));
-    expect((result.current.watch.data as { title: string } | undefined)?.title).toBe('old');
+    expect(result.current.watch.data?.title).toBe('old');
 
-    const row = (await act(() => result.current.ops.find(created.id).run())) as {
-      update: (p: object) => Promise<unknown>;
-    };
-    await act(() => row.update({ title: 'new' }));
+    const row = await act(() => result.current.ops.find(created.id).run());
+    await act(() => row!.update({ title: 'new' }));
 
-    await waitFor(() =>
-      expect((result.current.watch.data as { title: string } | undefined)?.title).toBe('new'),
-    );
+    await waitFor(() => expect(result.current.watch.data?.title).toBe('new'));
   });
 
   it('shell .delete() drops the row and refires a sibling .all().watch()', async () => {
-    const created = (await Todo.create({ title: 'a', done: false })) as { id: number };
+    const created = await Todo.create({ title: 'a', done: false });
     await Todo.create({ title: 'b', done: false });
 
     const { result } = renderHook(
       () => {
-        const ops = useModel(Todo as any) as any;
+        const ops = useModel(Todo);
         const watch = ops.all().watch();
         return { ops, watch };
       },
       { wrapper: wrapWithProvider },
     );
     await waitFor(() => expect(result.current.watch.isLoading).toBe(false));
-    expect((result.current.watch.data as unknown[]).length).toBe(2);
+    expect(result.current.watch.data).toHaveLength(2);
 
-    const row = (await act(() => result.current.ops.find(created.id).run())) as {
-      delete: () => Promise<unknown>;
-    };
-    await act(() => row.delete());
+    const row = await act(() => result.current.ops.find(created.id).run());
+    await act(() => row!.delete());
 
-    await waitFor(() => expect((result.current.watch.data as unknown[]).length).toBe(1));
-    expect(
-      (result.current.watch.data as Array<{ id: number }>).find((r) => r.id === created.id),
-    ).toBeUndefined();
+    await waitFor(() => expect(result.current.watch.data).toHaveLength(1));
+    expect(result.current.watch.data.find((r) => r.id === created.id)).toBeUndefined();
   });
 });
