@@ -1,4 +1,5 @@
 import { useMemo, useRef, useSyncExternalStore } from 'react';
+import { decorate } from './adoptInstance.js';
 import { emitterFor, tagStore } from './instanceState.js';
 import { useStore } from './Provider.js';
 import { wrapInstance } from './ReactiveInstance.js';
@@ -9,6 +10,8 @@ import {
   ReactiveQuery,
   type TerminalKind,
 } from './ReactiveQuery.js';
+import { runQuery } from './runQuery.js';
+import type { Store } from './Store.js';
 import { useAsyncTerminal } from './useAsyncTerminal.js';
 import { useWatch } from './useWatch.js';
 
@@ -44,10 +47,14 @@ const CHAIN_METHODS = [
 class HookQuery<M extends { tableName: string }> extends ReactiveQuery<M> {}
 
 /**
- * Attaches `.fetch()` and `.watch()` to a query.
+ * Attaches `.fetch()`, `.watch()`, and `.run()` to a query.
  * Uses the plan's `terminal`/`terminalArgs` if set, defaulting to `'all'`.
+ *
+ * `.run()` captures the store from the enclosing `useModel(M)` call so
+ * the returned promise can be awaited in async event handlers without
+ * any hook-rules issues; the resolved instances are store-tagged shells.
  */
-function attachFetchAndWatch(query: HookQuery<{ tableName: string }>) {
+function attachFetchAndWatch(query: HookQuery<{ tableName: string }>, store: Store) {
   Object.defineProperty(query, 'fetch', {
     configurable: true,
     value: () => {
@@ -66,6 +73,15 @@ function attachFetchAndWatch(query: HookQuery<{ tableName: string }>) {
       return useWatch(query, terminal, terminalArgs, options);
     },
   });
+  Object.defineProperty(query, 'run', {
+    configurable: true,
+    value: async () => {
+      const terminal = query.plan.terminal ?? 'all';
+      const terminalArgs = query.plan.terminalArgs ?? [];
+      const raw = await runQuery(query, terminal, terminalArgs);
+      return decorate(raw, query.plan.ModelClass.tableName, store);
+    },
+  });
 }
 
 /**
@@ -73,7 +89,7 @@ function attachFetchAndWatch(query: HookQuery<{ tableName: string }>) {
  * Each terminal method returns a NEW HookQuery with the terminal recorded in the plan,
  * and with `.fetch()` / `.watch()` attached — no hook is invoked yet.
  */
-function attachPendingTerminals(query: HookQuery<{ tableName: string }>) {
+function attachPendingTerminals(query: HookQuery<{ tableName: string }>, store: Store) {
   for (const [name, kind] of PENDING_TERMINALS) {
     Object.defineProperty(query, name, {
       configurable: true,
@@ -84,7 +100,7 @@ function attachPendingTerminals(query: HookQuery<{ tableName: string }>) {
           terminal: kind,
           terminalArgs: args,
         });
-        attachFetchAndWatch(next);
+        attachFetchAndWatch(next, store);
         return next;
       },
     });
@@ -95,7 +111,7 @@ function attachPendingTerminals(query: HookQuery<{ tableName: string }>) {
  * Attaches chain methods (filterBy, where, etc.) to a query.
  * Each chain method returns a new query with the full surface re-attached.
  */
-function attachChain(query: HookQuery<{ tableName: string }>) {
+function attachChain(query: HookQuery<{ tableName: string }>, store: Store) {
   for (const m of CHAIN_METHODS) {
     const original = (query as any)[m].bind(query);
     Object.defineProperty(query, m, {
@@ -103,9 +119,9 @@ function attachChain(query: HookQuery<{ tableName: string }>) {
       value: (...args: unknown[]) => {
         const next = original(...args) as HookQuery<{ tableName: string }>;
         Object.setPrototypeOf(next, HookQuery.prototype);
-        attachPendingTerminals(next);
-        attachChain(next);
-        attachFetchAndWatch(next);
+        attachPendingTerminals(next, store);
+        attachChain(next, store);
+        attachFetchAndWatch(next, store);
         return next;
       },
     });
@@ -139,9 +155,9 @@ export function useModel<M extends { tableName: string; build: (props?: any) => 
     },
   });
 
-  attachPendingTerminals(query);
-  attachChain(query);
-  attachFetchAndWatch(query);
+  attachPendingTerminals(query, store);
+  attachChain(query, store);
+  attachFetchAndWatch(query, store);
 
   return query as unknown as ReactiveModelQuery<ModelInstanceType<M>, ModelCreatePropsType<M>>;
 }

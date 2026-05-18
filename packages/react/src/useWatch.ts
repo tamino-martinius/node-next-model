@@ -1,12 +1,11 @@
 import type { Dict } from '@next-model/core';
 import { useEffect, useRef, useState } from 'react';
-import { tagStore } from './instanceState.js';
+import { decorate } from './adoptInstance.js';
+import { filterColumnsOf } from './filterColumns.js';
 import { useStore } from './Provider.js';
-import { rowKey } from './pkKey.js';
-import { wrapInstance } from './ReactiveInstance.js';
+import { columnKey, rowKey } from './pkKey.js';
 import type { ReactiveQuery, TerminalKind } from './ReactiveQuery.js';
 import { runQuery } from './runQuery.js';
-import type { Store } from './Store.js';
 
 export interface WatchResult<T> {
   data: T;
@@ -34,35 +33,8 @@ function isModelInstance(x: unknown): x is object {
   return Boolean(x && typeof x === 'object' && 'attributes' in (x as object));
 }
 
-function adopt(instance: object, tableName: string, store: Store): object {
-  tagStore(instance, store);
-  const shell = wrapInstance(instance);
-  const keys = keysOf(instance);
-  if (Object.keys(keys).length === 0) return shell; // unsaved — should not happen for watch results
-  const cached = store.acquire(tableName, keys);
-  if (cached) {
-    // Sync persistent attributes from the freshly-fetched instance into the
-    // canonical shell so that saves performed through any proxy are reflected here.
-    const freshAttrs = (instance as { persistentProps?: Record<string, unknown> }).persistentProps;
-    if (freshAttrs)
-      (cached as { persistentProps: Record<string, unknown> }).persistentProps = freshAttrs;
-    return cached;
-  }
-  store.softRegister(tableName, keys, shell);
-  return shell;
-}
-
-function decorate(raw: unknown, tableName: string, store: Store): unknown {
-  if (Array.isArray(raw)) {
-    const out: object[] = [];
-    for (const row of raw) {
-      if (isModelInstance(row)) out.push(adopt(row, tableName, store));
-    }
-    return out;
-  }
-  if (isModelInstance(raw)) return adopt(raw, tableName, store);
-  return raw;
-}
+// `adopt` and `decorate` live in `./adoptInstance.js` (shared with
+// `useAsyncTerminal` and `useModel`'s `.run()` terminal).
 
 export function useWatch<T>(
   query: ReactiveQuery<{ tableName: string }>,
@@ -171,6 +143,26 @@ export function useWatch<T>(
   useEffect(() => {
     if (!options.keys?.length) return;
     const offs = options.keys.map((k) => store.subscribe(k, () => fetch('refetch')));
+    return () => {
+      for (const off of offs) off();
+    };
+  }, [queryKey]);
+
+  // Effect 3: subscribe to the column keys named by the query's filterBy
+  // chain. When a row mutation changes any of those columns (publishes
+  // `col:<table>:<column>`), refetch so collection-membership flips
+  // surface — e.g. a row whose `archivedAt` was just set drops out of a
+  // `filterBy({ $null: 'archivedAt' })` watch. `queryKey` already hashes
+  // `query.plan`, so re-running this effect on `queryKey` change is the
+  // right granularity.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey hashes query.plan
+  useEffect(() => {
+    const filterCols = filterColumnsOf(query.plan);
+    if (filterCols.size === 0) return;
+    const offs: Array<() => void> = [];
+    for (const col of filterCols) {
+      offs.push(store.subscribe(columnKey(tableName, col), () => fetch('refetch')));
+    }
     return () => {
       for (const off of offs) off();
     };
