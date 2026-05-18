@@ -63,12 +63,13 @@ function NewTaskForm() {
 }
 ```
 
-#### Chain terminals — `PendingResult<T>` — call `.fetch()` or `.watch()`
+#### Chain terminals — `PendingResult<T>` — call `.fetch()`, `.watch()`, or `.run()`
 
 Terminal methods (`all`, `find`, `findBy`, `first`, `last`, `findOrFail`, `count`, `sum`, `min`, `max`, `avg`, `pluck`, `exists`) are **chain steps** — they record the terminal in the plan and return a `PendingResult<T>` without invoking any React hook. To execute:
 
-- `.fetch()` — one-shot async fetch: returns `AsyncResult<T>` (`{ data, isLoading, error }`)
-- `.watch(opts?)` — live subscription: returns `WatchResult<T>` (`{ data, isLoading, isRefetching, error }`)
+- `.fetch()` — one-shot async fetch: returns `AsyncResult<T>` (`{ data, isLoading, error }`) — hook, render-time only
+- `.watch(opts?)` — live subscription: returns `WatchResult<T>` (`{ data, isLoading, isRefetching, error }`) — hook, render-time only
+- `.run()` — imperative: returns `Promise<T>` whose instances are store-tagged reactive shells. Safe to call from event handlers, mutation callbacks, or any non-render async code. Subsequent `.update()` / `.delete()` calls on the returned shell auto-publish and refire any active watches on the same row.
 
 | Terminal | `T` for `.fetch()` / `.watch()` |
 |---|---|
@@ -92,6 +93,20 @@ const { data: todo } = useModel(Todo).find(id).watch();
 const { data: todos } = useModel(Todo).filterBy({ userId }).watch({
   keys: [`todos-user:${userId}`],
 });
+
+// Imperative lookup + mutate from an event handler — sibling watches refire
+// automatically. No `useInvalidateKeys` call needed for the mutation itself.
+function ToggleButton({ id }: { id: number }) {
+  const Todo = useModel(TodoModel);
+  return (
+    <button onClick={async () => {
+      const row = await Todo.find(id).run();
+      if (row) await row.update({ done: !row.done });
+    }}>
+      toggle
+    </button>
+  );
+}
 ```
 
 #### Shortcut: implicit-all `.fetch()` / `.watch()`
@@ -107,8 +122,13 @@ const { data } = useModel(Todo).filterBy({ done: false }).watch({ keys: ['todos'
 // Watch behaviour:
 // - In-place updates on save: row stays in `data` with fresh attributes.
 // - Deleted rows drop from `data`.
-// - New rows are not auto-added — call `useInvalidateKeys()` to refetch.
-// - Filters are not auto re-evaluated client-side.
+// - Filter-flipping mutations: when a mutation changes a column that the
+//   watch's `filterBy` references, the watch refetches automatically and
+//   the row appears / disappears from `data` to match. Works in both
+//   directions (a row newly matching the filter is pulled in).
+// - Rows created via `Model.create(...)` are not auto-added — that path
+//   doesn't go through a tagged shell. Use `useInvalidateKeys()` or
+//   `useModel(M).build(...)` + `.save()` for created rows.
 function TodoList({ userId }: { userId: number }) {
   const { data, isLoading } = useModel(Todo).filterBy({ userId }).watch({
     keys: ['todos', `todos-user:${userId}`],
@@ -130,7 +150,7 @@ invalidate(['todos', `todos-user:${id}`]);
 ```ts
 import type {
   ReactiveModelQuery,  // the full query builder surface
-  PendingResult,       // { fetch(): AsyncResult<T>; watch(): WatchResult<T> }
+  PendingResult,       // { fetch(): AsyncResult<T>; watch(): WatchResult<T>; run(): Promise<T> }
   AsyncResult,         // { data: T; isLoading: boolean; error: Error | undefined }
   WatchResult,         // { data: T; isLoading: boolean; isRefetching: boolean; error: Error | undefined }
   ModelInstanceType,   // extract instance type from a Model class
@@ -142,7 +162,8 @@ import type {
 
 - One `Store` per Provider, owning an identity map keyed by `tableName[pk]`.
 - `useModel` materialises rows into reactive Proxy shells; the same row across queries returns `===` the same shell within a Provider.
-- Mutations (assign / save / delete) emit per-instance to subscribed components AND broadcast on the row key so watches rerender.
+- `.fetch()` / `.watch()` / `.run()` all funnel through the same `adopt` path — every fetched instance becomes a tagged shell that publishes on mutation.
+- Mutations (`update` / `save` / `delete` / `increment` / `decrement`) emit per-instance to subscribed components AND broadcast on the row key so watches rerender. They also broadcast `col:<table>:<column>` for each column whose persistent value actually changes, so collection watches whose `filterBy` references those columns refetch (membership flips).
 - Watch result sets are refcounted; rows are evicted on the last unmount.
 - Provider unmount disposes the Store; subsequent broadcasts are silent.
 
@@ -150,7 +171,7 @@ import type {
 
 - No SSR / Next.js adapter (deferred to a separate package).
 - No Suspense integration.
-- No optimistic insertion of newly saved rows into watched arrays — use `useInvalidateKeys`.
+- Rows newly created via the static `Model.create(...)` (which doesn't go through a tagged shell) are not auto-added to watched arrays — use `useInvalidateKeys`, or use `useModel(M).build(...)` + `.save()` so the create round-trips through a shell.
 - No interval / background polling.
 - Cross-Provider mutations are not propagated.
 
