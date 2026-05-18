@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.7
+
 ### Added
 
 - **`.run()` terminal on `PendingResult<T>`.** Imperative counterpart to `.fetch()` / `.watch()` — returns a `Promise<T>` whose instances are store-tagged reactive shells. Safe to call from event handlers, mutation callbacks, or any non-render async code:
