@@ -1,7 +1,44 @@
 import type { Dict } from '@next-model/core';
 import { emitterFor, linkEmitter, storeFor } from './instanceState.js';
+import { columnKey } from './pkKey.js';
 
 const proxies = new WeakMap<object, object>();
+
+/**
+ * Compute the column names whose persistent value the in-flight mutation
+ * is about to change. Used to publish `columnKey(...)` so collection
+ * watches that filter on any of those columns can refetch (the row's
+ * membership in their result may have flipped).
+ *
+ * - `update(patch)`: diff `patch` against `persistentProps` so we only
+ *   broadcast columns whose value actually changes.
+ * - `save()`: read `changedProps` keys — the diff staged by prior
+ *   `assign(...)` or setter calls.
+ * - `increment(col)` / `decrement(col)`: the arg names the column.
+ *
+ * `assign` / `revertChange*` don't persist, `reload` doesn't know what
+ * changed, and `delete` is handled separately by `store.drop()` plus
+ * `publishRow`'s `!stillAlive` branch — all return `[]` here.
+ */
+function mutatedColumns(prop: string, args: unknown[], target: unknown): string[] {
+  if (prop === 'update' && args[0] && typeof args[0] === 'object') {
+    const patch = args[0] as Record<string, unknown>;
+    const persistent =
+      ((target as { persistentProps?: Record<string, unknown> }).persistentProps ?? {}) as Record<
+        string,
+        unknown
+      >;
+    return Object.keys(patch).filter((k) => persistent[k] !== patch[k]);
+  }
+  if (prop === 'save') {
+    const changed = (target as { changedProps?: Record<string, unknown> }).changedProps ?? {};
+    return Object.keys(changed);
+  }
+  if (prop === 'increment' || prop === 'decrement') {
+    return typeof args[0] === 'string' ? [args[0] as string] : [];
+  }
+  return [];
+}
 /**
  * Tracks resettable shells (form drafts created via `useModel(M).build(...)`).
  * They must not be inserted into the Store's identity map on save —
@@ -61,6 +98,10 @@ export function wrapInstance<T extends object>(
           // Capture keys before calling the method — delete() clears target.keys to undefined.
           const keysBefore = (target as { keys?: Record<string, unknown> }).keys;
           const tableName = ((target as object).constructor as { tableName?: string }).tableName;
+          // Compute the columns the mutation will change BEFORE running it
+          // — `save()` clears `changedProps`, and `update(patch)` needs the
+          // pre-mutation `persistentProps` to compute the diff.
+          const changedCols = mutatedColumns(prop, args, target);
           const result = (value as (...a: unknown[]) => unknown).apply(target, args);
           if (result && typeof (result as Promise<unknown>).then === 'function') {
             return (result as Promise<unknown>).then(
@@ -82,6 +123,14 @@ export function wrapInstance<T extends object>(
                       store.softRegister(tableName, keys, proxy as object);
                     }
                     store.publishRow(tableName, keys);
+                  }
+                  // Publish per-column keys for any actually-changed columns
+                  // so collection watches whose `filterBy` references those
+                  // columns refetch (membership may have flipped).
+                  if (tableName) {
+                    for (const col of changedCols) {
+                      store.publish(columnKey(tableName, col));
+                    }
                   }
                 }
                 return r;

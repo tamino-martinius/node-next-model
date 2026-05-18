@@ -1,8 +1,9 @@
 import type { Dict } from '@next-model/core';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { decorate } from './adoptInstance.js';
+import { filterColumnsOf } from './filterColumns.js';
 import { useStore } from './Provider.js';
-import { rowKey } from './pkKey.js';
+import { columnKey, rowKey } from './pkKey.js';
 import type { ReactiveQuery, TerminalKind } from './ReactiveQuery.js';
 import { runQuery } from './runQuery.js';
 
@@ -142,6 +143,24 @@ export function useWatch<T>(
   useEffect(() => {
     if (!options.keys?.length) return;
     const offs = options.keys.map((k) => store.subscribe(k, () => fetch('refetch')));
+    return () => {
+      for (const off of offs) off();
+    };
+  }, [queryKey]);
+
+  // Effect 3: subscribe to the column keys named by the query's filterBy
+  // chain. When a row mutation changes any of those columns (publishes
+  // `col:<table>:<column>`), refetch so collection-membership flips
+  // surface — e.g. a row whose `archivedAt` was just set drops out of a
+  // `filterBy({ $null: 'archivedAt' })` watch.
+  const filterCols = useMemo(() => filterColumnsOf(query.plan), [queryKey]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queryKey encodes plan + filterCols depends on plan
+  useEffect(() => {
+    if (filterCols.size === 0) return;
+    const offs: Array<() => void> = [];
+    for (const col of filterCols) {
+      offs.push(store.subscribe(columnKey(tableName, col), () => fetch('refetch')));
+    }
     return () => {
       for (const off of offs) off();
     };
