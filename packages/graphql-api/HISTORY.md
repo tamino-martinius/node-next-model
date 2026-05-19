@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.1.8
+
 ### Changed
 
 - Bumped dev deps: `graphql` 16.13.2 → 16.14.0, `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
