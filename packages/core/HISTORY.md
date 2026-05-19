@@ -10,10 +10,6 @@
 
 - Added a root `pnpm.overrides` entry `ws@>=8.0.0 <8.20.1` → `>=8.20.1` to patch a moderate uninitialized-memory-disclosure advisory (GHSA-58qx-3vcg-4xpx / CVE-2026-45736) reached transitively via `happy-dom` (test-time only). `pnpm audit` is clean across the workspace.
 
-## v1.1.7
-
-## v1.1.6
-
 ## v1.1.5
 
 ### Changed
@@ -69,8 +65,6 @@
 - Mixed-object filter shapes now compose correctly. `filterBy({ workspaceId: 1, $null: 'archivedAt' })` used to silently drop the equality predicate because the connector's `compileFilter` short-circuits on the first `$`-prefixed key it sees. `normalizeFilterShape` now lifts every top-level operator out into its own AND-piece, so equality + `$null` / `$in` / `$gt` / `$and` / `$or` / column-op maps all coexist in a single filter object and survive end-to-end through every connector. Single-operator and pure-equality shapes are unchanged.
 - Nested column-op syntax (`filterBy({ col: { $in: [...] } })`) and the legacy top-level syntax (`filterBy({ $in: { col: [...] } })`) are now explicitly pinned as equivalent — `normalizeFilterShape` already rewrote one to the other, the test surface just makes the contract load-bearing so future refactors can't silently regress.
 - Property getters on Model instances are now installed for every column declared on the schema's `tableDefinition`, not only the keys present in `persistentProps` at construction. Columns omitted at insert (e.g. nullable timestamps like `archivedAt`) are now readable as `instance.col` immediately after `instance.update({ col: value })` — no more `Model.findBy({ id })` re-fetch dance. Legacy Model paths without `defineSchema` still fall back to the previous `persistentProps`-driven loop.
-
-## v1.1.0
 
 ## v1.0.0
 

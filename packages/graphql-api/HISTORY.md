@@ -6,20 +6,6 @@
 
 - Bumped dev deps: `graphql` 16.13.2 → 16.14.0, `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
 
-## v1.1.7
-
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
-## v1.1.2
-
-## v1.1.1
-
-## v1.1.0
-
 ## v1.0.0
 
 - Initial release. `buildModelResource({ Model, name, fields, ... })` returns `{ typeDefs, resolvers }` for six default operations: `list`, `get`, `count`, `create`, `update`, `delete`.

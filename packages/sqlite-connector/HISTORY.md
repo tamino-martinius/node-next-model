@@ -6,15 +6,11 @@
 
 - Bumped deps: `better-sqlite3` 12.9.0 → 12.10.0, `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
 
-## v1.1.7
-
 ## v1.1.6
 
 ### Fixed
 
 - `ensureSchema()` now registers the json / boolean column tracking (and the in-memory `tableDefinitions` entry) for tables that already exist on disk, not just for tables it creates on this boot. Before, the second-and-later boot of any file-backed database left those Maps empty for every pre-existing table, so `hydrateRow` skipped the SQLite `0` / `1` → `false` / `true` coercion and json columns came back as raw TEXT. The leak surfaced loudly at Zod / arktype / validator boundaries downstream with `Expected boolean, received number`; same root cause for json columns coming back unparsed. `createTable` is unchanged — the populate path it already did is now extracted into a private `trackTableDefinition(tableName, def)` helper that `ensureSchema` also calls on the existing-table branch.
-
-## v1.1.5
 
 ## v1.1.4
 
@@ -43,8 +39,6 @@
 ### Changed
 
 - Boolean columns are coerced to `true` / `false` on read when a schema is attached. SQLite has no native boolean and `better-sqlite3` returns 0 / 1 INTEGER for every column declared `boolean`; the connector now mirrors the existing JSON-column behaviour and coerces 0 / 1 → `false` / `true` inside `hydrateRow` for columns the attached schema declares `{ type: 'boolean' }`. `null` and any non-0/1 value passes through unchanged. The write path was already accepting both `true`/`false` and `0`/`1` and is unchanged. **Behaviour change:** callers that compared boolean columns against `0` / `1` strictly (`row.col === 1`) need to switch to `=== true` / `=== false`. Code using `Boolean(row.col)` or loose equality (`== true`) is unaffected. The coercion only activates when a schema is attached at construction; callers using `new SqliteConnector(':memory:')` (no schema) still see raw 0 / 1 INTEGER reads.
-
-## v1.1.0
 
 ## v1.0.0
 

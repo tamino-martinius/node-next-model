@@ -39,12 +39,6 @@
 
 - `useAsyncTerminal` and `useWatch` now share `adopt` / `decorate` from a new internal `adoptInstance` module — both paths reconcile against the store's identity map (previously `useAsyncTerminal`'s adopt was simpler and didn't soft-register, which meant instances from `.fetch()` could diverge from the canonical shell in the store).
 
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
 ## v1.1.2
 
 ### Added
@@ -57,8 +51,6 @@
 ### Added
 
 - Sourcemap files (`dist/**/*.map`) are now included in the published tarball so downstream Vite / webpack / Rollup builds resolve stack frames inside `@next-model/react` to the original TypeScript source — no `ENOENT` warnings for `dist/index.js.map`. No runtime change.
-
-## v1.1.0
 
 ## v1.0.0
 

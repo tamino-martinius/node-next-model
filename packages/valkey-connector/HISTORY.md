@@ -10,23 +10,11 @@
 
 - `redis` is kept at `^4.7.1` (Valkey is wire-compatible with Redis and uses `node-redis`). node-redis v5 is deferred pending the underlying `@next-model/redis-connector` migration.
 
-## v1.1.7
-
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
 ## v1.1.2
 
 ### Changed
 
 - `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`).
-
-## v1.1.1
-
-## v1.1.0
 
 ## v1.0.0
 
