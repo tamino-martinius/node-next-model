@@ -6,23 +6,11 @@
 
 - Bumped deps: `knex` 3.2.9 → 3.2.10, `pg` 8.20.0 → 8.21.0, `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
 
-## v1.1.7
-
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
 ## v1.1.2
 
 ### Changed
 
 - `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`). Downstream consumers now install core alongside the connector — fixes the `Cannot find package '@next-model/core'` runtime error when only the connector was added to a project. Monorepo workspaces keep resolving the in-tree core via the existing `devDependencies` entry.
-
-## v1.1.1
-
-## v1.1.0
 
 ## v1.0.0
 

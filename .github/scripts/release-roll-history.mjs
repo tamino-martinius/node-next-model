@@ -3,14 +3,30 @@
 // heading becomes `## v<version>` and a fresh empty `## vNext` block is
 // inserted directly above it. Used only for stable releases (the workflow
 // guards this with the dist-tag).
+//
+// Packages whose `## vNext` section is empty (no entries since the last
+// release) are skipped — they get a version bump in package.json but no
+// new section in HISTORY.md.
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const VNEXT_HEADING_LINE = /^## vNext\s*$/m;
+const NEXT_HEADING = /^## /m;
+
+function vNextBody(markdown) {
+  const headingMatch = markdown.match(VNEXT_HEADING_LINE);
+  if (!headingMatch) return null;
+  const startOfBody = headingMatch.index + headingMatch[0].length;
+  const tail = markdown.slice(startOfBody);
+  const nextMatch = tail.match(NEXT_HEADING);
+  const body = nextMatch === null ? tail : tail.slice(0, nextMatch.index);
+  return body.trim();
+}
 
 export function rollHistoryMarkdown(markdown, version) {
-  if (!VNEXT_HEADING_LINE.test(markdown)) return markdown;
+  const body = vNextBody(markdown);
+  if (body === null || body === '') return markdown;
   return markdown.replace(VNEXT_HEADING_LINE, `## vNext\n\n## v${version}\n`);
 }
 

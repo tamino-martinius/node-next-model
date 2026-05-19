@@ -6,23 +6,11 @@
 
 - Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
 
-## v1.1.7
-
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
 ## v1.1.2
 
 ### Changed
 
 - `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`).
-
-## v1.1.1
-
-## v1.1.0
 
 ## v1.0.0
 

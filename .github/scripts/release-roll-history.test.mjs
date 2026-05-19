@@ -32,6 +32,21 @@ test('rollHistoryMarkdown is a no-op when there is no vNext heading', () => {
   strictEqual(rollHistoryMarkdown(before, '1.0.0'), before);
 });
 
+test('rollHistoryMarkdown is a no-op when vNext is empty (no body before next heading)', () => {
+  const before = '# History\n\n## vNext\n\n## v0.4.0\n\n- Older\n';
+  strictEqual(rollHistoryMarkdown(before, '1.0.0'), before);
+});
+
+test('rollHistoryMarkdown is a no-op when vNext is empty (whitespace-only body)', () => {
+  const before = '# History\n\n## vNext\n\n   \n\n## v0.4.0\n\n- Older\n';
+  strictEqual(rollHistoryMarkdown(before, '1.0.0'), before);
+});
+
+test('rollHistoryMarkdown is a no-op when vNext is empty and is the last section', () => {
+  const before = '# History\n\n## vNext\n';
+  strictEqual(rollHistoryMarkdown(before, '1.0.0'), before);
+});
+
 test('rollHistoryMarkdown handles vNext as the last section', () => {
   const before = '# History\n\n## vNext\n\n- Only\n';
   const after = rollHistoryMarkdown(before, '1.0.0');
@@ -44,7 +59,7 @@ test('rollHistoryMarkdown matches vNext heading with trailing whitespace', () =>
   strictEqual(after, '# History\n\n## vNext\n\n## v1.0.0\n\n- Entry\n');
 });
 
-test('rollHistoriesInDir applies the roll to every public package', () => {
+test('rollHistoriesInDir only rolls packages whose vNext has content', () => {
   const root = mkdtempSync(join(tmpdir(), 'next-model-roll-'));
   try {
     mkdirSync(join(root, 'packages', 'core'), { recursive: true });
@@ -61,18 +76,17 @@ test('rollHistoriesInDir applies the roll to every public package', () => {
       join(root, 'packages', 'core', 'HISTORY.md'),
       '# History\n\n## vNext\n\n- core change\n\n## v0.4.0\n\n- old\n',
     );
-    writeFileSync(
-      join(root, 'packages', 'zod', 'HISTORY.md'),
-      '# History\n\n## vNext\n\n## v0.0.1\n\n- old\n',
-    );
+    const zodOriginal = '# History\n\n## vNext\n\n## v0.0.1\n\n- old\n';
+    writeFileSync(join(root, 'packages', 'zod', 'HISTORY.md'), zodOriginal);
 
     const touched = rollHistoriesInDir(root, '1.0.0');
-    strictEqual(touched.length, 2);
+    strictEqual(touched.length, 1);
+    strictEqual(touched[0], '@next-model/core');
 
     const core = readFileSync(join(root, 'packages', 'core', 'HISTORY.md'), 'utf8');
     const zod = readFileSync(join(root, 'packages', 'zod', 'HISTORY.md'), 'utf8');
     strictEqual(core.includes('## vNext\n\n## v1.0.0\n\n- core change'), true);
-    strictEqual(zod.includes('## vNext\n\n## v1.0.0\n\n## v0.0.1'), true);
+    strictEqual(zod, zodOriginal);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

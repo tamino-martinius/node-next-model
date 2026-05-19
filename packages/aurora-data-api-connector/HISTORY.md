@@ -6,24 +6,12 @@
 
 - Bumped deps: `knex` 3.2.9 → 3.2.10, `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
 
-## v1.1.7
-
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
 ## v1.1.2
 
 ### Changed
 
 - `definitionFromOp` defaults `nullable` to `false` (matches the `@next-model/core` builder default, which also flipped in this release). Callers building columns via the alter-table path who relied on the previous nullable-by-default behaviour must now pass `{ null: true }` explicitly.
 - `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`).
-
-## v1.1.1
-
-## v1.1.0
 
 ## v1.0.0
 

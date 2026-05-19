@@ -10,23 +10,11 @@
 
 - `redis` is kept at `^4.7.1`. node-redis v5 is available but has breaking API changes (client options, command return shapes, connection lifecycle) that require connector rework + retesting against a real Redis server. Tracked for a separate release. `pnpm audit` reports no vulnerabilities in 4.7.1.
 
-## v1.1.7
-
-## v1.1.6
-
-## v1.1.5
-
-## v1.1.4
-
 ## v1.1.2
 
 ### Changed
 
 - `@next-model/core` moved from `devDependencies` to `peerDependencies` (`^1.1.1`).
-
-## v1.1.1
-
-## v1.1.0
 
 ## v1.0.0
 
