@@ -2,6 +2,14 @@
 
 ## vNext
 
+### Changed
+
+- Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
+
+### Notes
+
+- `redis` is kept at `^4.7.1`. node-redis v5 is available but has breaking API changes (client options, command return shapes, connection lifecycle) that require connector rework + retesting against a real Redis server. Tracked for a separate release. `pnpm audit` reports no vulnerabilities in 4.7.1.
+
 ## v1.1.7
 
 ## v1.1.6

@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Changed
+
+- Bumped deps: `knex` 3.2.9 → 3.2.10, `pg` 8.20.0 → 8.21.0, `vitest` / `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
+
 ## v1.1.7
 
 ## v1.1.6

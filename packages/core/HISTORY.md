@@ -2,6 +2,14 @@
 
 ## vNext
 
+### Changed
+
+- Bumped dev deps: `vitest` 4.1.5 → 4.1.6, `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
+
+### Security
+
+- Added a root `pnpm.overrides` entry `ws@>=8.0.0 <8.20.1` → `>=8.20.1` to patch a moderate uninitialized-memory-disclosure advisory (GHSA-58qx-3vcg-4xpx / CVE-2026-45736) reached transitively via `happy-dom` (test-time only). `pnpm audit` is clean across the workspace.
+
 ## v1.1.7
 
 ## v1.1.6

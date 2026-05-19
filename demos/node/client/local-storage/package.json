@@ -13,7 +13,7 @@
     "@next-model/local-storage-connector": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.0",
     "typescript": "^6.0.3"
   },
   "engines": {

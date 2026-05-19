@@ -2,6 +2,14 @@
 
 ## vNext
 
+### Changed
+
+- Bumped dev deps: `react` / `react-dom` 19.2.5 → 19.2.6, `vitest` 4.1.5 → 4.1.6, `@vitest/coverage-v8` 4.1.5 → 4.1.6, `@types/node` 25.6.0 → 25.9.0.
+
+### Security
+
+- Picks up the root `pnpm.overrides` for `ws@>=8.0.0 <8.20.1` → `>=8.20.1` (GHSA-58qx-3vcg-4xpx / CVE-2026-45736). Relevant to this package because `happy-dom` is a direct dev dep. Test-time only.
+
 ## v1.1.7
 
 ### Added
