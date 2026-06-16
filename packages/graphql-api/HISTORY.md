@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Added support for **graphql-js 17**: widened the `graphql` peer range to `^16.9.0 || ^17.0.0` and now build/test against 17. Non-breaking for existing graphql 16 consumers (`@graphql-tools/schema` ^10 already spans both majors).
 - Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.6 → 4.1.9, `@types/node` 25.9.0 → 25.9.3.
 
 ### Security
