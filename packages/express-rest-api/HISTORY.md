@@ -2,9 +2,14 @@
 
 ## vNext
 
+### Changed
+
+- Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.6 → 4.1.9, `@types/node` 25.9.0 → 25.9.3.
+
 ### Security
 
-- Added a root `pnpm.overrides` entry `qs@>=6.11.1 <6.15.2` → `>=6.15.2` to patch a moderate remotely-triggerable DoS in `qs.stringify` (GHSA-q8mj-m7cp-5q26), reached transitively via `express` / `supertest` (test-time only). Resolves Dependabot alert #921.
+- Patched a remotely-triggerable DoS in `qs` (`qs` → `>=6.15.2`, GHSA-q8mj-m7cp-5q26) and CRLF injection in `form-data` (`form-data` → `>=4.0.6`, GHSA-hmw2-7cc7-3qxx) via root `pnpm.overrides`, reached transitively via `express` / `supertest` (test-time only). Resolves Dependabot alert #921.
+- Patched test-toolchain advisories via root `pnpm.overrides`: `ws` → `>=8.21.0` (GHSA-96hv-2xvq-fx4p) and `vite` → `>=8.0.16` (GHSA-fx2h-pf6j-xcff / GHSA-v6wh-96g9-6wx3), reached transitively through `vitest` / `happy-dom` (test-time only).
 
 ## v1.1.8
 

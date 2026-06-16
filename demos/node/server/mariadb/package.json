@@ -14,10 +14,10 @@
     "@next-model/core": "workspace:*",
     "@next-model/mariadb-connector": "workspace:*",
     "@next-model/mysql-connector": "workspace:*",
-    "mysql2": "^3.22.3"
+    "mysql2": "^3.22.5"
   },
   "devDependencies": {
-    "@types/node": "^25.9.0",
+    "@types/node": "^25.9.3",
     "typescript": "^6.0.3"
   },
   "engines": {

@@ -2,6 +2,15 @@
 
 ## vNext
 
+### Changed
+
+- Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.6 → 4.1.9, `@types/node` 25.9.0 → 25.9.3.
+- Bumped `react` / `react-dom` 19.2.6 → 19.2.7, `@types/react` 19.2.14 → 19.2.17, `happy-dom` 20.9.0 → 20.10.4 (dev).
+
+### Security
+
+- Patched test-toolchain advisories via root `pnpm.overrides`: `ws` → `>=8.21.0` (GHSA-96hv-2xvq-fx4p) and `vite` → `>=8.0.16` (GHSA-fx2h-pf6j-xcff / GHSA-v6wh-96g9-6wx3), reached transitively through `vitest` / `happy-dom` (test-time only).
+
 ## v1.1.8
 
 ### Changed
