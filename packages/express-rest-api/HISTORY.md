@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Security
+
+- Added a root `pnpm.overrides` entry `qs@>=6.11.1 <6.15.2` → `>=6.15.2` to patch a moderate remotely-triggerable DoS in `qs.stringify` (GHSA-q8mj-m7cp-5q26), reached transitively via `express` / `supertest` (test-time only). Resolves Dependabot alert #921.
+
 ## v1.1.8
 
 ### Changed
