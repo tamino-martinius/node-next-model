@@ -36,16 +36,16 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "mysql2": "^3.22.3"
+    "mysql2": "^3.22.5"
   },
   "peerDependencies": {
     "@next-model/core": "^1.1.1"
   },
   "devDependencies": {
     "@next-model/core": "workspace:*",
-    "@types/node": "^25.9.0",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.9"
   }
 }

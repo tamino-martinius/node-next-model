@@ -16,14 +16,14 @@
     "@next-model/core": "workspace:*",
     "@next-model/nextjs-api": "workspace:*",
     "@next-model/sqlite-connector": "workspace:*",
-    "better-sqlite3": "^12.10.0",
-    "next": "^16.2.6",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "better-sqlite3": "^12.11.1",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@types/node": "^25.9.0",
-    "@types/react": "^19.2.14",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "typescript": "^6.0.3"
   },

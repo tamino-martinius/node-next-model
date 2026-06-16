@@ -35,7 +35,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "better-sqlite3": "^12.10.0"
+    "better-sqlite3": "^12.11.1"
   },
   "peerDependencies": {
     "@next-model/core": "^1.1.1"
@@ -43,9 +43,9 @@
   "devDependencies": {
     "@next-model/core": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.9.0",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.9"
   }
 }
