@@ -31,15 +31,15 @@ class Note extends Model({
 }) {}
 
 // Wipe the prefix so the demo is idempotent.
-let cursor = 0;
+let cursor = '0';
 do {
   const { cursor: next, keys } = await connector.client.scan(cursor, {
     MATCH: 'nm-demo:*',
     COUNT: 100,
   });
-  cursor = Number(next);
+  cursor = String(next);
   if (keys.length > 0) await connector.client.del(keys);
-} while (cursor !== 0);
+} while (cursor !== '0');
 
 await connector.createTable('notes', (t) => {
   t.integer('id', { primary: true, autoIncrement: true, null: false });

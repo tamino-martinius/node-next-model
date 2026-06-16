@@ -36,7 +36,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "redis": "^4.7.1"
+    "redis": "^6.0.0"
   },
   "peerDependencies": {
     "@next-model/core": "^1.1.1"

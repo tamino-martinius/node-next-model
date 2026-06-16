@@ -13,7 +13,7 @@
   "dependencies": {
     "@next-model/core": "workspace:*",
     "@next-model/redis-connector": "workspace:*",
-    "redis": "^4.7.1"
+    "redis": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
