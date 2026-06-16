@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Upgraded the bundled `redis` (node-redis) client **4 → 6**. The client is pinned to `RESP: 2`, so every command's return type is identical to before; SCAN now uses string cursors internally (node-redis v6 removed numeric-cursor coercion). Typical usage is unaffected. Callers who pass their own pre-built client via `config.redis` should supply a node-redis v6 client; opt into RESP3 with `config.client.RESP`.
 - Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.6 → 4.1.9, `@types/node` 25.9.0 → 25.9.3.
 
 ### Security

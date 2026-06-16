@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Upgraded the bundled `redis` (node-redis) client **4 → 6**, inherited from `@next-model/redis-connector` (same `RESP: 2` pin and string-cursor SCAN — return types unchanged). Callers who pass their own client via `config.redis` should supply a node-redis v6 client.
 - Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.6 → 4.1.9, `@types/node` 25.9.0 → 25.9.3.
 
 ### Security

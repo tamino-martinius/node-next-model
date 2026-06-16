@@ -15,12 +15,12 @@ afterAll(() => connector.destroy());
 
 beforeEach(async () => {
   // Wipe every key under our test prefix so each test gets a clean slate.
-  let cursor = 0;
+  let cursor = '0';
   do {
     const result = await connector.client.scan(cursor, { MATCH: 'nm-test:*', COUNT: 100 });
-    cursor = Number(result.cursor);
+    cursor = String(result.cursor);
     if (result.keys.length > 0) await connector.client.del(result.keys);
-  } while (cursor !== 0);
+  } while (cursor !== '0');
 });
 
 describe('RedisConnector', () => {

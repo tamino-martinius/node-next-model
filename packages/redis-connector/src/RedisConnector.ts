@@ -99,7 +99,11 @@ export class RedisConnector<S extends DatabaseSchema<any> | undefined = undefine
       this.client = config.redis;
       this.ownsClient = false;
     } else {
-      this.client = createClient(config.client) as RedisClientType;
+      // node-redis v6 defaults to RESP3, which changes the JS return types of
+      // some commands (e.g. hGetAll returns a Map under RESP3). Pin RESP2 to
+      // preserve the v4/v5 wire behaviour this connector's encode/decode and
+      // hash handling assume. Callers can opt into RESP3 via `config.client.RESP`.
+      this.client = createClient({ RESP: 2, ...config.client }) as RedisClientType;
       this.ownsClient = true;
     }
     this.prefix = config.prefix ?? 'nm:';
@@ -499,15 +503,15 @@ export class RedisConnector<S extends DatabaseSchema<any> | undefined = undefine
 
   async dropTable(tableName: string): Promise<void> {
     await this.ensureConnected();
-    let cursor = 0;
+    let cursor = '0';
     do {
       const result = await this.client.scan(cursor, {
         MATCH: this.tablePattern(tableName),
         COUNT: 100,
       });
-      cursor = Number(result.cursor);
+      cursor = String(result.cursor);
       if (result.keys.length > 0) await this.client.del(result.keys);
-    } while (cursor !== 0);
+    } while (cursor !== '0');
   }
 
   async alterTable(spec: AlterTableSpec): Promise<void> {
@@ -542,29 +546,29 @@ export class RedisConnector<S extends DatabaseSchema<any> | undefined = undefine
 
   private async removeFieldFromAllRows(tableName: string, field: string): Promise<void> {
     await this.ensureConnected();
-    let cursor = 0;
+    let cursor = '0';
     do {
       const result = await this.client.scan(cursor, {
         MATCH: this.tablePattern(tableName),
         COUNT: 100,
       });
-      cursor = Number(result.cursor);
+      cursor = String(result.cursor);
       for (const key of result.keys) {
         if (key.endsWith(':meta') || key.endsWith(':nextId') || key.endsWith(':ids')) continue;
         await this.client.hDel(key, field);
       }
-    } while (cursor !== 0);
+    } while (cursor !== '0');
   }
 
   private async renameFieldInAllRows(tableName: string, from: string, to: string): Promise<void> {
     await this.ensureConnected();
-    let cursor = 0;
+    let cursor = '0';
     do {
       const result = await this.client.scan(cursor, {
         MATCH: this.tablePattern(tableName),
         COUNT: 100,
       });
-      cursor = Number(result.cursor);
+      cursor = String(result.cursor);
       for (const key of result.keys) {
         if (key.endsWith(':meta') || key.endsWith(':nextId') || key.endsWith(':ids')) continue;
         const value = await this.client.hGet(key, from);
@@ -572,23 +576,23 @@ export class RedisConnector<S extends DatabaseSchema<any> | undefined = undefine
         await this.client.hSet(key, to, value);
         await this.client.hDel(key, from);
       }
-    } while (cursor !== 0);
+    } while (cursor !== '0');
   }
 
   private async listTables(): Promise<string[]> {
-    let cursor = 0;
+    let cursor = '0';
     const tables = new Set<string>();
     do {
       const result = await this.client.scan(cursor, {
         MATCH: `${this.prefix}*:meta`,
         COUNT: 100,
       });
-      cursor = Number(result.cursor);
+      cursor = String(result.cursor);
       for (const key of result.keys) {
         const name = key.slice(this.prefix.length, -':meta'.length);
         tables.add(name);
       }
-    } while (cursor !== 0);
+    } while (cursor !== '0');
     return [...tables];
   }
 
