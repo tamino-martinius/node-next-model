@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.2.0
+
 ### Changed
 
 - Bumped dev deps: `vitest` / `@vitest/coverage-v8` 4.1.6 → 4.1.9, `@types/node` 25.9.0 → 25.9.3.

@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.2.0
+
 ### Changed
 
 - Upgraded the bundled `redis` (node-redis) client **4 → 6**, inherited from `@next-model/redis-connector` (same `RESP: 2` pin and string-cursor SCAN — return types unchanged). Callers who pass their own client via `config.redis` should supply a node-redis v6 client.
