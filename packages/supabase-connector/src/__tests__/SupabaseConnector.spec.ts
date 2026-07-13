@@ -233,5 +233,67 @@ for (const harness of harnesses) {
       expect(rows[0].name).toBe('renamed');
       expect(rows[0].note).toBe('keep');
     });
+
+    it('handles a multi-column conflict target, returning both rows in input order', async () => {
+      await h.provision('CREATE TABLE pairs (a TEXT, b TEXT, label TEXT, PRIMARY KEY (a, b))');
+      await h.provision("INSERT INTO pairs (a, b, label) VALUES ('x', 'y', 'orig')");
+      const rows = await h.connector.upsert({
+        tableName: 'pairs',
+        keys: {},
+        rows: [
+          { a: 'x', b: 'y', label: 'updated' },
+          { a: 'x', b: 'z', label: 'new' },
+        ],
+        conflictTarget: ['a', 'b'],
+      });
+      expect(rows.map((r) => [r.a, r.b, r.label])).toEqual([
+        ['x', 'y', 'updated'],
+        ['x', 'z', 'new'],
+      ]);
+    });
+
+    it('matches an existing row even when the conflict value is submitted with a different type (regression)', async () => {
+      await h.provision('CREATE TABLE nums (id INTEGER PRIMARY KEY, name TEXT)');
+      await h.provision("INSERT INTO nums (id, name) VALUES (5, 'old')");
+      const rows = await h.connector.upsert({
+        tableName: 'nums',
+        keys: {},
+        // `id` submitted as a STRING while the DB column/PK is an INTEGER —
+        // the row must still be recognized as a conflict and updated in place,
+        // not silently dropped from the returned array.
+        rows: [{ id: '5', name: 'new' }],
+        conflictTarget: ['id'],
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe('new');
+    });
+  });
+
+  describe(`SupabaseConnector $or multi-key filter — ${harness.name}`, () => {
+    let h: Awaited<ReturnType<typeof harness.makeConnector>>;
+    beforeEach(async () => {
+      h = await harness.makeConnector();
+      await h.provision(
+        'CREATE TABLE critters (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, age INTEGER)',
+      );
+      // Two rows share the name 'ada' at different ages, so a naive parser
+      // that shatters the `and(...)` group emitted for the first $or branch
+      // would incorrectly match the age-99 row too.
+      await h.provision(
+        "INSERT INTO critters (name, age) VALUES ('ada', 3), ('ada', 99), ('cy', 5)",
+      );
+    });
+    afterEach(() => h.teardown());
+
+    it('parses a multi-key $or branch (and(...)) alongside a single-key branch', async () => {
+      const rows = await h.connector.query({
+        tableName: 'critters',
+        filter: { $or: [{ name: 'ada', age: 3 }, { name: 'cy' }] },
+      });
+      expect(rows.map((r) => [r.name, r.age]).sort()).toEqual([
+        ['ada', 3],
+        ['cy', 5],
+      ]);
+    });
   });
 }

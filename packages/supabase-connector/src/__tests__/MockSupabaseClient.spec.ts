@@ -117,6 +117,32 @@ describe('MockSupabaseClient', () => {
     expect(data).toEqual([{ id: 3, name: 'cy', age: 5 }]);
   });
 
+  it("or('and(...),...') parses a nested and(...) group alongside a flat condition", async () => {
+    await client.from('cats').insert([
+      { name: 'ada', age: 3 },
+      // Fails BOTH branches standalone: name matches but age !== 3, and
+      // age is not > 6 either. A parser that shatters `and(name.eq.ada,
+      // age.eq.3)` into separate `name.eq.ada` / `age.eq.3` OR-branches
+      // would incorrectly match this row via the bare `name.eq.ada` half.
+      { name: 'ada', age: 4 },
+      { name: 'bo', age: 7 },
+      { name: 'cy', age: 5 },
+    ]);
+    const { error, data } = await client
+      .from('cats')
+      .select('*')
+      .or('and(name.eq.ada,age.eq.3),age.gt.6')
+      .order('name');
+    expect(error).toBeNull();
+    // Matches: ada/age=3 (the and() group) and bo/age=7 (age.gt.6).
+    // Must NOT match ada/age=4, proving and(...) isn't shattered into
+    // independent OR branches by a naive comma split.
+    expect(data).toEqual([
+      { id: 1, name: 'ada', age: 3 },
+      { id: 3, name: 'bo', age: 7 },
+    ]);
+  });
+
   it("not('col', 'is', null) returns only rows with a non-null value", async () => {
     await client.from('cats').insert([
       { name: 'ada', age: 3 },

@@ -137,7 +137,9 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
   async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
     if (spec.rows.length === 0) return [];
     const conflict = spec.conflictTarget;
-    const tupleKey = (row: Dict<any>) => conflict.map((c) => JSON.stringify(row[c])).join('|');
+    // `String(...)` (not `JSON.stringify`) so `'5'` and `5` land on the same key —
+    // matching how Postgres itself coerces conflict-column values when comparing.
+    const tupleKey = (row: Dict<any>) => conflict.map((c) => String(row[c])).join('|');
 
     const cols = new Set<string>();
     for (const row of spec.rows) for (const k of Object.keys(row)) cols.add(k);
@@ -145,35 +147,58 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
 
     const existing = await this.fetchByConflict(spec.tableName, conflict, spec.rows);
-    const byTuple = new Map<string, Dict<any>>();
-    for (const row of existing) byTuple.set(tupleKey(row), row);
+    const existingByTuple = new Map<string, Dict<any>>();
+    for (const row of existing) existingByTuple.set(tupleKey(row), row);
 
+    // Results are assembled by input INDEX (not by re-deriving a tuple key from
+    // the write payload), so a row that was in fact written can never fail to
+    // be found in the returned array.
+    const results: (Dict<any> | undefined)[] = new Array(spec.rows.length);
     const writeRows: Dict<any>[] = [];
-    for (const row of spec.rows) {
-      const tk = tupleKey(row);
-      const ex = byTuple.get(tk);
-      if (ex && ignore) continue; // skip write; existing row is returned as-is
+    const writeIndex: number[] = [];
+    spec.rows.forEach((row, i) => {
+      const ex = existingByTuple.get(tupleKey(row));
+      if (ex && ignore) {
+        results[i] = ex; // skip write; existing row is returned as-is
+        return;
+      }
+      let writeRow: Dict<any>;
       if (ex) {
-        const merged: Dict<any> = { ...ex };
-        for (const c of updateColumns) merged[c] = row[c];
-        for (const c of conflict) merged[c] = row[c];
-        writeRows.push(merged);
+        // Merge into an existing row: send ONLY the conflict columns + the
+        // allowed update columns present on the input row. Never spread the
+        // fetched `ex` row (which carries the primary key and every other
+        // untouched column) — PostgREST's `merge-duplicates` resolution
+        // already leaves columns absent from the payload untouched, so
+        // re-sending `ex` would clobber any concurrent write made to a
+        // column between our fetch and this upsert.
+        writeRow = {};
+        for (const c of conflict) writeRow[c] = row[c];
+        for (const c of updateColumns) if (c in row) writeRow[c] = row[c];
       } else {
-        writeRows.push(row);
+        // Brand-new row: insert exactly what the caller provided.
+        // `updateColumns` only governs what changes on conflict — see
+        // `UpsertSpec.updateColumns` — it never restricts what gets inserted.
+        writeRow = row;
+      }
+      writeIndex.push(i);
+      writeRows.push(writeRow);
+    });
+
+    if (writeRows.length > 0) {
+      const written = this.unwrap(
+        await this.client
+          .from(spec.tableName)
+          .upsert(writeRows, { onConflict: conflict.join(','), ignoreDuplicates: false })
+          .select(),
+      );
+      const writtenByTuple = new Map<string, Dict<any>>();
+      for (const row of written) writtenByTuple.set(tupleKey(row), row);
+      for (let k = 0; k < writeIndex.length; k++) {
+        const i = writeIndex[k];
+        results[i] = writtenByTuple.get(tupleKey(writeRows[k])) ?? writeRows[k];
       }
     }
 
-    if (writeRows.length > 0) {
-      const builder = this.client
-        .from(spec.tableName)
-        .upsert(writeRows, { onConflict: conflict.join(','), ignoreDuplicates: false })
-        .select();
-      const written = this.unwrap(await builder);
-      for (const row of written) byTuple.set(tupleKey(row), row);
-    }
-
-    return spec.rows
-      .map((row) => byTuple.get(tupleKey(row)))
-      .filter((row): row is Dict<any> => row !== undefined);
+    return results.filter((row): row is Dict<any> => row !== undefined);
   }
 }

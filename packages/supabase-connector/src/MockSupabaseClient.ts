@@ -21,6 +21,39 @@ function parseInValues(value: unknown): unknown[] {
   return [value];
 }
 
+/** PostgREST condition operator → SQL operator, shared by the `or()` parser. */
+const OR_CONDITION_OPS: Dict<string> = {
+  eq: '=',
+  neq: '!=',
+  gt: '>',
+  gte: '>=',
+  lt: '<',
+  lte: '<=',
+  like: 'LIKE',
+};
+
+/**
+ * Split `input` on top-level occurrences of `separator` only — commas nested
+ * inside `(...)` (e.g. the body of an `and(...)` group) do not split.
+ */
+function splitTopLevel(input: string, separator: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of input) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === separator && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
 class MockQueryBuilder implements PostgrestBuilderLike {
   private mode: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select';
   private columns = '*';
@@ -132,22 +165,21 @@ class MockQueryBuilder implements PostgrestBuilderLike {
     const params: unknown[] = [];
     const parts = this.ops.map((op) => {
       if (op.op === 'OR') {
-        const alts = String(op.value)
-          .split(',')
-          .map((raw) => {
-            const [col, o, val] = raw.split('.');
-            const map: Dict<string> = {
-              eq: '=',
-              neq: '!=',
-              gt: '>',
-              gte: '>=',
-              lt: '<',
-              lte: '<=',
-              like: 'LIKE',
-            };
-            params.push(o === 'like' ? val.replace(/\*/g, '%') : val);
-            return `"${col}" ${map[o] ?? '='} ?`;
-          });
+        const parseCondition = (raw: string) => {
+          const [col, o, val] = raw.split('.');
+          params.push(o === 'like' ? val.replace(/\*/g, '%') : val);
+          return `"${col}" ${OR_CONDITION_OPS[o] ?? '='} ?`;
+        };
+        // Split on TOP-LEVEL commas only — commas inside an `and(...)` group
+        // must not shatter the group (PostgREST's `or(and(...),...)` syntax).
+        const alts = splitTopLevel(String(op.value), ',').map((part) => {
+          const andMatch = part.match(/^and\((.*)\)$/);
+          if (andMatch) {
+            const inner = splitTopLevel(andMatch[1], ',').map(parseCondition);
+            return `(${inner.join(' AND ')})`;
+          }
+          return parseCondition(part);
+        });
         return `(${alts.join(' OR ')})`;
       }
       if (op.op === 'not') {
