@@ -58,7 +58,9 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
       this.client = createClient(url, key, options) as unknown as SupabaseClientLike;
     }
     this.schema = extras?.schema;
-    this.pageSize = extras?.pageSize ?? 1000;
+    // Clamp to ≥1: a non-positive page size would make fetchPaged request an
+    // empty range that never advances the offset (infinite loop).
+    this.pageSize = Math.max(1, Math.floor(extras?.pageSize ?? 1000));
   }
 
   /** Resolve the primary-key column for `tableName` from the attached schema. */
