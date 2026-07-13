@@ -39,3 +39,9 @@ export interface SupabaseCredentials {
   key: string;
   options?: Record<string, unknown>;
 }
+
+/** Config union accepted by `SupabaseConnector` constructor. */
+export type SupabaseConfig =
+  | SupabaseClientLike
+  | SupabaseCredentials
+  | { client: SupabaseClientLike };
