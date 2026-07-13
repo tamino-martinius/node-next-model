@@ -1,6 +1,6 @@
 {
   "name": "@next-model/migrations",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Schema migrations for next-model. Zero runtime dependencies beyond @next-model/core.",
   "keywords": [
     "next-model",

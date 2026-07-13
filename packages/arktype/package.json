@@ -1,6 +1,6 @@
 {
   "name": "@next-model/arktype",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Bridge between arktype types and next-model — derive init(), validators, and schema-DSL columns from a single object type.",
   "keywords": [
     "next-model",
