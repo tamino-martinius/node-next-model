@@ -2,6 +2,15 @@
   "name": "@next-model/react",
   "version": "1.2.0",
   "description": "React reactivity bindings for @next-model/core — Provider-scoped identity map, reactive instance shells, watch + invalidation hooks.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "react",
+    "hooks",
+    "reactive",
+    "state",
+    "typescript"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

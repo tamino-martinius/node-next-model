@@ -2,6 +2,15 @@
   "name": "@next-model/local-storage-connector",
   "version": "1.2.0",
   "description": "Browser localStorage connector for next-model. Inherits from MemoryConnector.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "localstorage",
+    "browser",
+    "client",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

@@ -2,6 +2,15 @@
   "name": "@next-model/redis-connector",
   "version": "1.2.0",
   "description": "Redis connector for next-model. Stores rows as HASH per id with a ZSET of ids per table.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "redis",
+    "key-value",
+    "cache",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

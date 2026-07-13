@@ -2,6 +2,15 @@
   "name": "@next-model/sqlite-connector",
   "version": "1.2.0",
   "description": "Native SQLite connector for next-model. Uses better-sqlite3 directly — no Knex.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "sqlite",
+    "better-sqlite3",
+    "sql",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",
