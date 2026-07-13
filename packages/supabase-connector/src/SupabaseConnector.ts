@@ -185,6 +185,14 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     });
 
     if (writeRows.length > 0) {
+      // Known limitation: PostgREST rejects a bulk upsert whose objects have
+      // differing key sets (PGRST102). This can happen when a narrow
+      // `updateColumns` subset makes merge-branch payloads (conflict +
+      // updateColumns) narrower than brand-new rows (full column set) in the
+      // same batch. The common case — default `updateColumns` with
+      // homogeneously-shaped rows — is unaffected. The SQLite mock processes
+      // rows individually so it can't surface this; the opt-in live harness is
+      // where mixed-shape batches would be exercised.
       const written = this.unwrap(
         await this.client
           .from(spec.tableName)
