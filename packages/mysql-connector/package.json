@@ -2,6 +2,15 @@
   "name": "@next-model/mysql-connector",
   "version": "1.2.0",
   "description": "Native MySQL connector for next-model. Uses mysql2 directly — no Knex.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "mysql",
+    "mysql2",
+    "sql",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

@@ -2,6 +2,14 @@
   "name": "@next-model/zod",
   "version": "1.2.0",
   "description": "Bridge between zod schemas and next-model — derive init(), validators, and schema-DSL columns from a single zod object schema.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "zod",
+    "validation",
+    "schema",
+    "typescript"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

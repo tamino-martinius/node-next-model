@@ -1,7 +1,19 @@
 {
   "name": "@next-model/knex-connector",
   "version": "1.2.0",
-  "description": "SQL connector for next-model package using Knex.",
+  "description": "SQL connector for next-model, backed by Knex 3 (SQLite, Postgres, MySQL, MariaDB, Oracle, MSSQL).",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "knex",
+    "sql",
+    "sqlite",
+    "postgres",
+    "mysql",
+    "mariadb",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

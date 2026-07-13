@@ -2,6 +2,16 @@
   "name": "@next-model/mongodb-connector",
   "version": "1.2.0",
   "description": "Native MongoDB connector for next-model. Uses the official mongodb driver directly.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "mongodb",
+    "mongo",
+    "nosql",
+    "document",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

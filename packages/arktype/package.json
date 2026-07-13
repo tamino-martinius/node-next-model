@@ -2,6 +2,14 @@
   "name": "@next-model/arktype",
   "version": "1.2.0",
   "description": "Bridge between arktype types and next-model — derive init(), validators, and schema-DSL columns from a single object type.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "arktype",
+    "validation",
+    "schema",
+    "typescript"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",

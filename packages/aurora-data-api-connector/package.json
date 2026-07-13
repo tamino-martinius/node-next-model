@@ -1,7 +1,19 @@
 {
   "name": "@next-model/aurora-data-api-connector",
   "version": "1.2.0",
-  "description": "Connector for AWS Aurora Data API.",
+  "description": "next-model connector for the AWS RDS Data API — the HTTP query interface for Aurora Serverless v1 (PostgreSQL or MySQL). Connection-less, ideal for AWS Lambda.",
+  "keywords": [
+    "next-model",
+    "orm",
+    "connector",
+    "aws",
+    "aurora",
+    "rds",
+    "data-api",
+    "serverless",
+    "lambda",
+    "database"
+  ],
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",
   "type": "module",
