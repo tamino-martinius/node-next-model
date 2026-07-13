@@ -1,4 +1,4 @@
-import { defineSchema } from '@next-model/core';
+import { defineSchema, UnsupportedOperationError } from '@next-model/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyFilters } from '../filters.js';
 import { MockSupabaseClient } from '../MockSupabaseClient.js';
@@ -315,6 +315,24 @@ for (const harness of harnesses) {
         ['ada', 3],
         ['cy', 5],
       ]);
+    });
+  });
+
+  describe(`SupabaseConnector unsupported ops — ${harness.name}`, () => {
+    let h: Awaited<ReturnType<typeof harness.makeConnector>>;
+    beforeEach(async () => {
+      h = await harness.makeConnector();
+    });
+    afterEach(() => h.teardown());
+
+    it('throws UnsupportedOperationError for DDL, execute, transaction', async () => {
+      const c = h.connector;
+      await expect(c.execute('SELECT 1', [])).rejects.toThrow(UnsupportedOperationError);
+      await expect(c.transaction(async () => 1)).rejects.toThrow(UnsupportedOperationError);
+      await expect(c.hasTable('cats')).rejects.toThrow(UnsupportedOperationError);
+      await expect(c.createTable('cats', () => {})).rejects.toThrow(UnsupportedOperationError);
+      await expect(c.dropTable('cats')).rejects.toThrow(UnsupportedOperationError);
+      await expect(c.ensureSchema!()).rejects.toThrow(UnsupportedOperationError);
     });
   });
 }

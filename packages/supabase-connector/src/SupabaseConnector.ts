@@ -1,5 +1,7 @@
 import {
   type AggregateKind,
+  type AlterTableSpec,
+  type BaseType,
   baseQueryScoped,
   type Connector,
   type DatabaseSchema,
@@ -11,6 +13,8 @@ import {
   type QueryScopedSpec,
   type Scope,
   SortDirection,
+  type TableBuilder,
+  UnsupportedOperationError,
   type UpsertSpec,
 } from '@next-model/core';
 import { createClient } from '@supabase/supabase-js';
@@ -255,5 +259,34 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
 
   queryScoped(spec: QueryScopedSpec): Promise<unknown> {
     return baseQueryScoped(this, spec);
+  }
+
+  private unsupported(op: string): never {
+    throw new UnsupportedOperationError(
+      `SupabaseConnector.${op} is unavailable over PostgREST (@supabase/supabase-js). ` +
+        `Manage schema with Supabase migrations, and run raw SQL / transactions server-side.`,
+    );
+  }
+
+  async execute(_query: string, _bindings: BaseType | BaseType[]): Promise<any[]> {
+    this.unsupported('execute');
+  }
+  async transaction<T>(_fn: () => Promise<T>): Promise<T> {
+    this.unsupported('transaction');
+  }
+  async hasTable(_tableName: string): Promise<boolean> {
+    this.unsupported('hasTable');
+  }
+  async createTable(_tableName: string, _blueprint: (t: TableBuilder) => void): Promise<void> {
+    this.unsupported('createTable');
+  }
+  async dropTable(_tableName: string): Promise<void> {
+    this.unsupported('dropTable');
+  }
+  async alterTable(_spec: AlterTableSpec): Promise<void> {
+    this.unsupported('alterTable');
+  }
+  async ensureSchema(): Promise<{ created: string[]; existing: string[] }> {
+    this.unsupported('ensureSchema');
   }
 }
