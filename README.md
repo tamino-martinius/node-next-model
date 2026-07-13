@@ -37,7 +37,7 @@ const ada = await User.create({ firstName: 'Ada', lastName: 'Lovelace', age: 36 
 ada.name; // 'Ada Lovelace'
 ```
 
-Models are TypeScript classes — add getters, methods, and computed properties just like normal. Swap `SqliteConnector` for any other connector ([Postgres](./packages/postgres-connector), [MySQL](./packages/mysql-connector), [MongoDB](./packages/mongodb-connector), [Redis](./packages/redis-connector), `MemoryConnector` for tests, …) and every Model feature keeps working through the same `Connector` interface.
+Models are TypeScript classes — add getters, methods, and computed properties just like normal. Swap `SqliteConnector` for any other connector ([Postgres](./packages/postgres-connector), [MySQL](./packages/mysql-connector), [MongoDB](./packages/mongodb-connector), [Redis](./packages/redis-connector), [Supabase](./packages/supabase-connector), `MemoryConnector` for tests, …) and every Model feature keeps working through the same `Connector` interface.
 
 ### Materialise the schema with `ensureSchema()`
 
@@ -121,6 +121,7 @@ This repository is a pnpm workspace; each published package lives under `package
 | [`@next-model/valkey-connector`](./packages/valkey-connector) | Valkey connector. Extends `redis-connector` (Valkey is wire-compatible with Redis). |
 | [`@next-model/mongodb-connector`](./packages/mongodb-connector) | Native MongoDB connector using the official `mongodb` driver. |
 | [`@next-model/aurora-data-api-connector`](./packages/aurora-data-api-connector) | Connector for AWS Aurora Serverless v1 (RDS Data API). |
+| [`@next-model/supabase-connector`](./packages/supabase-connector) | Supabase connector via `@supabase/supabase-js` (PostgREST). Server/browser differ only by the client/key you pass. |
 | [`@next-model/local-storage-connector`](./packages/local-storage-connector) | Browser `localStorage` connector. Inherits from `MemoryConnector`. |
 | [`@next-model/migrations`](./packages/migrations) | Connector-agnostic schema migration runner with optional dependency graph. |
 | [`@next-model/express-rest-api`](./packages/express-rest-api) | Express 5 REST adapter — eight default CRUD actions with per-action auth + response-mapping hooks. |
@@ -148,6 +149,7 @@ End-to-end runnable projects live under [`demos/`](./demos), grouped by runtime.
 | [`node/server/mongodb`](./demos/node/server/mongodb) | `@next-model/mongodb-connector` | `docker compose up -d` (mongo:7) |
 | [`node/server/knex`](./demos/node/server/knex) | `@next-model/knex-connector` | sqlite: none; `docker compose --profile pg|mysql up -d` |
 | [`node/server/aurora-data-api`](./demos/node/server/aurora-data-api) | `@next-model/aurora-data-api-connector` via `MockDataApiClient` | none |
+| [`node/server/supabase`](./demos/node/server/supabase) | `@next-model/supabase-connector` via `MockSupabaseClient` | none |
 | [`node/server/express-rest-api`](./demos/node/server/express-rest-api) | Express 5 + `@next-model/express-rest-api` + `@next-model/sqlite-connector` | none |
 | [`node/server/graphql-api`](./demos/node/server/graphql-api) | `graphql-http` + `@next-model/graphql-api` + `@next-model/sqlite-connector` | none |
 | [`react/todo`](./demos/react/todo) | React 19 + Vite + `@next-model/local-storage-connector` | none (browser) |
@@ -248,7 +250,7 @@ npx skills add tamino-martinius/node-next-model -a claude-code -y
 
 Available skills (`next-model` is the index; the rest map 1:1 to the packages above):
 
-`next-model` · `next-model-core` · `next-model-knex-connector` · `next-model-postgres-connector` · `next-model-sqlite-connector` · `next-model-mysql-connector` · `next-model-mariadb-connector` · `next-model-redis-connector` · `next-model-valkey-connector` · `next-model-mongodb-connector` · `next-model-aurora-data-api-connector` · `next-model-local-storage-connector` · `next-model-migrations` · `next-model-migrations-generator` · `next-model-express-rest-api` · `next-model-graphql-api` · `next-model-nextjs-api` · `next-model-zod` · `next-model-typebox` · `next-model-arktype` · `next-model-react`
+`next-model` · `next-model-core` · `next-model-knex-connector` · `next-model-postgres-connector` · `next-model-sqlite-connector` · `next-model-mysql-connector` · `next-model-mariadb-connector` · `next-model-redis-connector` · `next-model-valkey-connector` · `next-model-mongodb-connector` · `next-model-aurora-data-api-connector` · `next-model-supabase-connector` · `next-model-local-storage-connector` · `next-model-migrations` · `next-model-migrations-generator` · `next-model-express-rest-api` · `next-model-graphql-api` · `next-model-nextjs-api` · `next-model-zod` · `next-model-typebox` · `next-model-arktype` · `next-model-react`
 
 ## Supported runtime
 
