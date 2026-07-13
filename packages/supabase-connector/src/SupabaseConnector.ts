@@ -7,6 +7,7 @@ import {
   PersistenceError,
   type Scope,
   SortDirection,
+  type UpsertSpec,
 } from '@next-model/core';
 import { createClient } from '@supabase/supabase-js';
 import { applyFilters } from './filters.js';
@@ -108,5 +109,71 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     const builder = this.client.from(scope.tableName).delete();
     applyFilters(builder, scope.filter);
     return this.unwrap(await builder.select());
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    if (rows.length === 0) return [];
+    const builder = this.client.from(tableName).select('*');
+    if (conflictTarget.length === 1) {
+      const col = conflictTarget[0];
+      builder.in(
+        col,
+        rows.map((r) => r[col]),
+      );
+    } else {
+      // Multi-column conflict: OR each row's AND-tuple via PostgREST or(and(...)).
+      const frag = rows
+        .map((r) => `and(${conflictTarget.map((c) => `${c}.eq.${r[c]}`).join(',')})`)
+        .join(',');
+      builder.or(frag);
+    }
+    return this.unwrap(await builder);
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const conflict = spec.conflictTarget;
+    const tupleKey = (row: Dict<any>) => conflict.map((c) => JSON.stringify(row[c])).join('|');
+
+    const cols = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) cols.add(k);
+    const updateColumns = spec.updateColumns ?? [...cols].filter((c) => !conflict.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const existing = await this.fetchByConflict(spec.tableName, conflict, spec.rows);
+    const byTuple = new Map<string, Dict<any>>();
+    for (const row of existing) byTuple.set(tupleKey(row), row);
+
+    const writeRows: Dict<any>[] = [];
+    for (const row of spec.rows) {
+      const tk = tupleKey(row);
+      const ex = byTuple.get(tk);
+      if (ex && ignore) continue; // skip write; existing row is returned as-is
+      if (ex) {
+        const merged: Dict<any> = { ...ex };
+        for (const c of updateColumns) merged[c] = row[c];
+        for (const c of conflict) merged[c] = row[c];
+        writeRows.push(merged);
+      } else {
+        writeRows.push(row);
+      }
+    }
+
+    if (writeRows.length > 0) {
+      const builder = this.client
+        .from(spec.tableName)
+        .upsert(writeRows, { onConflict: conflict.join(','), ignoreDuplicates: false })
+        .select();
+      const written = this.unwrap(await builder);
+      for (const row of written) byTuple.set(tupleKey(row), row);
+    }
+
+    return spec.rows
+      .map((row) => byTuple.get(tupleKey(row)))
+      .filter((row): row is Dict<any> => row !== undefined);
   }
 }

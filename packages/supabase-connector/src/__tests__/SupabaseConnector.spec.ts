@@ -181,4 +181,57 @@ for (const harness of harnesses) {
       expect(await h.connector.count({ tableName: 'cats' })).toBe(2);
     });
   });
+
+  describe(`SupabaseConnector upsert — ${harness.name}`, () => {
+    let h: Awaited<ReturnType<typeof harness.makeConnector>>;
+    beforeEach(async () => {
+      h = await harness.makeConnector();
+      await h.provision(
+        'CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, name TEXT)',
+      );
+      await h.connector.batchInsert('items', {}, [{ slug: 'a', name: 'first' }]);
+    });
+    afterEach(() => h.teardown());
+
+    it('inserts new and updates conflicting, in input order', async () => {
+      const rows = await h.connector.upsert({
+        tableName: 'items',
+        keys: {},
+        rows: [
+          { slug: 'a', name: 'updated' },
+          { slug: 'b', name: 'new' },
+        ],
+        conflictTarget: ['slug'],
+      });
+      expect(rows.map((r) => [r.slug, r.name])).toEqual([
+        ['a', 'updated'],
+        ['b', 'new'],
+      ]);
+    });
+
+    it('ignoreOnly keeps existing values and returns them', async () => {
+      const rows = await h.connector.upsert({
+        tableName: 'items',
+        keys: {},
+        rows: [{ slug: 'a', name: 'ignored' }],
+        conflictTarget: ['slug'],
+        ignoreOnly: true,
+      });
+      expect(rows[0].name).toBe('first');
+    });
+
+    it('updateColumns restricts which columns change on conflict', async () => {
+      await h.provision('ALTER TABLE items ADD COLUMN note TEXT');
+      await h.connector.updateAll({ tableName: 'items', filter: { slug: 'a' } }, { note: 'keep' });
+      const rows = await h.connector.upsert({
+        tableName: 'items',
+        keys: {},
+        rows: [{ slug: 'a', name: 'renamed', note: 'DROP' }],
+        conflictTarget: ['slug'],
+        updateColumns: ['name'],
+      });
+      expect(rows[0].name).toBe('renamed');
+      expect(rows[0].note).toBe('keep');
+    });
+  });
 }
