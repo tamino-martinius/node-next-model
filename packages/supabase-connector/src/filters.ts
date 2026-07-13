@@ -23,7 +23,7 @@ function toOrFragment(filter: Filter<any>): string {
     }
     parts.push(`${key}.eq.${value}`);
   }
-  return parts.join(',');
+  return parts.length > 1 ? `and(${parts.join(',')})` : parts[0];
 }
 
 export function applyFilters<B extends PostgrestBuilderLike>(
@@ -40,8 +40,29 @@ export function applyFilters<B extends PostgrestBuilderLike>(
         builder.or((value as Filter<any>[]).map(toOrFragment).join(','));
         break;
       case '$not': {
-        // Negate a single-key equality/comparison. PostgREST `.not(col, op, val)`.
-        for (const [col, v] of Object.entries(value as object)) {
+        // Negate a nested sub-filter. PostgREST `.not(col, op, val)`.
+        for (const [col, v] of Object.entries(value as Filter<any>)) {
+          if (col in COMPARISON) {
+            for (const [innerCol, innerV] of Object.entries(v as object)) {
+              builder.not(innerCol, COMPARISON[col], innerV);
+            }
+            continue;
+          }
+          if (col === '$in') {
+            for (const [innerCol, arr] of Object.entries(v as object)) {
+              builder.not(innerCol, 'in', `(${(arr as unknown[]).join(',')})`);
+            }
+            continue;
+          }
+          if (col === '$null') {
+            builder.not(v as string, 'is', null);
+            continue;
+          }
+          if (col.startsWith('$')) {
+            throw new FilterError(
+              `SupabaseConnector cannot translate $not over this operator: ${col}`,
+            );
+          }
           builder.not(col, 'eq', v);
         }
         break;
@@ -62,14 +83,14 @@ export function applyFilters<B extends PostgrestBuilderLike>(
         break;
       case '$between':
         for (const [col, range] of Object.entries(value as object)) {
-          const [min, max] = range as [unknown, unknown];
-          builder.gte(col, min).lte(col, max);
+          const { from, to } = range as { from: unknown; to: unknown };
+          builder.gte(col, from).lte(col, to);
         }
         break;
       case '$notBetween':
         for (const [col, range] of Object.entries(value as object)) {
-          const [min, max] = range as [unknown, unknown];
-          builder.or(`${col}.lt.${min},${col}.gt.${max}`);
+          const { from, to } = range as { from: unknown; to: unknown };
+          builder.or(`${col}.lt.${from},${col}.gt.${to}`);
         }
         break;
       case '$gt':

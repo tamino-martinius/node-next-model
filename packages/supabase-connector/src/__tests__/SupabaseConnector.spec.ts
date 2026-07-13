@@ -62,7 +62,7 @@ describe('applyFilters', () => {
     applyFilters(r2.b, { $null: 'name' });
     expect(r2.calls).toContainEqual(['is', ['name', null]]);
     const r3 = recorder();
-    applyFilters(r3.b, { $between: { age: [1, 9] } });
+    applyFilters(r3.b, { $between: { age: { from: 1, to: 9 } } });
     expect(r3.calls).toContainEqual(['gte', ['age', 1]]);
     expect(r3.calls).toContainEqual(['lte', ['age', 9]]);
     const r4 = recorder();
@@ -70,8 +70,54 @@ describe('applyFilters', () => {
     expect(r4.calls).toContainEqual(['or', ['name.eq.a,age.gt.3']]);
   });
 
+  it('maps $notBetween to an OR of lt/gt bounds', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $notBetween: { age: { from: 1, to: 9 } } });
+    expect(calls).toContainEqual(['or', ['age.lt.1,age.gt.9']]);
+  });
+
+  it('maps $not over a nested comparison operator', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $not: { $gt: { age: 5 } } });
+    expect(calls).toContainEqual(['not', ['age', 'gt', 5]]);
+  });
+
+  it('maps $not over plain equality', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $not: { name: 'ada' } });
+    expect(calls).toContainEqual(['not', ['name', 'eq', 'ada']]);
+  });
+
+  it('throws FilterError on $not over an unsupported operator', () => {
+    const { b } = recorder();
+    expect(() => applyFilters(b, { $not: { $or: [] } })).toThrow();
+  });
+
+  it('groups multi-condition $or branches with AND', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $or: [{ name: 'a', age: 5 }, { active: true }] });
+    expect(calls).toContainEqual(['or', ['and(name.eq.a,age.eq.5),active.eq.true']]);
+  });
+
+  it('maps $notIn / $notNull / $like', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $notIn: { age: [1, 2] } });
+    expect(calls).toContainEqual(['not', ['age', 'in', '(1,2)']]);
+    const r2 = recorder();
+    applyFilters(r2.b, { $notNull: 'name' });
+    expect(r2.calls).toContainEqual(['not', ['name', 'is', null]]);
+    const r3 = recorder();
+    applyFilters(r3.b, { $like: { name: 'a%' } });
+    expect(r3.calls).toContainEqual(['like', ['name', 'a%']]);
+  });
+
   it('throws FilterError on $raw', () => {
     const { b } = recorder();
     expect(() => applyFilters(b, { $raw: { $query: 'age > 1' } } as never)).toThrow();
+  });
+
+  it('throws FilterError on $async', () => {
+    const { b } = recorder();
+    expect(() => applyFilters(b, { $async: Promise.resolve({}) } as never)).toThrow();
   });
 });
