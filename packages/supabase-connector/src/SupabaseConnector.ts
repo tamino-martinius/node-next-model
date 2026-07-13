@@ -2,6 +2,7 @@ import {
   type Connector,
   type DatabaseSchema,
   type Dict,
+  type KeyType,
   normalizeOrderEntry,
   PersistenceError,
   type Scope,
@@ -84,5 +85,28 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     const cols = keys.length === 0 ? '*' : keys.join(',');
     const builder = this.applyScope(this.client.from(scope.tableName).select(cols), scope);
     return this.unwrap(await builder);
+  }
+
+  async batchInsert(
+    tableName: string,
+    _keys: Dict<KeyType>,
+    items: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    if (items.length === 0) return [];
+    const builder = this.client.from(tableName).insert(items).select();
+    return this.unwrap(await builder);
+  }
+
+  async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]> {
+    if (Object.keys(attrs).length === 0) return this.query(scope);
+    const builder = this.client.from(scope.tableName).update(attrs);
+    applyFilters(builder, scope.filter);
+    return this.unwrap(await builder.select());
+  }
+
+  async deleteAll(scope: Scope): Promise<Dict<any>[]> {
+    const builder = this.client.from(scope.tableName).delete();
+    applyFilters(builder, scope.filter);
+    return this.unwrap(await builder.select());
   }
 }

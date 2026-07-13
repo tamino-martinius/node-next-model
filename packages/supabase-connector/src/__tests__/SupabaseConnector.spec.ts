@@ -155,5 +155,30 @@ for (const harness of harnesses) {
       const rows = await h.connector.select({ tableName: 'cats', filter: { name: 'ada' } }, 'name');
       expect(rows).toEqual([{ name: 'ada' }]);
     });
+
+    it('batchInsert returns inserted rows; empty input returns []', async () => {
+      expect(await h.connector.batchInsert('cats', {}, [])).toEqual([]);
+      const rows = await h.connector.batchInsert('cats', {}, [{ name: 'di', age: 1 }]);
+      expect(rows).toEqual([{ id: 4, name: 'di', age: 1 }]);
+    });
+
+    it('updateAll updates matching rows and returns them', async () => {
+      const rows = await h.connector.updateAll(
+        { tableName: 'cats', filter: { name: 'ada' } },
+        { age: 4 },
+      );
+      expect(rows).toEqual([{ id: 1, name: 'ada', age: 4 }]);
+    });
+
+    it('updateAll with empty attrs returns the matched rows unchanged', async () => {
+      const rows = await h.connector.updateAll({ tableName: 'cats', filter: { name: 'bo' } }, {});
+      expect(rows).toEqual([{ id: 2, name: 'bo', age: 7 }]);
+    });
+
+    it('deleteAll deletes matching rows and returns them', async () => {
+      const rows = await h.connector.deleteAll({ tableName: 'cats', filter: { name: 'cy' } });
+      expect(rows).toEqual([{ id: 3, name: 'cy', age: 5 }]);
+      expect(await h.connector.count({ tableName: 'cats' })).toBe(2);
+    });
   });
 }
