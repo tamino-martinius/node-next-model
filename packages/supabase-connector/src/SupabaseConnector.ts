@@ -27,7 +27,6 @@ import type {
   SupabaseCredentials,
 } from './types.js';
 
-export { MockSupabaseClient } from './MockSupabaseClient.js';
 export type { SupabaseConfig } from './types.js';
 
 function isClientLike(value: unknown): value is SupabaseClientLike {
