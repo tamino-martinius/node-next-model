@@ -5,18 +5,29 @@ import type { PostgrestBuilderLike, PostgrestResult, SupabaseClientLike } from '
 type Op = { column: string; op: string; value: unknown; notOp?: string };
 
 /**
+ * Undo `pgrstValue`'s quoting (see `filters.ts`): if `raw` (already trimmed)
+ * is wrapped in double quotes, strip them and unescape `\"` → `"` and
+ * `\\` → `\`. Otherwise return it as-is.
+ */
+function unquotePgrstValue(raw: string): string {
+  const s = raw.trim();
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+    return s.slice(1, -1).replace(/\\(["\\])/g, '$1');
+  }
+  return s;
+}
+
+/**
  * Normalize the value passed to an `in`/`not(...,'in',...)` filter into an array.
  * Accepts a JS array as-is, or the PostgREST string form `'(a,b,c)'` (leading `(`
- * and trailing `)` stripped, comma-separated, each element trimmed).
+ * and trailing `)` stripped, split on top-level commas — a comma inside a
+ * double-quoted element does not split — each element unquoted).
  */
 function parseInValues(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
-    return value
-      .replace(/^\(/, '')
-      .replace(/\)$/, '')
-      .split(',')
-      .map((s) => s.trim());
+    const inner = value.replace(/^\(/, '').replace(/\)$/, '');
+    return splitTopLevel(inner, ',').map(unquotePgrstValue);
   }
   return [value];
 }
@@ -34,21 +45,33 @@ const OR_CONDITION_OPS: Dict<string> = {
 
 /**
  * Split `input` on top-level occurrences of `separator` only — commas nested
- * inside `(...)` (e.g. the body of an `and(...)` group) do not split.
+ * inside `(...)` (e.g. the body of an `and(...)` group) do not split, and
+ * neither do separators/parens found inside a `"..."` quoted value (the form
+ * `pgrstValue` — see `filters.ts` — produces for values containing reserved
+ * characters). A `\"` inside the quotes is an escaped quote, not a boundary.
  */
 function splitTopLevel(input: string, separator: string): string[] {
   const parts: string[] = [];
   let depth = 0;
+  let inQuotes = false;
   let current = '';
-  for (const ch of input) {
-    if (ch === '(') depth++;
-    else if (ch === ')') depth--;
-    if (ch === separator && depth === 0) {
-      parts.push(current);
-      current = '';
-    } else {
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '"' && input[i - 1] !== '\\') {
+      inQuotes = !inQuotes;
       current += ch;
+      continue;
     }
+    if (!inQuotes) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      if (ch === separator && depth === 0) {
+        parts.push(current);
+        current = '';
+        continue;
+      }
+    }
+    current += ch;
   }
   parts.push(current);
   return parts;
@@ -166,7 +189,14 @@ class MockQueryBuilder implements PostgrestBuilderLike {
     const parts = this.ops.map((op) => {
       if (op.op === 'OR') {
         const parseCondition = (raw: string) => {
-          const [col, o, val] = raw.split('.');
+          // Only the first two dots delimit `col` and `op` — the remainder
+          // is the value verbatim, since a quoted value (`pgrstValue`, see
+          // `filters.ts`) may itself contain dots/commas.
+          const firstDot = raw.indexOf('.');
+          const secondDot = raw.indexOf('.', firstDot + 1);
+          const col = raw.slice(0, firstDot);
+          const o = raw.slice(firstDot + 1, secondDot);
+          const val = unquotePgrstValue(raw.slice(secondDot + 1));
           params.push(o === 'like' ? val.replace(/\*/g, '%') : val);
           return `"${col}" ${OR_CONDITION_OPS[o] ?? '='} ?`;
         };

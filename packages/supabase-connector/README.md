@@ -46,6 +46,14 @@ const schema = defineSchema({
 const connector = new SupabaseConnector({ url, key }, { schema });
 ```
 
+### Matching a lowered project max-rows (`pageSize`)
+
+PostgREST caps any un-ranged (or over-ranged) read at the project's "max rows" setting (Supabase's default is 1000). `query`, `select`, `aggregate`, `deltaUpdate`, and `upsert`'s conflict lookup all page through results in chunks of `pageSize` (default `1000`) so a table with more rows than the cap is never silently truncated. If your project lowered `db-max-rows`, pass a matching (or smaller) `pageSize`:
+
+```ts
+const connector = new SupabaseConnector({ url, key }, { schema, pageSize: 500 });
+```
+
 ## Quick start
 
 ```ts
@@ -72,8 +80,8 @@ const ada = await User.create({ name: 'Ada' }); // tables are managed via Supaba
 
 | Capability | Behaviour |
 |---|---|
-| `query` / `select` / `count` | Native PostgREST `select` / `range` / `order` / `count: 'exact'`. |
-| Filter operators (`$eq`/`$gt`/`$gte`/`$lt`/`$lte`/`$in`/`$notIn`/`$null`/`$notNull`/`$like`/`$ilike`/`$between`, `$and`/`$or`/`$not`) | Native PostgREST filter operators (`.eq`, `.in`, `.or(...)`, etc.). |
+| `query` / `select` / `count` | Native PostgREST `select` / `range` / `order` / `count: 'exact'`. `query`/`select` transparently paginate past PostgREST's per-request max-rows cap — see **Known limitations**. |
+| Filter operators (`$gt`/`$gte`/`$lt`/`$lte`/`$in`/`$notIn`/`$null`/`$notNull`/`$between`/`$notBetween`/`$like`, `$and`/`$or`/`$not`) | Native PostgREST filter operators (`.eq`, `.in`, `.or(...)`, etc.). `$raw` throws `FilterError` (no PostgREST equivalent); `$async` must be resolved before it reaches the connector. |
 | `orderBy` / `limitBy` / `.skip()` | Native `.order()` / `.limit()` / `.range()`. |
 | `batchInsert` | Native `insert(...).select()`. |
 | `updateAll` / `deleteAll` | Native `update(...)` / `delete(...)` scoped by the same filter translation, `.select()` to return affected rows. |
@@ -112,6 +120,7 @@ Use it for unit tests and local demos; see [`demos/node/server/supabase`](../../
 - **`aggregate` (sum/min/max/avg) is computed client-side** — the connector fetches the matching column values and reduces in JS (Supabase disables PostgREST aggregate functions by default). Correct on any project, but can transfer large result sets. `count` is native/cheap.
 - **`deltaUpdate` (increment) is SELECT-then-UPDATE, not atomic** — concurrent increments can race; use a Postgres RPC for strict atomicity.
 - **`upsert` with a narrow `updateColumns` mixed with brand-new rows in one batch** can send heterogeneous-key JSON that PostgREST rejects (`PGRST102`). The common case (default `updateColumns`, homogeneously-shaped rows) is unaffected. Split such calls or upsert homogeneous batches.
+- **`updateAll` / `deleteAll` / `upsert` return the affected rows via PostgREST's representation, which is itself capped at the project's max-rows.** When more than max-rows are affected, the mutation still completes fully but the returned array is capped at max-rows (a DELETE's representation can't be paged after the fact). `query`/`select`/`aggregate`/`deltaUpdate` paginate to avoid this; set `pageSize` to match a lowered project max-rows.
 
 ## Testing matrix
 

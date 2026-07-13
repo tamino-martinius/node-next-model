@@ -8,6 +8,21 @@ const COMPARISON: Record<string, 'gt' | 'gte' | 'lt' | 'lte'> = {
   $lte: 'lte',
 };
 
+/**
+ * Quote a value for interpolation into a PostgREST filter-mini-syntax STRING
+ * (the `or=(...)`/`not.in.(...)` fragments built by hand below — NOT the
+ * builder methods like `.eq()`/`.gt()`, which pass values through the client
+ * library and never need this). Reserved characters (`,` `.` `:` `(` `)`
+ * whitespace, `"`, `\`) would otherwise be parsed as syntax by PostgREST, so
+ * any string containing one gets wrapped in double quotes with `"`/`\`
+ * escaped — mirroring PostgREST's own quoting rules for filter values.
+ */
+export function pgrstValue(v: unknown): string {
+  if (typeof v !== 'string') return String(v);
+  if (v === '' || /[,.:()"\s\\]/.test(v)) return `"${v.replace(/(["\\])/g, '\\$1')}"`;
+  return v;
+}
+
 /** PostgREST `or=(...)` mini-syntax value, e.g. `name.eq.ada,age.gt.3`. */
 function toOrFragment(filter: Filter<any>): string {
   const parts: string[] = [];
@@ -15,13 +30,13 @@ function toOrFragment(filter: Filter<any>): string {
     if (key.startsWith('$')) {
       if (key in COMPARISON) {
         for (const [col, v] of Object.entries(value as object)) {
-          parts.push(`${col}.${COMPARISON[key].replace('$', '')}.${v}`);
+          parts.push(`${col}.${COMPARISON[key].replace('$', '')}.${pgrstValue(v)}`);
         }
         continue;
       }
       throw new FilterError(`Unsupported operator inside $or for PostgREST: ${key}`);
     }
-    parts.push(`${key}.eq.${value}`);
+    parts.push(`${key}.eq.${pgrstValue(value)}`);
   }
   return parts.length > 1 ? `and(${parts.join(',')})` : parts[0];
 }
@@ -50,7 +65,7 @@ export function applyFilters<B extends PostgrestBuilderLike>(
           }
           if (col === '$in') {
             for (const [innerCol, arr] of Object.entries(v as object)) {
-              builder.not(innerCol, 'in', `(${(arr as unknown[]).join(',')})`);
+              builder.not(innerCol, 'in', `(${(arr as unknown[]).map(pgrstValue).join(',')})`);
             }
             continue;
           }
@@ -72,7 +87,7 @@ export function applyFilters<B extends PostgrestBuilderLike>(
         break;
       case '$notIn':
         for (const [col, arr] of Object.entries(value as object)) {
-          builder.not(col, 'in', `(${(arr as unknown[]).join(',')})`);
+          builder.not(col, 'in', `(${(arr as unknown[]).map(pgrstValue).join(',')})`);
         }
         break;
       case '$null':
@@ -90,7 +105,7 @@ export function applyFilters<B extends PostgrestBuilderLike>(
       case '$notBetween':
         for (const [col, range] of Object.entries(value as object)) {
           const { from, to } = range as { from: unknown; to: unknown };
-          builder.or(`${col}.lt.${from},${col}.gt.${to}`);
+          builder.or(`${col}.lt.${pgrstValue(from)},${col}.gt.${pgrstValue(to)}`);
         }
         break;
       case '$gt':

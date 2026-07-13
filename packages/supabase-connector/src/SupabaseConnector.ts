@@ -18,7 +18,7 @@ import {
   type UpsertSpec,
 } from '@next-model/core';
 import { createClient } from '@supabase/supabase-js';
-import { applyFilters } from './filters.js';
+import { applyFilters, pgrstValue } from './filters.js';
 import type {
   PostgrestBuilderLike,
   PostgrestResult,
@@ -38,8 +38,17 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
 {
   readonly schema?: S;
   protected readonly client: SupabaseClientLike;
+  /**
+   * Page size used to walk unbounded/large reads (`query`, `select`,
+   * `aggregate`, `deltaUpdate`, and `upsert`'s conflict pre-fetch) past
+   * PostgREST's per-request "max rows" cap. Defaults to 1000 — Supabase's
+   * default project max-rows — so an un-ranged read never silently truncates
+   * at 1000 rows. If a project's max-rows has been lowered, pass a matching
+   * (or smaller) `pageSize` here.
+   */
+  protected readonly pageSize: number;
 
-  constructor(config: SupabaseConfig, extras?: { schema?: S }) {
+  constructor(config: SupabaseConfig, extras?: { schema?: S; pageSize?: number }) {
     if (isClientLike(config)) {
       this.client = config;
     } else if ('client' in config && isClientLike(config.client)) {
@@ -49,6 +58,7 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
       this.client = createClient(url, key, options) as unknown as SupabaseClientLike;
     }
     this.schema = extras?.schema;
+    this.pageSize = extras?.pageSize ?? 1000;
   }
 
   /** Resolve the primary-key column for `tableName` from the attached schema. */
@@ -61,24 +71,51 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     return result.data ?? [];
   }
 
-  protected applyScope(builder: PostgrestBuilderLike, scope: Scope): PostgrestBuilderLike {
+  /** Apply filter + order ONLY — never limit/skip/range. Callers page reads
+   *  themselves via `fetchPaged` so a single un-ranged request can never
+   *  silently truncate at PostgREST's per-request "max rows" cap. */
+  protected applyFilterOrder(builder: PostgrestBuilderLike, scope: Scope): PostgrestBuilderLike {
     applyFilters(builder, scope.filter);
     for (const entry of scope.order ?? []) {
       const { key, dir } = normalizeOrderEntry(entry);
       builder.order(String(key), { ascending: dir !== SortDirection.Desc });
     }
-    if (scope.skip !== undefined && scope.limit !== undefined) {
-      builder.range(scope.skip, scope.skip + scope.limit - 1);
-    } else {
-      if (scope.limit !== undefined) builder.limit(scope.limit);
-      if (scope.skip !== undefined) builder.range(scope.skip, scope.skip + 1_000_000);
-    }
     return builder;
   }
 
+  /**
+   * Walk a read past PostgREST's per-request "max rows" cap by issuing
+   * successive `.range(...)` requests of at most `this.pageSize` rows each,
+   * concatenating the results. `makeBuilder` must return a FRESH builder
+   * (select + filter + order already applied, no range) on every call, since
+   * each page needs its own request. `opts.limit` bounds the total number of
+   * rows returned (undefined fetches everything matching); `opts.skip`
+   * offsets the first page.
+   */
+  private async fetchPaged(
+    makeBuilder: () => PostgrestBuilderLike,
+    opts: { skip?: number; limit?: number } = {},
+  ): Promise<Dict<any>[]> {
+    const want = opts.limit; // undefined = fetch all
+    const out: Dict<any>[] = [];
+    let offset = opts.skip ?? 0;
+    while (want === undefined || out.length < want) {
+      const size = want === undefined ? this.pageSize : Math.min(this.pageSize, want - out.length);
+      const builder = makeBuilder();
+      builder.range(offset, offset + size - 1);
+      const rows = this.unwrap(await builder);
+      out.push(...rows);
+      if (rows.length < size) break; // exhausted
+      offset += rows.length;
+    }
+    return out;
+  }
+
   async query(scope: Scope): Promise<Dict<any>[]> {
-    const builder = this.applyScope(this.client.from(scope.tableName).select('*'), scope);
-    return this.unwrap(await builder);
+    return this.fetchPaged(
+      () => this.applyFilterOrder(this.client.from(scope.tableName).select('*'), scope),
+      { skip: scope.skip, limit: scope.limit },
+    );
   }
 
   async count(scope: Scope): Promise<number> {
@@ -91,8 +128,10 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
 
   async select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]> {
     const cols = keys.length === 0 ? '*' : keys.join(',');
-    const builder = this.applyScope(this.client.from(scope.tableName).select(cols), scope);
-    return this.unwrap(await builder);
+    return this.fetchPaged(
+      () => this.applyFilterOrder(this.client.from(scope.tableName).select(cols), scope),
+      { skip: scope.skip, limit: scope.limit },
+    );
   }
 
   async batchInsert(
@@ -124,21 +163,16 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     rows: Dict<any>[],
   ): Promise<Dict<any>[]> {
     if (rows.length === 0) return [];
-    const builder = this.client.from(tableName).select('*');
     if (conflictTarget.length === 1) {
       const col = conflictTarget[0];
-      builder.in(
-        col,
-        rows.map((r) => r[col]),
-      );
-    } else {
-      // Multi-column conflict: OR each row's AND-tuple via PostgREST or(and(...)).
-      const frag = rows
-        .map((r) => `and(${conflictTarget.map((c) => `${c}.eq.${r[c]}`).join(',')})`)
-        .join(',');
-      builder.or(frag);
+      const values = rows.map((r) => r[col]);
+      return this.fetchPaged(() => this.client.from(tableName).select('*').in(col, values));
     }
-    return this.unwrap(await builder);
+    // Multi-column conflict: OR each row's AND-tuple via PostgREST or(and(...)).
+    const frag = rows
+      .map((r) => `and(${conflictTarget.map((c) => `${c}.eq.${pgrstValue(r[c])}`).join(',')})`)
+      .join(',');
+    return this.fetchPaged(() => this.client.from(tableName).select('*').or(frag));
   }
 
   async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
@@ -218,9 +252,11 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
   }
 
   async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
-    const builder = this.client.from(scope.tableName).select(key);
-    applyFilters(builder, scope.filter);
-    const rows = this.unwrap(await builder);
+    const rows = await this.fetchPaged(() => {
+      const builder = this.client.from(scope.tableName).select(key);
+      applyFilters(builder, scope.filter);
+      return builder;
+    });
     const values = rows
       .map((r) => (r as Dict<any>)[key])
       .filter((v): v is number => v !== null && v !== undefined)
@@ -230,9 +266,12 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
       case 'sum':
         return values.reduce((a, b) => a + b, 0);
       case 'min':
-        return Math.min(...values);
+        // `reduce` (not `Math.min(...values)`) — the spread form blows the
+        // call stack once pagination makes `values` reachable in the tens of
+        // thousands of rows.
+        return values.reduce((a, b) => Math.min(a, b));
       case 'max':
-        return Math.max(...values);
+        return values.reduce((a, b) => Math.max(a, b));
       case 'avg':
         return values.reduce((a, b) => a + b, 0) / values.length;
     }
@@ -241,9 +280,11 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
   async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
     if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
     const pk = this.pk(spec.tableName);
-    const selectBuilder = this.client.from(spec.tableName).select('*');
-    applyFilters(selectBuilder, spec.filter);
-    const rows = this.unwrap(await selectBuilder);
+    const rows = await this.fetchPaged(() => {
+      const builder = this.client.from(spec.tableName).select('*');
+      applyFilters(builder, spec.filter);
+      return builder;
+    });
     for (const row of rows) {
       const next: Dict<any> = {};
       for (const { column, by } of spec.deltas) next[column] = (Number(row[column]) || 0) + by;
@@ -256,7 +297,7 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     return rows.length;
   }
 
-  queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
     return baseQueryScoped(this, spec);
   }
 

@@ -89,9 +89,27 @@ describe('applyFilters', () => {
     expect(calls).toContainEqual(['not', ['name', 'eq', 'ada']]);
   });
 
+  it('maps $not over $in', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $not: { $in: { age: [1, 2] } } });
+    expect(calls).toContainEqual(['not', ['age', 'in', '(1,2)']]);
+  });
+
+  it('maps $not over $null', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $not: { $null: 'name' } });
+    expect(calls).toContainEqual(['not', ['name', 'is', null]]);
+  });
+
   it('throws FilterError on $not over an unsupported operator', () => {
     const { b } = recorder();
     expect(() => applyFilters(b, { $not: { $or: [] } })).toThrow();
+  });
+
+  it('quotes $or values containing reserved characters (e.g. a comma)', () => {
+    const { b, calls } = recorder();
+    applyFilters(b, { $or: [{ city: 'Paris, France' }, { city: 'London' }] });
+    expect(calls).toContainEqual(['or', ['city.eq."Paris, France",city.eq.London']]);
   });
 
   it('groups multi-condition $or branches with AND', () => {
@@ -120,6 +138,65 @@ describe('applyFilters', () => {
   it('throws FilterError on $async', () => {
     const { b } = recorder();
     expect(() => applyFilters(b, { $async: Promise.resolve({}) } as never)).toThrow();
+  });
+});
+
+describe('SupabaseConnector pagination (past PostgREST per-request max-rows cap)', () => {
+  // A small `pageSize` here exercises multi-page fetches without needing to
+  // seed 1000+ rows (Supabase's real default max-rows) to reproduce the bug:
+  // `query`/`aggregate`/`deltaUpdate` used to issue a single unranged/hacky
+  // `.range(skip, skip + 1_000_000)` request, which real PostgREST would
+  // silently cap at the project's max-rows — losing rows past the cap.
+  async function seededConnector(pageSize: number) {
+    const client = new MockSupabaseClient();
+    client.exec('CREATE TABLE nums (id INTEGER PRIMARY KEY AUTOINCREMENT, n INTEGER)');
+    const connector = new SupabaseConnector(client, { pageSize });
+    for (let i = 1; i <= 5; i++) await connector.batchInsert('nums', {}, [{ n: i }]);
+    return { client, connector };
+  }
+
+  it('query pages through all rows in pageSize-sized chunks', async () => {
+    const { client, connector } = await seededConnector(2);
+    const rows = await connector.query({ tableName: 'nums', order: [{ key: 'id' }] });
+    expect(rows.map((r) => r.n)).toEqual([1, 2, 3, 4, 5]);
+    client.close();
+  });
+
+  it('aggregate reduces over all paged rows, not just the first page', async () => {
+    const { client, connector } = await seededConnector(2);
+    expect(await connector.aggregate({ tableName: 'nums' }, 'sum', 'n')).toBe(15);
+    client.close();
+  });
+
+  it('deltaUpdate updates every matching row across pages and returns the full count', async () => {
+    const { client, connector } = await seededConnector(2);
+    const n = await connector.deltaUpdate({
+      tableName: 'nums',
+      deltas: [{ column: 'n', by: 10 }],
+    });
+    expect(n).toBe(5);
+    const rows = await connector.query({ tableName: 'nums', order: [{ key: 'id' }] });
+    expect(rows.map((r) => r.n)).toEqual([11, 12, 13, 14, 15]);
+    client.close();
+  });
+
+  it('an explicit limit still caps the result even though pagination happens under the hood', async () => {
+    const { client, connector } = await seededConnector(2);
+    const rows = await connector.query({
+      tableName: 'nums',
+      limit: 3,
+      order: [{ key: 'id' }],
+    });
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.n)).toEqual([1, 2, 3]);
+    client.close();
+  });
+
+  it('select() also pages past pageSize', async () => {
+    const { client, connector } = await seededConnector(2);
+    const rows = await connector.select({ tableName: 'nums', order: [{ key: 'id' }] }, 'n');
+    expect(rows.map((r) => r.n)).toEqual([1, 2, 3, 4, 5]);
+    client.close();
   });
 });
 
@@ -200,6 +277,36 @@ for (const harness of harnesses) {
       expect(n).toBe(1);
       const [ada] = await h.connector.query({ tableName: 'cats', filter: { name: 'ada' } });
       expect(ada.age).toBe(13);
+    });
+
+    it('deltaUpdate applies a set-only update (no deltas) and returns the matched count', async () => {
+      const n = await h.connector.deltaUpdate({
+        tableName: 'cats',
+        filter: { name: 'ada' },
+        deltas: [],
+        set: { name: 'ada2' },
+      });
+      expect(n).toBe(1);
+      const rows = await h.connector.query({ tableName: 'cats', filter: { name: 'ada2' } });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].age).toBe(3); // untouched — only `set` columns changed
+    });
+
+    it('deltaUpdate is a no-op (no deltas, empty set) and writes nothing', async () => {
+      const n = await h.connector.deltaUpdate({ tableName: 'cats', deltas: [], set: {} });
+      expect(n).toBe(0);
+      // All three seeded rows remain exactly as provisioned.
+      expect(await h.connector.count({ tableName: 'cats' })).toBe(3);
+    });
+
+    it('queryScoped returns rows for a flat query (no parent scopes)', async () => {
+      const rows = (await h.connector.queryScoped({
+        target: { tableName: 'cats', keys: {} },
+        pendingJoins: [],
+        parentScopes: [],
+        projection: 'rows',
+      })) as { name: string }[];
+      expect(rows.map((r) => r.name).sort()).toEqual(['ada', 'bo', 'cy']);
     });
   });
 
@@ -315,6 +422,15 @@ for (const harness of harnesses) {
         ['ada', 3],
         ['cy', 5],
       ]);
+    });
+
+    it('returns a row whose $or value contains a reserved character (comma) — not a broken split', async () => {
+      await h.provision("INSERT INTO critters (name, age) VALUES ('Paris, France', 40)");
+      const rows = await h.connector.query({
+        tableName: 'critters',
+        filter: { $or: [{ name: 'Paris, France' }, { name: 'nonexistent' }] },
+      });
+      expect(rows.map((r) => r.name)).toEqual(['Paris, France']);
     });
   });
 
