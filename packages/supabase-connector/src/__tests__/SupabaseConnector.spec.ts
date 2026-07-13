@@ -1,9 +1,10 @@
 import { defineSchema } from '@next-model/core';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyFilters } from '../filters.js';
 import { MockSupabaseClient } from '../MockSupabaseClient.js';
 import { SupabaseConnector } from '../SupabaseConnector.js';
 import type { PostgrestBuilderLike } from '../types.js';
+import { harnesses } from './harness.js';
 
 const schema = defineSchema({
   cats: {
@@ -121,3 +122,38 @@ describe('applyFilters', () => {
     expect(() => applyFilters(b, { $async: Promise.resolve({}) } as never)).toThrow();
   });
 });
+
+for (const harness of harnesses) {
+  describe(`SupabaseConnector CRUD — ${harness.name}`, () => {
+    let h: Awaited<ReturnType<typeof harness.makeConnector>>;
+    beforeEach(async () => {
+      h = await harness.makeConnector();
+      await h.provision(
+        'CREATE TABLE cats (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, age INTEGER)',
+      );
+      // Seed via raw provision SQL so this task does not depend on batchInsert
+      // (added in Task 6). Ids land as 1=ada, 2=bo, 3=cy.
+      await h.provision("INSERT INTO cats (name, age) VALUES ('ada', 3), ('bo', 7), ('cy', 5)");
+    });
+    afterEach(() => h.teardown());
+
+    it('queries with filter + order + limit', async () => {
+      const rows = await h.connector.query({
+        tableName: 'cats',
+        filter: { $gte: { age: 5 } },
+        order: [{ key: 'age', dir: -1 }],
+        limit: 1,
+      });
+      expect(rows).toEqual([{ id: 2, name: 'bo', age: 7 }]);
+    });
+
+    it('counts with a filter', async () => {
+      expect(await h.connector.count({ tableName: 'cats', filter: { $gt: { age: 4 } } })).toBe(2);
+    });
+
+    it('selects specific columns', async () => {
+      const rows = await h.connector.select({ tableName: 'cats', filter: { name: 'ada' } }, 'name');
+      expect(rows).toEqual([{ name: 'ada' }]);
+    });
+  });
+}

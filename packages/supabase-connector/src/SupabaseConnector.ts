@@ -1,6 +1,21 @@
-import type { Connector, DatabaseSchema } from '@next-model/core';
+import {
+  type Connector,
+  type DatabaseSchema,
+  type Dict,
+  normalizeOrderEntry,
+  PersistenceError,
+  type Scope,
+  SortDirection,
+} from '@next-model/core';
 import { createClient } from '@supabase/supabase-js';
-import type { SupabaseClientLike, SupabaseConfig, SupabaseCredentials } from './types.js';
+import { applyFilters } from './filters.js';
+import type {
+  PostgrestBuilderLike,
+  PostgrestResult,
+  SupabaseClientLike,
+  SupabaseConfig,
+  SupabaseCredentials,
+} from './types.js';
 
 export { MockSupabaseClient } from './MockSupabaseClient.js';
 export type { SupabaseConfig } from './types.js';
@@ -30,5 +45,44 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
   /** Resolve the primary-key column for `tableName` from the attached schema. */
   protected pk(tableName: string): string {
     return this.schema?.tableDefinitions?.[tableName]?.primaryKey ?? 'id';
+  }
+
+  protected unwrap<T = Dict<any>>(result: PostgrestResult<T>): T[] {
+    if (result.error) throw new PersistenceError(result.error.message);
+    return result.data ?? [];
+  }
+
+  protected applyScope(builder: PostgrestBuilderLike, scope: Scope): PostgrestBuilderLike {
+    applyFilters(builder, scope.filter);
+    for (const entry of scope.order ?? []) {
+      const { key, dir } = normalizeOrderEntry(entry);
+      builder.order(String(key), { ascending: dir !== SortDirection.Desc });
+    }
+    if (scope.skip !== undefined && scope.limit !== undefined) {
+      builder.range(scope.skip, scope.skip + scope.limit - 1);
+    } else {
+      if (scope.limit !== undefined) builder.limit(scope.limit);
+      if (scope.skip !== undefined) builder.range(scope.skip, scope.skip + 1_000_000);
+    }
+    return builder;
+  }
+
+  async query(scope: Scope): Promise<Dict<any>[]> {
+    const builder = this.applyScope(this.client.from(scope.tableName).select('*'), scope);
+    return this.unwrap(await builder);
+  }
+
+  async count(scope: Scope): Promise<number> {
+    const builder = this.client.from(scope.tableName).select('*', { count: 'exact', head: true });
+    applyFilters(builder, scope.filter);
+    const result = await builder;
+    if (result.error) throw new PersistenceError(result.error.message);
+    return result.count ?? 0;
+  }
+
+  async select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]> {
+    const cols = keys.length === 0 ? '*' : keys.join(',');
+    const builder = this.applyScope(this.client.from(scope.tableName).select(cols), scope);
+    return this.unwrap(await builder);
   }
 }
