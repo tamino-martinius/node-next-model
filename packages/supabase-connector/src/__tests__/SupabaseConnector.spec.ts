@@ -1,4 +1,4 @@
-import { defineSchema, UnsupportedOperationError } from '@next-model/core';
+import { type AlterTableSpec, defineSchema, UnsupportedOperationError } from '@next-model/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyFilters } from '../filters.js';
 import { MockSupabaseClient } from '../MockSupabaseClient.js';
@@ -332,6 +332,7 @@ for (const harness of harnesses) {
       await expect(c.hasTable('cats')).rejects.toThrow(UnsupportedOperationError);
       await expect(c.createTable('cats', () => {})).rejects.toThrow(UnsupportedOperationError);
       await expect(c.dropTable('cats')).rejects.toThrow(UnsupportedOperationError);
+      await expect(c.alterTable({} as AlterTableSpec)).rejects.toThrow(UnsupportedOperationError);
       await expect(c.ensureSchema!()).rejects.toThrow(UnsupportedOperationError);
     });
   });
