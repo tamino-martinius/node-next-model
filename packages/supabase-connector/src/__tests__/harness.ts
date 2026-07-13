@@ -30,5 +30,43 @@ export const mockHarness: SupabaseTestHarness = {
   },
 };
 
-/** Harnesses to run the shared suite against. Task 10 appends the live harness. */
-export const harnesses: SupabaseTestHarness[] = [mockHarness];
+function liveHarness(): SupabaseTestHarness | null {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+  const dbUrl = process.env.SUPABASE_DB_URL;
+  if (!url || !key || !dbUrl) return null;
+  return {
+    name: 'live Supabase',
+    async makeConnector(schema) {
+      // Lazy import so `pg` stays dev-only and unused in the hermetic path.
+      const { Client } = await import('pg');
+      const admin = new Client({ connectionString: dbUrl });
+      await admin.connect();
+      const created: string[] = [];
+      const connector = new SupabaseConnector(
+        { url, key, options: { auth: { persistSession: false } } },
+        { schema },
+      );
+      return {
+        connector,
+        async provision(sql) {
+          const match = sql.match(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?(\w+)"?/i);
+          if (match) created.push(match[1]);
+          await admin.query(sql);
+          // PostgREST caches schema; reload so the new table is visible.
+          await admin.query("NOTIFY pgrst, 'reload schema'");
+        },
+        async teardown() {
+          for (const t of created.reverse()) {
+            await admin.query(`DROP TABLE IF EXISTS "${t}" CASCADE`);
+          }
+          await admin.query("NOTIFY pgrst, 'reload schema'");
+          await admin.end();
+        },
+      };
+    },
+  };
+}
+
+const live = liveHarness();
+export const harnesses: SupabaseTestHarness[] = live ? [mockHarness, live] : [mockHarness];
