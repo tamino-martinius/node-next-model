@@ -83,4 +83,55 @@ describe('MockSupabaseClient', () => {
       .select();
     expect(data).toEqual([{ slug: 'a', name: 'second' }]);
   });
+
+  it("not('col', 'eq', v) excludes the matching row", async () => {
+    await client.from('cats').insert([
+      { name: 'ada', age: 3 },
+      { name: 'bo', age: 7 },
+      { name: 'cy', age: 5 },
+    ]);
+    const { error, data } = await client
+      .from('cats')
+      .select('*')
+      .not('name', 'eq', 'ada')
+      .order('name');
+    expect(error).toBeNull();
+    expect(data).toEqual([
+      { id: 2, name: 'bo', age: 7 },
+      { id: 3, name: 'cy', age: 5 },
+    ]);
+  });
+
+  it("not('col', 'in', '(a,b)') excludes the PostgREST string list", async () => {
+    await client.from('cats').insert([
+      { name: 'ada', age: 3 },
+      { name: 'bo', age: 7 },
+      { name: 'cy', age: 5 },
+    ]);
+    const { error, data } = await client
+      .from('cats')
+      .select('*')
+      .not('name', 'in', '(ada,bo)')
+      .order('name');
+    expect(error).toBeNull();
+    expect(data).toEqual([{ id: 3, name: 'cy', age: 5 }]);
+  });
+
+  it("not('col', 'is', null) returns only rows with a non-null value", async () => {
+    await client.from('cats').insert([
+      { name: 'ada', age: 3 },
+      { name: null, age: 9 },
+      { name: 'cy', age: 5 },
+    ]);
+    const { error, data } = await client
+      .from('cats')
+      .select('*')
+      .not('name', 'is', null)
+      .order('name');
+    expect(error).toBeNull();
+    expect(data).toEqual([
+      { id: 1, name: 'ada', age: 3 },
+      { id: 3, name: 'cy', age: 5 },
+    ]);
+  });
 });

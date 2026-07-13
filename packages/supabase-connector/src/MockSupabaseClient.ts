@@ -2,7 +2,24 @@ import type { Dict } from '@next-model/core';
 import Database from 'better-sqlite3';
 import type { PostgrestBuilderLike, PostgrestResult, SupabaseClientLike } from './types.js';
 
-type Op = { column: string; op: string; value: unknown };
+type Op = { column: string; op: string; value: unknown; notOp?: string };
+
+/**
+ * Normalize the value passed to an `in`/`not(...,'in',...)` filter into an array.
+ * Accepts a JS array as-is, or the PostgREST string form `'(a,b,c)'` (leading `(`
+ * and trailing `)` stripped, comma-separated, each element trimmed).
+ */
+function parseInValues(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    return value
+      .replace(/^\(/, '')
+      .replace(/\)$/, '')
+      .split(',')
+      .map((s) => s.trim());
+  }
+  return [value];
+}
 
 class MockQueryBuilder implements PostgrestBuilderLike {
   private mode: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select';
@@ -90,7 +107,8 @@ class MockQueryBuilder implements PostgrestBuilderLike {
     return this.push(c, 'IS', null);
   }
   not(c: string, operator: string, v: unknown) {
-    return this.push(c, `NOT ${operator.toUpperCase()}`, v);
+    this.ops.push({ column: c, op: 'not', notOp: operator.toLowerCase(), value: v });
+    return this;
   }
   or(filters: string) {
     return this.push('__or__', 'OR', filters);
@@ -132,12 +150,34 @@ class MockQueryBuilder implements PostgrestBuilderLike {
           });
         return `(${alts.join(' OR ')})`;
       }
+      if (op.op === 'not') {
+        const notOp = op.notOp ?? 'eq';
+        if (notOp === 'is') return `"${op.column}" IS NOT NULL`;
+        if (notOp === 'in') {
+          const arr = parseInValues(op.value);
+          params.push(...arr);
+          return `"${op.column}" NOT IN (${arr.map(() => '?').join(', ')})`;
+        }
+        if (notOp === 'like' || notOp === 'ilike') {
+          params.push(op.value);
+          return `"${op.column}" NOT LIKE ?`;
+        }
+        const negated: Dict<string> = {
+          eq: '<>',
+          neq: '=',
+          gt: '<=',
+          gte: '<',
+          lt: '>=',
+          lte: '>',
+        };
+        params.push(op.value);
+        return `"${op.column}" ${negated[notOp] ?? '<>'} ?`;
+      }
       if (op.op === 'IS') return `"${op.column}" IS NULL`;
-      if (op.op === 'NOT IS') return `"${op.column}" IS NOT NULL`;
-      if (op.op === 'IN' || op.op === 'NOT IN') {
-        const arr = op.value as unknown[];
+      if (op.op === 'IN') {
+        const arr = parseInValues(op.value);
         params.push(...arr);
-        return `"${op.column}" ${op.op} (${arr.map(() => '?').join(', ')})`;
+        return `"${op.column}" IN (${arr.map(() => '?').join(', ')})`;
       }
       params.push(op.value);
       return `"${op.column}" ${op.op} ?`;
