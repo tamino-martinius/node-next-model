@@ -180,6 +180,27 @@ for (const harness of harnesses) {
       expect(rows).toEqual([{ id: 3, name: 'cy', age: 5 }]);
       expect(await h.connector.count({ tableName: 'cats' })).toBe(2);
     });
+
+    it('aggregates sum/min/max/avg client-side, undefined on empty', async () => {
+      expect(await h.connector.aggregate({ tableName: 'cats' }, 'sum', 'age')).toBe(15);
+      expect(await h.connector.aggregate({ tableName: 'cats' }, 'min', 'age')).toBe(3);
+      expect(await h.connector.aggregate({ tableName: 'cats' }, 'max', 'age')).toBe(7);
+      expect(await h.connector.aggregate({ tableName: 'cats' }, 'avg', 'age')).toBe(5);
+      expect(
+        await h.connector.aggregate({ tableName: 'cats', filter: { age: 999 } }, 'sum', 'age'),
+      ).toBeUndefined();
+    });
+
+    it('deltaUpdate increments matching rows and returns the count', async () => {
+      const n = await h.connector.deltaUpdate({
+        tableName: 'cats',
+        filter: { name: 'ada' },
+        deltas: [{ column: 'age', by: 10 }],
+      });
+      expect(n).toBe(1);
+      const [ada] = await h.connector.query({ tableName: 'cats', filter: { name: 'ada' } });
+      expect(ada.age).toBe(13);
+    });
   });
 
   describe(`SupabaseConnector upsert — ${harness.name}`, () => {

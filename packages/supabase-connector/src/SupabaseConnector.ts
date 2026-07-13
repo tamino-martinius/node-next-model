@@ -1,10 +1,14 @@
 import {
+  type AggregateKind,
+  baseQueryScoped,
   type Connector,
   type DatabaseSchema,
+  type DeltaUpdateSpec,
   type Dict,
   type KeyType,
   normalizeOrderEntry,
   PersistenceError,
+  type QueryScopedSpec,
   type Scope,
   SortDirection,
   type UpsertSpec,
@@ -208,5 +212,48 @@ export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undef
     }
 
     return results.filter((row): row is Dict<any> => row !== undefined);
+  }
+
+  async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
+    const builder = this.client.from(scope.tableName).select(key);
+    applyFilters(builder, scope.filter);
+    const rows = this.unwrap(await builder);
+    const values = rows
+      .map((r) => (r as Dict<any>)[key])
+      .filter((v): v is number => v !== null && v !== undefined)
+      .map(Number);
+    if (values.length === 0) return undefined;
+    switch (kind) {
+      case 'sum':
+        return values.reduce((a, b) => a + b, 0);
+      case 'min':
+        return Math.min(...values);
+      case 'max':
+        return Math.max(...values);
+      case 'avg':
+        return values.reduce((a, b) => a + b, 0) / values.length;
+    }
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const pk = this.pk(spec.tableName);
+    const selectBuilder = this.client.from(spec.tableName).select('*');
+    applyFilters(selectBuilder, spec.filter);
+    const rows = this.unwrap(await selectBuilder);
+    for (const row of rows) {
+      const next: Dict<any> = {};
+      for (const { column, by } of spec.deltas) next[column] = (Number(row[column]) || 0) + by;
+      if (spec.set) for (const [k, v] of Object.entries(spec.set)) next[k] = v;
+      const update = this.client.from(spec.tableName).update(next);
+      update.eq(pk, (row as Dict<any>)[pk]);
+      const res = await update;
+      if (res.error) throw new PersistenceError(res.error.message);
+    }
+    return rows.length;
+  }
+
+  queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
   }
 }
