@@ -96,6 +96,39 @@ const ada = await User.create({ name: 'Ada' }); // tables are managed via Supaba
 
 Supabase projects are Postgres databases managed through the Supabase CLI / dashboard migrations, not through PostgREST. Accordingly `createTable`, `dropTable`, `alterTable`, `hasTable`, and `ensureSchema` all throw `UnsupportedOperationError` on this connector — attach a schema for type inference (`{ schema }`) as usual, but create and evolve the actual tables via `supabase migration new ...` / `supabase db push`, or the Supabase SQL editor.
 
+#### Managing schema in next-model against the same database
+
+Because a Supabase project **is** Postgres, you can keep schema management inside next-model by pointing a Postgres-capable connector at Supabase's direct connection string (Settings → Database → Connection string; a `postgres://...` URL for the direct endpoint or a pooler, **SSL required**). Use it only for DDL / migrations — not for your app's runtime queries, which should go through this connector's PostgREST path (RLS, anon/`service_role` keys, browser-safe):
+
+```ts
+import { PostgresConnector } from '@next-model/postgres-connector';
+import { SupabaseConnector } from '@next-model/supabase-connector';
+
+// Same DatabaseSchema attached to both connectors.
+// Admin/DDL connection — direct Postgres, server-side only (keep this URL secret).
+// Use verified TLS: append `?sslmode=require` to the URL and verify against your
+// project's CA certificate (Settings → Database → download the CA cert). Do NOT
+// disable certificate verification (`rejectUnauthorized: false`) — it exposes the
+// connection to MITM.
+const admin = new PostgresConnector(
+  {
+    connectionString: process.env.SUPABASE_DB_URL!, // postgres://...supabase.co:5432/postgres?sslmode=require
+    ssl: { ca: fs.readFileSync(process.env.SUPABASE_CA_CERT!, 'utf8') },
+  },
+  { schema },
+);
+await admin.createTable('users', (t) => {
+  t.integer('id', { primary: true, autoIncrement: true });
+  t.string('name');
+});
+// ...or drive `@next-model/migrations` through `admin` for versioned, reversible migrations.
+
+// Runtime connection — PostgREST, works on server or browser.
+const connector = new SupabaseConnector({ url, key }, { schema });
+```
+
+`@next-model/postgres-connector` (native `pg`) and `@next-model/knex-connector` (with the `pg` client) implement full DDL — `createTable` / `alterTable` / `dropTable` / `hasTable` / `reflectSchema` — and both work with the connector-agnostic [`@next-model/migrations`](../migrations) runner. Note: those connectors don't implement the `ensureSchema()` convenience yet (only Memory / Sqlite / LocalStorage do), so at the Postgres level either loop `createTable` guarded by `hasTable`, or use the migrations package.
+
 ## `MockSupabaseClient` for tests
 
 The package ships an in-memory PostgREST-compatible mock backed by [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3), exported from the dedicated `/mock-client` sub-path (not the main entry — `better-sqlite3` is a dev-only dependency and never loads unless you import this path):

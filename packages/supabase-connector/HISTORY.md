@@ -10,4 +10,4 @@
 
 ### Notes
 
-- DDL (`createTable`/`dropTable`/`hasTable`/`alterTable`/`ensureSchema`), raw `execute`, and `transaction` throw `UnsupportedOperationError` — PostgREST cannot run them. Manage schema with Supabase migrations. `aggregate` reduces fetched values client-side and `deltaUpdate` is a non-atomic SELECT-then-UPDATE.
+- DDL (`createTable`/`dropTable`/`hasTable`/`alterTable`/`ensureSchema`), raw `execute`, and `transaction` throw `UnsupportedOperationError` — PostgREST cannot run them. Manage schema with Supabase migrations, or — since a Supabase project is Postgres — with `@next-model/postgres-connector` / `@next-model/knex-connector` (and `@next-model/migrations`) pointed at the project's direct Postgres connection string; see the package README. `aggregate` reduces fetched values client-side and `deltaUpdate` is a non-atomic SELECT-then-UPDATE.
