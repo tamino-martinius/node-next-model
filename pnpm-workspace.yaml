@@ -9,6 +9,7 @@ packages:
   - "packages/valkey-connector"
   - "packages/mongodb-connector"
   - "packages/aurora-data-api-connector"
+  - "packages/supabase-connector"
   - "packages/local-storage-connector"
   - "packages/react"
   - "packages/migrations"

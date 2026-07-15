@@ -1,0 +1,334 @@
+import {
+  type AggregateKind,
+  type AlterTableSpec,
+  type BaseType,
+  baseQueryScoped,
+  type Connector,
+  type DatabaseSchema,
+  type DeltaUpdateSpec,
+  type Dict,
+  type KeyType,
+  normalizeOrderEntry,
+  PersistenceError,
+  type QueryScopedSpec,
+  type Scope,
+  SortDirection,
+  type TableBuilder,
+  UnsupportedOperationError,
+  type UpsertSpec,
+} from '@next-model/core';
+import { createClient } from '@supabase/supabase-js';
+import { applyFilters, pgrstValue } from './filters.js';
+import type {
+  PostgrestBuilderLike,
+  PostgrestResult,
+  SupabaseClientLike,
+  SupabaseConfig,
+  SupabaseCredentials,
+} from './types.js';
+
+export type { SupabaseConfig } from './types.js';
+
+function isClientLike(value: unknown): value is SupabaseClientLike {
+  return typeof (value as { from?: unknown })?.from === 'function';
+}
+
+export class SupabaseConnector<S extends DatabaseSchema<any> | undefined = undefined>
+  implements Connector<S>
+{
+  readonly schema?: S;
+  protected readonly client: SupabaseClientLike;
+  /**
+   * Page size used to walk unbounded/large reads (`query`, `select`,
+   * `aggregate`, `deltaUpdate`, and `upsert`'s conflict pre-fetch) past
+   * PostgREST's per-request "max rows" cap. Defaults to 1000 — Supabase's
+   * default project max-rows — so an un-ranged read never silently truncates
+   * at 1000 rows. If a project's max-rows has been lowered, pass a matching
+   * (or smaller) `pageSize` here.
+   */
+  protected readonly pageSize: number;
+
+  constructor(config: SupabaseConfig, extras?: { schema?: S; pageSize?: number }) {
+    if (isClientLike(config)) {
+      this.client = config;
+    } else if ('client' in config && isClientLike(config.client)) {
+      this.client = config.client;
+    } else {
+      const { url, key, options } = config as SupabaseCredentials;
+      this.client = createClient(url, key, options) as unknown as SupabaseClientLike;
+    }
+    this.schema = extras?.schema;
+    // Clamp to ≥1: a non-positive page size would make fetchPaged request an
+    // empty range that never advances the offset (infinite loop).
+    this.pageSize = Math.max(1, Math.floor(extras?.pageSize ?? 1000));
+  }
+
+  /** Resolve the primary-key column for `tableName` from the attached schema. */
+  protected pk(tableName: string): string {
+    return this.schema?.tableDefinitions?.[tableName]?.primaryKey ?? 'id';
+  }
+
+  protected unwrap<T = Dict<any>>(result: PostgrestResult<T>): T[] {
+    if (result.error) throw new PersistenceError(result.error.message);
+    return result.data ?? [];
+  }
+
+  /** Apply filter + order ONLY — never limit/skip/range. Callers page reads
+   *  themselves via `fetchPaged` so a single un-ranged request can never
+   *  silently truncate at PostgREST's per-request "max rows" cap. */
+  protected applyFilterOrder(builder: PostgrestBuilderLike, scope: Scope): PostgrestBuilderLike {
+    applyFilters(builder, scope.filter);
+    for (const entry of scope.order ?? []) {
+      const { key, dir } = normalizeOrderEntry(entry);
+      builder.order(String(key), { ascending: dir !== SortDirection.Desc });
+    }
+    return builder;
+  }
+
+  /**
+   * Walk a read past PostgREST's per-request "max rows" cap by issuing
+   * successive `.range(...)` requests of at most `this.pageSize` rows each,
+   * concatenating the results. `makeBuilder` must return a FRESH builder
+   * (select + filter + order already applied, no range) on every call, since
+   * each page needs its own request. `opts.limit` bounds the total number of
+   * rows returned (undefined fetches everything matching); `opts.skip`
+   * offsets the first page.
+   */
+  private async fetchPaged(
+    makeBuilder: () => PostgrestBuilderLike,
+    opts: { skip?: number; limit?: number } = {},
+  ): Promise<Dict<any>[]> {
+    const want = opts.limit; // undefined = fetch all
+    const out: Dict<any>[] = [];
+    let offset = opts.skip ?? 0;
+    while (want === undefined || out.length < want) {
+      const size = want === undefined ? this.pageSize : Math.min(this.pageSize, want - out.length);
+      const builder = makeBuilder();
+      builder.range(offset, offset + size - 1);
+      const rows = this.unwrap(await builder);
+      out.push(...rows);
+      if (rows.length < size) break; // exhausted
+      offset += rows.length;
+    }
+    return out;
+  }
+
+  async query(scope: Scope): Promise<Dict<any>[]> {
+    return this.fetchPaged(
+      () => this.applyFilterOrder(this.client.from(scope.tableName).select('*'), scope),
+      { skip: scope.skip, limit: scope.limit },
+    );
+  }
+
+  async count(scope: Scope): Promise<number> {
+    const builder = this.client.from(scope.tableName).select('*', { count: 'exact', head: true });
+    applyFilters(builder, scope.filter);
+    const result = await builder;
+    if (result.error) throw new PersistenceError(result.error.message);
+    return result.count ?? 0;
+  }
+
+  async select(scope: Scope, ...keys: string[]): Promise<Dict<any>[]> {
+    const cols = keys.length === 0 ? '*' : keys.join(',');
+    return this.fetchPaged(
+      () => this.applyFilterOrder(this.client.from(scope.tableName).select(cols), scope),
+      { skip: scope.skip, limit: scope.limit },
+    );
+  }
+
+  async batchInsert(
+    tableName: string,
+    _keys: Dict<KeyType>,
+    items: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    if (items.length === 0) return [];
+    const builder = this.client.from(tableName).insert(items).select();
+    return this.unwrap(await builder);
+  }
+
+  async updateAll(scope: Scope, attrs: Partial<Dict<any>>): Promise<Dict<any>[]> {
+    if (Object.keys(attrs).length === 0) return this.query(scope);
+    const builder = this.client.from(scope.tableName).update(attrs);
+    applyFilters(builder, scope.filter);
+    return this.unwrap(await builder.select());
+  }
+
+  async deleteAll(scope: Scope): Promise<Dict<any>[]> {
+    const builder = this.client.from(scope.tableName).delete();
+    applyFilters(builder, scope.filter);
+    return this.unwrap(await builder.select());
+  }
+
+  private async fetchByConflict(
+    tableName: string,
+    conflictTarget: string[],
+    rows: Dict<any>[],
+  ): Promise<Dict<any>[]> {
+    if (rows.length === 0) return [];
+    if (conflictTarget.length === 1) {
+      const col = conflictTarget[0];
+      const values = rows.map((r) => r[col]);
+      return this.fetchPaged(() => this.client.from(tableName).select('*').in(col, values));
+    }
+    // Multi-column conflict: OR each row's AND-tuple via PostgREST or(and(...)).
+    const frag = rows
+      .map((r) => `and(${conflictTarget.map((c) => `${c}.eq.${pgrstValue(r[c])}`).join(',')})`)
+      .join(',');
+    return this.fetchPaged(() => this.client.from(tableName).select('*').or(frag));
+  }
+
+  async upsert(spec: UpsertSpec): Promise<Dict<any>[]> {
+    if (spec.rows.length === 0) return [];
+    const conflict = spec.conflictTarget;
+    // `String(...)` (not `JSON.stringify`) so `'5'` and `5` land on the same key —
+    // matching how Postgres itself coerces conflict-column values when comparing.
+    const tupleKey = (row: Dict<any>) => conflict.map((c) => String(row[c])).join('|');
+
+    const cols = new Set<string>();
+    for (const row of spec.rows) for (const k of Object.keys(row)) cols.add(k);
+    const updateColumns = spec.updateColumns ?? [...cols].filter((c) => !conflict.includes(c));
+    const ignore = spec.ignoreOnly === true || updateColumns.length === 0;
+
+    const existing = await this.fetchByConflict(spec.tableName, conflict, spec.rows);
+    const existingByTuple = new Map<string, Dict<any>>();
+    for (const row of existing) existingByTuple.set(tupleKey(row), row);
+
+    // Results are assembled by input INDEX (not by re-deriving a tuple key from
+    // the write payload), so a row that was in fact written can never fail to
+    // be found in the returned array.
+    const results: (Dict<any> | undefined)[] = new Array(spec.rows.length);
+    const writeRows: Dict<any>[] = [];
+    const writeIndex: number[] = [];
+    spec.rows.forEach((row, i) => {
+      const ex = existingByTuple.get(tupleKey(row));
+      if (ex && ignore) {
+        results[i] = ex; // skip write; existing row is returned as-is
+        return;
+      }
+      let writeRow: Dict<any>;
+      if (ex) {
+        // Merge into an existing row: send ONLY the conflict columns + the
+        // allowed update columns present on the input row. Never spread the
+        // fetched `ex` row (which carries the primary key and every other
+        // untouched column) — PostgREST's `merge-duplicates` resolution
+        // already leaves columns absent from the payload untouched, so
+        // re-sending `ex` would clobber any concurrent write made to a
+        // column between our fetch and this upsert.
+        writeRow = {};
+        for (const c of conflict) writeRow[c] = row[c];
+        for (const c of updateColumns) if (c in row) writeRow[c] = row[c];
+      } else {
+        // Brand-new row: insert exactly what the caller provided.
+        // `updateColumns` only governs what changes on conflict — see
+        // `UpsertSpec.updateColumns` — it never restricts what gets inserted.
+        writeRow = row;
+      }
+      writeIndex.push(i);
+      writeRows.push(writeRow);
+    });
+
+    if (writeRows.length > 0) {
+      // Known limitation: PostgREST rejects a bulk upsert whose objects have
+      // differing key sets (PGRST102). This can happen when a narrow
+      // `updateColumns` subset makes merge-branch payloads (conflict +
+      // updateColumns) narrower than brand-new rows (full column set) in the
+      // same batch. The common case — default `updateColumns` with
+      // homogeneously-shaped rows — is unaffected. The SQLite mock processes
+      // rows individually so it can't surface this; the opt-in live harness is
+      // where mixed-shape batches would be exercised.
+      const written = this.unwrap(
+        await this.client
+          .from(spec.tableName)
+          .upsert(writeRows, { onConflict: conflict.join(','), ignoreDuplicates: false })
+          .select(),
+      );
+      const writtenByTuple = new Map<string, Dict<any>>();
+      for (const row of written) writtenByTuple.set(tupleKey(row), row);
+      for (let k = 0; k < writeIndex.length; k++) {
+        const i = writeIndex[k];
+        results[i] = writtenByTuple.get(tupleKey(writeRows[k])) ?? writeRows[k];
+      }
+    }
+
+    return results.filter((row): row is Dict<any> => row !== undefined);
+  }
+
+  async aggregate(scope: Scope, kind: AggregateKind, key: string): Promise<number | undefined> {
+    const rows = await this.fetchPaged(() => {
+      const builder = this.client.from(scope.tableName).select(key);
+      applyFilters(builder, scope.filter);
+      return builder;
+    });
+    const values = rows
+      .map((r) => (r as Dict<any>)[key])
+      .filter((v): v is number => v !== null && v !== undefined)
+      .map(Number);
+    if (values.length === 0) return undefined;
+    switch (kind) {
+      case 'sum':
+        return values.reduce((a, b) => a + b, 0);
+      case 'min':
+        // `reduce` (not `Math.min(...values)`) — the spread form blows the
+        // call stack once pagination makes `values` reachable in the tens of
+        // thousands of rows.
+        return values.reduce((a, b) => Math.min(a, b));
+      case 'max':
+        return values.reduce((a, b) => Math.max(a, b));
+      case 'avg':
+        return values.reduce((a, b) => a + b, 0) / values.length;
+    }
+  }
+
+  async deltaUpdate(spec: DeltaUpdateSpec): Promise<number> {
+    if (spec.deltas.length === 0 && (!spec.set || Object.keys(spec.set).length === 0)) return 0;
+    const pk = this.pk(spec.tableName);
+    const rows = await this.fetchPaged(() => {
+      const builder = this.client.from(spec.tableName).select('*');
+      applyFilters(builder, spec.filter);
+      return builder;
+    });
+    for (const row of rows) {
+      const next: Dict<any> = {};
+      for (const { column, by } of spec.deltas) next[column] = (Number(row[column]) || 0) + by;
+      if (spec.set) for (const [k, v] of Object.entries(spec.set)) next[k] = v;
+      const update = this.client.from(spec.tableName).update(next);
+      update.eq(pk, (row as Dict<any>)[pk]);
+      const res = await update;
+      if (res.error) throw new PersistenceError(res.error.message);
+    }
+    return rows.length;
+  }
+
+  async queryScoped(spec: QueryScopedSpec): Promise<unknown> {
+    return baseQueryScoped(this, spec);
+  }
+
+  private unsupported(op: string): never {
+    throw new UnsupportedOperationError(
+      `SupabaseConnector.${op} is unavailable over PostgREST (@supabase/supabase-js). ` +
+        `Manage schema with Supabase migrations, and run raw SQL / transactions server-side.`,
+    );
+  }
+
+  async execute(_query: string, _bindings: BaseType | BaseType[]): Promise<any[]> {
+    this.unsupported('execute');
+  }
+  async transaction<T>(_fn: () => Promise<T>): Promise<T> {
+    this.unsupported('transaction');
+  }
+  async hasTable(_tableName: string): Promise<boolean> {
+    this.unsupported('hasTable');
+  }
+  async createTable(_tableName: string, _blueprint: (t: TableBuilder) => void): Promise<void> {
+    this.unsupported('createTable');
+  }
+  async dropTable(_tableName: string): Promise<void> {
+    this.unsupported('dropTable');
+  }
+  async alterTable(_spec: AlterTableSpec): Promise<void> {
+    this.unsupported('alterTable');
+  }
+  async ensureSchema(): Promise<{ created: string[]; existing: string[] }> {
+    this.unsupported('ensureSchema');
+  }
+}

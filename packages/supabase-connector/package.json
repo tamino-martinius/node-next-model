@@ -1,0 +1,59 @@
+{
+  "name": "@next-model/supabase-connector",
+  "version": "1.2.0",
+  "description": "Supabase connector for next-model. Runs the Model query DSL against Supabase via @supabase/supabase-js (PostgREST).",
+  "author": "Tamino Martinius <dev@zaku.eu>",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./mock-client": {
+      "types": "./dist/MockSupabaseClient.d.ts",
+      "default": "./dist/MockSupabaseClient.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/__tests__",
+    "!dist/**/*.map"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tamino-martinius/node-next-model.git",
+    "directory": "packages/supabase-connector"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "watch": "tsc -w",
+    "clean": "rm -rf dist",
+    "build": "pnpm clean && tsc",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  },
+  "peerDependencies": {
+    "@next-model/core": "^1.1.1"
+  },
+  "devDependencies": {
+    "@next-model/core": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.9.3",
+    "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "better-sqlite3": "^12.11.1",
+    "pg": "^8.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

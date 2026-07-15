@@ -1,0 +1,24 @@
+{
+  "name": "@next-model-demos/supabase-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prestart": "pnpm --workspace-root run build:packages",
+    "start": "node --experimental-strip-types demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@next-model/core": "workspace:*",
+    "@next-model/supabase-connector": "workspace:*",
+    "better-sqlite3": "^12.11.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
