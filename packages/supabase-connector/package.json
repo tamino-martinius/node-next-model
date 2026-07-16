@@ -1,6 +1,6 @@
 {
   "name": "@next-model/supabase-connector",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "Supabase connector for next-model. Runs the Model query DSL against Supabase via @supabase/supabase-js (PostgREST).",
   "author": "Tamino Martinius <dev@zaku.eu>",
   "license": "MIT",

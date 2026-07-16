@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.2.2
+
 ### Added
 
 - Initial `@next-model/supabase-connector`: runs the next-model query DSL against Supabase via `@supabase/supabase-js` (PostgREST). One connector for both server (service_role) and browser (anon) usage — construction accepts a `SupabaseClient`, a `{ client }` wrapper, or `{ url, key, options }`. Translates `query`, `count`, `select`, `batchInsert`, `updateAll`, `deleteAll`, `upsert`, `aggregate`, `deltaUpdate`, `queryScoped`, and the full `Filter` operator set to PostgREST. Unbounded reads paginate around PostgREST's max-rows cap (configurable `pageSize`).

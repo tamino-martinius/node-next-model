@@ -1,6 +1,6 @@
 {
   "name": "@next-model/knex-connector",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "SQL connector for next-model, backed by Knex 3 (SQLite, Postgres, MySQL, MariaDB, Oracle, MSSQL).",
   "keywords": [
     "next-model",

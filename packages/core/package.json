@@ -1,6 +1,6 @@
 {
   "name": "@next-model/core",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "A typed, promise-based ORM for TypeScript. Declare models with a factory, chain immutable query scopes, manage associations, and plug in any storage via the Connector interface — with validators, callbacks, soft deletes, and a built-in in-memory connector.",
   "keywords": [
     "next-model",

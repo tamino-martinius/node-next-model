@@ -2,6 +2,8 @@
 
 ## vNext
 
+## v1.2.2
+
 ### Security
 
 - Patched `undici` advisories (`undici` → `>=6.27.0`, GHSA-vxpw-j846-p89q / GHSA-p88m-4jfj-68fv / GHSA-35p6-xmwp-9g52 / GHSA-g8m3-5g58-fq7m) via root `pnpm.overrides`, reached transitively through `sqlite3` → `node-gyp` (build-time only, optional native-build dependency).

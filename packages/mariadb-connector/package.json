@@ -1,6 +1,6 @@
 {
   "name": "@next-model/mariadb-connector",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Native MariaDB connector for next-model. Extends @next-model/mysql-connector and uses MariaDB's RETURNING clause.",
   "keywords": [
     "next-model",
